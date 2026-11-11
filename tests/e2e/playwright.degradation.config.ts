@@ -22,7 +22,7 @@ export default defineConfig({
   projects: [{ name: "specproof-degradation" }],
   webServer: [
     {
-      command: "cd ..\\..\\apps\\web && npm run dev -- --config ../../apps/web/vite.e2e.config.ts",
+      command: "cd ../../apps/web && npm run dev -- --config ../../apps/web/vite.e2e.config.ts",
       url: "http://127.0.0.1:5174",
       timeout: 120_000,
       reuseExistingServer: false,

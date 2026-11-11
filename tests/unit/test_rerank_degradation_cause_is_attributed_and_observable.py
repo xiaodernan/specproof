@@ -368,6 +368,10 @@ class _Embedder:
     def embed(self, texts: list[str]) -> EmbeddingOutcome:
         return EmbeddingOutcome([[0.1, 0.2] for _ in texts])
 
+    def close(self) -> None:
+        """The pooled connection is released here (#1620)."""
+        return None
+
 
 def test_hybrid_meta_carries_the_code_when_the_gateway_raises(
     monkeypatch: pytest.MonkeyPatch,

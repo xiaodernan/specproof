@@ -138,7 +138,9 @@ def _stub_graph(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def _stub_embedder(monkeypatch: pytest.MonkeyPatch, *, configured: bool) -> None:
     class _Embedder:
-        pass
+        def close(self) -> None:
+            """The pooled connection is released here (#1620)."""
+            return None
 
     _Embedder.configured = configured  # type: ignore[attr-defined]
     monkeypatch.setattr(
@@ -201,6 +203,96 @@ def test_hybrid_rrf_counts_hybrid_rrf(
         "the hybrid path must not touch the BM25 search API directly"
     )
     assert _deltas(before) == _only("hybrid_rrf")
+
+
+def test_the_node_releases_the_embedder_it_created(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The node owns the embedder it creates, so it releases the pooled
+    connection (#1620) when the retrieval is done.
+
+    The release is what makes the reuse safe: a client that is kept open
+    forever would keep a socket alive for a node that will never use it
+    again.
+    """
+    store = _FakeStore()
+    monkeypatch.setattr("storage.elasticsearch.ElasticsearchStore", lambda: store)
+    _stub_git_rev_parse(monkeypatch)
+    _stub_graph(monkeypatch)
+
+    closed: list[bool] = []
+
+    class _CountingEmbedder:
+        configured = True
+        model = "test-embed-model"
+        config_cause = ""
+
+        def embed(self, texts: list[str]) -> Any:
+            return None
+
+        def close(self) -> None:
+            closed.append(True)
+
+    monkeypatch.setattr(
+        "retrieval.embeddings.EmbeddingClient",
+        SimpleNamespace(from_env=lambda: _CountingEmbedder()),
+    )
+
+    def fake_hybrid_search(**kwargs: Any) -> Any:
+        return SimpleNamespace(
+            meta={
+                "mode": "hybrid_rrf",
+                "bm25_hits": 1,
+                "vector_hits": 1,
+                "rerank_mode": "off",
+                "embedding_used": True,
+            },
+            results=[{**_HIT, "source": "hybrid", "rank": 1, "rrf_score": 0.5}],
+        )
+
+    monkeypatch.setattr("retrieval.hybrid.hybrid_search", fake_hybrid_search)
+
+    retrieve_repository_context_node(_state(tmp_path))  # type: ignore[arg-type]
+
+    assert closed, "the node kept the embedder's pooled connection open"
+
+
+def test_the_node_releases_the_embedder_even_when_the_search_fails(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A failing search must not leak the connection: the release is in a
+    finally, so it happens on the failure path too."""
+    store = _FakeStore()
+    monkeypatch.setattr("storage.elasticsearch.ElasticsearchStore", lambda: store)
+    _stub_git_rev_parse(monkeypatch)
+    _stub_graph(monkeypatch)
+
+    closed: list[bool] = []
+
+    class _CountingEmbedder:
+        configured = True
+        model = "test-embed-model"
+        config_cause = ""
+
+        def embed(self, texts: list[str]) -> Any:
+            return None
+
+        def close(self) -> None:
+            closed.append(True)
+
+    monkeypatch.setattr(
+        "retrieval.embeddings.EmbeddingClient",
+        SimpleNamespace(from_env=lambda: _CountingEmbedder()),
+    )
+
+    def boom(**kwargs: Any) -> Any:
+        raise RuntimeError("search backend down")
+
+    monkeypatch.setattr("retrieval.hybrid.hybrid_search", boom)
+
+    retrieve_repository_context_node(_state(tmp_path))  # type: ignore[arg-type]
+
+    assert closed, "the failing path leaked the embedder's pooled connection"
 
 
 def test_bm25_graph_counts_bm25_graph(

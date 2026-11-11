@@ -402,3 +402,57 @@ jobs:
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
         run: python scripts/provider_smoke.py
 
+
+  # ── e2e ───────────────────────────────────────────────────────────────
+  # #1620: the Playwright suite had been RED for seven weeks and nobody
+  # knew, because no automated path ran it -- the web job below covers
+  # typecheck/vitest/build, which cannot tell whether the product still
+  # renders the thing the scenario describes. The 2026-09-24 "high-traffic
+  # page localization" commit renamed several surfaces (the nav entry, the
+  # panel title, the stage labels, the wizard's step count) and the suite
+  # drifted away from the product one expectation at a time.
+  #
+  # The suite runs the REAL app: the real FastAPI app behind the real Vite
+  # dev server, with the storage backends swapped for in-memory fakes by
+  # tests/e2e/fixture_server.py (no DOM mocks, no rewritten API). No
+  # database, no Redis, no model gateway: the fixture generates the
+  # credentials it needs and the scenarios assert on the shipped UI.
+  #
+  # The degradation project runs too: it starts NO backend on purpose and
+  # asserts the SPA degrades gracefully (no white screen).
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install Python dependencies (the fixture server imports the real API)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Install npm dependencies
+        working-directory: apps/web
+        run: npm ci
+      - name: Install the Playwright browser
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - name: e2e scenarios (the real app in a real browser)
+        working-directory: apps/web
+        env:
+          # the suite's config and specs live outside apps/web, so the
+          # @playwright/test dependency has to be resolvable from there
+          NODE_PATH: ${{ github.workspace }}/apps/web/node_modules
+        run: npx playwright test --config ../../tests/e2e/playwright.config.ts
+      - name: e2e degradation scenario (no backend on purpose)
+        working-directory: apps/web
+        env:
+          NODE_PATH: ${{ github.workspace }}/apps/web/node_modules
+        run: npx playwright test --config ../../tests/e2e/playwright.degradation.config.ts

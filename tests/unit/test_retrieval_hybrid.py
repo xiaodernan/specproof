@@ -816,7 +816,9 @@ def test_node_bm25_path_without_embeddings(tmp_path, monkeypatch):
 def test_node_hybrid_path_with_embeddings(tmp_path, monkeypatch):
     store = FakeStore()
     _patch_node(monkeypatch, store)
-    configured = SimpleNamespace(configured=True, config_reason="")
+    configured = SimpleNamespace(
+        configured=True, config_reason="", close=lambda: None,
+    )
     monkeypatch.setattr(
         "retrieval.embeddings.EmbeddingClient",
         SimpleNamespace(from_env=lambda: configured),

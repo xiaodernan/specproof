@@ -24,14 +24,21 @@ test.describe("详情 detail — 任务详情渲染矩阵/报告区块", () => {
     await expect(page.getByText("验收条件", { exact: true })).toBeVisible();
     await expect(page.getByText("已通过", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("未通过", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("证据与产物 Artifacts")).toBeVisible();
+    // The panel title is "证据与产物" -- the "/ Artifacts" suffix was
+    // dropped when the panel titles were localized (2026-09-24); the suite
+    // was not in CI, so nobody noticed the drift until now.
+    await expect(page.getByText("证据与产物", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("reports/verify-e2e00000.html")).toBeVisible();
 
     // Stages tab: seeded pipeline timeline.
     await page.getByRole("tab", { name: "执行进度" }).click();
-    await expect(page.getByText("intake")).toBeVisible();
-    await expect(page.getByText("compile_contracts")).toBeVisible();
-    await expect(page.getByText("publish_report")).toBeVisible();
+    // The stage row shows the HUMAN label ("接收任务 · 校验输入"); the raw
+    // node id stays in the title attribute, which is the stable contract
+    // (apps/web/src/ui/stages.ts maps ids to labels and passes unknown ids
+    // through verbatim).
+    await expect(page.locator('.stage-node[title="intake"]')).toBeVisible();
+    await expect(page.locator('.stage-node[title="compile_contracts"]')).toBeVisible();
+    await expect(page.locator('.stage-node[title="publish_report"]')).toBeVisible();
 
     // Findings tab: the seeded MAJOR finding on contract AUTH-02.
     await page.getByRole("tab", { name: "风险发现 (1)" }).click();

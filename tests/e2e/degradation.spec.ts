@@ -37,7 +37,9 @@ test.describe("降级 degradation — 后端不可达时的优雅降级", () => 
     await page.addInitScript(() => sessionStorage.setItem("specproof_api_key", "e2e-degradation-key"));
     await page.goto("/#/agent/new");
     await expect(page.getByTestId("wizard-repo")).toBeVisible();
-    await expect(page.getByText("步骤 1/4 — 目标仓库")).toBeVisible();
+    // The wizard is a THREE-step wizard (the "gates" step was removed:
+    // it had no editable control at all), so the first step reads 1/3.
+    await expect(page.getByText("步骤 1/3 — 目标仓库")).toBeVisible();
     await expect(page.locator("#root")).not.toBeEmpty();
   });
 });

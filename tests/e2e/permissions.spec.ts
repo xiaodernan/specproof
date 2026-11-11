@@ -14,9 +14,12 @@ test.describe("权限 permissions — W37 身份 UI: viewer vs admin", () => {
     expect(token.length).toBeGreaterThan(0);
 
     await loginWithToken(page, token);
-    await expect(page.locator(".nav-item", { hasText: "身份" })).toBeVisible();
+    // The nav entry is "团队与权限" now (it was "身份"); the role is shown
+    // as a glossed pill -- "管理员 · admin" -- so the token is matched
+    // through its title attribute, which carries the raw role verbatim.
+    await expect(page.locator(".nav-item", { hasText: "团队与权限" })).toBeVisible();
     await expect(
-      page.locator(".tenant-roles").getByText("admin", { exact: true })
+      page.locator('.tenant-roles .pill[title="admin"]')
     ).toBeVisible();
 
     await page.goto("/#/identity");
@@ -36,14 +39,14 @@ test.describe("权限 permissions — W37 身份 UI: viewer vs admin", () => {
 
     await loginWithToken(page, token);
     await expect(
-      page.locator(".tenant-roles").getByText("viewer", { exact: true })
+      page.locator('.tenant-roles .pill[title="viewer"]')
     ).toBeVisible();
 
     // With the App.tsx nav gate the sidebar entry is hidden for a known
     // non-admin/operator principal; without it, clicking the entry must
     // still land on the forbidden notice — a viewer never reaches the
     // admin controls in either configuration.
-    const identityNav = page.locator(".nav-item", { hasText: "身份" });
+    const identityNav = page.locator(".nav-item", { hasText: "团队与权限" });
     if ((await identityNav.count()) > 0) {
       await identityNav.first().click();
     } else {
@@ -61,13 +64,15 @@ test.describe("权限 permissions — W37 身份 UI: viewer vs admin", () => {
 
     // Read-only surfaces keep working for the viewer (RBAC jobs:read).
     await page.goto("/#/jobs");
-    await expect(page.locator("tbody tr", { hasText: "e2e/demo-repo" })).toBeVisible();
+    // The job list shows the repository's last path segment ("demo-repo"),
+    // not the whole path -- that is what the current Jobs page renders.
+    await expect(page.locator("tbody tr", { hasText: "demo-repo" })).toBeVisible();
   });
 
   test("unauthenticated visitor only sees the login gate", async ({ page }) => {
     await page.goto("/#/jobs");
     await expect(page.locator(".login-card")).toBeVisible();
     await expect(page.locator(".shell")).toHaveCount(0);
-    await expect(page.locator(".nav-item", { hasText: "身份" })).toHaveCount(0);
+    await expect(page.locator(".nav-item", { hasText: "团队与权限" })).toHaveCount(0);
   });
 });

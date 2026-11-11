@@ -713,6 +713,10 @@ class _Embedder:
             return self._outcome
         return EmbeddingOutcome([[0.1, 0.2] for _ in texts])
 
+    def close(self) -> None:
+        """The pooled connection is released here (#1620)."""
+        return None
+
 
 def _hybrid(store: _Store, embedder: Any) -> dict[str, Any]:
     return hybrid_search(es=store, query="email change", repo="r", k=3, embedder=embedder).meta

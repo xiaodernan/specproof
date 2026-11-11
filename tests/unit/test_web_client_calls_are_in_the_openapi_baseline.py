@@ -155,7 +155,11 @@ def test_the_client_covers_at_least_the_admin_surface() -> None:
     billing, demo and job-feedback surfaces. Without it, a rename that
     emptied the client of calls would satisfy the gate above vacuously."""
     calls = _client_calls()
-    prefixes = {template.split("/")[3] for _method, template in calls if template.startswith("/api/v1/")}
+    prefixes = {
+        template.split("/")[3]
+        for _method, template in calls
+        if template.startswith("/api/v1/")
+    }
     for prefix in ("admin", "billing", "demo", "jobs"):
         assert prefix in prefixes, (
             f"the client no longer calls /api/v1/{prefix} — the gate above "

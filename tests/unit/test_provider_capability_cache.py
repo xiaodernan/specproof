@@ -52,7 +52,10 @@ def _redis_or_skip():
     return store
 
 
-def _snapshot(capabilities: dict[str, Any], probed_at: str = "2026-11-10T00:00:00+00:00") -> dict[str, Any]:
+def _snapshot(
+    capabilities: dict[str, Any],
+    probed_at: str = "2026-11-10T00:00:00+00:00",
+) -> dict[str, Any]:
     return {
         "capabilities": capabilities,
         "limits": {},

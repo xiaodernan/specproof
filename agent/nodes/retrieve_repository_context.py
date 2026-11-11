@@ -211,19 +211,35 @@ def retrieve_repository_context_node(state: Phase0State) -> dict[str, Any]:
         if embedder.configured:
             # RAG 2.0 hybrid path (卷IV 4.2): index with vectors, then
             # BM25 + vector RRF → graph expansion → optional rerank.
-            indexed_report = store.index_with_embeddings(
-                repo_key, head_sha, files, embedder,
-                **_index_job_kwargs(job_id),
-            )
-            outcome = hybrid_search(
-                es=store,
-                query=query,
-                repo=repo_key,
-                k=16,
-                graph=graph,
-                embedder=embedder,
-                use_llm=use_llm,
-            )
+            #
+            # The embedder keeps ONE http client for its whole life (#1620),
+            # so the two calls below share a connection (one handshake, not
+            # two). The client is released right after them: the node is the
+            # embedder's only owner, and the socket should not outlive the
+            # work that needed it.
+            try:
+                indexed_report = store.index_with_embeddings(
+                    repo_key, head_sha, files, embedder,
+                    **_index_job_kwargs(job_id),
+                )
+                outcome = hybrid_search(
+                    es=store,
+                    query=query,
+                    repo=repo_key,
+                    k=16,
+                    graph=graph,
+                    embedder=embedder,
+                    use_llm=use_llm,
+                )
+            finally:
+                # The embedder is duck-typed (the repo's stand-ins implement
+                # only what hybrid.py receives), so the release is optional:
+                # a client that owns a pooled connection is closed, and an
+                # object without close() simply has nothing to release. A
+                # missing release must never fail the retrieval.
+                closer = getattr(embedder, "close", None)
+                if callable(closer):
+                    closer()
             meta = outcome.meta
             context = [
                 {

@@ -150,6 +150,7 @@ class EmbeddingClient:
             self.base_url = (
                 os.getenv("LLM_EMBEDDING_BASE_URL") or os.getenv("LLM_BASE_URL") or ""
             ).rstrip("/")
+        self._client: httpx.Client | None = None
         if api_key is not None:
             self.api_key = api_key
         else:
@@ -246,16 +247,38 @@ class EmbeddingClient:
                 vectors.append(vector)
         return EmbeddingOutcome(vectors)
 
+    def _http_client(self) -> httpx.Client:
+        """The shared httpx client: built once, reused (#1620).
+
+        ``outbound_client`` keeps the proxy repair and the CA-bundle trust
+        the rest of the codebase relies on; the only difference here is the
+        LIFETIME. One client for the embedder means one TCP (and TLS)
+        handshake for the whole run instead of one per batch and one per
+        retry -- the connection is kept warm by the pool.
+        """
+        if self._client is None:
+            self._client = outbound_client(
+                timeout=self.timeout, transport=self._transport
+            )
+        return self._client
+
+    def close(self) -> None:
+        """Release the pooled connection."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
     def _embed_batch(self, batch: list[str]) -> EmbeddingOutcome:
         def _attempt() -> httpx.Response:
-            with outbound_client(timeout=self.timeout, transport=self._transport) as client:
-                response = client.post(
-                    self.base_url + "/embeddings",
-                    json={"model": self.model, "input": batch},
-                    headers={"Authorization": "Bearer " + self.api_key},
-                )
-                response.raise_for_status()
-                return response
+            # NOT a `with`: closing here would undo the reuse.
+            client = self._http_client()
+            response = client.post(
+                self.base_url + "/embeddings",
+                json={"model": self.model, "input": batch},
+                headers={"Authorization": "Bearer " + self.api_key},
+            )
+            response.raise_for_status()
+            return response
 
         retryer = Retrying(
             retry=retry_if_exception(_is_retryable),

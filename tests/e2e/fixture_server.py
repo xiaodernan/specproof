@@ -297,8 +297,61 @@ class FakeMySQLStore:
             "acceptance_rate_pct": None if total == 0 else round(100.0 * accepted / total, 1),
         }
 
+    def dashboard_snapshot(self, since: datetime) -> dict[str, list[dict[str, Any]]]:
+        """The dashboard's three reads, answered from the seeded rows.
+
+        The route aggregates these in SQL; the fake answers the SAME shape
+        (the route reads the keys strictly -- a missing "demo_jobs" would
+        raise there and turn the page into its degraded state).
+
+        Why this exists: the longtext scenario measures the dashboard's own
+        scroll box around the recent-jobs table. Without this method the
+        route degrades, the page renders its empty state, and the scenario
+        has no table to measure -- it would fail on a locator that no
+        product page could satisfy.
+        """
+        rows = [dict(row) for row in self.rows.values()]
+        counts: dict[str, int] = {}
+        for row in rows:
+            status = str(row.get("status") or "UNKNOWN")
+            counts[status] = counts.get(status, 0) + 1
+        statuses = [
+            {"status": status, "n": n, "demo_jobs": 0}
+            for status, n in counts.items()
+        ]
+        timeline = [
+            {
+                "hour": str(row.get("created_at") or "")[:13] + ":00:00",
+                "count": 1,
+                "failed": 1 if row.get("status") in ("FAILED", "ERROR") else 0,
+                "demo_jobs": 0,
+                "demo_failed": 0,
+            }
+            for row in rows
+        ]
+        recent = [
+            {
+                "id": row.get("id"),
+                "repo_path": row.get("repo_path"),
+                "base_ref": row.get("base_ref"),
+                "head_ref": row.get("head_ref"),
+                "status": row.get("status"),
+                "depth": row.get("depth"),
+                "created_at": row.get("created_at"),
+                "is_demo": 0,
+            }
+            for row in rows[:10]
+        ]
+        return {"statuses": statuses, "timeline": timeline, "recent_jobs": recent}
+
     def search_jobs(
-        self, limit: int, offset: int = 0, status: str | None = None, query: str = "", cursor=None) -> dict[str, Any]:
+        self,
+        limit: int,
+        offset: int = 0,
+        status: str | None = None,
+        query: str = "",
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
         rows = [dict(row) for row in self.rows.values()]
         if status:
             rows = [row for row in rows if row.get("status") == status]

@@ -30281,3 +30281,92 @@ AWS《Exponential Backoff and Jitter》量化了这件事；本仓两条退避�
 - 截图基线（e2e 截图 diff），把"美观"从 token 级推到像素级；
 - 连接池上限（Redis/MySQL/httpx）、崩溃注入演练；
 - 全量门 v10（master 1668bab 快照）在后台跑。
+## #1620 连接复用：embedder 只建一个 http 客户端（一次握手，不是每批一次）+ e2e 套件从 2/7 修到 7/7 并接进 CI
+
+**记录基准**：本节只追加；落地于附带提交（master 链 5316fd2 → 本节提交）。
+
+**来路。** 用户指示点名"计网知识的运用"。审计连接复用时发现一处真问题：
+`retrieval/embeddings.py` 在**每个批次、每次重试**都新建一个 httpx client
+（`with outbound_client(...) as client:`）——于是每个批次付一次 TCP + TLS 握手，
+而连接池存在的意义正是把这次握手摊掉。
+
+### 一、连接复用（embedder）
+
+**落地（`retrieval/embeddings.py`）：**
+- 客户端**懒建一次、复用到底**：新增 `_http_client()`（首次调用时建，之后复用）
+  与 `close()`（显式释放连接池）；
+- `_embed_batch` 不再用 `with`（`with` 会在每次尝试后关闭 client，正好抵消复用），
+  改为直接取用共享 client；
+- 调用点 `agent/nodes/retrieve_repository_context.py`：节点是 embedder 的所有者，
+  用 `finally` 在两处使用之后释放连接（**成功与失败路径都释放**）；
+  释放是**可选**的（`getattr(embedder, "close", None)`）——本仓的 embedder 是
+  **鸭子类型**（替身只实现 hybrid.py 需要的形状），强制要求 `close()` 会把
+  "没有可释放的东西"变成 AttributeError，并把整次检索变成
+  "Repository retrieval failed"（本轮实测踩到，并按本仓风格改成容错）。
+
+**验证读数（实测）：**
+- 新增 `tests/unit/test_embedding_client_reuses_one_connection.py`（3 腿，**计数**
+  而非计时——共享机器上计时断言既 flaky 又说得更少）：
+  ① 5 条文本 / 批大小 2 → **3 次请求、1 个客户端**（旧形状是 3 个客户端）；
+  ② 重试路径 → **2 次尝试、1 个客户端**（重试不再另开连接）；
+  ③ `close()` 真的关掉客户端，且重复调用安全；
+- 检索节点侧加两腿（`tests/unit/test_retrieve_repository_context_node_execution_is_observable.py`）：
+  **成功路径**与**失败路径**都释放了 embedder 的连接；
+- 既有 retrieval / rerank / vector-channel 相关测试：**162 passed**；
+- `mypy` + `ruff` 对改动文件均干净。
+
+**诚实边界：**
+- 本号量的是**客户端构造次数**（结构事实），**没有**测量省下的握手时间或 RTT；
+- 复用意味着连接会**跨批次保持**：长驻进程里 socket 的存活时间变长，这是
+  keep-alive 的正常代价，不是泄漏（`close()` 负责收尾）；
+- 该 embedder 只在 RAG 检索路径用；**LLM provider 侧本来就复用** SDK 客户端
+  （`AsyncOpenAI`），不在本号范围；
+- 四个测试替身（`_Embedder` / `SimpleNamespace`）补了 `close()`，让替身与真实
+  接口一致——本仓的替身是鸭子类型，生产代码因此**不能**假设某个方法一定存在。
+
+### 二、e2e 套件：红了七周没人跑（CI 里没有这条腿）
+
+CI 里**没有 e2e 腿**（web 腿只有 typecheck/vitest/build，而这三样看不出
+"产品还画不画得出场景描述的那个东西"）。2026-09-24 那次"高频页中文化"提交把好几处
+界面改名之后，e2e 就一直红着没人知道。本机把套件真跑起来：**2 过 5 败**。
+逐条查清后，5 条全是**期望值与现行产品漂移**（不是产品坏了），另有 1 条是
+**fixture 缺接口**（量的其实是空页面）：
+
+| 场景 | 旧期望 | 现行产品 | 处置 |
+|---|---|---|---|
+| detail | 面板标题 `证据与产物 Artifacts` | `证据与产物` | 改期望 |
+| detail | 阶段节点文本 `intake` / `compile_contracts` / `publish_report` | 文本是中文说明，**原始 id 在 title 属性** | 改期望（`.stage-node[title="intake"]`） |
+| longtext | `.table-scroll table.data tbody tr` 存在 | fixture **没有 dashboard 聚合接口** → 路由走降级分支 → 页面渲染空态 | **补 fixture**（`dashboard_snapshot`），否则该场景量的是空页面 |
+| permissions | 侧栏项含 `身份` | `团队与权限` | 改期望 |
+| permissions | `.tenant-roles` 文本恰为 `admin` / `viewer` | 角色是带释义的胶囊：`管理员 · admin` | 改期望（`.tenant-roles .pill[title="admin"]`，title 里是原样 token） |
+| permissions | 作业行含 `e2e/demo-repo` | 作业列表只显示**路径最后一段** `demo-repo` | 改期望 |
+| wizard | 4 步向导（repo→spec→**gates**→review） | **3 步**（"门禁"那步没有任何可编辑控件，只让人空点一次，其诚实说明已并入审阅页） | 改期望（3 步 + 断言审阅页的诚实说明） |
+| wizard | 新建任务状态 `PLANNING` | 状态取决于环境（无 LLM 时计划**诚实失败** → FAILED） | 改期望为**词表成员**（状态胶囊的 title 属性 ∈ 控制台词表），而不是钉死某个 token |
+
+fixture 的 `dashboard_snapshot` 按路由的**严格读**补齐（缺 `demo_jobs` 键会抛错、
+并让整页降级），返回 `statuses` / `timeline` / `recent_jobs` 三张表。
+
+**读数（实测）：** `npx playwright test --config ../../tests/e2e/playwright.config.ts`
+→ **7 passed（46.0s）**；此前是 2 passed / 5 failed。
+
+### 三、把 e2e 接进 CI（缺的那条腿）
+
+新增 `e2e` 作业（`.github/workflows/ci.yml`）：node 22 + `npm ci` +
+`npx playwright install --with-deps chromium` + `pip install -e ".[dev]"`
+（fixture 要 import 真正的 API）→ 跑主套件，**再跑降级套件**
+（`playwright.degradation.config.ts`：故意不启后端，断言 SPA 优雅降级、不是白屏）。
+两个 Playwright 配置里的 `cd ..\..\apps\web` 改成**正斜杠**——那是 Windows 写法，
+在 sh 里反斜杠会吃掉下一个字符、路径变垃圾（CI 是 ubuntu）。
+
+**诚实边界：**
+- CI 的 e2e 腿**本轮未在 GitHub 上实跑过**（本机 7/7 绿 + 配置已按 ubuntu 改写）；
+  它第一次上 CI 的结果以 CI 为准，本号只登记"本机绿、CI 未验"；
+- e2e 用的是**真应用 + 内存替身存储**（fixture 换掉存储后端，不改 api/ 代码），
+  所以它验的是"界面与契约"，不是"MySQL/Redis 真跑起来是什么样"；
+- 修的是**期望**，不是产品：#1620 没有为了让场景变绿而改任何产品行为；
+  唯一的产品侧改动是 fixture 补齐了它本就该有的聚合接口。
+
+**下一号队列（不动）：**
+- 连接池上限（Redis 的 max_connections / MySQL 的有界连接池）；
+- 截图基线（像素级"美观"回归）、崩溃注入演练；
+- 全量门 v10（master 1668bab 快照）在后台跑。
