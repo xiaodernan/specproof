@@ -382,7 +382,7 @@ a {
   right: var(--sp-2);
   bottom: -1px;
   height: 2px;
-  border-radius: 2px 2px 0 0;
+  border-radius: var(--radius-2xs) var(--radius-2xs) 0 0;
   background: var(--accent-500);
 }
 
@@ -507,7 +507,7 @@ a {
 .ui-term-text:focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: 2px;
-  border-radius: 2px;
+  border-radius: var(--radius-2xs);
 }
 
 .ui-term .ui-tooltip {
@@ -725,7 +725,7 @@ a {
 .ui-checkbox-frame {
   position: absolute;
   inset: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-2xs);
   background: var(--color-control);
   border: 1px solid var(--color-border-strong);
   transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
@@ -1514,7 +1514,7 @@ label.field { display: block; color: var(--color-text-2); font-size: var(--fs-12
 .stage-duration { font-family: var(--font-mono); min-width: 78px; text-align: right; color: var(--color-text-3); font-variant-numeric: tabular-nums; }
 .stage-failed-at { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--danger-fg); font-variant-numeric: tabular-nums; }
 .stage-artifacts { display: inline-flex; gap: 4px; flex-wrap: wrap; }
-.stage-artifact { font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--accent-text); background: var(--accent-tint); border: 1px solid var(--accent-500); border-radius: 3px; padding: 0 4px; white-space: nowrap; }
+.stage-artifact { font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--accent-text); background: var(--accent-tint); border: 1px solid var(--accent-500); border-radius: var(--radius-2xs); padding: 0 4px; white-space: nowrap; }
 
 .bar { height: 6px; background: var(--color-surface-3); border-radius: var(--radius-full); overflow: hidden; margin: var(--sp-2) 0; }
 .bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent-600), var(--accent-2-400)); border-radius: inherit; transition: width var(--dur-slow) var(--ease-out); }
@@ -1552,7 +1552,7 @@ pre.json {
 }
 
 .timeline-chart { display: flex; align-items: flex-end; gap: 4px; height: 90px; margin: var(--sp-2) 0; }
-.tl-bar { flex: 1; background: linear-gradient(180deg, var(--accent-500), var(--accent-2-400)); border-radius: 2px 2px 0 0; min-height: 2px; }
+.tl-bar { flex: 1; background: linear-gradient(180deg, var(--accent-500), var(--accent-2-400)); border-radius: var(--radius-2xs) var(--radius-2xs) 0 0; min-height: 2px; }
 .tl-bar.tl-failed { background: var(--danger); }
 .tl-label { font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--color-text-3); text-align: center; transform: rotate(-45deg); transform-origin: center; height: 0; }
 

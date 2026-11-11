@@ -4,21 +4,21 @@
 .verification-eyebrow { font-size: var(--text-2xs); letter-spacing: .18em; font-weight: 700; color: var(--accent-text); }
 .verification-description { font-size: var(--text-lg); line-height: 1.9; color: var(--color-text-2); max-width: 720px; margin: 0; }
 .verification-layout { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(280px, 1fr); gap: 28px; align-items: start; margin-top: 32px; }
-.verification-form { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 16px; padding: 32px; }
+.verification-form { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-xl); padding: 32px; }
 .verification-form fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .verification-form-section + .verification-form-section { margin-top: 32px; padding-top: 28px; border-top: 1px solid var(--color-border); }
 .verification-form-section .ui-field { margin-top: 24px; }
 .verification-form .ui-input { height: 44px; }
 .verification-section-title { display: flex; align-items: flex-start; gap: 16px; }
-.verification-section-title > span { border: 1px solid var(--color-border-strong); color: var(--accent-text); border-radius: 9px; width: 34px; height: 34px; display: grid; place-items: center; font: 12px var(--font-mono); flex-shrink: 0; }
+.verification-section-title > span { border: 1px solid var(--color-border-strong); color: var(--accent-text); border-radius: var(--radius-md); width: 34px; height: 34px; display: grid; place-items: center; font: 12px var(--font-mono); flex-shrink: 0; }
 .verification-section-title h2 { font-size: var(--text-xl); font-weight: 600; margin: 0 0 8px; }
 .verification-section-title p { color: var(--color-text-2); font-size: var(--text-sm); margin: 0; line-height: 1.8; }
 .verification-ref-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.demo-fill-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 16px; margin-bottom: 20px; border-radius: 12px; border: 1px solid var(--accent-text, var(--accent-2-500)); background: color-mix(in srgb, var(--accent-text, var(--accent-2-500)) 8%, transparent); }
+.demo-fill-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 16px; margin-bottom: 20px; border-radius: var(--radius-lg); border: 1px solid var(--accent-text, var(--accent-2-500)); background: color-mix(in srgb, var(--accent-text, var(--accent-2-500)) 8%, transparent); }
 .demo-fill-banner span { font-size: var(--text-md); line-height: 1.7; }
 .wizard-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; }
 .wizard-examples-label { font-size: var(--text-sm); color: var(--color-text-2); }
-.wizard-example-chip { border: 1px solid var(--color-border); background: var(--color-surface); border-radius: 999px; padding: 4px 16px; font-size: var(--text-sm); cursor: pointer; }
+.wizard-example-chip { border: 1px solid var(--color-border); background: var(--color-surface); border-radius: var(--radius-full); padding: 4px 16px; font-size: var(--text-sm); cursor: pointer; }
 .wizard-example-chip:hover { border-color: var(--accent-text); color: var(--accent-text); }
 .verification-submit { margin-top: 32px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid var(--color-border); padding-top: 24px; }
 .verification-submit > span { color: var(--color-text-2); font-size: var(--text-sm); }
@@ -29,7 +29,7 @@
 .verification-benefits li::before { content: "✓"; color: var(--success); position: absolute; left: 0; }
 .verification-benefits strong { font-size: var(--text-md); font-weight: 600; }
 .verification-benefits p, .verification-note { font-size: var(--text-sm); line-height: 1.85; color: var(--color-text-2); margin: 8px 0; }
-.verification-example { border-radius: 12px; border: 1px solid var(--color-border); background: var(--color-surface-2); padding: 20px; margin: 28px 0 20px; }
+.verification-example { border-radius: var(--radius-lg); border: 1px solid var(--color-border); background: var(--color-surface-2); padding: 20px; margin: 28px 0 20px; }
 .verification-example strong { font-size: var(--text-sm); }
 .verification-example p { font-size: var(--text-md); line-height: 1.85; margin: 8px 0; }
 .verification-example span { font-size: var(--text-xs); color: var(--color-text-2); line-height: 1.9; display: block; }
@@ -46,10 +46,10 @@
 .verification-pagination { display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-top: 20px; font-size: var(--text-sm); color: var(--color-text-2); }
 .verification-pagination > div { display: flex; align-items: center; gap: 12px; }
 .verification-empty { text-align: center; padding: 56px 24px; }
-.verification-empty > span { display: inline-grid; place-items: center; width: 52px; height: 52px; border-radius: 16px; background: var(--accent-tint); color: var(--accent-text); font-size: var(--text-3xl); }
+.verification-empty > span { display: inline-grid; place-items: center; width: 52px; height: 52px; border-radius: var(--radius-xl); background: var(--accent-tint); color: var(--accent-text); font-size: var(--text-3xl); }
 .verification-empty h3 { font-size: var(--text-xl); font-weight: 500; margin: 20px 0 8px; }
 .verification-empty p { color: var(--color-text-2); font-size: var(--text-md); line-height: 1.8; margin: 0 auto 24px; max-width: 430px; }
-.verification-detail-banner { border: 1px solid var(--color-border); background: var(--color-surface); padding: 24px 24px; border-radius: 14px; margin: 24px 0; }
+.verification-detail-banner { border: 1px solid var(--color-border); background: var(--color-surface); padding: 24px 24px; border-radius: var(--radius-lg); margin: 24px 0; }
 .verification-detail-banner h2 { font-size: var(--text-xl); font-weight: 500; margin: 0 0 8px; }
 .verification-detail-banner p { font-size: var(--text-md); color: var(--color-text-2); line-height: 1.8; margin: 0; }
 .verification-detail-banner .next-action { display: flex; align-items: center; gap: 8px; margin-top: 16px; color: var(--color-text); font-size: var(--text-lg); font-weight: 500; }
