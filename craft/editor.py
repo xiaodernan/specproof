@@ -165,9 +165,18 @@ def _relaxed_ws_anchor(text: str, old: str) -> tuple[int, int, int] | None:
     width = len(needle)
     occurrences = 0
     first_start = 0
+    # Normalize the file's lines ONCE (#1616).  The old shape re-normalized
+    # every window, so the scan paid O(lines x width) normalizations where
+    # O(lines) is enough -- measured 35 ms on a 5000-line file with a
+    # 30-line anchor, every edit of every file.  The first-line compare is
+    # the cheap reject: most windows die on their first line, so the full
+    # window compare only runs for the candidates that can match.
+    normalized_lines = [_normalize_ws_line(line) for line in file_lines]
+    first_needle = needle[0]
     for start_index in range(len(file_lines) - width + 1):
-        window = file_lines[start_index : start_index + width]
-        if [_normalize_ws_line(line) for line in window] != needle:
+        if normalized_lines[start_index] != first_needle:
+            continue
+        if normalized_lines[start_index : start_index + width] != needle:
             continue
         if occurrences == 0:
             first_start = start_index
