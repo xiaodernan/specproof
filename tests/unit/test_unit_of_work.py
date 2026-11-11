@@ -83,10 +83,19 @@ def _store(store_cls: type[Any], conn: FakeConnection) -> Any:
 
 
 def _teardown_logs(caplog: Any) -> list[str]:
+    """The teardown facts, wherever the teardown happens.
+
+    #1622 moved the CLOSE out of the unit of work and into the
+    connection pool (a pooled connection is released, not closed), so the
+    close's own failure is now logged by the pool. The rule the gate
+    cares about is unchanged: a teardown failure is a fact, so it is
+    logged -- and it never replaces the real cause.
+    """
     return [
         record.getMessage()
         for record in caplog.records
         if record.name.startswith("storage.unit_of_work")
+        or record.name.startswith("storage.connection_pool")
     ]
 
 

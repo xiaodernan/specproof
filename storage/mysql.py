@@ -27,11 +27,18 @@ from contracts.demo_marker import (
     IS_DEMO_FAILED,
 )
 from contracts.events import payload_digest
-from storage.env_config import int_env
+from storage.connection_pool import DEFAULT_ACQUIRE_TIMEOUT, DEFAULT_POOL_SIZE
+from storage.env_config import float_env, int_env
 from storage.tenant_scope import current_scope
 from storage.unit_of_work import unit_of_work
 
 logger = logging.getLogger(__name__)
+
+#: How many MySQL connections ONE process may hold (#1622).
+MYSQL_DEFAULT_POOL_SIZE = DEFAULT_POOL_SIZE
+#: How long a caller waits for a connection to come back before the pool
+#: says so (seconds).
+MYSQL_DEFAULT_POOL_ACQUIRE_TIMEOUT = DEFAULT_ACQUIRE_TIMEOUT
 
 # ── Tenant-aware job SQL (industrialization phase 1) ─────────────
 # When a tenant scope is active (multi-tenant auth mode) every job read
@@ -374,6 +381,14 @@ class MySQLConfig:
     connect_timeout: int = 5
     read_timeout: int = 15
     write_timeout: int = 15
+    #: How many connections THIS PROCESS may hold to MySQL (#1622). Without
+    #: a bound the count was whatever the concurrency happened to be, and
+    #: the only ceiling was the server's ``max_connections``.
+    pool_size: int = MYSQL_DEFAULT_POOL_SIZE
+    #: How long a caller waits for a connection to come back before the
+    #: pool says so (seconds). Waiting forever would turn a saturated
+    #: database into a request with no story.
+    pool_acquire_timeout: float = MYSQL_DEFAULT_POOL_ACQUIRE_TIMEOUT
 
     @classmethod
     def from_env(cls) -> "MySQLConfig":
@@ -386,6 +401,10 @@ class MySQLConfig:
             connect_timeout=int_env("MYSQL_CONNECT_TIMEOUT", 5),
             read_timeout=int_env("MYSQL_READ_TIMEOUT", 15),
             write_timeout=int_env("MYSQL_WRITE_TIMEOUT", 15),
+            pool_size=int_env("MYSQL_POOL_SIZE", MYSQL_DEFAULT_POOL_SIZE),
+            pool_acquire_timeout=float_env(
+                "MYSQL_POOL_ACQUIRE_TIMEOUT", MYSQL_DEFAULT_POOL_ACQUIRE_TIMEOUT
+            ),
         )
 
 
@@ -493,12 +512,19 @@ class MySQLStore:
 
     @contextmanager
     def connection(self) -> Iterator[pymysql.Connection]:
+        # The shared unit of work takes the connection from the PROCESS's
+        # pool (#1622): the handshake is paid once and amortized, and the
+        # number of connections this process holds is a number the
+        # operator sets (MYSQL_POOL_SIZE) instead of whatever the
+        # concurrency happens to be.
         with unit_of_work(self._connect) as conn:
             yield conn
 
     def close(self) -> None:
-        """Compatibility close() — every operation opens and closes its own
-        connection, so there is no pooled handle to release."""
+        """Compatibility close() — the connection pool belongs to the
+        PROCESS, not to this store, so there is no per-store handle to
+        release. Use ``close_shared_connections()`` to close the real
+        thing."""
         return None
 
     # ── State machine helpers ─────────────────────────────────
