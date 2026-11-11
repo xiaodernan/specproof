@@ -1,8 +1,8 @@
 .model-settings-page { max-width: 1180px; }
-.model-intro { color: var(--color-text-2); font-size: 13px; line-height: 1.8; margin-top: 8px; }
+.model-intro { color: var(--color-text-2); font-size: var(--text-md); line-height: 1.8; margin-top: 8px; }
 .model-credential-note { border: 1px solid var(--product-banner-border, var(--color-border)); background: var(--product-banner, var(--accent-tint)); padding: 20px 24px; border-radius: 10px; margin-bottom: 24px; }
-.model-credential-note strong { font-size: 13px; font-weight: 600; }
-.model-credential-note p { color: var(--color-text-2); font-size: 12px; line-height: 1.8; margin-top: 8px; }
+.model-credential-note strong { font-size: var(--text-md); font-weight: 600; }
+.model-credential-note p { color: var(--color-text-2); font-size: var(--text-sm); line-height: 1.8; margin-top: 8px; }
 .model-settings-layout { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(240px, 1fr); gap: 24px; align-items: start; }
 .model-settings-layout .panel { margin-bottom: 0; }
 .model-fields { border: 0; display: grid; gap: 24px; min-width: 0; }
@@ -11,20 +11,20 @@
 .model-fields .ui-hint { line-height: 1.7; }
 .model-options { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .model-options select { width: 100%; min-height: 39px; }
-.model-status { font-size: 10px; color: var(--color-text-3); background: var(--color-surface-3); border-radius: 20px; padding: 4px 8px; white-space: nowrap; }
+.model-status { font-size: var(--text-2xs); color: var(--color-text-3); background: var(--color-surface-3); border-radius: 20px; padding: 4px 8px; white-space: nowrap; }
 .model-status-set { color: var(--accent-text); background: var(--accent-tint); }
 .model-buttons { display: flex; align-items: center; gap: 8px; margin-top: 24px; flex-wrap: wrap; }
-.model-action-hint { margin-top: 12px; color: var(--color-text-3); font-size: 11px; line-height: 1.7; }
+.model-action-hint { margin-top: 12px; color: var(--color-text-3); font-size: var(--text-xs); line-height: 1.7; }
 .model-help-panel { padding: 24px; border: 1px solid var(--color-border); border-radius: 11px; background: var(--color-surface); }
-.model-help-panel h2 { font-size: 17px; margin: 16px 0 12px; }
-.model-help-panel p, .model-help-panel li { color: var(--color-text-2); font-size: 12px; line-height: 1.9; }
+.model-help-panel h2 { font-size: var(--text-xl); margin: 16px 0 12px; }
+.model-help-panel p, .model-help-panel li { color: var(--color-text-2); font-size: var(--text-sm); line-height: 1.9; }
 .model-help-panel ol { padding-left: 16px; margin: 16px 0; }.model-help-panel li { padding: 4px 0; }
-.model-help-panel a, .model-return { display: inline-block; font-size: 12px; margin-top: 16px; }
-.model-save-message, .model-managed { color: var(--accent-text); background: var(--accent-tint); border-radius: 7px; padding: 12px 16px; margin-top: 20px; font-size: 12px; line-height: 1.8; }
+.model-help-panel a, .model-return { display: inline-block; font-size: var(--text-sm); margin-top: 16px; }
+.model-save-message, .model-managed { color: var(--accent-text); background: var(--accent-tint); border-radius: 7px; padding: 12px 16px; margin-top: 20px; font-size: var(--text-sm); line-height: 1.8; }
 .model-managed { margin: 0 0 20px; color: var(--color-text-2); }
 .model-settings-page .errorbox { margin-top: 20px; }
 .model-test-result { margin-top: 24px; display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 24px; border-radius: 11px; border: 1px solid var(--color-border); background: var(--color-surface); }
-.model-test-result h2 { font-size: 17px; margin: 0 0 8px; }.model-test-result p { font-size: 13px; margin-bottom: 8px; line-height: 1.8; }.model-test-result small, .model-test-result > span { color: var(--color-text-3); font-size: 11px; }
+.model-test-result h2 { font-size: var(--text-xl); margin: 0 0 8px; }.model-test-result p { font-size: var(--text-md); margin-bottom: 8px; line-height: 1.8; }.model-test-result small, .model-test-result > span { color: var(--color-text-3); font-size: var(--text-xs); }
 .model-test-success { border-color: var(--success); }.model-test-success h2 { color: var(--success-fg); }.model-test-failed { border-color: var(--warning); }.model-test-failed h2 { color: var(--warning-fg); }
 .model-test-result a { flex: none; }
 @media(max-width: 900px) { .model-settings-layout { grid-template-columns: minmax(0, 1fr); }.model-help-panel { order: -1; }.model-help-panel ol { display: none; }.model-help-panel h2 { margin-top: 8px; } }

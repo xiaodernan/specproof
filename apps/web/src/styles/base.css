@@ -344,7 +344,7 @@ a {
 }
 
 .ui-table-sort:hover { color: var(--color-text-2); }
-.ui-table-caret { font-size: 8px; opacity: 0.55; line-height: 1; }
+.ui-table-caret { font-size: var(--text-2xs); opacity: 0.55; line-height: 1; }
 .ui-table-caret-active { opacity: 1; color: var(--accent-text); }
 
 /* ── Tabs ─────────────────────────────────────────────────── */
@@ -982,7 +982,7 @@ a {
   background: var(--gradient-aurora);
   color: var(--color-on-accent);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: var(--fw-800);
   flex: none;
 }
@@ -1151,7 +1151,7 @@ a {
   background: var(--gradient-aurora);
   color: var(--color-on-accent);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--text-2xs);
   font-weight: var(--fw-800);
   flex: none;
 }
@@ -1349,14 +1349,14 @@ nav { flex: 1; padding: var(--sp-3) var(--sp-2); overflow-y: auto; }
 .nav-item:hover { background: var(--color-control-hover); text-decoration: none; color: var(--color-text); }
 .nav-active { background: var(--accent-tint); border-color: var(--accent-ring); }
 .nav-label { font-size: var(--fs-13); font-weight: var(--fw-500); }
-.nav-en { font-size: 10px; color: var(--color-text-3); letter-spacing: 1px; text-transform: uppercase; font-family: var(--font-mono); }
+.nav-en { font-size: var(--text-2xs); color: var(--color-text-3); letter-spacing: 1px; text-transform: uppercase; font-family: var(--font-mono); }
 .nav-active .nav-label { color: var(--accent-text); }
 .nav-active .nav-en { color: var(--accent-text); opacity: 0.75; }
 
 .sidebar-foot { padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--color-border); }
 .shell-hint { display: flex; align-items: center; gap: 8px; margin-top: var(--sp-3); font-size: var(--fs-11); color: var(--color-text-3); }
 .foot-line {
-  font-family: var(--font-mono); font-size: 10px; color: var(--warning-fg);
+  font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--warning-fg);
   margin-bottom: var(--sp-2); letter-spacing: 1px;
 }
 
@@ -1512,9 +1512,9 @@ label.field { display: block; color: var(--color-text-2); font-size: var(--fs-12
 .stage-msg { flex: 1; font-size: var(--fs-13); color: var(--color-text); }
 .stage-pct { font-family: var(--font-mono); width: 60px; text-align: right; color: var(--color-text-3); font-variant-numeric: tabular-nums; }
 .stage-duration { font-family: var(--font-mono); min-width: 78px; text-align: right; color: var(--color-text-3); font-variant-numeric: tabular-nums; }
-.stage-failed-at { font-family: var(--font-mono); font-size: 11px; color: var(--danger-fg); font-variant-numeric: tabular-nums; }
+.stage-failed-at { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--danger-fg); font-variant-numeric: tabular-nums; }
 .stage-artifacts { display: inline-flex; gap: 4px; flex-wrap: wrap; }
-.stage-artifact { font-family: var(--font-mono); font-size: 10px; color: var(--accent-text); background: var(--accent-tint); border: 1px solid var(--accent-500); border-radius: 3px; padding: 0 4px; white-space: nowrap; }
+.stage-artifact { font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--accent-text); background: var(--accent-tint); border: 1px solid var(--accent-500); border-radius: 3px; padding: 0 4px; white-space: nowrap; }
 
 .bar { height: 6px; background: var(--color-surface-3); border-radius: var(--radius-full); overflow: hidden; margin: var(--sp-2) 0; }
 .bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent-600), var(--accent-2-400)); border-radius: inherit; transition: width var(--dur-slow) var(--ease-out); }
@@ -1554,7 +1554,7 @@ pre.json {
 .timeline-chart { display: flex; align-items: flex-end; gap: 4px; height: 90px; margin: var(--sp-2) 0; }
 .tl-bar { flex: 1; background: linear-gradient(180deg, var(--accent-500), var(--accent-2-400)); border-radius: 2px 2px 0 0; min-height: 2px; }
 .tl-bar.tl-failed { background: var(--danger); }
-.tl-label { font-family: var(--font-mono); font-size: 9px; color: var(--color-text-3); text-align: center; transform: rotate(-45deg); transform-origin: center; height: 0; }
+.tl-label { font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--color-text-3); text-align: center; transform: rotate(-45deg); transform-origin: center; height: 0; }
 
 .chip {
   display: inline-block; font-size: var(--fs-11); font-family: var(--font-mono); padding: 2px 8px;

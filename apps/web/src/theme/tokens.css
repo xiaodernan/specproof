@@ -75,6 +75,24 @@
   --sp-12: 48px;
   --sp-16: 64px;
 
+  /* Type scale — every font size in the app comes from here (#1624).
+     The steps are the ones the product actually uses, named by their
+     role: 2xs is the smallest label the eye is asked to read, display is
+     the hero. Ten steps for twenty scattered sizes: the hierarchy is
+     legible, and a size that is not on the ladder has to be argued for
+     instead of typed in. */
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-lg: 14px;
+  --text-xl: 16px;
+  --text-2xl: 20px;
+  --text-3xl: 24px;
+  --text-4xl: 30px;
+  --text-display: 34px;
+  --text-hero: 48px;
+
   /* Radii / control heights / blur / motion / z */
   --radius-sm: 6px;
   --radius-md: 8px;
