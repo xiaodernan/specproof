@@ -49,6 +49,7 @@ class FakeSearchStore:
 
     def search_jobs(
         self, limit: int, offset: int = 0, status: str | None = None, query: str = "",
+        cursor: str | None = None,
     ) -> dict[str, Any]:
         self.search_calls.append((limit, offset, status, query))
         selected = [

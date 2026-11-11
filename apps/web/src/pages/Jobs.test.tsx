@@ -8,17 +8,43 @@ const get = vi.mocked(apiGet);
 beforeEach(() => { get.mockReset(); });
 
 describe("verification history", () => {
-  it("requests server pagination and searches across the complete history", async () => {
-    get.mockResolvedValue({ jobs: [{ id: "job-1", repo_path: "/workspace/orders", status: "VERIFIED" }], total: 67 });
+  it("pages with the server's cursor and searches across the complete history", async () => {
+    // The cursor is the store's keyset position (#1618): the client hands it
+    // back instead of computing an offset, so a deep page costs the server
+    // the same as the first one. The FIRST page still asks for offset=0 --
+    // there is no cursor before it.
+    get.mockResolvedValue({
+      jobs: [{ id: "job-1", repo_path: "/workspace/orders", status: "VERIFIED" }],
+      total: 67,
+      next_cursor: "Y3JlYXRlZWRhdHxpZA",
+    });
     render(<Jobs />);
     await screen.findByRole("link", { name: "orders" });
     expect(get.mock.calls[0][0]).toBe("/jobs?limit=25&offset=0");
     fireEvent.click(screen.getByRole("button", { name: "下一页" }));
-    await waitFor(() => expect(get.mock.calls[get.mock.calls.length - 1]?.[0]).toBe("/jobs?limit=25&offset=25"));
+    await waitFor(() =>
+      expect(get.mock.calls[get.mock.calls.length - 1]?.[0]).toBe(
+        "/jobs?limit=25&cursor=Y3JlYXRlZWRhdHxpZA",
+      ),
+    );
+    // a filter change goes back to the first page: the cursor stack is reset,
+    // because a cursor belongs to one ordering of one filter
     fireEvent.change(screen.getByRole("searchbox", { name: "搜索验证" }), { target: { value: "payments" } });
     await waitFor(() => expect(get.mock.calls[get.mock.calls.length - 1]?.[0]).toBe("/jobs?limit=25&offset=0&q=payments"));
     fireEvent.change(screen.getByRole("combobox", { name: "验证状态" }), { target: { value: "BLOCKED" } });
     await waitFor(() => expect(get.mock.calls[get.mock.calls.length - 1]?.[0]).toBe("/jobs?limit=25&offset=0&status=BLOCKED&q=payments"));
+  });
+
+  it("does not offer a next page when the server says there is none", async () => {
+    get.mockResolvedValue({
+      jobs: [{ id: "job-1", repo_path: "/workspace/orders", status: "VERIFIED" }],
+      total: 67,
+      next_cursor: null,
+    });
+    render(<Jobs />);
+    await screen.findByRole("link", { name: "orders" });
+    const next = screen.getByRole("button", { name: "下一页" }) as HTMLButtonElement;
+    expect(next.disabled).toBe(true);
   });
 
   it("lets the user sort the visible rows by clicking a header", async () => {

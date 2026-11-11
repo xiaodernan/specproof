@@ -21,12 +21,22 @@ export default function Jobs() {
   const [textFilter, setTextFilter] = useState("");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
+  // The keyset position of each visited page (#1618), keyed by the page
+  // number: cursors[2] is the cursor that FETCHES page 2 (page 1 has none).
+  // Paging back and forth therefore costs the same as paging forward -- the
+  // server never discards the rows before the page.
+  const [cursors, setCursors] = useState<Record<number, string | undefined>>({});
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
   const activeRef = useRef(false);
 
   useEffect(() => {
     if (textFilter.trim() === query) return;
-    const timer = window.setTimeout(() => { setQuery(textFilter.trim()); setPage(1); }, 300);
+    const timer = window.setTimeout(() => {
+      setQuery(textFilter.trim());
+      setPage(1);
+      setCursors({});
+    }, 300);
     return () => window.clearTimeout(timer);
   }, [textFilter, query]);
 
@@ -38,7 +48,10 @@ export default function Jobs() {
       if (inFlight) return;
       inFlight = true;
       if (!silent) setRefreshing(true);
-      const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String((page - 1) * PAGE_SIZE) });
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
+      const cursor = cursors[page];
+      if (cursor) params.set("cursor", cursor);
+      else params.set("offset", String((page - 1) * PAGE_SIZE));
       if (statusFilter !== "ALL") params.set("status", statusFilter);
       if (query) params.set("q", query);
       try {
@@ -50,6 +63,7 @@ export default function Jobs() {
         // failed. Substituting the window length here would have printed the
         // page size (25) as if it were the number of matching verifications.
         setTotal(data.total);
+        setNextCursor(data.next_cursor ?? null);
         activeRef.current = (data.jobs || []).some((job) => ACTIVE.has((job.status || "").toUpperCase()));
         setError(null);
       } catch (e) {
@@ -64,13 +78,15 @@ export default function Jobs() {
       if (document.visibilityState === "visible" && activeRef.current) void load(true);
     }, 10000);
     return () => { alive = false; controller.abort(); window.clearInterval(timer); };
-  }, [page, query, statusFilter, refresh]);
+  }, [page, query, statusFilter, refresh, cursors]);
 
   const summary = useMemo(() => ({
     active: jobs.filter((j) => ACTIVE.has((j.status || "").toUpperCase())).length,
     verified: jobs.filter((j) => (j.status || "").toUpperCase() === "VERIFIED").length,
     attention: jobs.filter((j) => ["FAILED", "BLOCKED", "ERROR"].includes((j.status || "").toUpperCase())).length,
   }), [jobs]);
+  // The total-based page count stays for the "N / M" readout; whether a NEXT
+  // page exists is decided by the server's cursor, not by the arithmetic.
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
@@ -88,7 +104,7 @@ export default function Jobs() {
       <ErrorBox error={error} />
       <Panel title="验证记录" right={<div className="verification-toolbar">
         <input aria-label="搜索验证" type="search" maxLength={256} placeholder="搜索项目、分支或任务编号" value={textFilter} onChange={(e) => setTextFilter(e.target.value)} />
-        <select aria-label="验证状态" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
+        <select aria-label="验证状态" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); setCursors({}); }}>
           <option value="ALL">全部状态</option>{JOB_STATUSES.map((value) => <option key={value} value={value}>{statusLabel(value)}</option>)}
         </select>
         <Button variant="ghost" size="sm" loading={refreshing} onClick={() => setRefresh((value) => value + 1)}>刷新</Button>
@@ -96,7 +112,7 @@ export default function Jobs() {
         {loading ? <Spinner /> : jobs.length === 0 ? (
           <div className="verification-empty"><span aria-hidden="true">◎</span><h3>{error ? "暂时无法读取验证记录" : query || statusFilter !== "ALL" ? "没有找到符合条件的验证" : "从第一次验证开始"}</h3>
             <p>{error ? "请确认服务连接，稍后点击刷新重试。" : query || statusFilter !== "ALL" ? "换个关键词，或清除筛选条件查看全部记录。" : "准备一个 Git 仓库和需求文件，比较两个版本，了解代码改动是否满足预期。"}</p>
-            {query || statusFilter !== "ALL" ? <Button onClick={() => { setTextFilter(""); setQuery(""); setStatusFilter("ALL"); setPage(1); }}>清除筛选</Button> : !error ? <Button variant="primary" onClick={() => { window.location.hash = "#/jobs/new"; }}>创建第一次验证 →</Button> : null}
+            {query || statusFilter !== "ALL" ? <Button onClick={() => { setTextFilter(""); setQuery(""); setStatusFilter("ALL"); setPage(1); setCursors({}); }}>清除筛选</Button> : !error ? <Button variant="primary" onClick={() => { window.location.hash = "#/jobs/new"; }}>创建第一次验证 →</Button> : null}
           </div>
         ) : <div className="verification-table-wrap">
           <Table
@@ -158,7 +174,7 @@ export default function Jobs() {
             ]}
           />
         </div>}
-        {total > PAGE_SIZE ? <div className="verification-pagination"><span>共 {total} 条验证</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || refreshing} onClick={() => setPage((value) => value - 1)}>上一页</Button><span>{page} / {pages}</span><Button variant="ghost" size="sm" disabled={page >= pages || refreshing} onClick={() => setPage((value) => value + 1)}>下一页</Button></div></div> : null}
+        {total > PAGE_SIZE ? <div className="verification-pagination"><span>共 {total} 条验证</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || refreshing} onClick={() => setPage((value) => value - 1)}>上一页</Button><span>{page} / {pages}</span><Button variant="ghost" size="sm" disabled={!nextCursor || refreshing} onClick={() => { if (!nextCursor) return; setCursors((prev) => ({ ...prev, [page + 1]: nextCursor })); setPage((value) => value + 1); }}>下一页</Button></div></div> : null}
       </Panel>
     </div>
   );

@@ -115,12 +115,20 @@ class VerificationApplicationService:
         offset: int = 0,
         status: str | None = None,
         q: str = "",
+        cursor: str | None = None,
     ) -> dict[str, Any]:
         """List the most recent verification jobs.
 
         ``status`` is validated against ``ALL_STATUSES`` (the single source
         of truth) — an unknown word raises 422 rather than silently
         matching nothing.
+
+        ``cursor`` is the keyset position of the previous page's last row
+        (#1618). With a cursor the store reads a page of rows in order
+        without discarding the rows before it, and the answer carries
+        ``next_cursor`` for the page after this one. ``offset`` keeps
+        working (it is the mode that needs a page NUMBER); the two are
+        alternatives — a cursor wins when both are given.
         """
         if status is not None and status not in ALL_STATUSES:
             raise ApiError(
@@ -129,7 +137,9 @@ class VerificationApplicationService:
                 detail=f"Unknown job status filter: {status!r}",
             )
         try:
-            return self._store.search_jobs(limit, offset, status, q.strip())
+            return self._store.search_jobs(
+                limit, offset, status, q.strip(), cursor=cursor
+            )
         except Exception as exc:  # noqa: BLE001
             raise ApiError(
                 status_code=503,

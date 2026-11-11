@@ -440,6 +440,9 @@ export interface Job {
 export interface JobsPage {
   jobs: Job[];
   total: number;
+  /** The keyset position of the NEXT page (null when this was the last one).
+   *  Opaque: pass it back as `cursor` to get the page after this one. */
+  next_cursor?: string | null;
 }
 
 export interface VerificationRequest {

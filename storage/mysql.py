@@ -7,6 +7,7 @@ P6 §14.2: outbox governance — tenant/digest stamping on insert,
 per-attempt publish/retry counters, last_error/next_retry_at deferral,
 dead-letter state, and a single-query stats snapshot for relay metrics.
 """
+import base64
 import json
 import logging
 import os
@@ -411,6 +412,63 @@ class ReclaimOutcome:
     probed: int
     lease_probe_error: str | None = None
     exhausted: list[dict[str, Any]] = field(default_factory=list)
+
+
+def encode_job_cursor(created_at: Any, job_id: str) -> str:
+    """Encode the (created_at, id) keyset position of a row.
+
+    The cursor is base64url over "created_at|job_id" — opaque to the client,
+    which is the point: the ordering is the store's business, and a client
+    that edits the cursor cannot make the query cheaper or more expensive.
+    """
+    raw = f"{_cursor_stamp(created_at)}|{job_id}".encode()
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def decode_job_cursor(cursor: str) -> tuple[Any, str] | None:
+    """The (created_at, id) a cursor carries, or None when it is not ours.
+
+    A cursor that cannot be decoded is treated as "no cursor" by the caller
+    (the first page), never as an error: a client that hands us a stale or
+    hand-made cursor gets the first page instead of a 500.
+    """
+    if not cursor:
+        return None
+    padded = cursor + "=" * (-len(cursor) % 4)
+    try:
+        raw = base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8")
+    except (ValueError, UnicodeDecodeError):
+        return None
+    stamp, _, job_id = raw.partition("|")
+    if not stamp or not job_id:
+        return None
+    # the stamp goes back as a DATETIME the database can compare with: the
+    # ISO form ("2026-11-10T12:30:15.123456") is not MySQL's DATETIME syntax,
+    # and a string that compares lexicographically would silently skip or
+    # repeat rows.
+    try:
+        parsed = datetime.strptime(stamp, _CURSOR_STAMP_FORMAT)
+    except ValueError:
+        return None
+    return parsed, job_id
+
+
+#: How a cursor spells a timestamp: MySQL's own DATETIME text, so the
+#: database compares it as a datetime and not as a string.
+_CURSOR_STAMP_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
+
+
+def _cursor_stamp(created_at: Any) -> str:
+    """The timestamp as the cursor spells it.
+
+    A datetime is written in MySQL's DATETIME text (microseconds included,
+    so two rows in the same second still differ); anything else is passed
+    through as text -- and then fails to parse, which the decoder treats as
+    "not our cursor".
+    """
+    if hasattr(created_at, "strftime"):
+        return str(created_at.strftime(_CURSOR_STAMP_FORMAT))
+    return str(created_at)
 
 
 class MySQLStore:
@@ -1071,8 +1129,32 @@ class MySQLStore:
     # written where the scanner cannot see it.
     def search_jobs(
         self, limit: int, offset: int = 0, status: str | None = None, query: str = "",
+        *, cursor: str | None = None,
     ) -> dict[str, Any]:
-        """Paginate with matching tenant-scoped count; never transfer large summaries."""
+        """Paginate with matching tenant-scoped count; never transfer large summaries.
+
+        Two paging modes, one order:
+
+        * ``offset`` — the classic one. The database walks and DISCARDS the
+          rows before the page, so page N costs O(N + limit) rows read; on a
+          table that only grows, the last pages are the most expensive ones.
+        * ``cursor`` — the keyset one (#1618). The cursor carries the
+          (created_at, id) of the last row of the previous page and the
+          query asks for "strictly before it in this order" with a row
+          comparison, which the composite index
+          ``(created_at, id)`` / ``(tenant_id, created_at, id)`` serves
+          directly. No rows are skipped, so the cost of a page does not
+          depend on how deep it is.
+
+        The cursor is the ORDER BY of the list (created_at DESC, id DESC),
+        so it is exact even when many rows share a timestamp — the id breaks
+        the tie, and the comparison carries both.
+
+        Every page answers with ``next_cursor`` (None on the last one), so a
+        client can move to the keyset path from the FIRST page: page one has
+        no cursor of its own, but it can hand the reader the position of the
+        page after it.
+        """
         conditions: list[str] = []
         params: list[Any] = []
         scope = current_scope()
@@ -1086,13 +1168,29 @@ class MySQLStore:
             conditions.append("(LOCATE(%s, id) > 0 OR LOCATE(%s, repo_path) > 0 "
                               "OR LOCATE(%s, base_ref) > 0 OR LOCATE(%s, head_ref) > 0)")
             params.extend([query] * 4)
-        where = " WHERE " + " AND ".join(conditions) if conditions else ""
+        # the COUNT answers "how many rows match the FILTERS", so it must not
+        # carry the keyset predicate -- that would report the rows LEFT
+        # instead of the population, and the number beside the rows would
+        # disagree with them.
+        count_where = " WHERE " + " AND ".join(conditions) if conditions else ""
+        page_conditions = list(conditions)
+        page_params = list(params)
+        decoded = decode_job_cursor(cursor) if cursor else None
+        if decoded is not None:
+            created_at, last_id = decoded
+            # the row comparison is the keyset predicate: "strictly before
+            # this row in (created_at DESC, id DESC) order"
+            page_conditions.append("(created_at, id) < (%s, %s)")
+            page_params.extend([created_at, last_id])
+        page_where = (
+            " WHERE " + " AND ".join(page_conditions) if page_conditions else ""
+        )
         with self.connection() as conn:
             cur = conn.cursor()
             # fragments + bound params
             cur.execute(
                 "SELECT COUNT(*) AS total FROM verification_jobs"  # nosec B608
-                + where,
+                + count_where,
                 # deliberately no demo split here (#542): this number is the
                 # population of the page below it, and the seeded rows on that
                 # page are listed with their own badge — excluding them from the
@@ -1100,18 +1198,43 @@ class MySQLStore:
                 tuple(params),
             )
             total = int(cur.fetchone()["total"])
-            cur.execute(
-                # fragments + bound params
-                "SELECT id, repo_path, base_ref, head_ref, "  # nosec B608
-                "status, depth, retry_count, "
-                "worker_id, last_error, created_at, updated_at, "
-                + IS_DEMO_COLUMN + " FROM verification_jobs" + where
-                + " ORDER BY created_at DESC, id DESC LIMIT %s OFFSET %s",
-                # the SELECT list precedes WHERE, so the bound prefix is first
-                (DEMO_NOTE_PREFIX, *params, limit, offset),
-            )
+            # one row more than asked for: that is how the store knows whether
+            # a NEXT page exists without counting the whole table again.
+            if decoded is not None:
+                cur.execute(
+                    # fragments + bound params
+                    "SELECT id, repo_path, base_ref, head_ref, "  # nosec B608
+                    "status, depth, retry_count, "
+                    "worker_id, last_error, created_at, updated_at, "
+                    + IS_DEMO_COLUMN + " FROM verification_jobs" + page_where
+                    + " ORDER BY created_at DESC, id DESC LIMIT %s",
+                    # the SELECT list precedes WHERE, so the bound prefix is first
+                    (DEMO_NOTE_PREFIX, *page_params, limit + 1),
+                )
+            else:
+                cur.execute(
+                    # fragments + bound params
+                    "SELECT id, repo_path, base_ref, head_ref, "  # nosec B608
+                    "status, depth, retry_count, "
+                    "worker_id, last_error, created_at, updated_at, "
+                    + IS_DEMO_COLUMN + " FROM verification_jobs" + page_where
+                    + " ORDER BY created_at DESC, id DESC LIMIT %s OFFSET %s",
+                    # the SELECT list precedes WHERE, so the bound prefix is first
+                    (DEMO_NOTE_PREFIX, *page_params, limit + 1, offset),
+                )
             rows = cur.fetchall()
-        return {"jobs": rows, "total": total, "limit": limit, "offset": offset}
+        next_cursor = None
+        if len(rows) > limit:
+            rows = rows[:limit]
+            last = rows[-1]
+            next_cursor = encode_job_cursor(last["created_at"], last["id"])
+        return {
+            "jobs": rows,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "next_cursor": next_cursor,
+        }
 
     def dashboard_snapshot(self, since: datetime) -> dict[str, list[dict[str, Any]]]:
         """Aggregate in SQL with the same tenant visibility as the job list.

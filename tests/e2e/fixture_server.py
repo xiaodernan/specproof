@@ -298,8 +298,7 @@ class FakeMySQLStore:
         }
 
     def search_jobs(
-        self, limit: int, offset: int = 0, status: str | None = None, query: str = "",
-    ) -> dict[str, Any]:
+        self, limit: int, offset: int = 0, status: str | None = None, query: str = "", cursor=None) -> dict[str, Any]:
         rows = [dict(row) for row in self.rows.values()]
         if status:
             rows = [row for row in rows if row.get("status") == status]

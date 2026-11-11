@@ -62,7 +62,7 @@ class FakeMySQLStore:
     def record_audit(self, **kwargs):
         pass
 
-    def search_jobs(self, limit=50, offset=0, status=None, query=""):
+    def search_jobs(self, limit=50, offset=0, status=None, query="", cursor=None):
         del status, query
         items = list(FakeMySQLStore.rows.values())
         return {"jobs": items[offset:offset + limit], "total": len(items),

@@ -175,13 +175,23 @@ def cancel_job(job_id: str) -> dict[str, Any]:
 def list_jobs(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int | None = Query(default=None, ge=0, le=1_000_000),
+    cursor: str | None = Query(
+        default=None, max_length=256,
+        description=(
+            "keyset position of the previous page (opaque; take it from "
+            "next_cursor). With a cursor the page costs the same however deep "
+            "it is; without one, offset is used."
+        ),
+    ),
     status: str | None = Query(default=None, max_length=32),
     q: str = Query(default="", max_length=256),
 ) -> dict[str, Any]:
     """List the most recent verification jobs."""
     service = VerificationApplicationService()
     try:
-        return service.list_jobs(limit=limit, offset=offset or 0, status=status, q=q)
+        return service.list_jobs(
+        limit=limit, offset=offset or 0, status=status, q=q, cursor=cursor
+    )
     except ApiError:
         raise
     except Exception as exc:  # noqa: BLE001

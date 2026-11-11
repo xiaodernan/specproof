@@ -90,7 +90,7 @@ class FakeMySQLStore:
         return list(FakeMySQLStore.rows.values())[-limit:]
 
     def search_jobs(self, limit: int = 50, offset: int = 0,
-                    status: str | None = None, query: str = "") -> dict[str, Any]:
+                    status: str | None = None, query: str = "", cursor=None) -> dict[str, Any]:
         del status, query
         if FakeMySQLStore.mysql_down:
             raise ConnectionError("mysql down")

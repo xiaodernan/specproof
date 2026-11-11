@@ -284,7 +284,7 @@ class FakeJobStore:
         return row.get("summary") if row else None
 
     def search_jobs(self, limit: int = 50, offset: int = 0,
-                    status: str | None = None, query: str = "") -> dict[str, Any]:
+                    status: str | None = None, query: str = "", cursor=None) -> dict[str, Any]:
         del status, query
         items = list(self.jobs.values())
         return {"jobs": items[offset:offset + limit], "total": len(items),
