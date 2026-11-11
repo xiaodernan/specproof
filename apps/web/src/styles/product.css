@@ -7,7 +7,7 @@
   --accent-text: #87d8b3; --accent-tint: rgba(68, 170, 118, .12); --accent-ring: rgba(64, 157, 111, .25);
   --color-link: #87d8b3; --color-bg: #121714; --color-sidebar: #141b17;
   --color-surface: #19201b; --color-surface-2: #202922; --color-surface-3: #29332c;
-  --color-text: #edf2ee; --color-text-2: #b2bdb5; --color-text-3: #8b9a8f;
+  --color-text: #edf2ee; --color-text-2: #b2bdb5; --color-text-3: #909f94;
   --product-banner: #1c2c23; --product-banner-border: #2c4936;
   --gradient-aurora: linear-gradient(130deg, #237a56, #32976c);
   --gradient-aurora-soft: linear-gradient(130deg, #237a5620, #32976c08);
@@ -23,7 +23,7 @@
 :root[data-theme="light"] {
   --color-bg: #f6f8f7; --color-sidebar: #fcfdfc; --color-surface: #fff;
   --color-surface-2: #f5f7f5; --color-surface-3: #e9eeeb;
-  --color-text: #202c25; --color-text-2: #637067; --color-text-3: #768079;
+  --color-text: #202c25; --color-text-2: #637067; --color-text-3: #636862;
   --color-border: #e6ebe7; --color-border-strong: #d3dcd5;
   --color-link: #287c55; --accent-text: #287c55; --accent-tint: #eaf3ed;
   --accent-ring: #badac7; --product-banner: #edf4ee; --product-banner-border: #dce9dd;

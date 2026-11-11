@@ -41,7 +41,13 @@ PAIRS = [
     ("--color-text", "--color-surface", 4.5, "text on a card"),
     ("--color-text", "--color-surface-2", 4.5, "text on a raised card"),
     ("--color-text-2", "--color-surface", 4.5, "secondary text on a card"),
-    ("--color-text-3", "--color-surface", 3.0, "muted/meta text on a card"),
+    # The muted text is used for real sentences (the sidebar subtitle, the
+    # empty-state messages, the muted paragraphs), so it is normal text and
+    # owes 4.5:1 -- not the 3:1 of a non-text element. #1627 measured it at
+    # 4.09:1 (light) and 4.43:1 (dark) on the RENDERED page and closed the
+    # gap in the palette itself.
+    ("--color-text-3", "--color-surface", 4.5, "muted text on a card"),
+    ("--color-text-3", "--color-surface-3", 4.5, "muted text on the lightest surface"),
     ("--color-link", "--color-bg", 4.5, "a link on the page"),
     # the accent button paints --color-on-accent (white) on --accent-600,
     # and on --accent-700 while hovered; --color-text-inverse is NOT what

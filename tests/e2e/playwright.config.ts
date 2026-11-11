@@ -9,7 +9,7 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: ".",
   outputDir: "test-results",
-  testMatch: /(wizard|detail|permissions|longtext)\.spec\.ts/,
+  testMatch: /(wizard|detail|permissions|longtext|design-system)\.spec\.ts/,
   // Measured 2026-09-29: with a parallel full pytest gate running, Vite's first
   // on-demand transform of the SPA alone exceeded the 60_000 this replaced, so a
   // scenario failed at `page.goto` before it ever reached its subject. 120s
