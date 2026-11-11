@@ -249,13 +249,13 @@ export default function UiKit(): JSX.Element {
             系统字体栈（Inter 优先），正文 13px 起步，表格与指标一律 tabular-nums，行高 1.25 / 1.55。
           </p>
           {[
-            { size: "var(--fs-30)", name: "fs-30", sample: "验证防火墙 Verification Firewall" },
-            { size: "var(--fs-24)", name: "fs-24", sample: "差分验证 · AUTH-01" },
-            { size: "var(--fs-20)", name: "fs-20", sample: "契约中心 Contract Registry" },
-            { size: "var(--fs-16)", name: "fs-16", sample: "合并证书 Merge Certificate" },
-            { size: "var(--fs-14)", name: "fs-14", sample: "证据矩阵 Evidence Matrix — 静态 + 运行时双重证据" },
-            { size: "var(--fs-12)", name: "fs-12", sample: "辅助信息 Muted caption · 12px" },
-            { size: "var(--fs-11)", name: "fs-11", sample: "UPPERCASE LABEL · LETTER-SPACING" },
+            { size: "var(--text-4xl)", name: "fs-30", sample: "验证防火墙 Verification Firewall" },
+            { size: "var(--text-3xl)", name: "fs-24", sample: "差分验证 · AUTH-01" },
+            { size: "var(--text-2xl)", name: "fs-20", sample: "契约中心 Contract Registry" },
+            { size: "var(--text-xl)", name: "fs-16", sample: "合并证书 Merge Certificate" },
+            { size: "var(--text-lg)", name: "fs-14", sample: "证据矩阵 Evidence Matrix — 静态 + 运行时双重证据" },
+            { size: "var(--text-sm)", name: "fs-12", sample: "辅助信息 Muted caption · 12px" },
+            { size: "var(--text-xs)", name: "fs-11", sample: "UPPERCASE LABEL · LETTER-SPACING" },
           ].map((row) => (
             <div className="ui-kit-type-row" key={row.name}>
               <span className="ui-kit-type-label">{row.name}</span>
@@ -264,7 +264,7 @@ export default function UiKit(): JSX.Element {
           ))}
           <div className="ui-kit-type-row">
             <span className="ui-kit-type-label">tabular-nums</span>
-            <span className="ui-kit-num" style={{ fontSize: "var(--fs-20)" }}>
+            <span className="ui-kit-num" style={{ fontSize: "var(--text-2xl)" }}>
               42,918 · 1,024,512 · 96.4% · 4m 12s
             </span>
           </div>
@@ -407,9 +407,9 @@ export default function UiKit(): JSX.Element {
             <Tabs
               ariaLabel="示例标签页"
               items={[
-                { id: "overview", label: "总览", content: <p style={{ fontSize: "var(--fs-13)", color: "var(--color-text-2)" }}>总览面板 — 任务统计与最近验证。</p> },
-                { id: "matrix", label: "证据矩阵", content: <p style={{ fontSize: "var(--fs-13)", color: "var(--color-text-2)" }}>矩阵面板 — 契约 × 证据类型。</p> },
-                { id: "gates", label: "门禁", content: <p style={{ fontSize: "var(--fs-13)", color: "var(--color-text-2)" }}>门禁面板 — 通过 / 阻断 / 待复核。</p> },
+                { id: "overview", label: "总览", content: <p style={{ fontSize: "var(--text-md)", color: "var(--color-text-2)" }}>总览面板 — 任务统计与最近验证。</p> },
+                { id: "matrix", label: "证据矩阵", content: <p style={{ fontSize: "var(--text-md)", color: "var(--color-text-2)" }}>矩阵面板 — 契约 × 证据类型。</p> },
+                { id: "gates", label: "门禁", content: <p style={{ fontSize: "var(--text-md)", color: "var(--color-text-2)" }}>门禁面板 — 通过 / 阻断 / 待复核。</p> },
                 { id: "disabled", label: "禁用", disabled: true },
               ]}
             />
@@ -431,7 +431,7 @@ export default function UiKit(): JSX.Element {
           </Demo>
           <DemoTitle>命令面板 CommandPalette（Ctrl / Cmd + K）</DemoTitle>
           <Demo col>
-            <p style={{ fontSize: "var(--fs-13)", color: "var(--color-text-2)" }}>
+            <p style={{ fontSize: "var(--text-md)", color: "var(--color-text-2)" }}>
               面板已全局挂载：可导航全部 <span className="ui-kit-chip">/agent/*</span> 与已验证路由、切换主题、打开
               localStorage 中的最近任务。现在按 <Kbd>Ctrl</Kbd> <Kbd>K</Kbd> 试试 —— 本页面无需登录即可使用。
             </p>
@@ -478,7 +478,7 @@ export default function UiKit(): JSX.Element {
         <Section id="cards" title="卡片 Cards" en="hairline + layered elevation">
           <div className="ui-kit-grid-2">
             <Card title="契约中心 Contract registry" subtitle="6 契约 · 2 高优先级" actions={<Badge tone="accent">LIVE</Badge>}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: "var(--fs-13)" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: "var(--text-md)" }}>
                 <span>AUTH-01 · 邮箱变更认证 — <Badge tone="success">PASS</Badge></span>
                 <span>EVT-04 · 事件幂等 — <Badge tone="info">RUNNING</Badge></span>
                 <span>BROKER-02 · 重试去重 — <Badge tone="danger">FAIL</Badge></span>

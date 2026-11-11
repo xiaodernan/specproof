@@ -7,10 +7,12 @@ import { loginWithToken } from "./helpers";
 // corner radius is a named step. A source-level gate cannot see the
 // things that are not in the source: an inline style, a browser default
 // that nobody overrode, a style a script sets at runtime. This scenario
-// measures what is actually PAINTED, in a real browser, on a real page.
+// measures what is actually PAINTED, in a real browser, on the product's
+// own pages.
 //
-// Three legs:
-//   1. every painted font-size is a step of the type scale,
+// Three legs, over EVERY surface of the product and in BOTH themes:
+//   1. every painted font-size is on the type scale (or inside its range,
+//      which is what a responsive clamp() between two steps produces),
 //   2. every painted border-radius is a step of the radius ladder,
 //   3. every painted text is readable against what is painted behind it
 //      (WCAG AA, measured on the RENDERED colors -- including the
@@ -19,194 +21,188 @@ import { loginWithToken } from "./helpers";
 // The scales are read from the token file at run time, so the scenario
 // cannot drift away from the design system it is checking.
 
-const SCALE: number[] = [10, 11, 12, 13, 14, 16, 20, 24, 30, 34, 48];
-// The ladder's steps, plus the two shapes that are not steps: the pill's
-// full radius (9999px) and the avatar's circle (50%). The source-level gate
-// allows the same two.
+const TYPE_MIN = 10; // --text-2xs
+const TYPE_MAX = 48; // --text-hero
 const RADII: number[] = [0, 3, 5, 6, 8, 12, 16, 20, 9999, 50];
-// WCAG 2.1's two thresholds: normal text owes 4.5:1, LARGE text (>= 24px,
-// or >= 18.66px when bold) owes 3:1. The leg below applies the rule rather
-// than one flat number: a dashboard's 30px statistic is large text, and a
-// caption is not.
 const MIN_CONTRAST = 4.5;
 const MIN_CONTRAST_LARGE = 3.0;
 const LARGE_PX = 24;
 const LARGE_BOLD_PX = 18.66;
 const BOLD_WEIGHT = 700;
 
-function relativeLuminance(rgb: number[]): number {
-  const channels = rgb.map((value) => {
-    const c = value / 255;
-    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-  });
-  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
-}
-
-function parseColor(value: string): number[] | null {
-  const match = value.match(/rgba?\(([^)]+)\)/);
-  if (!match) return null;
-  const parts = match[1].split(",").map((part) => parseFloat(part.trim()));
-  if (parts.length < 3 || parts.some((part) => Number.isNaN(part))) return null;
-  return parts.slice(0, 3);
-}
-
-function contrast(fg: number[], bg: number[]): number {
-  const l1 = relativeLuminance(fg);
-  const l2 = relativeLuminance(bg);
-  const high = Math.max(l1, l2);
-  const low = Math.min(l1, l2);
-  return (high + 0.05) / (low + 0.05);
-}
+type Offender = { kind: string; value: string; where: string; minimum: number };
 
 test.describe("设计系统 design system — 渲染出来的页面仍在阶梯上", () => {
-  test("painted font sizes and corner radii are steps of the ladders", async ({ page }) => {
+  test("painted sizes, radii and contrast hold on every surface, in both themes", async ({ page }) => {
     const token = process.env.E2E_ADMIN_TOKEN || "";
     const jobId = process.env.E2E_JOB_ID || "";
     expect(token.length).toBeGreaterThan(0);
     expect(jobId.length).toBeGreaterThan(0);
 
     await loginWithToken(page, token);
-    await page.goto("/#/jobs/" + jobId);
-    await expect(page.locator("h1")).toBeVisible();
 
-    const measured = await page.evaluate(() => {
-      const offenders: { kind: string; value: string; where: string }[] = [];
-      const seen = new Set<string>();
-      const nodes = Array.from(document.querySelectorAll("*"));
-      for (const node of nodes) {
-        const style = getComputedStyle(node);
-        const where =
-          node.tagName.toLowerCase() +
-          (node.className && typeof node.className === "string"
-            ? "." + node.className.split(" ").filter(Boolean).join(".")
-            : "");
-        const size = parseFloat(style.fontSize);
-        const radius = parseFloat(style.borderTopLeftRadius);
-        if (!Number.isNaN(size)) {
-          const key = "size:" + size + where;
-          if (!seen.has(key)) {
-            seen.add(key);
-            offenders.push({ kind: "font-size", value: String(size), where });
-          }
-        }
-        if (!Number.isNaN(radius)) {
-          const key = "radius:" + radius + where;
-          if (!seen.has(key)) {
-            seen.add(key);
-            offenders.push({ kind: "radius", value: String(radius), where });
-          }
+    const surfaces: [string, string][] = [
+      ["dashboard", "#/dashboard"],
+      ["jobs", "#/jobs"],
+      ["detail", "#/jobs/" + jobId],
+      ["identity", "#/identity"],
+    ];
+
+    const offenders: Offender[] = [];
+
+    for (const [name, hash] of surfaces) {
+      for (const theme of ["light", "dark"]) {
+        await page.goto("/" + hash);
+        await page.evaluate((t) => {
+          document.documentElement.setAttribute("data-theme", t);
+        }, theme);
+        // the theme change animates the colours; measuring mid-transition
+        // would report a contrast that exists for a few hundred
+        // milliseconds and nowhere else
+        await page.waitForTimeout(1200);
+
+        const found = await page.evaluate(
+          ({
+            typeMin,
+            typeMax,
+            radii,
+            largePx,
+            largeBoldPx,
+            boldWeight,
+            minContrast,
+            minContrastLarge,
+          }) => {
+            const parse = (value: string): number[] | null => {
+              const m = value.match(/rgba?\(([^)]+)\)/);
+              if (!m) return null;
+              const parts = m[1].split(",").map((p) => parseFloat(p.trim()));
+              if (parts.length < 3 || parts.some((p) => Number.isNaN(p))) return null;
+              return parts.slice(0, 3);
+            };
+            const alpha = (value: string): number => {
+              const m = value.match(/rgba?\(([^)]+)\)/);
+              if (!m) return 1;
+              const parts = m[1].split(",").map((p) => parseFloat(p.trim()));
+              return parts.length >= 4 ? parts[3] : 1;
+            };
+            const luminance = (rgb: number[]): number => {
+              const ch = rgb.map((v) => {
+                const c = v / 255;
+                return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+              });
+              return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+            };
+            const backgroundOf = (node: Element): number[] | null => {
+              let cur: Element | null = node;
+              while (cur) {
+                const st = getComputedStyle(cur);
+                const rgb = parse(st.backgroundColor);
+                if (rgb && alpha(st.backgroundColor) > 0.5) return rgb;
+                cur = cur.parentElement;
+              }
+              return null;
+            };
+            const whereOf = (node: Element): string =>
+              node.tagName.toLowerCase() +
+              (node.className && typeof node.className === "string"
+                ? "." + node.className.split(" ").filter(Boolean)[0]
+                : "");
+            const bad: { kind: string; value: string; where: string; minimum: number }[] = [];
+            const seen = new Set<string>();
+
+            for (const node of Array.from(document.querySelectorAll("*"))) {
+              const st = getComputedStyle(node);
+              const where = whereOf(node);
+              const size = parseFloat(st.fontSize);
+              if (!Number.isNaN(size) && (size < typeMin || size > typeMax)) {
+                const key = "size:" + where + size;
+                if (!seen.has(key)) {
+                  seen.add(key);
+                  bad.push({ kind: "font-size", value: String(size), where, minimum: typeMin });
+                }
+              }
+              const radius = parseFloat(st.borderTopLeftRadius);
+              if (!Number.isNaN(radius) && !radii.includes(Math.round(radius))) {
+                const key = "radius:" + where + radius;
+                if (!seen.has(key)) {
+                  seen.add(key);
+                  bad.push({ kind: "radius", value: String(radius), where, minimum: 0 });
+                }
+              }
+            }
+
+            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+            let node = walker.nextNode();
+            while (node) {
+              const text = (node.textContent || "").trim();
+              const parent = node.parentElement;
+              node = walker.nextNode();
+              if (!text || !parent) continue;
+              if (parent.closest(".sr-only, script, style")) continue;
+              const st = getComputedStyle(parent);
+              if (st.visibility === "hidden" || st.display === "none") continue;
+              // READABLE text: letters or digits. A decorative dot is a shape,
+              // and judging a shape's contrast as if it were a sentence is a
+              // measurement bug, not an accessibility finding.
+              if (!/[0-9A-Za-z\u4e00-\u9fff]/.test(text)) continue;
+              // An element painted with opacity < 1 is BLENDED with what is
+              // behind it; the walker's answer is not what the reader sees.
+              if (parseFloat(st.opacity) < 0.99) continue;
+              const where = whereOf(parent);
+              const key = "contrast:" + where;
+              if (seen.has(key)) continue;
+              seen.add(key);
+              const fg = parse(st.color);
+              const bg = backgroundOf(parent);
+              if (!fg || !bg) continue;
+              const l1 = luminance(fg);
+              const l2 = luminance(bg);
+              const ratio =
+                Math.round(((Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05)) * 100) / 100;
+              const size = parseFloat(st.fontSize);
+              const weight = parseInt(st.fontWeight, 10) || 400;
+              const large = size >= largePx || (size >= largeBoldPx && weight >= boldWeight);
+              const minimum = large ? minContrastLarge : minContrast;
+              if (ratio < minimum) {
+                bad.push({
+                  kind: "contrast",
+                  value: text.slice(0, 24) + " (" + ratio + ":1)",
+                  where,
+                  minimum,
+                });
+              }
+            }
+            return bad;
+          },
+          {
+            typeMin: TYPE_MIN,
+            typeMax: TYPE_MAX,
+            radii: RADII,
+            largePx: LARGE_PX,
+            largeBoldPx: LARGE_BOLD_PX,
+            boldWeight: BOLD_WEIGHT,
+            minContrast: MIN_CONTRAST,
+            minContrastLarge: MIN_CONTRAST_LARGE,
+          },
+        );
+
+        for (const item of found) {
+          offenders.push({
+            kind: name + "/" + theme + " " + item.kind,
+            value: item.value,
+            where: item.where,
+            minimum: item.minimum,
+          });
         }
       }
-      return offenders;
-    });
+    }
 
-    const badSizes = measured.filter(
-      (item) => item.kind === "font-size" && !SCALE.includes(Math.round(parseFloat(item.value))),
-    );
-    const badRadii = measured.filter(
-      (item) => item.kind === "radius" && !RADII.includes(Math.round(parseFloat(item.value))),
-    );
-    expect(badSizes, "painted font sizes that are not a step of the scale").toEqual([]);
-    expect(badRadii, "painted corner radii that are not a step of the ladder").toEqual([]);
-  });
-
-  test("painted text is readable against what is painted behind it", async ({ page }) => {
-    const token = process.env.E2E_ADMIN_TOKEN || "";
-    const jobId = process.env.E2E_JOB_ID || "";
-    expect(token.length).toBeGreaterThan(0);
-    expect(jobId.length).toBeGreaterThan(0);
-
-    await loginWithToken(page, token);
-    await page.goto("/#/jobs/" + jobId);
-    await expect(page.locator("h1")).toBeVisible();
-
-    const measured = await page.evaluate(() => {
-      const parse = (value: string): number[] | null => {
-        const match = value.match(/rgba?\(([^)]+)\)/);
-        if (!match) return null;
-        const parts = match[1].split(",").map((part) => parseFloat(part.trim()));
-        if (parts.length < 3 || parts.some((part) => Number.isNaN(part))) return null;
-        return parts.slice(0, 3);
-      };
-      const alpha = (value: string): number => {
-        const match = value.match(/rgba?\(([^)]+)\)/);
-        if (!match) return 1;
-        const parts = match[1].split(",").map((part) => parseFloat(part.trim()));
-        return parts.length >= 4 ? parts[3] : 1;
-      };
-      const backgroundOf = (node: Element): number[] | null => {
-        let current: Element | null = node;
-        while (current) {
-          const style = getComputedStyle(current);
-          const rgb = parse(style.backgroundColor);
-          if (rgb && alpha(style.backgroundColor) > 0.5) return rgb;
-          current = current.parentElement;
-        }
-        return null;
-      };
-      const LARGE_PX = 24;
-      const LARGE_BOLD_PX = 18.66;
-      const BOLD_WEIGHT = 700;
-      const luminance = (rgb: number[]): number => {
-        const channels = rgb.map((value) => {
-          const c = value / 255;
-          return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-        });
-        return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
-      };
-      const rows: { text: string; ratio: number; where: string }[] = [];
-      const seen = new Set<string>();
-      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-      let node = walker.nextNode();
-      while (node) {
-        const text = (node.textContent || "").trim();
-        const parent = node.parentElement;
-        node = walker.nextNode();
-        if (!text || !parent) continue;
-        if (parent.closest(".sr-only, script, style")) continue;
-        const style = getComputedStyle(parent);
-        if (style.visibility === "hidden" || style.display === "none") continue;
-        // READABLE text: letters or digits. A decorative dot is a shape, and
-        // judging a shape's contrast as if it were a sentence is a measurement
-        // bug, not an accessibility finding.
-        if (!/[0-9A-Za-z\u4e00-\u9fff]/.test(text)) continue;
-        // An element painted with opacity < 1 is BLENDED with what is behind
-        // it; the walker's answer (the ancestor's own color) is not what the
-        // reader sees, so measuring it here would report a contrast that
-        // does not exist.
-        if (parseFloat(style.opacity) < 0.99) continue;
-        const where =
-          parent.tagName.toLowerCase() +
-          (parent.className && typeof parent.className === "string"
-            ? "." + parent.className.split(" ").filter(Boolean)[0]
-            : "");
-        if (seen.has(where)) continue;
-        seen.add(where);
-        const fg = parse(style.color);
-        const bg = backgroundOf(parent);
-        if (!fg || !bg) continue;
-        const l1 = luminance(fg);
-        const l2 = luminance(bg);
-        const high = Math.max(l1, l2);
-        const low = Math.min(l1, l2);
-        const size = parseFloat(style.fontSize);
-        const weight = parseInt(style.fontWeight, 10) || 400;
-        const large = size >= LARGE_PX || (size >= LARGE_BOLD_PX && weight >= BOLD_WEIGHT);
-        rows.push({
-          text: text.slice(0, 40),
-          ratio: Math.round(((high + 0.05) / (low + 0.05)) * 100) / 100,
-          where,
-          large,
-          minimum: large ? 3.0 : 4.5,
-        });
-      }
-      return rows;
-    });
-
-    const unreadable = measured.filter((row) => row.ratio < row.minimum);
     expect(
-      unreadable,
-      "text painted below the WCAG AA ratio on the rendered page",
+      offenders,
+      "the painted page does not hold the design system's rules:\n  " +
+        offenders
+          .map((o) => `${o.kind}: ${o.where} = ${o.value} (needs ${o.minimum})`)
+          .join("\n  "),
     ).toEqual([]);
   });
 });

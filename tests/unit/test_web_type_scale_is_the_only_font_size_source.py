@@ -110,6 +110,26 @@ def test_every_font_size_comes_from_the_scale() -> None:
     )
 
 
+def test_there_is_only_one_type_ladder() -> None:
+    """The repo used to carry TWO: --fs-11..--fs-30 (used 124 times) and,
+    since #1624, --text-2xs..--text-hero. Two ladders means two truths: a
+    size can be "on the scale" and still not be the scale the pages use.
+
+    #1630 merged them -- the --fs-* names are gone, and every usage now
+    names a --text-* step.
+    """
+    leftovers: list[str] = []
+    for path in sorted(SRC.glob("**/*.css")) + sorted(SRC.glob("**/*.tsx")):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for line_no, line in enumerate(text.splitlines(), start=1):
+            if "--fs-" in line:
+                leftovers.append(f"{path.relative_to(ROOT)}:{line_no}: {line.strip()[:80]}")
+    assert not leftovers, (
+        f"{len(leftovers)} lines still name the old font-size ladder:\n  "
+        + "\n  ".join(leftovers[:12])
+    )
+
+
 def test_the_scale_has_a_bounded_number_of_steps() -> None:
     """The ladder may not grow one page at a time."""
     declared = _declared_tokens()

@@ -17,6 +17,10 @@
   --accent-900: #3a228a;
   --accent-2-300: #67e8f9;
   --accent-2-400: #22d3ee;
+  /* The text-safe step of the cyan ramp: #22d3ee is a FILL colour --
+     as a number on a light card it measured 1.81:1. The same idea the
+     success/danger ramps already have (--success-fg / --danger-fg). */
+  --accent-2-fg: #22d3ee;
   --accent-2-500: #06b6d4;
   --gradient-aurora: linear-gradient(135deg, #6a46f0 0%, #7c5cff 45%, #22d3ee 120%);
   --gradient-aurora-soft: linear-gradient(135deg, rgba(124, 92, 255, 0.16) 0%, rgba(34, 211, 238, 0.1) 100%);
@@ -43,16 +47,6 @@
     "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas,
     "Liberation Mono", monospace;
-  --fs-11: 11px;
-  --fs-12: 12px;
-  --fs-13: 13px;
-  --fs-14: 14px;
-  --fs-15: 15px;
-  --fs-16: 16px;
-  --fs-18: 18px;
-  --fs-20: 20px;
-  --fs-24: 24px;
-  --fs-30: 30px;
   --fw-400: 400;
   --fw-500: 500;
   --fw-600: 600;
@@ -228,6 +222,7 @@
   --accent-tint: rgba(124, 92, 255, 0.12);
   --accent-ring: rgba(106, 70, 240, 0.35);
   --success: #059669;
+  --accent-2-fg: #0e7490;
   --success-fg: #047857;
   --success-tint: rgba(5, 150, 105, 0.1);
   --success-fg-on: #ffffff;
