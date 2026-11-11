@@ -30137,3 +30137,56 @@ AWS《Exponential Backoff and Jitter》量化了这件事；本仓两条退避�
 - 截图基线（e2e 截图 diff）；
 - 连接池上限（Redis/MySQL/httpx）、崩溃注入演练；
 - 全量门 v9（本 master 快照）在后台跑。
+## #1617 缓存合理运用：provider 能力判定接入 Redis 缓存（探针 11 次真实调用 → 0 次）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 826eae1 → 本节提交）。
+
+**来路。** 用户指示点名"各种缓存的合理运用"。查缓存的**生产调用者**时发现一处真缺口：
+`storage/redis.py` 里的 `cache_provider_capability` / `get_cached_provider_capability`
+（P1.4 就有、TTL 86400）**在生产代码里没有任何调用者**——只有测试在用。
+而能力的**成本**在 `craft/llm.py::_stream_capability`：流式路径每次问
+`get_capabilities()`，OpenAI 兼容 provider 于是跑**完整探针 = 11 次真实网关请求**
+（含真实 chat completion，**要花 token**），每个 provider 实例付一次。
+
+**落地（`providers/openai_compatible.py`）：**
+- `run_probe()` 先问缓存：命中（且缓存里 `chat` 为真）→ 直接用**缓存里的判定**返回，
+  **一次网关请求都不发**；
+- 探针跑完且**答了话**（`capabilities["chat"]` 为真）→ 把 capabilities/limits/errors/
+  probed_at 写回缓存；
+- **失败不缓存**：探针没答上（网络抖动）时**不写**——否则一次抖动会把"没有能力"
+  锁 24 小时；
+- 缓存不可用（无 Redis / Redis 挂）→ 视作"没有缓存"，照常探针：**缓存是优化，
+  永不是依赖**；
+- 缓存键 = `sha256(base_url | model | protocol)`：同一个端点探不同模型、或换协议，
+  答案都不同，键必须带上这三样。
+
+**验证读数（实测）：**
+- 新增 `tests/unit/test_provider_capability_cache.py`（4 腿）：
+  ① 缓存命中 → **探针调用次数 = 0**，判定与 probed_at 来自缓存；
+  ② 探针答了话 → 判定被写进缓存（再读得到）；
+  ③ 探针没答话 → **缓存里没有**（一次抖动不能锁死能力一天）；
+  ④ Redis 抛异常 → provider 照常探针照常答（fail-open）；
+- provider 相关测试 **163 绿**（test_providers / dsv4 / metrics / capability_cache /
+  client_policy / llm_provider_source / providers_net / provider_accounting /
+  provider_hold_probe / responses_provider / provider_smoke / craft_llm）；
+- `ruff` + `mypy` 对改动文件均干净；
+- fence 5 文件 53 passed（本节追加后实跑）。
+
+**诚实边界：**
+- TTL 沿用缓存方法自己的默认（86400s = 24h）：**窗口内提供方能力变了不会被立刻发现**
+  ——这是缓存 TTL 自己编码的取舍，不是本号新造的；
+- 缓存键含 model：**换模型即换键**，不会串味；但**同一模型的能力在 24h 内被改**，
+  本机测不出来；
+- 本号**没有**测量省下的 token（没有生产 trace）——可迁移的是结构性事实：
+  命中即 0 次网关请求，冷启动仍是每实例 1 次探针；
+- `cache_llm_response` / `get_cached_llm_response` **同样没有生产调用者**：语义缓存在
+  ADR-017 里是**进程内**的（"never stored"），Redis 这对方法属于**未接线的能力**——
+  本号**不动**它（不假装它被用），记录在案；
+- 无 Redis 的 CI 腿会**跳过**这 4 条腿（"不能测 ≠ 测过了"），CI 的权威仍是
+  openapi-diff 等既有腿。
+
+**下一号队列（不动）：**
+- keyset 分页（游标）+ 前后端协同；
+- 截图基线（e2e 截图 diff）；
+- 连接池上限（Redis/MySQL/httpx）、崩溃注入演练；
+- 全量门 v9（快照 326 → 落后当前 master），需在并行车道收尾后重排最终一轮。

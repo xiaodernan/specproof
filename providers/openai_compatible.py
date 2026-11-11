@@ -36,6 +36,8 @@ DeepSeek V4 Pro adaptation (see docs/design/DEEPSEEK_V4_PRO_ADAPTATION.md):
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import hashlib
 import json
 import os
 import time
@@ -244,7 +246,80 @@ class OpenAICompatibleProvider(ModelProvider):
             self._probe_result = await self.run_probe()
         return self._probe_result
 
+    def _capability_cache_key(self) -> str:
+        """The cache key for this provider's capability verdict.
+
+        base_url + model + protocol: the same endpoint probed for a different
+        model (or over the other protocol) answers differently, so the key has
+        to carry all three.
+        """
+        raw = f"{self.base_url}|{self.model}|{self.protocol}".encode()
+        return hashlib.sha256(raw).hexdigest()[:32]
+
+    def _cached_capability_snapshot(self) -> dict[str, Any] | None:
+        """The cached verdict, or None (cache miss, Redis down, no Redis).
+
+        Best-effort by design: a provider must work on a box with no Redis
+        at all, so every failure here is "no cache", never an error.
+        """
+        try:
+            from storage.redis import RedisStore
+        except Exception:  # noqa: BLE001 - the provider must not need Redis
+            return None
+        try:
+            store = RedisStore()
+        except Exception:  # noqa: BLE001
+            return None
+        try:
+            snapshot = store.get_cached_provider_capability(
+                self._capability_cache_key()
+            )
+        except Exception:  # noqa: BLE001 - a cache must never break the probe
+            return None
+        finally:
+            with contextlib.suppress(Exception):
+                store.close()
+        # the store hands back the parsed snapshot (or None on a miss)
+        return snapshot if isinstance(snapshot, dict) else None
+
+    def _store_capability_snapshot(self, snapshot: dict[str, Any]) -> None:
+        """Write the verdict to the cache; failures are ignored."""
+        try:
+            from storage.redis import RedisStore
+        except Exception:  # noqa: BLE001
+            return
+        try:
+            store = RedisStore()
+        except Exception:  # noqa: BLE001
+            return
+        try:
+            store.cache_provider_capability(
+                self._capability_cache_key(), snapshot
+            )
+        except Exception:  # noqa: BLE001 - the cache is an optimization
+            pass
+        finally:
+            with contextlib.suppress(Exception):
+                store.close()
+
     async def run_probe(self) -> ProbeResult:
+        # A cached verdict answers without touching the gateway (#1617): the
+        # probe is ELEVEN live requests (including real chat completions), and
+        # the streaming path asks for the capabilities on every provider
+        # instance. The cache is only trusted when it says the provider
+        # answered a chat -- a FAILED probe is never cached, so a network
+        # blip cannot pin "no capabilities" for a day.
+        cached = self._cached_capability_snapshot()
+        if cached is not None and cached.get("capabilities", {}).get("chat"):
+            self._probe_result = ProbeResult(
+                provider="openai_compatible", base_url=self.base_url,
+                model=self.model,
+                capabilities=dict(cached.get("capabilities", {})),
+                limits=dict(cached.get("limits", {})),
+                errors=list(cached.get("errors", [])),
+                probed_at=str(cached.get("probed_at", "")),
+            )
+            return self._probe_result
         if self.protocol == "responses":
             # One real streamed response measures reachability + streaming.
             # Unsupported/unexercised features stay absent, not fabricated.
@@ -262,6 +337,15 @@ class OpenAICompatibleProvider(ModelProvider):
                     errors=[f"Responses protocol check failed: {type(exc).__name__}"],
                 )
             assert self._probe_result is not None
+            if self._probe_result.capabilities.get("chat"):
+                self._store_capability_snapshot(
+                    {
+                        "capabilities": dict(self._probe_result.capabilities),
+                        "limits": dict(self._probe_result.limits),
+                        "errors": list(self._probe_result.errors),
+                        "probed_at": self._probe_result.probed_at,
+                    }
+                )
             return self._probe_result
         probe = CapabilityProbe(
             base_url=self.base_url,
@@ -269,6 +353,16 @@ class OpenAICompatibleProvider(ModelProvider):
             model=self.model or "",
         )
         self._probe_result = await probe.run()
+        if self._probe_result.capabilities.get("chat"):
+            # only a probe that ANSWERED is worth remembering
+            self._store_capability_snapshot(
+                {
+                    "capabilities": dict(self._probe_result.capabilities),
+                    "limits": dict(self._probe_result.limits),
+                    "errors": list(self._probe_result.errors),
+                    "probed_at": self._probe_result.probed_at,
+                }
+            )
         return self._probe_result
 
     def get_capabilities(self) -> dict[str, Any]:
