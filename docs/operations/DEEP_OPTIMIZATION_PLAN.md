@@ -29751,3 +29751,43 @@ sibling lane 正以**正确模式**落地 gateway 测试，我据其契约收尾
 ② config-server compose + gateway 真连 config-server 跑一次配置拉取（验证 `optional:` 在「在时」也正确）；
 ③ gateway 真连 discovery-server 跑一次注册（验证 `eureka.client.service-url.defaultZone` 生效）；
 ④ 回到 #1607 ② 边缘 `TokenRelay` / OAuth2 resource server。
+
+---
+
+## #1610 接手 sibling 的 config-server/discovery-server CI 接线 + 四服务对账契约测试
+
+**记录基准**：取号前实测账本 `## #` 最大 **1609** ⇒ 取 **#1610**。本号把 #1606（config-server 8888）+
+#1608（discovery-server 8761）+ #1609（gateway 接线）三件套的**收尾**收掉：sibling lane 已写好
+`.github/workflows/ci.yml` 的 config-server + discovery-server 构建步，以及
+`tests/unit/test_spring_cloud_services_agree_on_train_and_ports.py` 四服务对账契约测试，但都未提交。
+授权「直接接手帮他把剩下的内容做完」，遂一并接手。
+
+### 一、接手内容（sibling 在途，未改其逻辑）
+
+- `.github/workflows/ci.yml`：在 `cache-dependency-path` 增 `services/config-server/pom.xml` /
+  `services/discovery-server/pom.xml`；新增 `config server` 与 `discovery server` 两个 `mvn -B test` 构建步。
+- `tests/unit/test_spring_cloud_services_agree_on_train_and_ports.py`：从已提交的 poms / YAML / workflow
+  读取（非手抄），断言四服务（config-server / control-plane / discovery-server / gateway）同 Boot 3.4.3、
+  同 Java 21、同 Spring Cloud 2024.0.1；config-server 与 discovery-server 端口不冲突；config-server 的
+  native backend 指向 `classpath:/config/`；`config/gateway.yml` 与边缘本地默认值一致；每个服务都有 CI
+  mvn 腿。
+
+### 二、门证（全在本号内亲手取）
+
+| 项 | 结果 |
+|---|---|
+| `mvn -o -B test`（`services/config-server`） | **BUILD SUCCESS**（CONFIG_EXIT=0，32s） |
+| `pytest tests/unit/test_spring_cloud_services_agree_on_train_and_ports.py` | **6 passed / 4.83s**（依赖 ci.yml 四腿，故本号将 ci.yml 与该测试同提交，保证干净检出仍绿） |
+
+### 诚实边界
+
+- 本号**仅接手** sibling 在途的 CI + 契约测试，**未改其逻辑**；config-server 模块源码为 #1606 已提交，
+  本号只补其 CI 覆盖与四服务对账门。
+- 不纳入 control-plane 的 `spring-boot-starter-data-redis` + cache 配置在途改动（独立 feature，非本三件套）。
+- 契约测试读 ci.yml 断言四服务各有 mvn 腿：因本号同提交 ci.yml 四腿版，干净检出下该断言成立。
+
+### 下一号队列
+
+① config-server compose + gateway 真连 config-server 跑一次配置拉取（验证 `optional:` 在「在时」也正确，
+   而非仅离线可启）；② gateway 真连 discovery-server 跑一次注册；
+③ 回到 #1607 ② 边缘 `TokenRelay` / OAuth2 resource server。

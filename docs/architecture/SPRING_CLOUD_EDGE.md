@@ -35,6 +35,7 @@ application.yml / Java 测试 / 看板 / 告警作为证据），不吹未落地
 | `GatewayProperties`（**配置外置 #1604**：把边缘所有可调旋钮——`request-size.enabled`/`max-bytes`、`security-headers.enabled`、`mq-events.enabled`/`exchange`/`queue`——从散落的 `@Value` 字符串收拢到单个 `@ConfigurationProperties(prefix="specproof.gateway")` bean，三个 filter 改注入该 bean 而非各自读 `@Value`；无新依赖，默认与旧 `@Value` 字面量完全一致——纯 Spring Boot 微服务"配置外置"惯用法，operator 改一处即全局调参，且可被 config-server / env 统一覆盖） | `services/gateway/.../config/GatewayProperties.java` + `GatewayConfig.java`（`@EnableConfigurationProperties`）+ `EdgeRequestSizeGlobalFilter`/`EdgeSecurityHeadersGlobalFilter`/`GatewayMqEventConsumer` 改注入该 bean（保留直构造器供测试，**45 个既有网关测试零改动仍绿**） | `GatewayPropertiesBindingTest`（2 腿：绑定默认+`@TestPropertySource` 覆盖 `max-bytes=2048`/`security-headers=false` 生效、`mq-events` 默认关且 `exchange`/`queue` 默认就位）+ `mvn -o -B test` 全 47 绿（含本号 2 例） |
 | **W190 六事件 RabbitMQ 总线（事件驱动微服务接缝）**：Python `storage/rabbitmq.py` 的六个可靠投递事件（`published` / `publish_confirm_timeout` / `consumed` / `duplicate_acked` / `retry_scheduled` / `dead_lettered`）经 `SPECPROOF_MQ_EVENTS_ENABLED=1` 由 `storage/rabbitmq.py::RabbitMQBusSink`（唯一发布实现, 经 `observability/mq_events.py::GuardedBusSink` 守卫） 发到 durable topic exchange `specproof.observability.events`（routing key == 事件名）；边缘 `@RabbitListener` 绑 durable queue `q.gateway.mq-events` 到同样六个键，按 `event` 标签累计 `specproof.gateway.mq.event`。两侧**默认关**：Python 关时仍装原来的 no-op sink（字节级 legacy），Java `@ConditionalOnProperty(havingValue="true")` 关时不建 listener container、不连 broker。词汇唯一拥有者 = `observability/event_vocabulary.py`；`storage/rabbitmq.py` 的 `MQ_EVENTS`/`EXCHANGE_EVENTS`/`QUEUE_GATEWAY_MQ_EVENTS` 只是别名 | `observability/event_vocabulary.py` + `observability/mq_events.py` + `storage/rabbitmq.py` + `services/gateway/src/main/java/dev/specproof/gateway/mq/`（pom 加 `spring-boot-starter-amqp`，版本由 Boot 3.4.3 父管） | `tests/unit/test_w190_event_bus_producer.py`（16 例）+ `tests/unit/test_w190_event_bus_has_both_sides.py`（7 例，跨语言四处对账）+ `GatewayMqEventBindingTest`（4 例，反射读真注解）+ `GatewayMqEventConsumerTest`（8 例）；`mvn -o -B test` 全 **51** 绿（#1602 时 37 → #1603 消费侧 +8=45 → #1604 配置外置 +2=47 → #1605 绑定门 +4=51） |
 | `ConfigServerApplication`（`@EnableConfigServer`，**分布式配置微服务 #1606**：文件后端（native）配置服务器，端口 8888，为边缘 `GatewayProperties`（#1604）提供跨环境统一的配置源；`/gateway/default` 回外部化的 `specproof.gateway.*` 键，与网关 `application.yml` 字节级一致；边缘加 `spring.config.import=optional:configserver:http://localhost:8888` 即跨 dev/staging/prod 不改镜像；无 git / broker 依赖，离线可起、单测可验；与网关同用 Boot 3.4.3，但 `spring-cloud.version` 锁 2024.0.1 且 config-server 钉 4.2.0（离线 m2 镜像里 4.2.1 未落地），其传递依赖 config-client/commons-codec 也钉到已缓存版本） | `services/config-server/src/main/java/dev/specproof/configserver/ConfigServerApplication.java` + `src/main/resources/application.yml`（`spring.profiles.active=native` + `spring.cloud.config.server.native.search-locations=classpath:/config/`） + `src/main/resources/config/gateway.yml` | `ConfigServerApplicationTests`（1 例：启动真 Config Server（RANDOM_PORT）并 GET `/gateway/default`，断言 `propertySources[0].source` 含 `specproof.gateway.mq-events.enabled=false` / `exchange=specproof.observability.events` / `queue=q.gateway.mq-events` 等）；`cd services/config-server && mvn -o -B test` 全 **1 绿**，BUILD SUCCESS |
+| `DiscoveryServerApplication`（`@EnableEurekaServer`，**服务注册微服务 #1608**：单节点注册表 8761，native 单机模式 `register-with-eureka=false` / `fetch-registry=false`，开启 `enable-self-preservation`；`spring.application.name=discovery-server`） | `services/discovery-server/`（Boot 3.4.3 + Spring Cloud 2024.0.1，与其余三服务同训练） | `DiscoveryServerApplicationTests`（1 例全上下文）＋ `mvn -o -B test` BUILD SUCCESS；`tests/unit/test_spring_cloud_services_agree_on_train_and_ports.py`（6 例，四服务版本/CI/端口/后端对账）＋ `tests/unit/test_ci_runs_the_java_services.py`（9 例，四个模块都有 CI Maven 腿） |
 | Micrometer 池/网关/路由计量 + `/actuator/prometheus`（JSON） | `application.yml`（`management.prometheus.metrics.export.enabled: true` + `percentiles-histogram.spring.cloud.gateway.requests: true`） | `GatewayPoolMetricsTests`（远程端点抓数 + x3 面板）+ `GatewayMetricsTests`（4 路定时器矩阵）+ `GatewayPrometheusEndpointTests`（/actuator/prometheus 不是 catch-all 应答） |
 | `/actuator/gateway/routes`（SCG 自有 actuator 路由表）、`/actuator/health`、ring buffer | 出场默认 loopback，compose 观测网变更为可被 Prometheus 抓取 | `GatewayActuatorRoutesTests`（5 腿：route 表恰好 6 条、catch-all 最后、edge 端口 404、管理端口 200） |
 | Spring Cloud Gateway 的 `spring.cloud.gateway.metrics.enabled: true`（路由 Timer 按 routeId） | `application.yml` | `GatewayMetricsTests`（2 腿） |
@@ -84,16 +85,18 @@ application.yml / Java 测试 / 看板 / 告警作为证据），不吹未落地
   把 W190 观测事件发到 `specproof.observability.events` topic 总线，边缘的
   `GatewayMqEventConsumer` 订阅——这是两边唯一一个**事件驱动**的接缝（默认关，需两端都
   开启才生效；总线 sink 走 `RabbitMQClient._publish_raw`，转发事件不会自递归）。
-- **服务发现**：没有 Eureka/Consul/Nacos——这是设计决定（`#1585` 前身），不是缺陷。
+- **服务发现**：`#1585` 时的「没有 Eureka/Consul/Nacos」已被 #1608 改写——`services/discovery-server` 是单节点 Eureka 注册表（8761，`register-with-eureka=false` / `fetch-registry=false`），有 `@EnableEurekaServer` 与 1 例上下文测试，并由 CI 编译。**但边缘的 eureka client 接线仍在另一条车道的在途工作树里**（profile 文件 + 两个依赖，其离线套件当前 15 红），故本页不声称边缘已注册；等它落地再加端口对账门。Consul/Nacos 仍无。
 
 ## 如果你要接入
 
-1. **Service Discovery**：加 `spring-cloud-starter-netflix-eureka-client`，
-   `application.yml` 的 `spring.cloud.discovery.client.simple-enabled=false`，
-   `compose.production.yml` 起 eureka 容器，改 `lb://serviceId` URIs。
-2. **配置中心**：目前所有配置都是 `application.yml` + env 变量；
-   若要多环境配置统一，`spring-cloud-config-client` + 一个 config server compose
-   服务即可（本仓无兴趣此事的优先级）。
+1. **Service Discovery**：注册表侧已落地（#1608，见元素表）；缺的是**边缘客户端接线**
+   （`spring-cloud-starter-netflix-eureka-client` + profile 内的 `defaultZone`）与
+   `compose.production.yml` 起 eureka 容器。改 `lb://serviceId` URIs 属更大的路由改动，
+   需 owner 决定——目前 control-plane 路由仍按 compose 服务名直连。
+2. **配置中心**：`services/config-server`（#1606，8888，native 后端）已落地并由 CI 编译，
+   `config/gateway.yml` 与边缘 `mq-events` 默认值由对账门钉死；缺的同样是边缘客户端接线
+   （`optional:configserver:` import）与 compose 服务。接线落地后应补两条端口对账腿，
+   见 `tests/unit/test_spring_cloud_services_agree_on_train_and_ports.py` 的 boundary 注。
 3. **Spring Cloud Contract**：本仓没有 CDC 契约——Python agent runtime 和 Java
    control-plane 之间的协议是已定死的 outbox + `verification_jobs` 投影，目前
    没有比这个更值得契约化的。

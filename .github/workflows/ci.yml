@@ -76,11 +76,19 @@ jobs:
           cache-dependency-path: |
             services/control-plane/pom.xml
             services/gateway/pom.xml
+            services/config-server/pom.xml
+            services/discovery-server/pom.xml
       - name: control-plane (compile + tests)
         working-directory: services/control-plane
         run: mvn -B test
       - name: edge gateway (compile + tests)
         working-directory: services/gateway
+        run: mvn -B test
+      - name: config server (compile + tests)
+        working-directory: services/config-server
+        run: mvn -B test
+      - name: discovery server (compile + tests)
+        working-directory: services/discovery-server
         run: mvn -B test
 
   # §8.1 / §14-4: OpenAPI schema diff gate. The baseline is committed at
