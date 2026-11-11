@@ -30370,3 +30370,67 @@ fixture 的 `dashboard_snapshot` 按路由的**严格读**补齐（缺 `demo_job
 - 连接池上限（Redis 的 max_connections / MySQL 的有界连接池）；
 - 截图基线（像素级"美观"回归）、崩溃注入演练；
 - 全量门 v10（master 1668bab 快照）在后台跑。
+## #1621 Redis：客户端一个进程一个 + 连接池有上限（实测 5 个 store → 1 条连接）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 310fbd1 → 本节提交）。
+
+**来路。** 用户指示点名"Redis 的运用""各种缓存的合理运用"以及"数据库的性能"。审计
+Redis 的连接生命周期时发现两件事：
+
+1. **每个 store 自带一个连接池。** `RedisStore.client` 每次都 `redis.Redis(...)`
+   新建客户端，而客户端自带连接池。于是**每个 store 一个池**，每个池一次
+   TCP + AUTH 握手；池只在 GC 回收时才释放。
+2. **热路径上每请求一个 store。** `api/auth.py::enforce_rate_limit`（**每个 API
+   请求都过**）里是 `store = RedisStore()`；`api/routes/web.py:388`（SSE 进度
+   端点）同样是每请求一个 `RedisStore()`。在 #1621 之前，这两处**每个请求**都
+   建一个新客户端、一个新池、一次握手。worker 也一样：`agent/worker.py` 在
+   4 个操作点各建一个 store。
+
+**落地（`storage/redis.py`）：**
+- **进程内共享客户端**：模块级 `_CLIENTS` 注册表，按连接参数
+  （host/port/db/密码/池上限）取键；`shared_redis_client(config)` 按需创建；
+  `close_shared_redis_clients()` 供进程退出/测试关闭；
+  `RedisStore.client` 取共享客户端；
+- **连接池有上限**：`RedisConfig.max_connections`（环境变量 `REDIS_MAX_CONNECTIONS`，
+  默认 **32**）传给 redis-py 的 `max_connections`。redis-py 的默认是**无上限**：
+  池随并发增长，"这个进程持有多少条 socket"是个没有答案的问题；上限把它变成
+  一个运维能设、能算的数；
+- **`close()` 的语义改了**（写进 docstring）：它现在只**释放本 store 的引用**，
+  不关共享的 socket——worker 的关闭路径 `self.redis.close()` 关的并不是池的唯一
+  使用者，关掉会把 socket 从别人脚下抽走；真正关闭共享池的地方是
+  `agent/worker.py::stop()`（进程的所有者）；
+- **共享是"按配置"而不是全局**：两个不同端点不会拿到同一个客户端（门里有）。
+
+**验证读数（实测，真 Redis，redis-py 8.1.0）：**
+- 新增 `tests/unit/test_redis_client_pool_is_shared_and_bounded.py`（7 腿）：
+  ① 两个同配置 store **拿到同一个客户端、同一个池**；
+  ② 不同配置 → 不同的池；
+  ③ 池的上限 = 配置值（7），且 `RedisConfig.from_env()` 读到环境变量；
+  ④ **核心对比（同一次测量里做 A/B）**：5 个 store 各发一条命令 →
+     共享形状建 **1** 条连接；**旧形状**（每 store 一个客户端）建 **5** 条——
+     对照臂在同一测试里跑，所以"共享省了连接"这句话不是靠嘴说的；
+  ⑤ **限流路径**（`RedisStore()` 每请求一个，正是 `api/auth.py` 的写法）：
+     5 次调用 → **1** 条连接；
+  ⑥ 关掉一个 store 不影响另一个 store 的共享客户端（socket 还在）；
+  ⑦ `close_shared_redis_clients()` 真的清空注册表，之后按需重建；
+- 既有 Redis 相关测试（lease 原子性 / 请求指标 / stream / lease max hold /
+  envelope retryable）→ **68 passed**；
+- auth/api/worker/rate 切片 → **554 passed, 1 skipped**；
+- `ruff check .` 与 `mypy`（改动文件 + 全仓）均干净。
+
+**诚实边界：**
+- 本号量的是**池创建的连接数**（结构事实），**没有**在服务端侧数 socket，
+  也没有做并发压测；
+- 上限是**每进程**的：N 个进程 × 32 条；单进程内的并发若真的超过 32，
+  redis-py 会抛 `ConnectionError: Too many connections`——**这个失败模式本号
+  没有实测**（没有压测），它是从"无上限地增长"换来的"显式报错"；
+- 共享注册表是**模块级**的，也就是**每进程**一份：跨进程不共享（这是对的，
+  进程之间没有共享内存）；
+- 仓库里还有一个 `build_redis_client()`（`experiments/external_state.py`），
+  本号**没有**动它（它是实验工具的独立客户端），记录在案；
+- 本号**没有**改任何 Redis 命令的语义（键、TTL、Lua 脚本一律未动）。
+
+**下一号队列（不动）：**
+- MySQL 的有界连接池（现在每个操作一次握手，且并发连接数无上限）；
+- 截图基线（像素级"美观"回归）、崩溃注入演练；
+- 全量门：v10（快照 1668bab，已落后 6 个提交）在后台跑；最终一轮按当前 master 重排。

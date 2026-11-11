@@ -57,7 +57,7 @@ from storage.mysql import (
 )
 from storage.notify_relay import notify_outbox_lane_enabled
 from storage.rabbitmq import RabbitMQClient, make_idempotency_check
-from storage.redis import RedisStore
+from storage.redis import RedisStore, close_shared_redis_clients
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +157,11 @@ class Worker:
         self._stop_reclaim_tick()
         self.rabbitmq.close()
         self.redis.close()
+        # The Redis client (and its pool) belongs to the PROCESS (#1621),
+        # so the worker's shutdown is where the shared pool is closed --
+        # closing it from a single store would pull the socket out from
+        # under the other stores that share it.
+        close_shared_redis_clients()
         self.mysql.close()
         logger.info("Worker %s stopped", self.worker_id)
 

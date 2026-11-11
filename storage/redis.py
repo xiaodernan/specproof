@@ -9,6 +9,7 @@ finally semantics into the redis_request_seconds_<op> family — failures
 included; close() is connection release, not a round trip, and is untimed.
 All keys carry TTL — no permanent business state in Redis.
 """
+import contextlib
 import json
 import os
 import time
@@ -36,6 +37,14 @@ STREAM_DEFAULT_TTL_SECONDS = 86400
 REDIS_DEFAULT_CONNECT_TIMEOUT = 5
 #: How often a pooled connection is validated before reuse (seconds).
 REDIS_DEFAULT_HEALTH_CHECK_INTERVAL = 30
+#: Upper bound on the connections ONE process may hold to Redis.
+#:
+#: WHY A BOUND. redis-py's default is "no bound": the pool grows with the
+#: concurrency and the process ends up holding as many sockets as it has
+#: threads, each with its own handshake. A bound turns "how many sockets
+#: does this process hold" from an open question into a number an operator
+#: can set (REDIS_MAX_CONNECTIONS) and reason about.
+REDIS_DEFAULT_MAX_CONNECTIONS = 32
 
 #: Scope-lock key prefix: one key per named fleet-level task.
 SCOPE_LOCK_PREFIX = "specproof:lock:scope:"
@@ -136,6 +145,8 @@ class RedisConfig:
     #: a NAT/firewall silently dropped is reused and fails the first command;
     #: the health check catches it before the command is sent.
     health_check_interval_seconds: int = REDIS_DEFAULT_HEALTH_CHECK_INTERVAL
+    #: Upper bound on this process's Redis connections (the pool's cap).
+    max_connections: int = REDIS_DEFAULT_MAX_CONNECTIONS
 
     @classmethod
     def from_env(cls) -> "RedisConfig":
@@ -155,7 +166,74 @@ class RedisConfig:
                 "REDIS_HEALTH_CHECK_INTERVAL_SECONDS",
                 REDIS_DEFAULT_HEALTH_CHECK_INTERVAL,
             ),
+            max_connections=int_env(
+                "REDIS_MAX_CONNECTIONS",
+                REDIS_DEFAULT_MAX_CONNECTIONS,
+            ),
         )
+
+
+#: One client per configuration per PROCESS, keyed by the connection
+#: parameters (#1621).
+#:
+#: WHY. The worker builds several RedisStore instances (one per operation
+#: site) and every instance used to build its OWN client -- and therefore
+#: its OWN connection pool. The process then held one pool per store, each
+#: with its own TCP + AUTH handshake, and the pools were only released
+#: when the garbage collector got to them. One client per configuration
+#: means ONE pool: one handshake, one bounded set of sockets, and a pool
+#: that outlives the store that happened to build it.
+_CLIENTS: dict[tuple[Any, ...], redis.Redis] = {}
+
+
+def _client_key(config: RedisConfig) -> tuple[Any, ...]:
+    return (
+        config.host,
+        config.port,
+        config.db,
+        config.password,
+        config.max_connections,
+    )
+
+
+def shared_redis_client(config: RedisConfig) -> redis.Redis:
+    """The process-wide client for this configuration (created on demand)."""
+    key = _client_key(config)
+    client = _CLIENTS.get(key)
+    if client is None:
+        client = redis.Redis(
+            host=config.host,
+            port=config.port,
+            password=config.password,
+            db=config.db,
+            decode_responses=True,
+            # read budget: one round trip may not take longer than this
+            socket_timeout=5,
+            # connect budget: a black-holed address must not park the
+            # caller in the OS timeout (minutes) while it still holds the
+            # job lease -- see REDIS_DEFAULT_CONNECT_TIMEOUT
+            socket_connect_timeout=config.connect_timeout_seconds,
+            # TCP keepalive: a peer that vanished without a FIN is
+            # detected instead of hanging on the next read
+            socket_keepalive=True,
+            # validate a pooled connection before reusing it: NAT and
+            # firewalls drop idle connections silently, and the first
+            # command on a dead socket fails for no visible reason
+            health_check_interval=config.health_check_interval_seconds,
+            # the pool's cap: how many sockets THIS process may hold
+            max_connections=config.max_connections,
+        )
+        _CLIENTS[key] = client
+    return client
+
+
+def close_shared_redis_clients() -> None:
+    """Close every shared client (process teardown; tests)."""
+    for client in list(_CLIENTS.values()):
+        # teardown never replaces the cause
+        with contextlib.suppress(Exception):
+            client.close()
+    _CLIENTS.clear()
 
 
 class RedisStore:
@@ -179,27 +257,11 @@ class RedisStore:
 
     @property
     def client(self) -> redis.Redis:
+        # The client (and its pool) belongs to the PROCESS (#1621), not
+        # to this store: the worker opens several stores and each of
+        # them used to bring its own pool along.
         if self._client is None:
-            self._client = redis.Redis(
-                host=self.config.host,
-                port=self.config.port,
-                password=self.config.password,
-                db=self.config.db,
-                decode_responses=True,
-                # read budget: one round trip may not take longer than this
-                socket_timeout=5,
-                # connect budget: a black-holed address must not park the
-                # caller in the OS timeout (minutes) while it still holds
-                # the job lease -- see REDIS_DEFAULT_CONNECT_TIMEOUT
-                socket_connect_timeout=self.config.connect_timeout_seconds,
-                # TCP keepalive: a peer that vanished without a FIN is
-                # detected instead of hanging on the next read
-                socket_keepalive=True,
-                # validate a pooled connection before reusing it: NAT and
-                # firewalls drop idle connections silently, and the first
-                # command on a dead socket fails for no visible reason
-                health_check_interval=self.config.health_check_interval_seconds,
-            )
+            self._client = shared_redis_client(self.config)
         return self._client
 
     # ── Progress (deprecated simple key, kept for P0.5 compat) ─
@@ -544,6 +606,12 @@ class RedisStore:
             return False
 
     def close(self) -> None:
-        if self._client:
-            self._client.close()
-            self._client = None
+        """Release this store's reference to the shared client.
+
+        The client belongs to the PROCESS (#1621), so closing it here would
+        pull the socket out from under the other stores sharing it -- the
+        worker's shutdown path calls this on a store that is not the only
+        user of the pool. Use ``close_shared_redis_clients()`` to close the
+        real thing.
+        """
+        self._client = None
