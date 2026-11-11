@@ -43,36 +43,35 @@ class TestLeaseLogic:
 
     def test_acquire_lease_succeeds_when_free(self, monkeypatch):
         class FakeRedis:
-            def set(self, key, value, nx=False, ex=None):
-                return True  # acquired
+            def eval(self, script, numkeys, *args):
+                # the atomic acquire script (#1611) answers 1 when the lease
+                # was taken and 0 when it was already held
+                return 1
         store = RedisStore()
         store._client = FakeRedis()
         assert store.acquire_lease("job-1", "worker-A")
 
     def test_acquire_lease_fails_when_held(self, monkeypatch):
         class FakeRedis:
-            def set(self, key, value, nx=False, ex=None):
-                return False  # already held
+            def eval(self, script, numkeys, *args):
+                return 0  # already held
         store = RedisStore()
         store._client = FakeRedis()
         assert not store.acquire_lease("job-1", "worker-B")
 
     def test_renew_lease_succeeds_for_owner(self, monkeypatch):
         class FakeRedis:
-            def get(self, key):
-                return "worker-A"  # matches
-            def exists(self, key):
-                return 0  # no max-hold cap configured → legacy unlimited
-            def expire(self, key, ttl):
-                return True
+            def eval(self, script, numkeys, *args):
+                # the atomic renew script answers 1 only for the owner
+                return 1
         store = RedisStore()
         store._client = FakeRedis()
         assert store.renew_lease("job-1", "worker-A")
 
     def test_renew_lease_fails_for_non_owner(self, monkeypatch):
         class FakeRedis:
-            def get(self, key):
-                return "worker-B"  # different owner
+            def eval(self, script, numkeys, *args):
+                return 0  # not the owner
         store = RedisStore()
         store._client = FakeRedis()
         assert not store.renew_lease("job-1", "worker-A")

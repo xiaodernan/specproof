@@ -29,6 +29,14 @@ from storage.env_config import int_env
 STREAM_DEFAULT_MAXLEN = 1000
 STREAM_DEFAULT_TTL_SECONDS = 86400
 
+#: Connect budget for the Redis socket (seconds).  The read budget is 5s
+#: (see the client property); the connect budget used to be unset, which
+#: means "as long as the OS takes" -- a dropped SYN leaves the worker
+#: holding its lease for minutes.
+REDIS_DEFAULT_CONNECT_TIMEOUT = 5
+#: How often a pooled connection is validated before reuse (seconds).
+REDIS_DEFAULT_HEALTH_CHECK_INTERVAL = 30
+
 #: Scope-lock key prefix: one key per named fleet-level task.
 SCOPE_LOCK_PREFIX = "specproof:lock:scope:"
 #: Release only if we are still the holder (compare-and-delete).
@@ -36,6 +44,44 @@ _RELEASE_IF_HOLDER_LUA = (
     "if redis.call('get', KEYS[1]) == ARGV[1] "
     "then return redis.call('del', KEYS[1]) else return 0 end"
 )
+
+#: Acquire the lease AND (when capped) both max-hold markers in ONE atomic
+#: step. The previous shape was three round trips: SET NX EX, then SET the cap
+#: flag, then SET the start marker. A crash between them left a lease with no
+#: cap marker, and ``renew_lease`` then treated it as uncapped — the max-hold
+#: guarantee was silently gone exactly when the worker was unhealthy (the case
+#: the cap exists for). One EVAL removes the window: either the lease and both
+#: markers exist, or none of them do.
+#:
+#: KEYS = (lease, cap-flag, start-marker); ARGV = (worker_id, ttl, max_hold|"")
+_ACQUIRE_LEASE_LUA = """
+-- specproof:acquire-lease
+local acquired = redis.call('SET', KEYS[1], ARGV[1], 'NX', 'EX', ARGV[2])
+if not acquired then return 0 end
+if ARGV[3] ~= '' then
+  redis.call('SET', KEYS[2], '1')
+  redis.call('SET', KEYS[3], ARGV[1], 'EX', ARGV[3])
+end
+return 1
+"""
+
+#: Renew in ONE atomic step: owner check, cap-window check, TTL extension.
+#: The previous shape was GET -> EXISTS -> EXISTS -> EXPIRE (four round trips,
+#: four chances to be wrong). Worse, it had a TOCTOU window: the ownership was
+#: read first and the TTL extended last, so a lease that another worker had
+#: taken over in between was still extended by the previous owner — a wedged
+#: worker could keep a lease alive after losing it.
+#:
+#: KEYS = (lease, cap-flag, start-marker); ARGV = (worker_id, ttl)
+_RENEW_LEASE_LUA = """
+-- specproof:renew-lease
+if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
+if redis.call('EXISTS', KEYS[2]) == 1 then
+  if redis.call('EXISTS', KEYS[3]) == 0 then return 0 end
+end
+redis.call('EXPIRE', KEYS[1], ARGV[2])
+return 1
+"""
 
 
 #: §8.10 "Redis 延迟" (#212): histogram ladder for Redis round trips. Local
@@ -82,6 +128,14 @@ class RedisConfig:
     #: Progress-stream retention (§14.3): XADD MAXLEN cap and key TTL.
     stream_maxlen: int = STREAM_DEFAULT_MAXLEN
     stream_ttl_seconds: int = STREAM_DEFAULT_TTL_SECONDS
+    #: Connect timeout (seconds).  Without it, a black-holed address parks the
+    #: caller in the OS TCP timeout (minutes), and the worker holds its job
+    #: lease while it waits: a network fault becomes a stuck job.
+    connect_timeout_seconds: int = REDIS_DEFAULT_CONNECT_TIMEOUT
+    #: Idle-connection validation interval (seconds).  A pooled connection that
+    #: a NAT/firewall silently dropped is reused and fails the first command;
+    #: the health check catches it before the command is sent.
+    health_check_interval_seconds: int = REDIS_DEFAULT_HEALTH_CHECK_INTERVAL
 
     @classmethod
     def from_env(cls) -> "RedisConfig":
@@ -93,6 +147,13 @@ class RedisConfig:
             stream_maxlen=int_env("REDIS_STREAM_MAXLEN", STREAM_DEFAULT_MAXLEN),
             stream_ttl_seconds=int_env(
                 "REDIS_STREAM_TTL_SECONDS", STREAM_DEFAULT_TTL_SECONDS
+            ),
+            connect_timeout_seconds=int_env(
+                "REDIS_CONNECT_TIMEOUT_SECONDS", REDIS_DEFAULT_CONNECT_TIMEOUT
+            ),
+            health_check_interval_seconds=int_env(
+                "REDIS_HEALTH_CHECK_INTERVAL_SECONDS",
+                REDIS_DEFAULT_HEALTH_CHECK_INTERVAL,
             ),
         )
 
@@ -125,7 +186,19 @@ class RedisStore:
                 password=self.config.password,
                 db=self.config.db,
                 decode_responses=True,
+                # read budget: one round trip may not take longer than this
                 socket_timeout=5,
+                # connect budget: a black-holed address must not park the
+                # caller in the OS timeout (minutes) while it still holds
+                # the job lease -- see REDIS_DEFAULT_CONNECT_TIMEOUT
+                socket_connect_timeout=self.config.connect_timeout_seconds,
+                # TCP keepalive: a peer that vanished without a FIN is
+                # detected instead of hanging on the next read
+                socket_keepalive=True,
+                # validate a pooled connection before reusing it: NAT and
+                # firewalls drop idle connections silently, and the first
+                # command on a dead socket fails for no visible reason
+                health_check_interval=self.config.health_check_interval_seconds,
             )
         return self._client
 
@@ -277,39 +350,56 @@ class RedisStore:
         after the cap and renew_lease then refuses, so a wedged worker's
         lease lapses on its own instead of renewing forever. None keeps
         the legacy unlimited behavior (no marker, no flag).
+
+        One EVAL does the whole acquisition (lease + both max-hold
+        markers), so there is no window in which a lease exists without
+        its cap -- see ``_ACQUIRE_LEASE_LUA``.
         """
-        key = self.lease_key(job_id)
-        # SET NX: only succeeds if key doesn't exist
-        with _timed_redis("set"):
-            acquired = bool(self.client.set(key, worker_id, nx=True, ex=ttl))
-        if acquired and max_hold_seconds is not None:
-            with _timed_redis("set"):
-                self.client.set(self.lease_cap_flag_key(job_id), "1")
-            with _timed_redis("set"):
-                self.client.set(
-                    self.lease_start_key(job_id), worker_id,
-                    ex=max_hold_seconds,
-                )
-        return acquired
+        acquired = self._eval_lease_script(
+            _ACQUIRE_LEASE_LUA,
+            self.lease_key(job_id),
+            self.lease_cap_flag_key(job_id),
+            self.lease_start_key(job_id),
+            worker_id,
+            str(ttl),
+            "" if max_hold_seconds is None else str(max_hold_seconds),
+        )
+        return bool(acquired)
 
     def renew_lease(self, job_id: str, worker_id: str, ttl: int = 30) -> bool:
         """Renew an existing lease. Worker must own the lease AND the
-        max-hold window (when a cap was configured) must still be open."""
-        key = self.lease_key(job_id)
-        with _timed_redis("get"):
-            current = self.client.get(key)
-        if current != worker_id:
-            return False
-        with _timed_redis("exists"):
-            capped = bool(self.client.exists(self.lease_cap_flag_key(job_id)))
-        if capped:
-            with _timed_redis("exists"):
-                held = self.client.exists(self.lease_start_key(job_id))
-            if not held:
-                return False  # max hold exhausted — let the lease lapse
-        with _timed_redis("expire"):
-            self.client.expire(key, ttl)
-        return True
+        max-hold window (when a cap was configured) must still be open.
+
+        One atomic EVAL: ownership, cap window and the TTL extension
+        happen in the same step -- see ``_RENEW_LEASE_LUA``.
+        """
+        renewed = self._eval_lease_script(
+            _RENEW_LEASE_LUA,
+            self.lease_key(job_id),
+            self.lease_cap_flag_key(job_id),
+            self.lease_start_key(job_id),
+            worker_id,
+            str(ttl),
+        )
+        return bool(renewed)
+
+    def _eval_lease_script(
+        self,
+        script: str,
+        lease_key: str,
+        cap_flag_key: str,
+        start_key: str,
+        worker_id: str,
+        ttl: str,
+        max_hold: str = "",
+    ) -> int:
+        """Run one lease script against the three lease keys."""
+        with _timed_redis("eval"):
+            result = self.client.eval(
+                script, 3, lease_key, cap_flag_key, start_key,
+                worker_id, ttl, max_hold,
+            )
+        return int(result or 0)
 
     def release_lease(self, job_id: str, worker_id: str) -> None:
         """Release a lease. Only releases if owned by worker_id (Lua safety).

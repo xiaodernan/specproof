@@ -100,8 +100,23 @@ class _FakeRedis:
     def xlen(self, *args: Any, **kwargs: Any) -> Any:
         return self._record("xlen")
 
-    def eval(self, *args: Any, **kwargs: Any) -> Any:
-        return self._record("eval")
+    def eval(self, script: Any, numkeys: Any = 0, *args: Any, **kwargs: Any) -> Any:
+        """Record the op and run the lease scripts it recognizes.
+
+        The lease scripts are dispatched on their marker comment (the store
+        puts ``-- specproof:<name>`` at the top of each one), because a
+        canned answer would make the lease legs assert nothing: acquire and
+        renew have to answer differently for the owner and for a stranger.
+        """
+        recorded = self._record("eval")
+        text = str(script)
+        argv = list(args[int(numkeys):])
+        if "specproof:acquire-lease" in text:
+            return 1 if recorded else 0
+        if "specproof:renew-lease" in text:
+            owner = self.responses.get("get")
+            return 1 if (recorded and owner == argv[0]) else 0
+        return recorded
 
     def ping(self, *args: Any, **kwargs: Any) -> Any:
         return self._record("ping")
@@ -151,9 +166,12 @@ def test_driving_every_method_moves_each_op_histogram(store) -> None:
     s.is_idempotent("e")
     assert s.is_ready() is True
 
+    # The lease path is atomic now (#1611): acquire and renew are one EVAL
+    # each, so the lease calls no longer show up as set/get/exists/expire
+    # round trips -- the counts below are what the store actually issues.
     expected = {
-        "setex": 3, "get": 6, "incr": 1, "expire": 3, "xadd": 1,
-        "xread": 1, "xlen": 1, "set": 6, "exists": 3, "eval": 2,
+        "setex": 3, "get": 5, "incr": 1, "expire": 2, "xadd": 1,
+        "xread": 1, "xlen": 1, "set": 3, "exists": 1, "eval": 4,
         "decrby": 1, "ping": 1,
     }
     for op, times in expected.items():

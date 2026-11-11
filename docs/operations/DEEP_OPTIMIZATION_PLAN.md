@@ -29791,3 +29791,68 @@ sibling lane 正以**正确模式**落地 gateway 测试，我据其契约收尾
 ① config-server compose + gateway 真连 config-server 跑一次配置拉取（验证 `optional:` 在「在时」也正确，
    而非仅离线可启）；② gateway 真连 discovery-server 跑一次注册；
 ③ 回到 #1607 ② 边缘 `TokenRelay` / OAuth2 resource server。
+
+## #1611 Redis 租约原子化 + 连接硬化（真 Redis 实测）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 2f6a12e → 本节提交）。
+并发现场：同仓库另有车道在写 control-plane 的 Redis 缓存特性（在途未提交），
+本号**未触碰**那部分（`services/control-plane/pom.xml`、`JobController.java`、
+`control-plane/cache/`、`config/JobCache*.java` 仍为他人未提交的在制品）。
+
+**来路。** 用户新指示点名"redis 的运用"与"缓存的合理运用"。审计
+`storage/redis.py` 的租约路径（worker 心跳/回收器每几秒打一次）：
+- `acquire_lease` 原本是 **3 次往返**：`SET NX EX` → 写 cap 标记 → 写 start 标记。
+  中途崩溃会留下"有租约、无上限标记"的行，而**无上限标记的租约被无限续期**——
+  恰好在 worker 不健康（最需要上限的时刻）上限保证静默消失；
+- `renew_lease` 原本是 **4 次往返** `GET → EXISTS → EXISTS → EXPIRE`，且存在
+  **TOCTOU**：先读属主、后续期，中途租约易主时旧属主仍把 TTL 续上；
+- Redis 客户端只设了读超时 5s，**没有连接超时**（黑洞地址会让调用方停在 OS
+  级 TCP 超时=分钟级，而它此刻还持着作业租约）；没有 keepalive、没有连接池
+  健康检查（NAT/防火墙静默掐断的空闲连接被复用后，第一条命令无故失败）。
+
+**落地：**
+- `storage/redis.py`：
+  - `_ACQUIRE_LEASE_LUA`：租约 + 两个上限标记**一次 EVAL**完成（要么都在，要么都不在）；
+  - `_RENEW_LEASE_LUA`：属主校验 + 上限窗口校验 + TTL 续期**一次 EVAL**完成
+    （消除 TOCTOU），热路径 **4 次往返 → 1 次**；
+  - 客户端：`socket_connect_timeout`（有界连接预算，默认 5s，可由
+    `REDIS_CONNECT_TIMEOUT_SECONDS` 覆盖）、`socket_keepalive=True`、
+    `health_check_interval`（默认 30s，复用前校验池中连接）；
+    `RedisConfig` 增 `connect_timeout_seconds` / `health_check_interval_seconds`。
+- 测试：
+  - 新增 `tests/unit/test_redis_lease_atomicity.py`：**真 Redis**（本机 7.4.11）5 腿
+    ——① 拿到租约的同一刻两个上限标记就都在（原子性的直接证据）；
+    ② 非属主续期返回 False **且不改动属主 TTL**（TOCTOU 性质）；
+    ③ 续期**只发 1 次命令**（用计数代理量 store 实际发出的调用次数）；
+    ④ 8 线程抢同一租约**恰好一个赢家**；
+    ⑤ 上限窗口过期后续期被拒。无 Redis 时按"不能测 ≠ 测过了"跳过并说明原因；
+  - `tests/unit/test_lease_max_hold.py`：FakeRedis 改为按脚本 marker 分派执行
+    （新增"拿到租约的同一刻标记就在"一腿）；
+  - `tests/unit/test_redis_stream.py`：同族 fake 适配（租约路径改走 EVAL）；
+  - `tests/unit/test_redis_request_metrics_are_observable.py`：op 词表按实测更新
+    （get 6→5、expire 3→2、set 6→3、exists 3→1、eval 2→4）——租约那几次
+    往返不再以 get/exists/expire 出现。
+
+**验证读数（实测）：**
+- `pytest tests/unit/test_redis_lease_atomicity.py tests/unit/test_lease_max_hold.py
+  tests/unit/test_redis_stream.py tests/unit/test_redis_request_metrics_are_observable.py
+  tests/unit/test_job_reclaimer.py` → **69 passed**；
+- `mypy storage/redis.py` → Success（仓库 mypy 配置本就排除 tests*）；
+- `ruff check`（5 个改动文件）→ All checks passed；
+- fence 5 文件 53 passed（本节追加后实跑）。
+
+**诚实边界：**
+- CI 的无基础设施腿**没有 Redis**，真 Redis 那 5 腿在 CI 上是"跳过"而不是"通过"；
+  本机的通过来自真实 7.4.11；
+- 原子性的**逻辑**由 EVAL 保证，但"两个标记一定同时存在"这一条在真 Redis 上是
+  **事后观测**（acquire 返回后立即检查），不是"崩溃注入"证明——要证明崩溃窗口
+  消失需要 kill -9 注入，属演练题库（Drill）范围，未做；
+- 客户端硬化只覆盖同步客户端；连接池上限（max_connections）未加——当前用量下
+  无证据支持一个上限值，凭空设限可能把并发变成连接拒绝，故不加；
+- 本号不改 retry/backoff 策略（仓库的退避是否带 jitter 另议，未在本号动）。
+
+**下一号队列（不动）：**
+- 前端（`apps/web`）视觉与前后端协同一轮；
+- MySQL 深分页/索引与查询计划的一轮实测；
+- 退避 jitter、连接池上限、崩溃注入演练（Drill）；
+- 门：#8 已被并行车道的提交超越，需排新的一轮全量门。

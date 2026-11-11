@@ -1,4 +1,12 @@
-"""Unit tests for the worker lease max-hold cap (§14.2)."""
+"""Unit tests for the worker lease max-hold cap (§14.2).
+
+The fake client executes the three lease scripts by their marker comment
+(``-- specproof:acquire-lease`` / ``-- specproof:renew-lease`` / the
+compare-and-delete release), so this file stays a *logic* test: it answers
+"what do the lease rules say", not "does Redis run Lua" — the latter is
+answered against a real server in
+``tests/unit/test_redis_lease_atomicity.py``.
+"""
 
 from __future__ import annotations
 
@@ -41,17 +49,40 @@ class FakeRedis:
     def eval(self, script, numkeys, *args):
         keys = list(args[:numkeys])
         argv = list(args[numkeys:])
+        if "specproof:acquire-lease" in script:
+            return self._acquire(keys, argv)
+        if "specproof:renew-lease" in script:
+            return self._renew(keys, argv)
         if self.get(keys[0]) is not None and self.get(keys[0]) == argv[-1]:
             for k in keys:
                 self.data.pop(k, None)
             return 1
         return 0
 
+    def _acquire(self, keys, argv) -> int:
+        worker_id, ttl, max_hold = argv[0], int(argv[1]), argv[2]
+        if not self.set(keys[0], worker_id, nx=True, ex=ttl):
+            return 0
+        if max_hold != "":
+            self.set(keys[1], "1")
+            self.set(keys[2], worker_id, ex=int(max_hold))
+        return 1
+
+    def _renew(self, keys, argv) -> int:
+        worker_id, ttl = argv[0], int(argv[1])
+        if self.get(keys[0]) != worker_id:
+            return 0
+        if self.exists(keys[1]) == 1 and self.exists(keys[2]) == 0:
+            return 0
+        self.expire(keys[0], ttl)
+        return 1
+
 
 def _store() -> RedisStore:
     store = RedisStore()
     store._client = None
     fake = FakeRedis()
+
     # Bypass lazy connection: monkeypatch the client property at instance level.
 
     class _Store(RedisStore):
@@ -99,3 +130,18 @@ def test_other_worker_cannot_renew() -> None:
     store, fake = _store()
     assert store.acquire_lease("j1", "w1", ttl=30, max_hold_seconds=300)
     assert store.renew_lease("j1", "w2", ttl=30) is False
+
+
+def test_acquire_writes_the_cap_markers_in_the_same_step() -> None:
+    """The cap markers exist the moment the lease does.
+
+    The pre-atomic shape wrote them in two follow-up round trips, so a crash
+    between them left a lease whose cap marker was missing — and a lease
+    without a cap marker is renewed forever (the max-hold guarantee gone
+    exactly when the worker was unhealthy).
+    """
+    store, fake = _store()
+    assert store.acquire_lease("j1", "w1", ttl=30, max_hold_seconds=300)
+    assert fake.exists(store.lease_key("j1")) == 1
+    assert fake.exists(store.lease_cap_flag_key("j1")) == 1
+    assert fake.exists(store.lease_start_key("j1")) == 1
