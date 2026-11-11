@@ -29916,3 +29916,49 @@ sibling lane 正以**正确模式**落地 gateway 测试，我据其契约收尾
 - 截图基线（e2e 截图 diff），让"美观"可回归；
 - 退避 jitter、连接池上限、崩溃注入演练；
 - 全量门：并行车道的提交已把上一轮门超越，需要重排。
+## #1613 前后端协同门：前端每个调用（含方法）必须在 OpenAPI 基线里有对应操作
+
+**记录基准**：本节只追加；落地于附带提交（master 链 d26b49d → 本节提交）。
+
+**来路。** 用户指示"注重前后端的协同发展"。本仓的事实源已经齐备：OpenAPI 基线
+（`docs/openapi/baseline.json`，54 条操作）+ CI 的 `openapi-schema-diff` 腿（基线 vs 活应用）。
+但**没有人拿它对过前端**：前端调了一个后端已经不存在的路径，流水线照样全绿——
+因为基线和服务器彼此一致，谁也没问客户端在调什么。
+
+**实测（改前）：** 前端 `apps/web/src/api.ts` 的 24 处调用，路径族与方法是
+`GET/POST /api/v1/admin/tenants`、`/api/v1/admin/tokens`、`/api/v1/admin/users`、
+`/api/v1/billing/invoices`、`/api/v1/demo/prepare`、`/api/v1/jobs`、`/agent/jobs`、
+`/agent/jobs/{id}/diff` 等——今天**全部**能在基线里找到对应操作。也就是说契约今天
+成立，但**没有任何东西钉住它**：改后端并同步基线，前端会静默 404。
+
+**落地：**
+- 新增 `tests/unit/test_web_client_calls_are_in_the_openapi_baseline.py`（3 腿）：
+  ① **每个前端调用的路径族 + 方法**必须在基线里有同方法的操作（路径族 = 调用参数里
+  的**首段字面量**，query 去掉；后端可以比族更细：族下的 `{id}/capsule` 之类都算覆盖）；
+  ② 人口下限：客户端仍须触及 admin / billing / demo / jobs 四个面（否则"客户端什么都不
+  调"会让 ① 空转通过——**"不能测"不等于"测过了"**）；
+  ③ 基线本身仍有 ≥30 条操作（基线塌了，① 会假绿）。
+- 量具口径写在门里：客户端路径是**源码里的字符串拼接**（`"/api/v1/jobs/" +
+  encodeURIComponent(jobId) + "/capsule"`），所以门按源码扫描、把首段字面量当族；
+  请求体里的字面量不算路径（参数止于第一个顶层逗号）。
+
+**验证读数（实测）：**
+- `pytest tests/unit/test_web_client_calls_are_in_the_openapi_baseline.py` → **3 passed**；
+- 同跑的既有门 `test_openapi_diff.py` + `test_openapi_fuzzing.py` + 本门 → **29 passed**；
+- **负控（门有没有牙）**：把 api.ts 里一处 GET 调用的路径改成不存在的
+  `/api/v1/admin/tenantz` → 门立刻红并点名 `GET /api/v1/admin/tenantz`；还原后恢复绿，
+  `git status` 干净（负控臂已收）。
+
+**诚实边界：**
+- 门按**路径族**匹配（客户端源码的形状所限），所以它保证"后端为该族、该方法文档化过
+  操作"，**不保证族内每个具体子路径都存在**——这是本门的表达力上限，写在门注释里；
+- 门只读 `apps/web/src/api.ts` 一个文件（统一 API 客户端）；若将来前端出现第二个
+  直连后端的文件，需要把该文件加进扫描名单（门会因"扫到的调用太少"而需要显式扩面，
+  不会静默漏扫——但这一点靠的是纪律，不是门）；
+- 本轮只做"契约对齐"，**没有改任何接口**——前后端今天本来就是一致的。
+
+**下一号队列（不动）：**
+- MySQL 深分页/索引与 EXPLAIN 实测（数据库性能那条用户指示）；
+- 截图基线（e2e 截图 diff），让"美观"可回归；
+- 退避 jitter、连接池上限、崩溃注入演练；
+- 全量门：并行车道已超越上一轮快照，需重排。
