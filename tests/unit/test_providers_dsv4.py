@@ -353,11 +353,17 @@ def test_wait_prefers_retry_after_over_exponential(
 
 
 def test_wait_falls_back_to_capped_exponential():
-    """No usable header ⇒ 2**(n-1), and the cap actually caps.
+    """No usable header ⇒ the exponential curve, capped, and JITTERED inside it.
 
     The name promised the cap while the body only checked an attempt under it
     (4.0 for n=3). The second assert is the one the name was always claiming:
     n=8 is 128.0 uncapped, and a job must not wait two minutes between probes.
+
+    #1615 changed the landing point: the wait is no longer exactly the curve
+    value but somewhere in ``[curve/2, curve]`` (equal jitter -- every client
+    computing the same second is a synchronization point). The CURVE and the
+    cap are what this leg still pins; the spread is measured in
+    ``tests/unit/test_backoff_jitter.py``.
     """
 
     def wait_for(attempt: int) -> float:
@@ -367,8 +373,9 @@ def test_wait_falls_back_to_capped_exponential():
         )
         return wait_retry_after_or_exponential(state)
 
-    assert wait_for(3) == 4.0  # 2**(3-1), under the cap
-    assert wait_for(8) == MAX_EXPONENTIAL_WAIT_SECONDS  # 128.0 uncapped
+    curve_3 = 2.0 ** (3 - 1)
+    assert curve_3 / 2 <= wait_for(3) <= curve_3
+    assert MAX_EXPONENTIAL_WAIT_SECONDS / 2 <= wait_for(8) <= MAX_EXPONENTIAL_WAIT_SECONDS
 
 
 # ── prompt templates: cache-friendly ordering ────────────────────

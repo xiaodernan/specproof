@@ -57,7 +57,10 @@ from tests.unit.test_structural_clone_ratchet import PACKAGES
 REPO = Path(__file__).resolve().parents[2]
 
 #: Names the producer is allowed to import that are not a layer crossing.
-ALLOWED_STDLIB = frozenset({"__future__", "typing"})
+#: "random" joined in #1615 with the jitter: it is pure stdlib, touches no
+#: I/O and crosses no layer -- the reason this leg exists (a third-party
+#: client or a cross-layer edge would make the shared home the wrong home).
+ALLOWED_STDLIB = frozenset({"__future__", "typing", "random"})
 
 Parser = Callable[[BaseException], "float | None"]
 Outcome = tuple[str, Any]
@@ -333,39 +336,30 @@ def test_the_retry_loops_are_wired_to_the_shared_wait_by_identity(
 @pytest.mark.parametrize(
     ("attempt", "header", "expected"),
     [
-        (1, None, 1.0),
-        (2, None, 2.0),
-        (3, None, 4.0),
-        (7, None, 60.0),
         (1, "9", 9.0),
         (7, "9", 9.0),
         (7, "90", 90.0),
         (3, "0", 0.0),
     ],
     ids=[
-        "a1",
-        "a2",
-        "a3",
-        "a7-capped",
         "a1-header",
         "a7-header-beats-cap",
         "a7-header-over-cap",
         "a3-zero",
     ],
 )
-def test_the_shared_wait_answers_the_seconds_both_clients_used_to_agree_on(
+def test_the_shared_wait_answers_the_header_the_gateway_asked_for(
     attempt: int, header: str | None, expected: float
 ) -> None:
-    """The numbers from #516's two-copy comparison, now owned once.
+    """The gateway's own ``Retry-After`` is an instruction, not a hint: it is
+    honored EXACTLY, at every attempt number, and the 60s cap never touches it
+    (``a7-header-over-cap`` is the cell that says the cap bounds the *curve*,
+    never the header).
 
-    A merge into one home must not move the 60s cap or let the exponential curve
-    beat the gateway's own header — the header wins at every attempt number, and
-    `a7-header-over-cap` is the cell that says the cap bounds the *curve*, never
-    the header. Round 1's arm A4 (rewrite the tail as `min(retry_after, curve)`)
-    predicted two reds and measured one: every header value the table carried was
-    already under the curve at its own attempt number, so nothing distinguished
-    "the header wins" from "the smaller of the two". A4 going red twice is this
-    row's job.
+    #1615 moved the no-header rows into their own leg: the exponential
+    fallback is now jittered (it is OUR guess, and a guess every client makes
+    identically is a synchronized retry spike), while the header row stayed
+    exact on purpose.
     """
     response = None if header is None else _headers(header)
     state = SimpleNamespace(
@@ -373,6 +367,44 @@ def test_the_shared_wait_answers_the_seconds_both_clients_used_to_agree_on(
         attempt_number=attempt,
     )
     assert wait_retry_after_or_exponential(state) == expected, (attempt, header)
+
+
+@pytest.mark.parametrize(
+    ("attempt", "cap"),
+    [
+        (1, 1.0),
+        (2, 2.0),
+        (3, 4.0),
+        (7, 60.0),
+    ],
+    ids=["a1", "a2", "a3", "a7-capped"],
+)
+def test_the_shared_wait_spreads_the_exponential_curve_inside_its_cap(
+    attempt: int, cap: float
+) -> None:
+    """The curve is unchanged; WHERE INSIDE it the wait lands is not.
+
+    The 60s cap still bounds the curve at attempt 7, and the curve still
+    doubles -- but the wait now lands in ``[cap/2, cap]`` instead of exactly
+    on the cap (#1615). Two properties are asserted here, and both are the
+    point of the change:
+
+    * the wait never leaves the cap (the contract that used to be "== cap"),
+    * two waits for the SAME attempt differ (the herd is spread -- a
+      synchronized retry spike is what the pure curve produced).
+    """
+    state = SimpleNamespace(
+        outcome=SimpleNamespace(exception=lambda: GatewayError(None)),
+        attempt_number=attempt,
+    )
+    first = wait_retry_after_or_exponential(state)
+    second = wait_retry_after_or_exponential(state)
+    for wait in (first, second):
+        assert cap / 2 <= wait <= cap, (attempt, wait, cap)
+    assert first != second, (
+        f"attempt {attempt} produced the same wait twice ({first}) -- the herd "
+        "is not spread"
+    )
 
 
 def test_the_exponential_cap_is_the_number_the_table_scores_against() -> None:

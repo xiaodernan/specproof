@@ -27,6 +27,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from contracts.retry_after import jittered_wait_seconds
 from observability.metrics import incr, set_gauge
 from storage.env_config import int_env
 from storage.mysql import MySQLStore
@@ -199,7 +200,13 @@ class NotifyOutboxRelay:
                 row["id"], row["job_id"], attempts, error,
             )
             return
-        retry_after = min(2 ** attempts, self.MAX_BACKOFF)
+        # The defer is jittered on purpose (#1615): every row that failed in
+        # the same second used to be deferred to the same second, so a batch
+        # of failures turned into a synchronized retry burst against the
+        # receiver. The cap (and the base) is unchanged -- only the landing
+        # point inside it is spread.
+        cap = min(2 ** attempts, self.MAX_BACKOFF)
+        retry_after = jittered_wait_seconds(cap)
         self.mysql.mark_notify_failed(row["id"], error, retry_after)
         logger.warning(
             "Notify delivery failed, deferred %ss: id=%s job=%s error=%s",

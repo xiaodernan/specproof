@@ -30023,3 +30023,67 @@ JSON 载荷；每次量测前预热一次，取三次中位数）。
 - 截图基线（e2e 截图 diff），让"美观"可回归；
 - 退避 jitter、连接池上限、崩溃注入演练；
 - 全量门：并行车道已超越上一轮快照，需重排。
+## #1615 退避加 jitter：两条产品退避不再同步重试（计网/算法向）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 51a7658 → 本节提交）。
+
+**来路。** 用户指示点名"计网知识的运用""算法知识的运用……对软件代码的运行速度、合理性方面的
+优化"。本仓的退避策略此前是**纯指数、无 jitter**：
+
+- `contracts/retry_after.py::wait_retry_after_or_exponential`（LLM 路径，
+  `providers/openai_compatible.py` 与 `retrieval/embeddings.py` 共用）：
+  `min(60, 2**(attempt-1))`；
+- `storage/notify_relay.py::_dead_letter_or_defer`：`min(2 ** attempts, MAX_BACKOFF)`
+  写进 `next_retry_at`。
+
+**问题（网络常识 + 可测）**：同一秒被拒的所有客户端会算出**同一个**等待值，于是同一秒
+一起回来——退避从"拉平负载"变成"制造尖峰"，被限流的服务端看到的正是它想卸掉的那一波。
+AWS《Exponential Backoff and Jitter》量化了这件事；本仓两条退避都缺 jitter。
+
+**落地：**
+- `contracts/retry_after.py`：新增**唯一**的 jitter 策略
+  `jittered_wait_seconds(cap, *, rng=None)`——**equal jitter**（一半固定 + 一半随机，
+  落在 `[cap/2, cap]`）。选 equal 而不是 full jitter：这里的 cap 有时就是服务端
+  `Retry-After` 的语义下限，full jitter 允许 0 秒就重试（等于比服务端要求的更早）；
+  equal jitter 保证"至少等一半"。
+  **服务端的 `Retry-After` 仍然逐字照做**（那是指令，不是提示——给它加 jitter 会比服务端
+  要求得更早重试，是正确性 bug，不是调参）。
+  曲线与 60s 上限**不变**（`2**(n-1)`、上限 60），jitter 只决定落在曲线里的哪一点。
+- `storage/notify_relay.py`：延迟改走同一份 `jittered_wait_seconds`（**一份策略**，
+  两处调用点——#517 的教训是两处副本会漂移）。
+- 门：
+  - 新增 `tests/unit/test_backoff_jitter.py`（10 腿）：等待落在 `[cap/2, cap]`；
+    同一 attempt 两次等待**不同**（惊群被散开）；分布中心在 ~3/4 cap；
+    `Retry-After` 逐字照做；两个调用点都走同一策略（AST 检）。
+  - 三条既有门按**各自意图**改写（不是放宽成空转）：
+    ① `test_retry_after_readers_policy_table.py` 的生产者 import 白名单加 `random`
+       （纯 stdlib、无 I/O、不跨层——该门防的是第三方/跨层边）；
+       表驱动拆成两腿：**表头行仍要求精确值**（1/2/4 行的精确秒数改为"落在曲线内 +
+       两次不同"，表头 4 行逐字不变）；
+    ② `test_providers_dsv4.py::test_wait_falls_back_to_capped_exponential`：
+       曲线与上限仍被钉，落点改为区间；
+    ③ `test_notify_relay.py`：延迟断言从"恰好 ≥2s"改为"落在 [1s, 2s]"（cap 内、非 0）。
+
+**验证读数（实测）：**
+- `pytest tests/unit/test_backoff_jitter.py` → **10 passed**；
+- 同跑 `test_providers_dsv4` + `test_retry_after_readers_policy_table` +
+  `test_notify_relay` + `test_notify_connector` → **94 passed**；
+- `mypy contracts/retry_after.py storage/notify_relay.py tests/unit/test_backoff_jitter.py`
+  → Success, no issues found in 3 source files；
+- fence 5 文件 53 passed（本节追加后实跑）。
+
+**诚实边界：**
+- jitter **不改变期望等待量级**（期望 ≈ 3/4 cap），它改变的是**离散程度**；对单客户端
+  而言等待可能比原来略短（最坏情况从 cap 变成 cap/2）——这是"不再同步"的代价，
+  换来的是服务端看到的是坡而不是峰；
+- `Retry-After` 路径**完全未变**（逐字），只有"我们自己的猜测"那条路径被 jitter 化；
+- 本号只覆盖**两条**产品退避；仓内第三方库（tenacity/urllib3 等）自带的退避不在本仓
+  管辖内，也未审计；
+- 没有做"惊群"的端到端复现（要 N 个真实客户端同时被 429 才能量）；本号量的是
+  **分布性质**（同 attempt 的等待是否分散、是否守上限），不是服务端观测。
+
+**下一号队列（不动）：**
+- keyset 分页（游标）+ 前后端协同；
+- 截图基线（e2e 截图 diff）；
+- 连接池上限（Redis/MySQL/httpx）、崩溃注入演练；
+- 全量门：服务器重启打断了上一轮，需重排。

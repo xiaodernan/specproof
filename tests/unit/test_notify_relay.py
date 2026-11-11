@@ -129,7 +129,13 @@ def test_failed_delivery_is_deferred_not_dead_lettered() -> None:
     (notify_id, error, retry_after) = store.failed[0]
     assert notify_id == 1
     assert "delivery failed" in error
-    assert retry_after >= 2, "exponential backoff starts at 2s"
+    # The defer is jittered inside the exponential cap (#1615): the cap for the
+    # first failure is 2s, and the wait lands in [1s, 2s] -- never instant,
+    # never past the cap. The old exact "2s" is what made a batch of failures
+    # retry in one synchronized burst.
+    assert 1 <= retry_after <= 2, (
+        f"the defer must land inside the jittered cap [1, 2], got {retry_after}"
+    )
 
 
 def test_retry_exhaustion_dead_letters() -> None:
