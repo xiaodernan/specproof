@@ -970,7 +970,16 @@ class MySQLStore:
         with self.connection() as conn:
             cur = conn.cursor()
             cur.execute(
-                "SELECT * FROM verification_jobs WHERE status = %s ORDER BY created_at, id",
+                # The columns the sweeps and their callers actually read
+                # (#1614): id / repo_path / the refs / depth / the retry
+                # budget / the timestamps. The two JSON columns (summary,
+                # github_check_json) are deliberately NOT selected -- this
+                # read runs on a timer over every row of a status, and the
+                # blobs are the biggest part of the row.
+                "SELECT id, repo_path, base_ref, head_ref, spec_path, status, "
+                "depth, retry_count, max_retries, worker_id, last_error, "
+                "created_at, updated_at, tenant_id "
+                "FROM verification_jobs WHERE status = %s ORDER BY created_at, id",
                 (status,),
             )
             return cast(list[dict[str, Any]], cur.fetchall())
@@ -999,7 +1008,13 @@ class MySQLStore:
         with self.connection() as conn:
             cur = conn.cursor()
             cur.execute(
-                "SELECT * FROM verification_jobs "
+                # Same column set as the sibling sweep above, and the same
+                # reason (#1614): the sweep reads ids, refs and the retry
+                # budget, not the JSON blobs.
+                "SELECT id, repo_path, base_ref, head_ref, spec_path, status, "
+                "depth, retry_count, max_retries, worker_id, last_error, "
+                "created_at, updated_at, tenant_id "
+                "FROM verification_jobs "
                 "WHERE status = 'WAITING_FOR_PROVIDER' "
                 "AND updated_at < (NOW(3) - INTERVAL %s SECOND) "
                 "ORDER BY updated_at, id",

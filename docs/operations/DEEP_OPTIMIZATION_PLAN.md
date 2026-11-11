@@ -29962,3 +29962,64 @@ sibling lane 正以**正确模式**落地 gateway 测试，我据其契约收尾
 - 截图基线（e2e 截图 diff），让"美观"可回归；
 - 退避 jitter、连接池上限、崩溃注入演练；
 - 全量门：并行车道已超越上一轮快照，需重排。
+## #1614 数据库性能一轮：收窄扫描列（实测 19×）+ 为停放扫描配索引（实测 -28%）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 e9aba37 → 本节提交）。
+
+**来路。** 用户指示点名"数据库的性能等的合理运用"。先审计 `storage/mysql.py` 的查询形状，
+再在**真 MySQL** 上量（本机 8.4，测试库 specproof_test2，2 万行合成数据，含真实体量的
+JSON 载荷；每次量测前预热一次，取三次中位数）。
+
+**审计发现：**
+- 4 处 `SELECT *`——其中两处在 **worker 的后台回收扫描**上
+  （`get_jobs_by_status` / `list_provider_wait_parked`，每 300s 一轮），
+  它们把 `summary` 与 `github_check_json` 两个 JSON 大字段整行搬走，而调用方
+  （`agent/worker.py` 的重投递与预算判定）只读 id / repo_path / refs / depth /
+  retry_count / max_retries / 时间戳；
+- 两条扫描查询都是"按 status 过滤 + 排序"，只有 `idx_status(status)` 单列索引可用，
+  EXPLAIN 是 `Using index condition; Using filesort`；
+- 深分页：作业列表页用 `LIMIT %s OFFSET %s`（见"诚实边界"）。
+
+**实测读数（2 万行，WAITING_FOR_PROVIDER 占 4000 行）：**
+| 变体 | 墙钟 | 拉取字节 |
+|---|---|---|
+| `SELECT *`（改前形状） | **4259.0 ms** | **14933.6 KiB** |
+| 收窄列后（同一索引） | **222.7 ms** | **464.8 KiB** |
+| 再加 (status, updated_at, id) | 停放扫描 **187.0 → 134.4 ms**（-28%，filesort 消失） |
+
+四象限对照（同一份数据、同一量法）：无索引 185.9/187.0ms；
+(status, created_at, id) 282.9ms（**排序消失**但墙钟不变）/276.9ms；
+(status, updated_at, id) 219.6ms/**134.4ms**；两者 219.0/223.9ms。
+
+**落地：**
+- `storage/mysql.py`：两条扫描查询的 SELECT 列收窄为 14 个标量列（去掉两个 JSON 列）；
+- 新增迁移 `infra/mysql/migrations/0018_provider_sweep_indexes.sql`（+ `down/`）：
+  `ADD INDEX idx_jobs_status_updated_id (status, updated_at, id)`——服务**停放扫描**
+  （`WHERE status='WAITING_FOR_PROVIDER' AND updated_at < NOW()-INTERVAL ? ORDER BY updated_at, id`）。
+- **刻意不加** `(status, created_at, id)`：它只让"按 created_at 排序的状态扫描"去掉
+  filesort，墙钟在 2 万行上没变（185.9 → 282.9ms，甚至更慢）——为一个平面收益付写放大
+  不划算。
+
+**验证读数（实测）：**
+- 迁移用**真实路径**落地：`MySQLStore.ensure_tables()` → `MigrationRunner` →
+  产品库 `specproof_phase0` 出现 `idx_jobs_status_updated_id`，`schema_migrations` 记 18；
+- MySQL 相关测试：`test_job_lifecycle` + `test_fault_scenarios` + `test_job_reclaimer` +
+  `test_provider_hold_probe` → **72 passed / 2 skipped**；
+- 量测用的 2 万行合成数据已删除，测试库索引复原为原状（实测前后对比确认）；
+- fence 5 文件 53 passed（本节追加后实跑）。
+
+**诚实边界：**
+- **深分页没动**：作业列表仍是 `LIMIT/OFFSET`，深翻页要扫过被跳过的行——改成 keyset
+  分页（游标）会**改 API 契约**（前端与调用方都要跟），不在本号偷偷做；
+  记为下一轮的独立一号（带前后端协同）；
+- 本轮的墙钟数是**本机 2 万行**的数，不代表生产规模；可迁移的是"列收窄"与
+  "排序消失"这两个结构性事实；
+- 收窄列后**调用方仍可能想要 summary**（今天没有）——若将来有人要，
+  必须显式加列并说明，不能靠 `SELECT *` 兜底；
+- 迁移在**产品库**已应用（本地开发库），生产部署由应用启动时的 ensure_tables 走同一条路。
+
+**下一号队列（不动）：**
+- keyset 分页（游标）+ 前后端协同（改契约要一起改）；
+- 截图基线（e2e 截图 diff），让"美观"可回归；
+- 退避 jitter、连接池上限、崩溃注入演练；
+- 全量门：并行车道已超越上一轮快照，需重排。
