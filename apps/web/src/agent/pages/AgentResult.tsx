@@ -68,7 +68,7 @@ function AcceptProjection({ job, jobId }: { job: AgentJob; jobId: string }) {
     {accept.note ? <p className="quality-cell-copy">{accept.note}</p> : null}
     {blocked ? <p className="result-boundary">{blocked}</p> : null}
     {gates ? <>
-      <div className="kv-label" style={{ margin: "12px 0 6px" }}>门禁汇总（独立验收）</div>
+      <div className="kv-label">门禁汇总（独立验收）</div>
       {gates.entries.length ? <div className="result-gates">{gates.entries.map((entry, index) => <div className="result-gate" key={entry.gate + index}>
         <div><strong>{gateLabel(entry.gate)}</strong><span className={gateStatusPillClass(entry.status)} title={entry.status}>{gateStatusLabel(entry.status)}</span></div>
         <p>{entry.note || "（无说明）"}{entry.findings_total > 0 ? ` · 关联发现 ${entry.findings_total} 条` : ""}</p>
@@ -78,7 +78,7 @@ function AcceptProjection({ job, jobId }: { job: AgentJob; jobId: string }) {
     </> : <p className="result-boundary">该投影不含门禁摘要（例如验收过程本身出错时）。缺摘要不等于全通过。</p>}
     {accept.certificate_path ? <p className="mono muted" style={{ fontSize: 11 }} title="证书由服务端本机路径保存，Web 端不提供下载">合并证书：{accept.certificate_path}</p> : <p className="result-boundary">本次未签发合并证书。</p>}
     {findings.length ? <>
-      <div className="kv-label" style={{ margin: "12px 0 6px" }}>验收发现</div>
+      <div className="kv-label">验收发现</div>
       {/* This used to be `JSON.stringify(findings)`: that was honest but not
           readable — the severity of a leaked credential could only be seen by
           parsing the object. The full projection stays in the raw dump below. */}

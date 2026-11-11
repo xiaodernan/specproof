@@ -121,6 +121,18 @@
   --color-control: rgba(255, 255, 255, 0.05);
   --color-control-hover: rgba(255, 255, 255, 0.08);
   --color-link: #9d82ff;
+
+  /* Elevation, glow and on-accent (#1612): these used to be literals inside
+     base.css rules, which is why they could not follow the theme. */
+  --color-on-accent: #ffffff;
+  --accent-selection: rgba(124, 92, 255, 0.32);
+  --shadow-ambient: rgba(9, 9, 11, 0.35);
+  --shadow-highlight: rgba(255, 255, 255, 0.18);
+  --shadow-accent: 0 1px 4px rgba(124, 92, 255, 0.35);
+  --aurora-wash-a1: radial-gradient(90% 140% at 12% 0%, rgba(124, 92, 255, 0.16), transparent 55%);
+  --aurora-wash-a2: radial-gradient(90% 140% at 88% 0%, rgba(34, 211, 238, 0.1), transparent 50%);
+  --aurora-wash-b1: radial-gradient(70% 60% at 20% 0%, rgba(124, 92, 255, 0.14), transparent 60%);
+  --aurora-wash-b2: radial-gradient(70% 60% at 85% 10%, rgba(34, 211, 238, 0.08), transparent 55%);
   --accent-fg: #ffffff;
   --accent-text: #bba8ff;
   --accent-tint: rgba(124, 92, 255, 0.16);
@@ -174,6 +186,18 @@
   --color-control: rgba(9, 9, 11, 0.04);
   --color-control-hover: rgba(9, 9, 11, 0.07);
   --color-link: #6a46f0;
+
+  /* The light theme re-tints the same tokens: the shadows lose their
+     weight, the aurora washes lose their glow (#1612). */
+  --color-on-accent: #ffffff;
+  --accent-selection: rgba(106, 70, 240, 0.22);
+  --shadow-ambient: rgba(9, 9, 11, 0.12);
+  --shadow-highlight: rgba(255, 255, 255, 0.92);
+  --shadow-accent: 0 1px 4px rgba(106, 70, 240, 0.22);
+  --aurora-wash-a1: radial-gradient(90% 140% at 12% 0%, rgba(106, 70, 240, 0.10), transparent 55%);
+  --aurora-wash-a2: radial-gradient(90% 140% at 88% 0%, rgba(6, 182, 212, 0.10), transparent 50%);
+  --aurora-wash-b1: radial-gradient(70% 60% at 20% 0%, rgba(106, 70, 240, 0.08), transparent 60%);
+  --aurora-wash-b2: radial-gradient(70% 60% at 85% 10%, rgba(6, 182, 212, 0.08), transparent 55%);
   --accent-fg: #ffffff;
   --accent-text: #6a46f0;
   --accent-tint: rgba(124, 92, 255, 0.12);

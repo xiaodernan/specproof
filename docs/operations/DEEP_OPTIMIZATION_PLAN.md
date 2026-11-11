@@ -29856,3 +29856,63 @@ sibling lane 正以**正确模式**落地 gateway 测试，我据其契约收尾
 - MySQL 深分页/索引与查询计划的一轮实测；
 - 退避 jitter、连接池上限、崩溃注入演练（Drill）；
 - 门：#8 已被并行车道的提交超越，需排新的一轮全量门。
+## #1612 前端一轮真改造：4px 栅格归零 + 主题盲色归零（并配门）
+
+**记录基准**：本节只追加；落地于附带提交（master 链 cd2e483 → 本节提交）。
+并发现场：`services/control-plane/*` 的 Redis 缓存特性是**另一车道在途**的未提交制品，
+本号未触碰（未 add、未改、未提交）。
+
+**来路。** 用户指示点名"大幅提升前端的美观程度……前后端协同、数据库性能、缓存的合理运用"。
+先量后改——本仓前端不是草稿而是**成熟体系**（~40 个 UI 组件 + 主题 token + 四层 CSS
++ DESIGN_SYSTEM.md），所以"推倒重写"既不必要也不负责；真正可测的两件事是：
+
+1. **视觉节奏**：间距用裸 px 写，**307 处不在 4px 栅格上**（10/6/14/18/7/15/9/22…），
+   且其中 12 处是**同一份 `.kv-label` 内联 margin 在 12 个调用点重复**（典型的漂移源）；
+2. **主题跟随**：20 处颜色**直接写死在规则里**（`::selection` 的 aurora 光晕、elevation
+   阴影、aurora 径向渐变、accent 上的 `#fff`、两个 action-icon 色、metric accent、
+   demo 横幅的兜底色）——写死的颜色**不会随 `[data-theme="light"]` 翻转**，
+   浅色主题在那里画错色。这是"美观"问题，也是**真 bug**。
+
+**落地：**
+- **间距**：全部 CSS 的 spacing 类属性（padding/margin/gap/inset/top/right/bottom/left）
+  吸附到 4px 栅格（发丝线 1/2/3px 例外）——**294 处 CSS + 13 处 TSX 内联**；
+  12 处重复的 `.kv-label` 内联 margin 收成**一条类规则**（`margin: 8px 0`），
+  内联样式删除（7 处调用点）——顺带消掉一个漂移源。
+- **颜色**：新增 token 并让浅色主题**重新调色**（而不是照抄深色值）：
+  - `tokens.css`（aurora 主题）：`--color-on-accent`、`--accent-selection`、
+    `--shadow-ambient`、`--shadow-highlight`、`--shadow-accent`、
+    `--aurora-wash-a1/a2/b1/b2`；`[data-theme="light"]` 段同步给出更轻的阴影与更淡的辉光；
+  - `product.css`（绿色产品主题）：`--color-on-accent`、两个 action-icon 对
+    （`--action-icon-1-bg/fg`、`--action-icon-2-bg/fg`）、`--metric-accent`；
+  - `base.css` / `product.css` / `verification.css`：写死的字面量换成 `var(...)`。
+- **门**：新增 `tests/unit/test_web_css_stays_on_the_design_system.py`（3 腿）：
+  ① 间距字面量全部在 4px 栅格上（**0**）；② 声明值里没有绕过 token 的颜色（**0**）；
+  ③ 门自己的量具还看得见东西（扫描文件数/样式表行数/token 文件位置都有断言，
+     "量具瞎了"不许伪装成"仓库干净"）。
+  量具口径：先剥注释（否则 `// #245:` 这种 issue 号会被当成颜色），排除 tokens.css
+  （token 本身就是字面量）、排除 `src/ui-kit/UiKit.tsx`（调色板目录按设计展示 token）、
+  排除测试文件（fixture 里的 hex 是数据不是画面）。
+
+**验证读数（实测）：**
+- 改前 → 改后：**非栅格间距 307 → 0**；**主题盲色（真实声明值）20 → 0**；
+- `npx vitest run`：**48 文件 / 420 测试全绿**；
+- `npm run build`（tsc --noEmit + vite build）：**成功**（built in 702ms）；
+- `pytest tests/unit/test_web_css_stays_on_the_design_system.py` → **3 passed**；
+- fence 5 文件 53 passed（本节追加后实跑）。
+
+**诚实边界：**
+- **没有截图证据**：本轮改的是间距与主题色，但"好不好看"最终要人眼判断；本机
+  无浏览器截图流水线（Playwright 需要起前端 + 后端），因此本号只声明
+  "可测的两项归零 + 前端测试与构建全绿"，**不声明"视觉已登峰造极"**；
+- 吸附把若干 1–2px 的差异抹平（10→8、14→16、6→8…），总位移在 6 个文件内；
+  没有逐页像素回归对比（无基线截图可比）；
+- 浅色主题的新阴影/辉光值是**按设计意图重调**，不是从既有截图反推；
+- 前端依赖本机缺失，本号 `npm ci` 装齐（123 包）后才跑得动 vitest/build——
+  这意味着**此前本地无人跑过前端测试**，CI 的前端腿才是权威。
+
+**下一号队列（不动）：**
+- 前后端协同一轮：API 契约（OpenAPI baseline 已存在）与前端类型的一致性门；
+- MySQL 深分页/索引与 EXPLAIN 实测；
+- 截图基线（e2e 截图 diff），让"美观"可回归；
+- 退避 jitter、连接池上限、崩溃注入演练；
+- 全量门：并行车道的提交已把上一轮门超越，需要重排。

@@ -80,7 +80,7 @@ export function PreflightCard(props: { preflight?: PreflightResult | null }): JS
 
       {p.errors && p.errors.length > 0 ? (
         <>
-          <div className="kv-label" style={{ margin: "10px 0 6px" }}>需要先处理</div>
+          <div className="kv-label">需要先处理</div>
           {p.errors.map((e, i) => (
             <div key={i} className="errorbox" style={{ marginBottom: 6 }} title={String(e)}>
               {describePreflightError(String(e))}
@@ -102,7 +102,7 @@ export function PreflightCard(props: { preflight?: PreflightResult | null }): JS
 
       {p.warnings && p.warnings.length > 0 ? (
         <>
-          <div className="kv-label" style={{ margin: "10px 0 6px" }}>提醒</div>
+          <div className="kv-label">提醒</div>
           {p.warnings.map((w, i) => (
             <div key={i} className="kv-value" style={{ marginBottom: 4 }} title={String(w)}>{String(w)}</div>
           ))}

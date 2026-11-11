@@ -229,7 +229,7 @@ export default function AgentWizard(props: { step: WizardStep }) {
           {validateSpecStep(draft) ? (
             <div className="errorbox">{validateSpecStep(draft)}</div>
           ) : null}
-          <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+          <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
             <a className="btn btn-ghost" href="#/agent/new">
               上一步 Back
             </a>
@@ -279,11 +279,11 @@ export default function AgentWizard(props: { step: WizardStep }) {
           <p style={{ marginTop: 10 }}>
             AI 开发使用当前工作目录，不会自动切换 Base / Head；版本比较请使用独立验收功能。
           </p>
-          <div className="kv-label" style={{ margin: "10px 0 4px" }}>
+          <div className="kv-label">
             将提交的需求（不会添加未生效的配置）
           </div>
           <pre className="json">{buildSpecText(draft)}</pre>
-          <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+          <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
             <a className="btn btn-ghost" href="#/agent/new/spec">
               上一步 Back
             </a>

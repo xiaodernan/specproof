@@ -642,7 +642,7 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
               {cert.signed_path ? kv("签名文件", cert.signed_path) : null}
               {cert.signed_statement ? (
                 <>
-                  <div className="kv-label" style={{ margin: "10px 0 6px" }}>签名声明（in-toto 风格，供审计核验）</div>
+                  <div className="kv-label">签名声明（in-toto 风格，供审计核验）</div>
                   <pre className="json">{JSON.stringify(cert.signed_statement, null, 2)}</pre>
                 </>
               ) : (
@@ -650,7 +650,7 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
                   暂无 Ed25519 签名文件（未配置签名密钥时，仅提供未签名摘要 —— 如实呈现，不伪造可信签名）。
                 </div>
               )}
-              <div className="kv-label" style={{ margin: "10px 0 6px" }}>证书内容（原始 JSON）</div>
+              <div className="kv-label">证书内容（原始 JSON）</div>
               <pre className="json">{JSON.stringify(cert.document, null, 2)}</pre>
             </>
           ) : null}

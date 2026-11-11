@@ -133,7 +133,7 @@ export default function AgentJobDetail(props: { jobId: string }) {
           <Timeline job={job} />
           {events.length > 0 ? (
             <>
-              <div className="kv-label" style={{ margin: "12px 0 6px" }}>
+              <div className="kv-label">
                 最近事件（实时）
               </div>
               {events.slice(-5).reverse().map((ev) => (
@@ -152,7 +152,7 @@ export default function AgentJobDetail(props: { jobId: string }) {
           {kv("执行器 Worker", job.worker_id || "—")}
           {kv("创建 Created", job.created_at)}
           {kv("更新 Updated", job.updated_at)}
-          <div className="kv-label" style={{ margin: "10px 0 4px" }}>
+          <div className="kv-label">
             当前进度 Current progress
           </div>
           <ProgressBar percent={progress.percent} />
