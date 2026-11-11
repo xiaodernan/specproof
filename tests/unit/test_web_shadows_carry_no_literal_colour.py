@@ -74,10 +74,7 @@ def test_the_elevation_ladder_exists_for_both_themes() -> None:
     light = text[text.find(':root[data-theme="light"]') :]
 
     def steps(block: str) -> set[str]:
-        return {
-            name
-            for name in re.findall(r"(--elev-\d)\s*:", block)
-        }
+        return set(re.findall(r"(--elev-\d)\s*:", block))
 
     dark_steps = steps(dark)
     light_steps = steps(light)

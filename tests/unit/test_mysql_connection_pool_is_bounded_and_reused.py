@@ -191,9 +191,8 @@ def test_the_transaction_policy_survives_the_pool() -> None:
     assert conn.committed == 1, "a clean body did not commit"
     assert conn.rolled_back == 0
 
-    with pytest.raises(RuntimeError):
-        with unit_of_work(factory) as conn:
-            raise RuntimeError("the body failed")
+    with pytest.raises(RuntimeError), unit_of_work(factory) as conn:
+        raise RuntimeError("the body failed")
     assert conn.rolled_back == 1, "a failed body did not roll back"
     assert len(counter) == 1, "the failed unit of work opened a new connection"
 

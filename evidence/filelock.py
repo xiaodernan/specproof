@@ -15,6 +15,18 @@ from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from pathlib import Path
 
+#: The first poll waits this long; every further failure doubles it, up to
+#: the cap.
+#:
+#: WHY A BACKOFF. A fixed 10ms spin asks the operating system the same
+#: question a hundred times a second for as long as another process holds
+#: the lock. The backoff asks it a handful of times, and the deadline is
+#: unchanged: the lock is still given up at the same moment, and it is
+#: still taken as soon as it is free -- only the number of wasted wake-ups
+#: changes.
+_LOCK_POLL_INITIAL = 0.01
+_LOCK_POLL_MAX = 0.1
+
 
 @contextmanager
 def file_lock(lock_path: Path, timeout: float = 10.0) -> Generator[None, None, None]:
@@ -35,16 +47,20 @@ def file_lock(lock_path: Path, timeout: float = 10.0) -> Generator[None, None, N
     lock_file = lock_path.with_suffix(lock_path.suffix + ".lock")
     start = time.monotonic()
     fd: int | None = None
+    delay = _LOCK_POLL_INITIAL
     while True:
         try:
             fd = os.open(lock_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
             break
         except FileExistsError:
-            if time.monotonic() - start > timeout:
+            remaining = timeout - (time.monotonic() - start)
+            if remaining <= 0:
                 raise TimeoutError(
                     f"Could not acquire lock on {lock_file} within {timeout}s"
                 ) from None
-            time.sleep(0.01)
+            # never sleep past the deadline: the timeout is the promise
+            time.sleep(min(delay, remaining))
+            delay = min(delay * 2, _LOCK_POLL_MAX)
     try:
         yield
     finally:
