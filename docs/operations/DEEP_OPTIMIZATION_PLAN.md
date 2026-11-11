@@ -30698,3 +30698,62 @@ model-settings.css 12、base.css 8）。相邻两档常常只差 **1px**（15/16
 - **阴影**上阶梯（现在还有 18 处裸 `box-shadow`/`text-shadow`，其中 5 处直接带颜色）；
 - 截图基线（像素级回归）、崩溃注入演练；
 - 全量门 v11（快照 045326e）在独立工作树后台跑（15%）。
+## #1626 接手并行的 control-plane 缓存车道：修好编译、补上 21 条测试、并把缓存的"诚实边界"钉成门
+
+**记录基准**：本节只追加；落地于附带提交（master 链 3db3b42 → 本节提交）。
+
+**来路。** 用户指示"并轨的内容可能那边没有在做了……你也可以直接接手帮他把剩下的内容做完，
+不要等他了"。另一条车道在 control-plane 上写了一套**读穿缓存**（read-through cache）：
+`JobReadCache` 接口 + Redis / 内存 LRU / 关闭 三种后端、`JobCachePolicy`（TTL 策略）、
+`JobQueryService`（single-flight 合并）、`JobView`（只存 API 的字节）、以及
+`JobController` 的**缓存来源响应头**。但那条车道**停在半路上**：文件写完了，**编译不过**，
+**一条测试都没有**（`JobView` 的注释里还写着"一条 `JobQueryServiceTest` 钉住它"——那条测试
+并不存在）。本号接手把它做完。
+
+**接手时先修的（编译不过的三处）：**
+1. `JobQueryService`：菱形推断不出 `T`（`cast()` 的 `T` 无界、菱形没有目标类型）→
+   **显式写类型参数** `JobQueryService.<T>cast(...)`；
+2. `InMemoryJobReadCache`：匿名 `LinkedHashMap` 子类里，简单名 `Entry` 解析到的是
+   **继承来的** `Map.Entry`（继承的成员类型遮蔽外层类自己的嵌套类型），于是
+   `removeEldestEntry` 的签名与父类不匹配 → **写全限定名**；
+3. 我自己补测试时又踩了两个 Java 的坑（都记在门里）：**字符串字面量不能跨行**（C 的写法在
+   Java 里是语法错误），以及 **Mockito 不许在 `when()` 的参数里再打桩**（行内造 row
+   会留下"未完成的打桩"，下一个测试类替它背锅）。
+
+**补的测试（21 条，全绿）：**
+- `JobQueryServiceTest`（9 条）：**miss** 从库里取并写回；**hit** **一次都不碰库**；
+  **缓存炸了是 bypass 而不是失败的 GET**；**库的错不被吞**（它才是真因，必须到客户端）；
+  **并发 miss 合并成一次查询**（8 个同时到达的读请求 → **1 次**库查询：SPA 每 2 秒轮询、
+  缓存最冷的时候正是负载最高的时候）；**不存在的行不被当成负面事实缓存**；
+  **计数器说实话**（hit/miss/coalesced/bypass）；**hit 与 miss 的字节相同**（缓存存的是
+  API 的形状，不是实体）；
+- `InMemoryJobReadCacheTest`（6 条）：**过期即 miss**（时钟可注入 → 过期是**量**出来的，
+  不是等出来的）；**终态行比在途行活得久**（可变性的两类）；**有界**且淘汰的是
+  **最近最少用的**那一条；recent 列表整体存取；后端自报家门；noop 缓存什么都不留；
+- `RedisJobReadCacheTest`（6 条）：miss/hit 的计数；**TTL 跟着行的可变类别走**（终态长、
+  在途短、**没听说过的状态按在途算**——这个版本证明不了它是终态）；**键带版本**
+  （形状一变旧键自然过期，而不是反序列化成一句谎）；**Redis 故障读作空、绝不抛**
+  （读失败与写失败都吞，但**计数**；一个会让 GET 失败的缓存比没有缓存更糟）。
+
+**验证读数（实测）：**
+- `mvn -o -B clean test`（control-plane，JDK 25）→ **Tests run: 30, Failures: 0, Errors: 0**，
+  **BUILD SUCCESS**（接手前是**编译失败**）；
+- edge gateway `mvn -o -B clean test` → 既有测试仍全绿（缓存车道没碰网关）；
+- CI 的 `java-services` 作业会跑这四个服务的 `mvn -B test`（Temurin 21）→ 新测试进 CI ✓；
+- `ControlPlaneApplicationTests` 仍绿 → **Spring 上下文装得起来**（三个后端 bean 由
+  `@ConditionalOnProperty` 互斥选择，缓存默认 `redis`、`memory`/`off` 是开关）。
+
+**诚实边界：**
+- 本号**没有**测过真 Redis（仓里没有嵌入式 Redis，测试用 mock 量的是**策略**：
+  键、TTL、失败契约；真 Redis 上的行为未验）；
+- **single-flight 只在一个 JVM 内合并**（代码自己写明了这一点：两个副本各查一次，
+  而不是 N 次；跨进程合并需要一个"卡住就完蛋"的分布式锁，作者权衡后拒绝了）；
+- **TTL 的秒数没有实测支撑**（5 秒是"轮询 2 秒"推出的上限，不是压测出来的数字）；
+- 缓存**只服务 control-plane 的作业读**，不涉及写入路径（本进程只写 QUEUED，
+  其余转换由 Python 运行时拥有）——因此**没有失效通知**，只有 TTL 兜底；
+- 本号**没有**改那套代码的**设计**，只修了编译、补了测试、把它的承诺变成可执行的断言。
+
+**下一号队列（不动）：**
+- 阴影上阶梯（还有 18 处裸 `box-shadow`/`text-shadow`，其中 5 处直接带颜色）；
+- 截图基线（像素级回归）、崩溃注入演练；
+- 全量门 v11（快照 045326e）在独立工作树后台跑。
