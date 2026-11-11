@@ -104,11 +104,11 @@ a:hover { text-decoration: none; }
 .proof-diagram::before { content: ""; position: absolute; inset: -30px -34px; background-image: radial-gradient(var(--accent-ring) .7px, transparent .7px); background-size: 16px 16px; opacity: .5; pointer-events: none; }
 .diagram-label { z-index: 1; font-size: var(--text-2xs); letter-spacing: 2px; color: var(--color-text-3); text-align: center; margin-bottom: 24px; }
 .diagram-flow { display: flex; justify-content: center; align-items: center; position: relative; }
-.diagram-node { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px 8px 12px; background: var(--color-surface); border: 1px solid var(--product-banner-border); border-radius: var(--radius-md); min-width: 100px; box-shadow: 0 3px 6px #14352203; }
+.diagram-node { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px 8px 12px; background: var(--color-surface); border: 1px solid var(--product-banner-border); border-radius: var(--radius-md); min-width: 100px; box-shadow: var(--elev-1); }
 .diagram-node > svg { color: var(--accent-text); }
 .diagram-node strong { font-size: var(--text-2xs); font-weight: 550; margin-top: 1px; }
 .diagram-node small { font-size: var(--text-2xs); color: var(--color-text-3); margin-top: -8px; }
-.diagram-core { width: 93px; height: 107px; flex: none; color: white; background: var(--accent-600); border: 5px solid var(--product-banner); outline: 1px solid var(--accent-ring); border-radius: var(--radius-2xl); display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px; box-shadow: 0 8px 20px #174c2620; }
+.diagram-core { width: 93px; height: 107px; flex: none; color: white; background: var(--accent-600); border: 5px solid var(--product-banner); outline: 1px solid var(--accent-ring); border-radius: var(--radius-2xl); display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px; box-shadow: var(--elev-3); }
 .diagram-core strong { font-size: var(--text-2xs); font-weight: 550; }
 .diagram-line { flex: 1; max-width: 42px; min-width: 12px; border-top: 1px dashed var(--accent-400); position: relative; }
 .diagram-line::after { content: ""; position: absolute; right: 0; top: -3px; border-top: 2px solid var(--accent-400); border-right: 2px solid var(--accent-400); width: 4px; height: 4px; transform: rotate(45deg); }
@@ -120,7 +120,7 @@ a:hover { text-decoration: none; }
 .section-heading button { font-size: var(--text-2xs); }
 .quick-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .quick-action { padding: 20px 20px 16px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); transition: border-color .18s, transform .18s, box-shadow .18s; }
-.quick-action:hover { border-color: var(--accent-ring); transform: translateY(-2px); box-shadow: 0 5px 16px #1a372109; }
+.quick-action:hover { border-color: var(--accent-ring); transform: translateY(-2px); box-shadow: var(--elev-2); }
 .quick-action-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .action-icon { display: grid; place-items: center; width: 39px; height: 39px; border-radius: var(--radius-md); color: var(--accent-text); background: var(--accent-tint); }
 .action-icon-1 { background: var(--action-icon-1-bg); color: var(--action-icon-1-fg); }
