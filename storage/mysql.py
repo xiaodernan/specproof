@@ -477,6 +477,21 @@ def decode_job_cursor(cursor: str) -> tuple[Any, str] | None:
 _CURSOR_STAMP_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
 
 
+def _cursor_of(row: dict[str, Any]) -> str | None:
+    """The keyset position of a row, or None when the row cannot carry one.
+
+    A row without a timestamp (or without an id) cannot be positioned in
+    the order the list is sorted by, so it hands back no cursor. The page
+    itself is still correct -- only the "where is the next page" hint is
+    missing.
+    """
+    stamp = row.get("created_at")
+    job_id = row.get("id")
+    if stamp is None or job_id is None:
+        return None
+    return encode_job_cursor(stamp, str(job_id))
+
+
 def _cursor_stamp(created_at: Any) -> str:
     """The timestamp as the cursor spells it.
 
@@ -1224,9 +1239,11 @@ class MySQLStore:
                 tuple(params),
             )
             total = int(cur.fetchone()["total"])
-            # one row more than asked for: that is how the store knows whether
-            # a NEXT page exists without counting the whole table again.
             if decoded is not None:
+                # The cursor path asks for ONE row more than the page: the
+                # count it holds is the whole population, not the remainder,
+                # so the extra row is how it knows whether a next page
+                # exists.
                 cur.execute(
                     # fragments + bound params
                     "SELECT id, repo_path, base_ref, head_ref, "  # nosec B608
@@ -1238,6 +1255,9 @@ class MySQLStore:
                     (DEMO_NOTE_PREFIX, *page_params, limit + 1),
                 )
             else:
+                # The offset path does NOT need the extra row: the count it
+                # already holds says whether rows remain after this page, so
+                # the page is exactly the size that was asked for.
                 cur.execute(
                     # fragments + bound params
                     "SELECT id, repo_path, base_ref, head_ref, "  # nosec B608
@@ -1246,14 +1266,19 @@ class MySQLStore:
                     + IS_DEMO_COLUMN + " FROM verification_jobs" + page_where
                     + " ORDER BY created_at DESC, id DESC LIMIT %s OFFSET %s",
                     # the SELECT list precedes WHERE, so the bound prefix is first
-                    (DEMO_NOTE_PREFIX, *page_params, limit + 1, offset),
+                    (DEMO_NOTE_PREFIX, *page_params, limit, offset),
                 )
             rows = cur.fetchall()
         next_cursor = None
-        if len(rows) > limit:
-            rows = rows[:limit]
-            last = rows[-1]
-            next_cursor = encode_job_cursor(last["created_at"], last["id"])
+        if decoded is not None:
+            if len(rows) > limit:
+                rows = rows[:limit]
+                next_cursor = _cursor_of(rows[-1]) if rows else None
+        elif rows and offset + len(rows) < total:
+            # more rows remain after this page: hand the reader the position
+            # of the last row it just got, so the next page can be fetched by
+            # keyset instead of by counting the rows before it again.
+            next_cursor = _cursor_of(rows[-1])
         return {
             "jobs": rows,
             "total": total,

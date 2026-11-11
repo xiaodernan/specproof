@@ -30508,3 +30508,85 @@ store：`agent_jobs` / `billing` / `identity` / `object_metadata`）都走
 - 截图基线（像素级"美观"回归）、崩溃注入演练；
 - 全量门：v10（快照 1668bab）被并行车道的工作树污染，不可作权威结论；
   本节提交后按当前 master 重排一轮。
+## #1623 并轨之后的重判：对账册的"孤儿总体"已空（历史留档、活表清空）+ 四条门按各自意图改写
+
+**记录基准**：本节只追加；落地于附带提交（master 链 90591ac → 本节提交）。
+
+**来路。** 上一轮全量门（v10）留下 17 个文件的红。逐条查清后分三类：**我自己的**、
+**并轨造成的**、**并行车道在途的**。本号把前两类收干净，第三类登记在案。
+
+### 一、门 v10 的红：分诊
+
+| 类别 | 门 | 处置 |
+|---|---|---|
+| **我造成的** | `test_product_setup`（LIMIT/OFFSET 钉的是 (25,25)）、`test_audit_action_parity`（我新写的门直接 DELETE 作业行）、`test_data_dictionary_covers_migrations`（我加的 0018 迁移没进字典）、`test_the_provider_smoke_ci_leg`（我加的 CI `e2e` 作业没进名册） | 本号全部修好（见下） |
+| **并轨造成的** | `test_branches_without_a_common_history_are_accounted_for`（4 条）、`test_verdict_channel_parity`（1 条） | 本号重判（见下） |
+| **并行车道在途的** | `test_the_no_infra_job_holds_its_no_database_promise`（4 条）、`test_payload_the_frontend_declares_is_the_payload_a_route_publishes`（10 条）、`test_fake_inventory_stays_measured` 等 | **登记在案**：失败信息指向一个仓里**不存在**的临时目录（`nexus-ci-budget-*`，并行车道正在写的文件），子 pytest 收集阶段就死了——这是**跑测环境的事**，不是产品的事；车道收尾后自愈 |
+
+### 二、我造成的四条门：按各自意图改，不放宽
+
+1. **`test_product_setup`**：#1618 的游标分页在 **offset 路径**也多取一行做"下一页"
+   探测，于是 `LIMIT/OFFSET` 变成 `(26, 25)`。**改实现而不是改门**：offset 路径根本
+   不需要那一行——它**已经握着 COUNT**，用 `offset + len(rows) < total` 就知道后面还有
+   没有行；游标路径仍要多取一行（它手里的 COUNT 是**总体**不是**余量**）。
+   于是 SQL 回到 `LIMIT 25 OFFSET 25`，而且每页**少传一行**。
+   （顺带把"取游标"收进一个 `_cursor_of()`：缺时间戳的行**拿不到游标**，但那一页
+   本身仍然正确——"页是对的、只是缺下一页的提示"和"页是错的"不是一回事。）
+2. **`test_audit_action_parity`**：我新写的游标门直接 `DELETE FROM verification_jobs`。
+   该门说得很直白：**测试不许就地删作业行**，要用 store 自己的删除（它在同一笔事务里
+   写下解释性的审计行，而审计轨迹按设计比作业活得久）。照办。
+3. **`test_data_dictionary_covers_migrations`**：#1614 加的 `0018_provider_sweep_indexes.sql`
+   没进数据字典的迁移范围。补上范围，**并把新索引写进索引清单**
+   （`idx_jobs_status_updated_id (status, updated_at, id)`）——字典里的索引清单是这张表的
+   事实，漏写就是漏写。
+4. **`test_the_provider_smoke_ci_leg`**：我加的 CI `e2e` 作业让"名册"门红了（那条门把
+   ci.yml 的作业名抄在自己的 docstring 里，并规定"名册动了就在同一次改动里把抄写的那份
+   一起改"）。照办：抄写的那份加上 `e2e`。
+
+### 三、并轨造成的重判：对账册的总体空了
+
+**事实**：`2cd91e6`（"吸收三条历史根分支入主干"）把三条历史根分支并进了 master，于是
+**每一条 ref 都是 master 的祖先** → "与 master 没有共同历史的 ref"这个总体**变成空**，
+"分支独有文件"也变成空。而 `evidence/branch_reconciliation.py` 还在按"三条孤儿分支"记账，
+于是四条门红：名册与实测不符、7 条裁定对应 0 个分支独有文件、14 条改名对失去分支侧、
+缺口清单与实测缺口不等。
+
+**处置（历史留档、活表清空）：**
+- 册子的**历史裁定原样留档**：`MERGED_ORPHAN_COMMITS` / `MERGED_FILE_DISPOSITIONS` /
+  `MERGED_RENAMED_TESTS` / `MERGED_RENAMED_JOBS` / `MERGED_REGISTERED_GAPS` /
+  `MERGED_NAME_ONLY_CENSUS`——**一个字没删**（"从册子里删掉的缺口，读起来和被修好的
+  缺口一模一样"，这是本模块自己的教义）；
+- **活表清空**并写明为什么清空：总体为空是**一个主张**，所以门要**拿仓库实测**，
+  不能信这个文件；门的文档字符串也把新事实写在最前面（2cd91e6 之后总体为空）；
+- 门的四条腿按**各自意图**改写，不是放宽：
+  - "至少有一条 lineage 被两个名字指向"这条**形状**断言，**只在总体非空时**要求
+    （总体为空时"没有名字被两个名字指向"不是关于仓库的发现，它**就是**发现）；
+  - YAML 作业 id 的尺子：**master 侧必须有内容**；**分支侧只允许在"没有孤儿分支"时为空**
+    ——"分支侧空了却还有孤儿分支"仍然是"瞎尺子"，那条 assert 的原意一句没丢；
+  - "失败终态被 master 推翻"那条腿改读**留档**（分支的迁移已经在 master 里了，
+    不能再挂一条活裁定，但"master 推翻了分支的规则"这句话必须留在记录上）；
+  - 词表门 `test_verdict_channel_parity`：缺口词 `not_landed` 之前**只在词表里、没有任何
+    地方写得出来**（#1550 的清理删掉了两条 `not_landed` 裁定，词表却留着它）。
+    补了一个**生产点**：`verdict_for(key)`——册子不认领的文件读作
+    **`not_landed`（没找到家）**，而不是"沉默"；并且加了一条**对照臂**的门证明
+    "册子不认领 ⇒ 读作缺口"这件事是真的（不是词表里的一句空话）。
+
+**验证读数（实测）：**
+- `tests/unit/test_branches_without_a_common_history_are_accounted_for.py` +
+  `tests/unit/test_verdict_channel_parity.py` → **23 passed**（改前 4+1 条红）；
+- `ruff check .` 与 `mypy .` 干净（271+ 文件）；
+- fence 5 文件 53 passed（本节追加后实跑）。
+
+**诚实边界：**
+- 本号**没有**重新核对那三条分支的内容是否真的都进了 master——那由并轨那笔提交负责，
+  本号只把**册子**改成与"总体为空"这个事实一致，并把历史原样留档；
+- 留档里的裁定**仍然只是当时那次的判断**（它不是今天的重新判决）；
+- `verdict_for()` 的 `not_landed` 是**册子不认领**时的读数，不是"这条分支的东西没落地"
+  的新判决——这两件事在册子里是分开的（归档 vs 活表）；
+- 并行车道在途的那 4 条红**没有**被本号处理（不是我的文件、也不是我的判断范围），
+  登记在上一节的第一张表里。
+
+**下一号队列（不动）：**
+- 截图基线（像素级"美观"回归）、崩溃注入演练；
+- 全量门：v10（快照 1668bab）被并行车道的工作树污染，**不可作权威结论**；
+  本号提交后按当前 master 在**独立工作树**重排一轮（并避开并行车道的在途文件）。

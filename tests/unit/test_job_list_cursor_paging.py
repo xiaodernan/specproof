@@ -58,11 +58,14 @@ def _seed(store: MySQLStore, count: int) -> list[str]:
 
 
 def _cleanup(store: MySQLStore, ids: list[str]) -> None:
-    with store.connection() as conn:
-        for jid in ids:
-            conn.cursor().execute(
-                "DELETE FROM verification_jobs WHERE id = %s", (jid,)
-            )
+    """Remove the rows this leg seeded, through the store's own deletion.
+
+    Not a raw DELETE: the store's deletion writes the explaining audit row
+    in the same transaction (the trail outlives the job by design), and the
+    audit-parity gate refuses a test that deletes job rows in place.
+    """
+    for jid in ids:
+        store.delete_job_records(jid)
 
 
 def test_the_cursor_path_returns_the_same_rows_as_the_offset_path(

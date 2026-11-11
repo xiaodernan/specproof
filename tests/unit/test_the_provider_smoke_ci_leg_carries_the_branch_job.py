@@ -409,7 +409,8 @@ def test_C9_the_ruler_reads_a_population_it_can_be_wrong_about() -> None:
         f"{MIN_ENV_FIELDS}: an empty name set makes C3/C4 true for every typo")
     # The ruler must disagree with a hand-typed roster somewhere, or it is prose.
     typed = {"lint-type", "web", "java-services", "openapi-schema-diff", "security",
-             "tests-no-infra", "tests-with-infra", "eval-golden-cases", JOB_ID}
+             "tests-no-infra", "tests-with-infra", "eval-golden-cases", "e2e",
+             JOB_ID}
     assert typed == set(jobs), (
         f"the roster this gate's own docstring quotes ({len(typed)} ids) no longer "
         f"matches ci.yml ({sorted(jobs)}) -- update the quoted list by reading it, "

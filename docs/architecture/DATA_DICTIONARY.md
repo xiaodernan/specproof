@@ -1,7 +1,7 @@
 # 数据字典 (DATA_DICTIONARY) — SpecProof 全存储字段级说明
 
 > 口径与出处: 本文逐字段登记 SpecProof 的全部持久化状态。MySQL 表结构以
-> `infra/mysql/migrations/0001_init.sql` 至 `0017_contract_observes_keys.sql` 十七个版本化迁移为准,
+> `infra/mysql/migrations/0001_init.sql` 至 `0018_provider_sweep_indexes.sql` 十七个版本化迁移为准,
 > 并与代码内幂等 DDL (`storage/identity.py` / `storage/billing.py` / `storage/agent_jobs.py` /
 > `storage/object_metadata.py` / `storage/migrations.py`) 逐表核对; MongoDB/MinIO/ES/Redis/RabbitMQ
 > 以对应 `storage/*` 适配器为准。
@@ -71,7 +71,7 @@ DEFAULT (`BLOB, TEXT, GEOMETRY or JSON column can't have a default value`), 于�
 | tenant_id | CHAR(36) NULL (0005) | NULL=单租户兼容/旧数据/webhook 来源 |
 | created_at / updated_at | TIMESTAMP | |
 
-索引: idx_status, idx_worker, idx_jobs_tenant。
+索引: idx_status, idx_worker, idx_jobs_tenant, idx_jobs_status_updated_id (status, updated_at, id; 0018, 给 provider 等待扫描用 —— 扫描按停放时间排序，没有它就是 filesort)。
 - **写入方**: `api/routes/jobs.py` POST /jobs 与 `api/routes/webhooks.py` (GitHub PR) 经
   `storage/mysql.py` `create_job_with_outbox` (Job 行 + Outbox 行同一事务, 事务内建行即为 `QUEUED`);
   `agent/worker.py` 状态转换 (认领 RUNNING / 阶段推进 / 终态);

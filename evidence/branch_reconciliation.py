@@ -1,5 +1,14 @@
 """Refs that share no history with ``origin/master``, and what became of them.
 
+**The population is empty as of 2cd91e6** (the merge that brought the three
+historical root branches into master: "吸收三条历史根分支入主干"). Every ref in
+the tree is now an ancestor of master, so no ref shares no history with master
+any more, nothing is branch-only, and there is nothing left to adjudicate.
+The live tables at the bottom of this file say so; the adjudication that came
+before the merge is kept verbatim in the archive above them (a file that master
+owns now cannot carry a live disposition, but the record of what it turned out
+to be must not disappear).
+
 Declarations only. Every number and every "still true" claim in here is
 re-measured by
 ``tests/unit/test_branches_without_a_common_history_are_accounted_for.py``,
@@ -51,7 +60,15 @@ MEASURED_AT = "2e909ab5c91730aef7c8da23459c89d7c1e8babb"
 #: commits: ``refs/tags/p0.5-verified-v1`` is an annotated tag object whose own
 #: sha differs from the commit it peels to, so a name-keyed census reports 4
 #: orphan "branches" where the repository holds 3 orphan lines of work.
-ORPHAN_COMMITS: dict[str, tuple[str, ...]] = {
+#: ── the archive ────────────────────────────────────────────────────────
+#: The adjudication of the three refs as it stood BEFORE they were merged
+#: into master (2cd91e6, "吸收三条历史根分支入主干"). Kept verbatim: a file
+#: that master owns now cannot carry a LIVE disposition (the gate reads a
+#: disposition for a file master does not own as a phantom ghost), but the
+#: record of what each branch-only file turned out to be must not
+#: disappear -- "a gap that is deleted from the register reads exactly like
+#: a gap that was fixed".
+MERGED_ORPHAN_COMMITS: dict[str, tuple[str, ...]] = {
     "4145d95b78db4da56f6f8915a392f794ac4c23b7": (
         "refs/remotes/origin/release/p0.5-verified-v1",
         "refs/tags/p0.5-verified-v1",
@@ -64,20 +81,16 @@ ORPHAN_COMMITS: dict[str, tuple[str, ...]] = {
     ),
 }
 
-VERDICTS: frozenset[str] = frozenset({
-    "landed_at_other_path",
-    "succeeded_by_rewrite",
-    "reversed_by_master",
-    "not_landed",
-    "unadjudicated",
-})
 
-#: "<sha12>:<branch-only path>" -> the adjudication.
-#:
-#: ``successor_paths`` are checked to exist in the base tree; ``successor_symbols``
-#: are checked with ``git grep -w`` in the base tree. Both are declared per file so
-#: a reader can see *what* was believed to have landed, not only that something was.
-FILE_DISPOSITIONS: dict[str, dict[str, object]] = {
+#: ── the archive ────────────────────────────────────────────────────────
+#: The adjudication of the three refs as it stood BEFORE they were merged
+#: into master (2cd91e6, "吸收三条历史根分支入主干"). Kept verbatim: a file
+#: that master owns now cannot carry a LIVE disposition (the gate reads a
+#: disposition for a file master does not own as a phantom ghost), but the
+#: record of what each branch-only file turned out to be must not
+#: disappear -- "a gap that is deleted from the register reads exactly like
+#: a gap that was fixed".
+MERGED_FILE_DISPOSITIONS: dict[str, dict[str, object]] = {
     # ── release/p0.5-verified-v1 (4145d95) ─────────────────────────────────
     "4145d95b7:scripts/run_differential.sh": {
         "verdict": "landed_at_other_path",
@@ -142,11 +155,16 @@ FILE_DISPOSITIONS: dict[str, dict[str, object]] = {
     },
 }
 
-#: "<sha12>:<path>::<branch test name>" -> the master test name that carries the
-#: same fact. Adjudicated by hand from a near-name candidate list; the gate
-#: measures both sides exist, so a pair that rots goes red rather than rotting
-#: quietly in prose.
-RENAMED_TESTS: dict[str, str] = {
+
+#: ── the archive ────────────────────────────────────────────────────────
+#: The adjudication of the three refs as it stood BEFORE they were merged
+#: into master (2cd91e6, "吸收三条历史根分支入主干"). Kept verbatim: a file
+#: that master owns now cannot carry a LIVE disposition (the gate reads a
+#: disposition for a file master does not own as a phantom ghost), but the
+#: record of what each branch-only file turned out to be must not
+#: disappear -- "a gap that is deleted from the register reads exactly like
+#: a gap that was fixed".
+MERGED_RENAMED_TESTS: dict[str, str] = {
     "4145d95b7:tests/integration/test_differential.py::test_run_static_checks_detects_auth_bypass":
         "test_contract_checkers_detect_auth_bypass",
     "a756f5338:tests/integration/test_differential.py::test_run_static_checks_detects_auth_bypass":
@@ -177,28 +195,45 @@ RENAMED_TESTS: dict[str, str] = {
         "test_repository_get_job_unscoped_injects_no_tenant_predicate",
 }
 
-#: The name-level census of the three orphan commits, measured with the anchored
-#: def ruler and split by whether master owns the file the name lives in.
-#: ``shared_file`` names may be explained by ``RENAMED_TESTS`` or left unexplained;
-#: the gate recomputes all four numbers and refuses to certify if they move.
-NAME_ONLY_CENSUS: dict[str, int] = {
+
+#: ── the archive ────────────────────────────────────────────────────────
+#: The adjudication of the three refs as it stood BEFORE they were merged
+#: into master (2cd91e6, "吸收三条历史根分支入主干"). Kept verbatim: a file
+#: that master owns now cannot carry a LIVE disposition (the gate reads a
+#: disposition for a file master does not own as a phantom ghost), but the
+#: record of what each branch-only file turned out to be must not
+#: disappear -- "a gap that is deleted from the register reads exactly like
+#: a gap that was fixed".
+MERGED_NAME_ONLY_CENSUS: dict[str, int] = {
     "total": 40,
     "shared_file": 40,
     "branch_only_file": 0,
     "unexplained_after_renames": 26,
 }
 
-#: branch job name -> master job id that carries the same step. The gate measures
-#: the master side exists as a job id in one of master's workflow files.
-RENAMED_JOBS: dict[str, str] = {
+
+#: ── the archive ────────────────────────────────────────────────────────
+#: The adjudication of the three refs as it stood BEFORE they were merged
+#: into master (2cd91e6, "吸收三条历史根分支入主干"). Kept verbatim: a file
+#: that master owns now cannot carry a LIVE disposition (the gate reads a
+#: disposition for a file master does not own as a phantom ghost), but the
+#: record of what each branch-only file turned out to be must not
+#: disappear -- "a gap that is deleted from the register reads exactly like
+#: a gap that was fixed".
+MERGED_RENAMED_JOBS: dict[str, str] = {
     "lint-and-type": "lint-type",
 }
 
-#: Every content-level gap, keyed by the exact token the gate re-measures: a SQL
-#: symbol with no home, a branch job name master never took, or a branch-only file
-#: whose verdict is ``not_landed``. Deleting a key has to be a decision someone can
-#: see -- a gap removed from the register reads exactly like a gap that was fixed.
-REGISTERED_GAPS: dict[str, str] = {
+
+#: ── the archive ────────────────────────────────────────────────────────
+#: The adjudication of the three refs as it stood BEFORE they were merged
+#: into master (2cd91e6, "吸收三条历史根分支入主干"). Kept verbatim: a file
+#: that master owns now cannot carry a LIVE disposition (the gate reads a
+#: disposition for a file master does not own as a phantom ghost), but the
+#: record of what each branch-only file turned out to be must not
+#: disappear -- "a gap that is deleted from the register reads exactly like
+#: a gap that was fixed".
+MERGED_REGISTERED_GAPS: dict[str, str] = {
     "config_hash": "分支迁移声明的 15 个名字里唯一在 master 全树 0 处命中的列名",
     # provider-smoke was this dict's only workflow-shaped key. #1549 carried the
     # branch's job over into master's ci.yml step-for-step, so the name is no
@@ -212,6 +247,100 @@ REGISTERED_GAPS: dict[str, str] = {
     # visible to the rulers (VERDICT succeeded_by_rewrite), not just deletable.
 }
 
+
+#: ── the live register ────────────────────────────────────────────────────
+#: The refs this register reconciles are the ones that share NO history with
+#: master. As of 2cd91e6 (the merge that brought the three historical root
+#: branches into master) there are none: every ref in the tree is now an
+#: ancestor of master, so nothing is branch-only any more and nothing is
+#: left to adjudicate.
+#:
+#: The tables below are therefore EMPTY -- and empty is a claim, so the gate
+#: measures it against the store (the refs, the trees, the counts) rather
+#: than believing this file. The adjudication that came before the merge is
+#: in the archive above.
+ORPHAN_COMMITS: dict[str, tuple[str, ...]] = {}
+
+#: "<sha12>:<branch-only path>" -> the adjudication. Empty for the reason
+#: above; the merged adjudication is in MERGED_FILE_DISPOSITIONS.
+FILE_DISPOSITIONS: dict[str, dict[str, object]] = {}
+
+#: "<sha12>:<path>::<branch test name>" -> the master test name that carries
+#: the same fact. Empty for the same reason (the merged pairs are in
+#: MERGED_RENAMED_TESTS).
+RENAMED_TESTS: dict[str, str] = {}
+
+#: The name-level census of the orphan commits. Zero for the same reason
+#: (the merged census is in MERGED_NAME_ONLY_CENSUS).
+NAME_ONLY_CENSUS: dict[str, int] = {
+    "total": 0,
+    "shared_file": 0,
+    "branch_only_file": 0,
+    "unexplained_after_renames": 0,
+}
+
+#: branch job name -> master job id that carries the same step. Empty for the
+#: same reason (the merged pairs are in MERGED_RENAMED_JOBS).
+RENAMED_JOBS: dict[str, str] = {}
+
+#: The gaps the reconciliation could not close. Empty for the same reason
+#: (the merged gaps are in MERGED_REGISTERED_GAPS).
+REGISTERED_GAPS: dict[str, str] = {}
+
+
+VERDICTS: frozenset[str] = frozenset({
+    "landed_at_other_path",
+    "succeeded_by_rewrite",
+    "reversed_by_master",
+    "not_landed",
+    "unadjudicated",
+})
+
+#: What a branch-only file the register does not adjudicate reads as.
+#:
+#: It is a GAP, and it has to be PRODUCIBLE, not only spellable: a
+#: vocabulary nobody can write cannot record a gap. #1550's cleanup removed
+#: the two ``not_landed`` entries (the files had landed, so saying
+#: "not landed" would have been false) and left the word in the
+#: vocabulary -- correct, because the next gap needs a word to be written
+#: in -- but without anything that could write it. This constant is that
+#: production site.
+VERDICT_NOT_LANDED = "not_landed"
+
+
+def verdict_for(key: str) -> str:
+    """The adjudication of one branch-only file.
+
+    A key the register does not carry has not been adjudicated, and the
+    honest name for that is ``not_landed``: no home was found for it.
+    Reading it this way is what keeps "undecided" from looking like
+    "fine" -- an unadjudicated file is a gap, and the gap has to be
+    answerable.
+    """
+    entry = FILE_DISPOSITIONS.get(key)
+    if entry is None:
+        return VERDICT_NOT_LANDED
+    return str(entry.get("verdict", VERDICT_NOT_LANDED))
+
+#: "<sha12>:<branch-only path>" -> the adjudication.
+#:
+#: ``successor_paths`` are checked to exist in the base tree; ``successor_symbols``
+#: are checked with ``git grep -w`` in the base tree. Both are declared per file so
+#: a reader can see *what* was believed to have landed, not only that something was.
+#: "<sha12>:<path>::<branch test name>" -> the master test name that carries the
+#: same fact. Adjudicated by hand from a near-name candidate list; the gate
+#: measures both sides exist, so a pair that rots goes red rather than rotting
+#: quietly in prose.
+#: The name-level census of the three orphan commits, measured with the anchored
+#: def ruler and split by whether master owns the file the name lives in.
+#: ``shared_file`` names may be explained by ``RENAMED_TESTS`` or left unexplained;
+#: the gate recomputes all four numbers and refuses to certify if they move.
+#: branch job name -> master job id that carries the same step. The gate measures
+#: the master side exists as a job id in one of master's workflow files.
+#: Every content-level gap, keyed by the exact token the gate re-measures: a SQL
+#: symbol with no home, a branch job name master never took, or a branch-only file
+#: whose verdict is ``not_landed``. Deleting a key has to be a decision someone can
+#: see -- a gap removed from the register reads exactly like a gap that was fixed.
 #: Where an unanchored ``\bdef test_`` census prints a name that is not a test
 #: definition anywhere in the tree -- prose counted as a test. The values are
 #: exactly those names, per file. Per file the two rulers disagree in more files

@@ -395,6 +395,25 @@ def _keys_under(register, mapping: dict, commit: str) -> list[str]:
     return sorted(k for k in mapping if _key_commit(register, k) == commit)
 
 
+def _archived_key_commit(register, key: str) -> str:
+    """Which lineage an ARCHIVED key adjudicates.
+
+    #1623: the three refs were merged into master (2cd91e6), so the live
+    population is empty and the live ORPHAN_COMMITS cannot answer for a
+    key that describes the state BEFORE the merge. The archive holds that
+    state, so the historical legs read it there -- with the same rule:
+    a prefix that resolves to 0 or to 2 lineages is an assertion failure,
+    never a key to be skipped.
+    """
+    prefix = key.split(":", 1)[0]
+    hits = sorted(c for c in register.MERGED_ORPHAN_COMMITS if c.startswith(prefix))
+    assert len(hits) == 1, (
+        f"archived key {key!r} names commit prefix {prefix!r}, which resolves to "
+        f"{len(hits)} of the merged orphan commits {hits} -- a verdict has to "
+        "name exactly one lineage")
+    return hits[0]
+
+
 def _workflow_paths(rev: str) -> list[str]:
     return sorted(p for p in _tree(rev)
                   if p.startswith(".github/workflows/") and p.endswith(".yml"))
@@ -533,17 +552,56 @@ def test_the_ref_population_is_measured_not_remembered():
             f"as {sorted(register.ORPHAN_COMMITS[commit])}")
 
     multi = {c: n for c, n in peeled.items() if len(n) > 1}
-    assert len(registered) > len(measured_commits), (
-        f"names={len(registered)} and commits={len(measured_commits)} -- the gate "
-        "expects at least one lineage reachable by 2 names, because that is the "
-        f"measured shape here ({ {c[:12]: n for c, n in multi.items()} }); if the "
-        "repo no longer has such a pair, the register's 'N branches' sentence has "
-        "to be re-written by a human")
+    if registered:
+        assert len(registered) > len(measured_commits), (
+            f"names={len(registered)} and commits={len(measured_commits)} -- the gate "
+            "expects at least one lineage reachable by 2 names, because that is the "
+            f"measured shape here ({ {c[:12]: n for c, n in multi.items()} }); if the "
+            "repo no longer has such a pair, the register's 'N branches' sentence has "
+            "to be re-written by a human")
+    else:
+        # The population is EMPTY (#1623: the three root branches were merged
+        # into master, so no ref shares no history with master any more). There
+        # is nothing to peel, and "no name is reachable by two names" is not a
+        # finding about the repository -- it IS the finding. The register's
+        # sentence was re-written to say so.
+        assert not measured_commits, (
+            f"the register declares no orphan refs but {len(measured_commits)} are "
+            "measured -- the register's sentence was not re-written")
 
 
 # ══════════════════════════════════════════════════════════════════════════
 # P3 -- every branch-only file, closed vocabulary, reasons carry numbers
 # ══════════════════════════════════════════════════════════════════════════
+
+def test_a_file_with_no_adjudication_reads_as_a_gap_not_as_silence():
+    """The control arm for the closed vocabulary.
+
+    Every branch-only file the register covers carries an adjudication
+    (the next leg proves it), so the vocabulary's two gap words --
+    ``not_landed`` and ``unadjudicated`` -- have no entry that uses them
+    today. A gap word that nothing can write is a word that cannot
+    record the next gap, so the register answers for an unadjudicated
+    file: ``not_landed``, the name for "no home was found".
+
+    This leg is what makes that answer real rather than a vocabulary
+    entry: it reads a key the register does not carry.
+    """
+    register = _reg()
+    assert register.verdict_for("deadbeef:some/branch/only/path.py") == "not_landed"
+    # A key the LIVE register does not carry reads as a gap too -- and that is
+    # the honest answer: the merged adjudication lives in the archive, and the
+    # live register does not pretend to know it. What it must not do is read
+    # as silence.
+    merged = register.MERGED_FILE_DISPOSITIONS
+    key = next(iter(merged))
+    assert register.verdict_for(key) == "not_landed", (
+        "a key the register does not carry must read as a gap, not as a verdict "
+        "the live register never made")
+    # and the archive still holds the adjudication that was made, in the
+    # closed vocabulary
+    assert merged[key]["verdict"] in register.VERDICTS
+
 
 def test_every_branch_only_file_has_a_verdict_from_the_closed_vocabulary():
     register = _reg()
@@ -613,15 +671,22 @@ def test_declared_successors_still_exist_in_master():
 def test_the_failed_terminal_reversal_still_holds():
     register = _reg()
     _require_refs_measurable(register)
-    key = next((k for k in register.FILE_DISPOSITIONS
+    # The disposition lives in the ARCHIVE: the branch's migration is in
+    # master now (2cd91e6 merged the three root branches in), so it can no
+    # longer carry a LIVE disposition -- but the adjudication of that file
+    # (master overturned the branch's rule) must stay on the record, because
+    # "the branch did not fail to land this file, master overturned it" is
+    # the sentence that stops somebody from porting it.
+    merged = register.MERGED_FILE_DISPOSITIONS
+    key = next((k for k in merged
                 if k.endswith("storage/migrations/002_failed_terminal.sql")), "")
     assert key, (
-        "the register carries no disposition for the branch's 002_failed_terminal"
-        ".sql -- that migration is the one place where master and the orphan branch "
-        "answered the same question differently, so its absence means the "
-        "reconciliation stopped looking")
-    assert register.FILE_DISPOSITIONS[key]["verdict"] == "reversed_by_master", (
-        f"{key} verdict={register.FILE_DISPOSITIONS[key]['verdict']!r}; the branch "
+        "the register's archive carries no disposition for the branch's "
+        "002_failed_terminal.sql -- that migration is the one place where master "
+        "and the orphan branch answered the same question differently, so its "
+        "absence means the reconciliation stopped looking")
+    assert merged[key]["verdict"] == "reversed_by_master", (
+        f"{key} verdict={merged[key]['verdict']!r}; the branch "
         "did not fail to land this file, master overturned it -- moving the verdict "
         "to not_landed would invite someone to port it")
 
@@ -631,7 +696,7 @@ def test_the_failed_terminal_reversal_still_holds():
         f"no \"FAILED\" row was measured in {BASE}:storage/mysql.py -- the reversal "
         "verdict rests on that table and the ruler is now blind")
     outgoing = sorted(set(re.findall(r'"([A-Z_]+)"', match.group(1))))
-    branch_text = _show(_key_commit(register, key), key.split(":", 1)[1])
+    branch_text = _show(_archived_key_commit(register, key), key.split(":", 1)[1])
     claims_terminal = "terminal" in branch_text.lower()
     assert claims_terminal, (
         "the branch migration no longer claims FAILED is terminal, so the reversal "
@@ -823,10 +888,21 @@ def test_registered_gaps_are_exactly_the_measured_absences():
     master_jobs: set[str] = set()
     for path in _workflow_paths(BASE):
         master_jobs |= _job_ids(BASE, path)
-    assert branch_jobs and master_jobs, (
+    # The ruler must not be blind: the master side always has content, and
+    # the branch side may only be empty when there IS no branch side to read
+    # -- i.e. when the orphan population is empty (#1623: the three root
+    # branches were merged into master, so nothing is branch-only any more).
+    # A branch side that reads empty WHILE orphan branches exist is the blind
+    # ruler this assert exists to catch.
+    assert master_jobs, (
         f"the YAML job-id ruler read {len(branch_jobs)} branch and "
         f"{len(master_jobs)} master job ids -- an empty denominator makes every "
         "gap disappear, which is a blind ruler and not a clean repository")
+    assert branch_jobs or not _measured_orphan_commits(), (
+        f"the YAML job-id ruler read 0 branch job ids while "
+        f"{len(_measured_orphan_commits())} orphan branches exist -- an empty "
+        "denominator makes every gap disappear, which is a blind ruler and not a "
+        "clean repository")
     measured_gaps |= branch_jobs - master_jobs - set(register.RENAMED_JOBS)
 
     # (3) files whose own verdict is that nothing landed
