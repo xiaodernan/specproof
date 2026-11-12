@@ -485,8 +485,10 @@ class OpenAICompatibleProvider(ModelProvider):
         if client is not None:
             built_in = self._policy_client_loops.get(base_url)
             if built_in is not None and built_in is not loop:
-                with contextlib.suppress(Exception):
-                    client.close()
+                # The old client is bound to a loop that is gone: closing it
+                # would raise ("event loop is closed") and its `close()` is a
+                # coroutine nobody can await from here. Dropping the reference
+                # IS the disposal — the sockets die with that loop.
                 client = None
         if client is None:
             client = self._make_client(base_url)
