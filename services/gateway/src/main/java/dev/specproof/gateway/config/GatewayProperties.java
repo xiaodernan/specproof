@@ -19,6 +19,8 @@ public class GatewayProperties {
     private final RequestSize requestSize = new RequestSize();
     private final SecurityHeaders securityHeaders = new SecurityHeaders();
     private final MqEvents mqEvents = new MqEvents();
+    private final RouteIsomorphismGate routeIsomorphismGate = new RouteIsomorphismGate();
+    private final DiscoveryRoutes discoveryRoutes = new DiscoveryRoutes();
 
     public RequestSize getRequestSize() {
         return requestSize;
@@ -30,6 +32,14 @@ public class GatewayProperties {
 
     public MqEvents getMqEvents() {
         return mqEvents;
+    }
+
+    public RouteIsomorphismGate getRouteIsomorphismGate() {
+        return routeIsomorphismGate;
+    }
+
+    public DiscoveryRoutes getDiscoveryRoutes() {
+        return discoveryRoutes;
     }
 
     /** Inbound request-body size cap (see {@code EdgeRequestSizeGlobalFilter}). */
@@ -101,6 +111,45 @@ public class GatewayProperties {
 
         public void setQueue(String queue) {
             this.queue = queue;
+        }
+    }
+
+    /**
+     * The dual-route-table isomorphism gate (#1635): the edge's curated path table
+     * and the service registry must agree on which services back which paths. When
+     * a discovery client is present, every route that names a {@code service-id}
+     * (see route {@code metadata}) must exist in the registry; the gate fails
+     * (or only warns) otherwise. Default fail-fast off so a missing service
+     * degrades the edge, it does not wedge its boot.
+     */
+    public static class RouteIsomorphismGate {
+        /** When true, a violated gate throws at startup instead of only reporting. */
+        private boolean failFast = false;
+
+        public boolean isFailFast() {
+            return failFast;
+        }
+
+        public void setFailFast(boolean failFast) {
+            this.failFast = failFast;
+        }
+    }
+
+    /**
+     * Opt-in discovery-backed routing (#1635): when enabled, a locator contributes
+     * one route per discovered service under {@code /sd/{serviceId}/**} (namespaced
+     * so it cannot collide with the curated table). Off by default — the curated
+     * table is the source of truth; this is the escape hatch for ad-hoc services.
+     */
+    public static class DiscoveryRoutes {
+        private boolean enabled = false;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
         }
     }
 }

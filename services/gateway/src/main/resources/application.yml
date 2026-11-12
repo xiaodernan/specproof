@@ -91,6 +91,7 @@ spring:
           uri: ${SPECPROOF_CONTROL_PLANE_URL:http://control-plane:8081}
           metadata:
             plane: control-plane
+            service-id: control-plane
           predicates:
             - Path=/api/v1/jobs,/api/v1/jobs/{id}
             - Method=GET
@@ -116,6 +117,7 @@ spring:
           uri: ${SPECPROOF_CONTROL_PLANE_URL:http://control-plane:8081}
           metadata:
             plane: control-plane
+            service-id: control-plane
           predicates:
             - Path=/api/v1/tenants
             - Method=GET,POST
@@ -139,6 +141,7 @@ spring:
           uri: ${SPECPROOF_CONTROL_PLANE_URL:http://control-plane:8081}
           metadata:
             plane: control-plane
+            service-id: control-plane
           predicates:
             - Path=/api/v1/tenants/{id}
             - Method=GET
@@ -160,6 +163,7 @@ spring:
           uri: ${SPECPROOF_CONTROL_PLANE_URL:http://control-plane:8081}
           metadata:
             plane: control-plane
+            service-id: control-plane
           predicates:
             - Path=/api/v1/tenants/{tenantId}/users
             - Method=GET,POST
@@ -181,6 +185,7 @@ spring:
           uri: ${SPECPROOF_CONTROL_PLANE_URL:http://control-plane:8081}
           metadata:
             plane: control-plane
+            service-id: control-plane
           predicates:
             - Path=/api/v1/webhooks/github
             - Method=POST
@@ -200,6 +205,7 @@ spring:
           uri: ${SPECPROOF_AGENT_RUNTIME_URL:http://api:8000}
           metadata:
             plane: agent-runtime
+            service-id: api
           predicates:
             - Path=/**
           filters:
@@ -293,6 +299,20 @@ specproof:
     #       keyStrategy: global          # or x-forwarded-for for per-origin shaping
     #       failMode: open               # open=admit on Redis error, closed=429
     distributed-ratelimit:
+      enabled: false
+    # Dual-route-table isomorphism gate (#1635): the curated path table and the
+    # service registry must agree. Every route that names a `service-id` (route
+    # metadata, set above) must exist in the registry; the gate also rejects any
+    # path claimed by two routes. Exposed as a HealthIndicator and a startup
+    # runner. fail-fast=false (default) means a violation degrades the edge and
+    # marks /health DOWN; set true to wedge boot instead.
+    route-isomorphism-gate:
+      fail-fast: false
+    # Opt-in discovery-backed routing (#1635): when true, a locator contributes one
+    # route per discovered service under /sd/{serviceId}/**, reading the real
+    # instance host:port from the registry. Off by default — the curated table is
+    # the single source of truth; this is the escape hatch for ad-hoc services.
+    discovery-routes:
       enabled: false
     # Routes that are deliberately NOT served at the edge.  A route that is
     # neither here nor claimed by a route above would be a route that
