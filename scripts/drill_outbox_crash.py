@@ -98,7 +98,15 @@ def main() -> int:
     parser.parse_args()
 
     store = MySQLStore()
-    rabbitmq = RabbitMQClient()
+    # heartbeat=0: the broker closes an idle connection after two missed
+    # heartbeats, and a drill waits MINUTES between publishes by design
+    # (the control job alone ran 18 minutes on 2026-11-12). The pump in
+    # RabbitMQClient.keepalive() services the connection while a wait is
+    # running, but a connection that was idle BEFORE the first pump (or
+    # after a broker-side close) cannot be revived -- and the drill lost
+    # its kill-leg publish exactly that way (StreamLostError, outbox
+    # row 45). A drill client does not need the broker to reap it.
+    rabbitmq = RabbitMQClient(heartbeat=0)
     redis = RedisStore()
     # Versioned, idempotent schema migrations (the same path the
     # integration tests use) — the dev database must be current before a

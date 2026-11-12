@@ -145,7 +145,15 @@ def main() -> int:
     args = parser.parse_args()
 
     store = MySQLStore()
-    rabbitmq = RabbitMQClient()
+    # heartbeat=0: the broker closes an idle connection after two missed
+    # heartbeats, and a drill waits MINUTES between publishes by design
+    # (the control job alone ran 18 minutes on 2026-11-12). The pump in
+    # RabbitMQClient.keepalive() services the connection while a wait is
+    # running, but a connection that was idle BEFORE the first pump (or
+    # after a broker-side close) cannot be revived -- and the drill lost
+    # its kill-leg publish exactly that way (StreamLostError, outbox
+    # row 45). A drill client does not need the broker to reap it.
+    rabbitmq = RabbitMQClient(heartbeat=0)
     redis = RedisStore()
     # Versioned, idempotent schema migrations (the same path the
     # integration tests use) — the dev database must be current before a
@@ -235,7 +243,31 @@ def main() -> int:
         "worker_log_tail": _worker_log_tail(control_out),
     }
     if control_terminal is None:
-        result["error"] = "control job never reached a terminal state"
+        # A timeout is a fact about the tree, so the report has to carry it:
+        # where the job stood and for how long it had been running. The LLM
+        # path under a rate-limited gateway can take hours (measured 2026-11-12:
+        # ~18 minutes for one control job, ~3 hours for another) — the drill
+        # does not get to call that a product defect, and it must not hide it
+        # behind a one-line message either.
+        with store.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT status, created_at, updated_at FROM verification_jobs "
+                "WHERE id = %s",
+                (control_job_id,),
+            )
+            row = cur.fetchone()
+        result["control_job"]["last_known_status"] = (
+            str(row["status"]) if row else None
+        )
+        result["control_job"]["updated_at"] = (
+            str(row["updated_at"]) if row else None
+        )
+        result["error"] = (
+            "control job never reached a terminal state within the drill's "
+            "window (see last_known_status: the LLM path can take hours under "
+            "a rate-limited gateway)"
+        )
         print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
         return 1
 

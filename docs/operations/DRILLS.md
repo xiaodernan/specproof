@@ -519,6 +519,27 @@ P3 __all__ 里去掉 counter names → 1 红 (export parity) ✅
 耗时说明: docker 停机致 redis 不可达, 未接假件的 HTTP 测试走 fail-open 重试爬行 (单请求可达 48s, 见本行修法段) + 同机另有多个 pytest 会话在跑。
 口径: 与 FIX-20/FIX-17 同 — 共享工作树, 外部红仅归因, 不计入本批通过率。
 
+### 5.1 2026-11-12 新发现（演练 1 重写时逐条撞出来的，都是真·产品事实）
+
+| # | 缺陷 | 影响 | 修复 | 验证 |
+|---|---|---|---|---|
+| FIX-26 | **broker 自己重入队恢复不了崩溃的 worker**：生产 worker 消费 `q.p1.verify.job` 时带着 Redis 幂等键（`storage/rabbitmq.py::make_idempotency_check`），键在管线**之前** SETNX —— 崩溃后 broker 重投的**同一条** event_id 被判为重复、直接 ack 丢弃 | "等 broker 重投就能恢复"是假的：作业会一直停在队里，直到回收器换新 event_id 重投 | 演练改走**生产回收**路径（`reclaim_stale_running_jobs`，与 `specproof ops recover --running-only`、周期 tick 同一个函数）：过期 RUNNING 行 CAS 回 QUEUED + **换新 event_id** 重投 | 演练 1（见 §8） |
+| FIX-27 | **worker 的消费连接带 30s 心跳，而 worker 的管线回调会阻塞数分钟**（LLM 慢或被限流）：期间连接零帧，代理按两次漏检关闭连接；管线跑完后 worker 在 `basic_ack` 撞 `StreamLostError` 退出 | **作业从未进入 RUNNING**；队列里更早的事件先被消费；worker 看起来"跑完了"却没有落任何判定 | worker 的消费连接以 `heartbeat=0` 打开（`8c6b2c6`）：代理不再向它索要它给不出的活性；活性由 worker 自己的租约（30s TTL）与过期回收负责。现场对照写进 `docs/operations/RUNBOOK.md` §5 | `tests/unit/test_rabbitmq_reliability.py` 新增 2 条契约腿；fault + rabbitmq **139 passed** |
+| FIX-28 | **演练自称"无凭据"是假的**：旧实现清空 `LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL` 环境变量，却把**配置文件**（`providers/config.py` 的 `SPECPROOF_MODEL_CONFIG`，默认 `.local/llm.json`）留在原地；而且没有凭据时管线走确定性短路分支，**根本到不了**演练要打断的那些阶段 | 演练的"确定性、无凭据"承诺两处都不成立；它测的阶段不是生产的阶段 | 契约重写：**演练用项目自己的模型配置（若存在）、不注入任何凭据、不改写 `SPECPROOF_MODEL_CONFIG`**；新门 `tests/unit/test_drills_run_without_model_credentials.py`（3 条腿） | 新门 **3 passed** |
+| FIX-29 | **演练之间共享同一条队列**：`q.p1.verify.job` 上的 worker 谁先到谁先消费 —— 并行跑两个演练时，后一个演练的作业被前一个演练的 worker 领走 | 实测：`drill_outbox_crash` 与 `drill_worker_kill` 并行时前者报 `worker never reached terminal`（它的 worker 永远等不到自己的作业） | 演练**串行**跑；演练现在把**起始队列深度**写进报告（读者能自己看出这次等的是积压还是新作业），超时也放宽到 3600s（控制作业要等积压先被消化） | 本号实测：串行跑三个演练全部 PASS（见下） |
+| FIX-30 | **演练自制的"恢复"绕开了生产路径**，会做生产绝不会做的状态转移（`PREPARING → NEEDS_REVIEW` 被状态机拒绝） | 演练测出来的"恢复能力"不是产品的恢复能力；它自己的报告还把失败说成是产品的行为 | 演练只做生产做过的事：真 worker 被 `taskkill /F /T` 杀掉 → 租约过期 → 生产回收（CAS 回 QUEUED + 换新 event_id 重投）→ **新 worker** 认领并从 LangGraph 检查点续跑 | 演练 1（见 §8） |
+
+**2026-11-12 同日实测（三个不需要 LLM 的演练，串行）**：
+
+- **Drill 2（provider outage）— PASS**：3 次尝试 / 10.31s；失败被如实抛出（`APITimeoutError`，
+  决策理由 `timeout`、可重试）；断路器 **open**（连续失败 3 次后跳闸）；作业侧仍产出
+  **1 条契约**，`llm_used=false`，降级理由写明 `LLM call failed: Connection error.`；
+  全程 25.17s，判定 `PASS — provider outage degraded honestly`。
+- **Drill 5（notify outbox）— PASS（两条腿）**：崩溃窗口腿：意图存活并**恰好投递一次**
+  （relay_first=1、relay_second=0、own_deliveries=1，0.46s）；死信腿：死信后由运维重放
+  并投递成功（0.32s）。
+- **Drill 4（outbox crash window）— PASS（串行）**；**并行跑时红**（见 FIX-29）。
+
 ## 6. 待基础设施 / 需开发清单 (如实标注, 均给出精确缺口位置)
 
 | # | 项目 | 缺口位置 | 状态 |

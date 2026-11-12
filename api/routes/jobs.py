@@ -53,6 +53,15 @@ JOB_CREATE_ALLOWLIST = frozenset(
 #: Retained-history cap for one SSE replay (mirrors RedisStore.STREAM_MAXLEN;
 #: kept local so the stream survives store monkeypatching in tests).
 _SSE_HISTORY_CAP = 1000
+#: The poll interval of the progress stream. The stream is a VIEWER of the
+#: job, so its cost is paid per viewer: a fixed 500ms poll means every open
+#: tab costs two Redis round trips per second for the whole life of the job
+#: — most of which is silence. So the interval starts short (a job's first
+#: events arrive in a burst and must not wait), backs off while the stream
+#: stays quiet, and snaps back the moment something new arrives. Bounded on
+#: both ends: never faster than MIN, never slower than MAX.
+_SSE_POLL_MIN = 0.25
+_SSE_POLL_MAX = 2.0
 
 #: The single event kind the VERIFY progress stream emits (§14.3).
 _SSE_EVENT_TYPE = "progress"
@@ -321,6 +330,8 @@ async def _progress_stream(
                 break
     sent_ids: set[str] = set()
     replaying = True
+    quiet_polls = 0
+    poll_interval = _SSE_POLL_MIN
     while True:
         if await request.is_disconnected():
             break
@@ -354,7 +365,20 @@ async def _progress_stream(
             yield f"event: {_SSE_EVENT_TYPE}\n"
             yield f"data: {payload}\n\n"
         replaying = False
-        await asyncio.sleep(0.5)
+        if entries:
+            # Something new arrived: the next poll waits the minimum again, so
+            # a burst of events is followed promptly.
+            quiet_polls = 0
+            poll_interval = _SSE_POLL_MIN
+        else:
+            # Silence: back off, doubling up to the cap. A job that sits in a
+            # long stage costs this viewer one round trip every MAX seconds
+            # instead of two per second.
+            quiet_polls += 1
+            poll_interval = min(
+                _SSE_POLL_MAX, _SSE_POLL_MIN * (2 ** min(quiet_polls, 4))
+            )
+        await asyncio.sleep(poll_interval)
 
 
 @router.get("/{job_id}/progress")
