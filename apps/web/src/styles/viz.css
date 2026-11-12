@@ -1,0 +1,152 @@
+/* ============================================================
+   SpecProof — Data visualization layer (CountUp / AreaChart /
+   DonutMeter / Sparkline). Pure SVG + CSS, no chart library.
+   Every color is a token so the charts re-tint with the theme;
+   every animation is disabled under prefers-reduced-motion.
+   ============================================================ */
+
+/* ── Area chart ───────────────────────────────────────────── */
+.viz-area {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.viz-grid {
+  stroke: var(--color-border);
+  stroke-width: 1;
+  stroke-dasharray: 2 6;
+  opacity: 0.7;
+}
+.viz-area-fill {
+  opacity: 0;
+  animation: viz-fade-in 0.8s var(--ease-out) 0.25s forwards;
+}
+.viz-area-line {
+  stroke: var(--accent-500);
+  stroke-width: 3;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  filter: drop-shadow(0 2px 6px rgba(124, 92, 255, 0.35));
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: viz-draw 1.2s var(--ease-out) forwards;
+}
+.viz-dot {
+  fill: var(--color-surface);
+  stroke: var(--accent-500);
+  stroke-width: 3;
+  transition: r var(--dur) var(--ease-out);
+}
+.viz-dot:hover {
+  r: 6;
+  fill: var(--accent-500);
+}
+
+/* ── Donut meter ──────────────────────────────────────────── */
+.viz-donut {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-6);
+  flex-wrap: wrap;
+}
+.viz-donut-track {
+  stroke: var(--color-border);
+}
+.viz-donut-arc {
+  stroke-dashoffset: var(--arc);
+  animation: viz-arc 0.9s var(--ease-out) forwards;
+}
+.viz-donut-value {
+  fill: var(--color-text);
+  font-size: 30px;
+  font-weight: var(--fw-800);
+  font-family: var(--font-mono);
+}
+.viz-donut-label {
+  fill: var(--color-text-2);
+  font-size: 12px;
+  font-weight: var(--fw-500);
+  letter-spacing: 0.02em;
+}
+.viz-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-2);
+  flex: 1 1 140px;
+  min-width: 140px;
+}
+.viz-legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-md);
+  color: var(--color-text-2);
+}
+.viz-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  flex: none;
+}
+.viz-legend-label {
+  flex: 1;
+}
+.viz-legend-value {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-700);
+  color: var(--color-text);
+}
+
+/* ── Shared empty state ────────────────────────────────────── */
+.viz-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  color: var(--color-text-3);
+  font-size: var(--text-md);
+  background: var(--color-surface-2);
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--color-border-strong);
+}
+
+/* ── Keyframes ────────────────────────────────────────────── */
+@keyframes viz-draw {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes viz-arc {
+  from { stroke-dashoffset: var(--arc); }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes viz-fade-in {
+  to { opacity: 1; }
+}
+
+/* ── Reduced motion: show final state, skip the theatrics ──── */
+@media (prefers-reduced-motion: reduce) {
+  .viz-area-line,
+  .viz-area-fill,
+  .viz-donut-arc {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
+    opacity: 1 !important;
+  }
+  .viz-dot:hover { r: 4; }
+}
+
+/* ── Dashboard insight layout (trend + composition) ────────── */
+.insight-grid {
+  display: grid;
+  grid-template-columns: 1.7fr 1fr;
+  gap: var(--sp-6);
+  margin-top: var(--sp-6);
+  align-items: stretch;
+}
+.insight-grid .panel { margin: 0; }
+.metric-count { font: inherit; }
+@media (max-width: 900px) {
+  .insight-grid { grid-template-columns: 1fr; }
+}

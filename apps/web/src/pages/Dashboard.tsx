@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiGet, type DashboardData } from "../api";
-import { Button, ErrorBox, Panel, StatusPill, fmtTime, shortId } from "../ui";
+import { Button, ErrorBox, Panel, StatusPill, fmtTime, shortId, CountUp, AreaChart, DonutMeter } from "../ui";
 import { describeDegradedReason } from "../ui/errorHints";
 import { ProductIcon, type ProductIconName } from "../ui/ProductIcon";
 
@@ -43,6 +43,27 @@ export default function Dashboard() {
   const max = Math.max(1, ...timeline.map(hour => hour.count));
   const needsAttention = (stats.BLOCKED || 0) + (stats.FAILED || 0) + (stats.ERROR || 0);
 
+  // 验收洞察：把聚合数据画成可见的趋势与构成，而不是只堆数字。
+  const areaData = timeline.map(hour => ({
+    label: hour.hour.slice(11, 16),
+    value: hour.count,
+    meta: hour.failed ? `失败 ${hour.failed} 次` : undefined,
+  }));
+  const JOB_STATUS_LABEL: Record<string, string> = {
+    VERIFIED: "已通过", BLOCKED: "已拦截", RUNNING: "执行中", QUEUED: "排队中",
+    FAILED: "失败", ERROR: "错误", CANCELLED: "已取消", PENDING: "等待中",
+  };
+  const statusColor: Record<string, string> = {
+    VERIFIED: "var(--success)", BLOCKED: "var(--warning)", RUNNING: "var(--accent-500)",
+    QUEUED: "var(--accent-400)", FAILED: "var(--danger)", ERROR: "var(--danger)",
+    CANCELLED: "var(--color-text-3)", PENDING: "var(--color-text-3)",
+  };
+  const donutSegments = hasData
+    ? Object.entries(data.jobs.by_status)
+        .map(([k, v]) => ({ label: JOB_STATUS_LABEL[k] ?? k, value: v, color: statusColor[k] ?? "var(--color-text-3)" }))
+        .filter(s => s.value > 0)
+    : [];
+
   return <div className="dashboard product-page">
     <div className="product-page-heading"><div><div className="eyebrow">YOUR DELIVERY WORKSPACE</div><h1>每一次交付，都更有把握<span className="heading-dot">.</span></h1><p>从需求到证据，清楚知道这次代码变更是否符合预期。</p></div><a className="btn btn-primary" href="#/jobs/new"><ProductIcon name="plus" size={17} />新建验收</a></div>
 
@@ -59,7 +80,16 @@ export default function Dashboard() {
     <div className="section-heading"><h2>验收概况</h2><Button variant="ghost" size="sm" loading={loading} onClick={() => setRefresh(value => value + 1)}>刷新数据</Button></div>
     {error && <div className="dashboard-error"><ErrorBox error={error} /><p>暂时无法读取验收数据。可以重试，或到 <a href="#/health">服务状态</a> 查看连接情况。</p></div>}
     {data?.degraded && <div className="degraded" role="status"><strong>部分数据暂不可用</strong><span> · 已显示能够读取的结果。</span><details><summary>查看原因</summary><ul>{data.degraded_reasons.map(reason => <li key={reason} title={reason}>{describeDegradedReason(reason)}</li>)}</ul></details></div>}
-    <div className="metrics-grid" aria-busy={loading}>{metrics.map(metric => <div className={"metric-card metric-" + metric.tone} key={metric.label}><div className="metric-top"><span>{metric.label}</span><ProductIcon name={metric.icon} size={18} /></div><strong>{loading && !data ? <span className="metric-skeleton" /> : metric.value?.toLocaleString() ?? "—"}</strong><small>{metric.hint}</small></div>)}</div>
+    <div className="metrics-grid" aria-busy={loading}>{metrics.map(metric => <div className={"metric-card metric-" + metric.tone} key={metric.label}><div className="metric-top"><span>{metric.label}</span><ProductIcon name={metric.icon} size={18} /></div><strong>{loading && !data ? <span className="metric-skeleton" /> : metric.value === undefined ? "—" : <CountUp value={metric.value} className="metric-count" />}</strong><small>{metric.hint}</small></div>)}</div>
+
+    <div className="insight-grid">
+      <Panel title="交付趋势 · 近 24 小时" right={<span className="muted">{data?.timeline_timezone}</span>}>
+        <AreaChart data={areaData} ariaLabel="近 24 小时验收数量趋势" formatValue={(n) => String(n)} emptyHint="近 24 小时暂无验收活动" />
+      </Panel>
+      <Panel title="结果构成" right={hasData ? <span className="muted">共 {data.jobs.total} 条验收</span> : undefined}>
+        <DonutMeter segments={donutSegments} centerValue={hasData ? data.jobs.total : undefined} centerLabel="累计验收" ariaLabel="验收结果构成" emptyHint="暂无验收数据" />
+      </Panel>
+    </div>
 
     <div className="dashboard-bottom"><div className="recent-panel"><Panel title="最近验收" right={<a href="#/jobs">查看全部 <span aria-hidden="true">↗</span></a>}>
       {!data && loading ? <div className="product-empty" role="status">正在读取验收记录…</div> : recent.length === 0 ? <div className="product-empty"><span className="empty-illustration"><ProductIcon name="verify" size={32} /></span><h3>{error ? "验收记录暂不可用" : "把第一次变更，交给事实验证"}</h3><p>{error ? "服务恢复后，验收记录会显示在这里。" : "提交代码仓库、前后版本和需求文件，即可开始。"}</p><a className="btn" href={error ? "#/health" : "#/jobs/new"}>{error ? "检查服务状态" : "创建第一条验收"}<ProductIcon name="arrow" size={15} /></a></div> : <div className="table-scroll"><table className="data"><thead><tr><th>仓库 / 版本</th><th>验收结果</th><th>提交时间</th><th><span className="sr-only">查看详情</span></th></tr></thead><tbody>{recent.map(job => <tr key={job.id}><td><a className="job-title" href={"#/jobs/" + encodeURIComponent(job.id)}>{job.repo_path?.replace(/\\/g, "/").split("/").filter(Boolean).pop() || shortId(job.id)}</a>{job.is_demo ? <span className="demo-label">演示</span> : null}<div className="job-refs">{job.base_ref || "—"}<span> → </span>{job.head_ref || "—"}</div></td><td><StatusPill status={job.status || "UNKNOWN"} /></td><td className="muted">{fmtTime(job.created_at)}</td><td><a className="icon-button" href={"#/jobs/" + encodeURIComponent(job.id)} aria-label={"查看验收 " + job.id}><ProductIcon name="arrow" size={16} /></a></td></tr>)}</tbody></table></div>}

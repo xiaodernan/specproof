@@ -4,6 +4,7 @@ import App from "./App";
 import "./theme/tokens.css";
 import "./styles/base.css";
 import "./styles/aurora.css";
+import "./styles/viz.css";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

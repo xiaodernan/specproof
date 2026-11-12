@@ -45,3 +45,7 @@ export { ToastProvider, useToast, type ToastOptions, type ToastTone } from "./To
 export { Tooltip, type TooltipProps } from "./Tooltip";
 export { Term, type TermProps } from "./Term";
 export { GLOSSARY, glossaryEntry, type GlossaryEntry } from "./glossary";
+export { CountUp } from "./CountUp";
+export { AreaChart, type AreaChartPoint } from "./AreaChart";
+export { DonutMeter, type DonutSegment } from "./DonutMeter";
+export { Sparkline } from "./Sparkline";
