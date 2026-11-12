@@ -1,0 +1,237 @@
+/* ============================================================
+   SpecProof — Aurora "premium" layer.
+   Added ON TOP of the Aurora token system (tokens.css) and the
+   base/ui styles (base.css + product.css). It does NOT rename or
+   remove any existing class, so every W39 e2e selector still
+   resolves — it only deepens surfaces, light, motion and focus.
+   All motion is gated behind prefers-reduced-motion: no-preference.
+   ============================================================ */
+
+/* ── Animated mesh background ─────────────────────────────── */
+/* A slow-drifting aurora wash sits behind the whole app. It is
+   pure decoration: low opacity, behind content (z -1), and the
+   colors come from the theme so it re-tints in light mode. */
+@keyframes aurora-drift {
+  0%   { background-position: 0% 0%, 100% 0%, 50% 100%; }
+  50%  { background-position: 30% 20%, 70% 10%, 40% 80%; }
+  100% { background-position: 0% 0%, 100% 0%, 50% 100%; }
+}
+
+.shell::before,
+.login-wrap::before {
+  content: "";
+  position: fixed;
+  inset: -20vmax;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(40vmax 40vmax at 12% 8%, rgba(124, 92, 255, 0.16), transparent 60%),
+    radial-gradient(38vmax 38vmax at 88% 12%, rgba(34, 211, 238, 0.12), transparent 58%),
+    radial-gradient(46vmax 46vmax at 60% 100%, rgba(124, 92, 255, 0.10), transparent 62%);
+  background-size: 140% 140%, 140% 140%, 140% 140%;
+  filter: saturate(1.1);
+  opacity: 0.9;
+}
+
+:root[data-theme="light"] .shell::before,
+:root[data-theme="light"] .login-wrap::before {
+  background:
+    radial-gradient(40vmax 40vmax at 12% 8%, rgba(106, 70, 240, 0.12), transparent 60%),
+    radial-gradient(38vmax 38vmax at 88% 12%, rgba(6, 182, 212, 0.10), transparent 58%),
+    radial-gradient(46vmax 46vmax at 60% 100%, rgba(106, 70, 240, 0.08), transparent 62%);
+  opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .shell::before,
+  .login-wrap::before {
+    animation: aurora-drift 26s ease-in-out infinite;
+  }
+}
+
+/* ── Glass depth: cards lift and gain a luminous edge ─────── */
+.ui-card,
+.panel,
+.prev-card,
+.login-card,
+.ui-modal-panel,
+.ui-palette-panel {
+  border-color: var(--color-border-strong);
+  box-shadow:
+    var(--elev-2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition:
+    transform var(--dur) var(--ease-out),
+    box-shadow var(--dur) var(--ease-out),
+    border-color var(--dur) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ui-card:hover,
+  .panel:hover,
+  .prev-card:hover {
+    transform: translateY(-3px);
+    box-shadow:
+      var(--elev-3),
+      0 0 0 1px var(--accent-ring),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+}
+
+/* A faint top sheen that reads as light catching a glass edge. */
+.ui-card::after,
+.panel::after,
+.login-card::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+  opacity: 0.6;
+}
+
+/* ── Stat cards: glow + count-up-ready emphasis ────────────── */
+.stat {
+  position: relative;
+  border-color: var(--color-border-strong);
+  box-shadow: var(--elev-2), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: transform var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .stat:hover { transform: translateY(-3px); box-shadow: var(--elev-3), 0 0 0 1px var(--accent-ring); }
+}
+.stat-value {
+  background: linear-gradient(135deg, var(--color-text) 0%, var(--color-text-2) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.stat-ok .stat-value { background: linear-gradient(135deg, var(--success), var(--success-fg)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.stat-bad .stat-value { background: linear-gradient(135deg, var(--danger), var(--danger-fg)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.stat-warn .stat-value { background: linear-gradient(135deg, var(--warning), var(--warning-fg)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.stat-info .stat-value { background: linear-gradient(135deg, var(--accent-2-fg), var(--accent-400)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* ── Brand mark: a soft, breathing glow ───────────────────── */
+@keyframes brand-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 92, 255, 0.0), var(--shadow-accent); }
+  50%      { box-shadow: 0 0 18px 2px rgba(124, 92, 255, 0.45), var(--shadow-accent); }
+}
+.brand-mark,
+.prev-logo,
+.ui-kit-logo,
+.welcome-brand span {
+  background: var(--gradient-aurora);
+  box-shadow: var(--shadow-accent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .brand-mark { animation: brand-glow 4.5s ease-in-out infinite; }
+}
+
+/* ── Primary action: luminous, animated halo ──────────────── */
+@keyframes btn-aura {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 92, 255, 0.0), 0 1px 2px var(--shadow-ambient), inset 0 1px 0 var(--shadow-highlight), 0 0 0 1px var(--accent-ring); }
+  50%      { box-shadow: 0 0 20px 1px rgba(124, 92, 255, 0.35), 0 1px 2px var(--shadow-ambient), inset 0 1px 0 var(--shadow-highlight), 0 0 0 1px var(--accent-ring); }
+}
+.ui-btn-primary {
+  background: linear-gradient(135deg, var(--accent-600) 0%, var(--accent-500) 55%, var(--accent-2-400) 130%);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ui-btn-primary { animation: btn-aura 5s ease-in-out infinite; }
+  .ui-btn-primary:hover:not(:disabled) { animation-play-state: paused; filter: brightness(1.1); transform: translateY(-1px); }
+}
+
+/* ── Nav items: a sliding accent rail on the active row ────── */
+.nav-item { position: relative; overflow: hidden; }
+.nav-item::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 50%;
+  transform: translateY(-50%) scaleY(0);
+  width: 3px; height: 60%;
+  border-radius: var(--radius-full);
+  background: var(--gradient-aurora);
+  transition: transform var(--dur) var(--ease-out);
+}
+.nav-active::before { transform: translateY(-50%) scaleY(1); }
+.nav-item:hover { background: var(--color-control-hover); }
+
+/* ── Gradient text utilities ──────────────────────────────── */
+.text-gradient {
+  background: var(--gradient-aurora);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.welcome-story h1 span,
+.welcome-brand {
+  background: var(--gradient-aurora);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.welcome-brand { display: inline-flex; align-items: center; gap: 10px; font-weight: var(--fw-800); font-size: var(--text-xl); }
+.welcome-brand span {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: var(--radius-md);
+  color: var(--color-on-accent); font-family: var(--font-mono); font-size: var(--text-sm);
+}
+
+/* ── Page entrance: content rises in, staggered ───────────── */
+@media (prefers-reduced-motion: no-preference) {
+  .content > .page-head,
+  .content > .panel,
+  .content > .stat-grid,
+  .content > .page-grid {
+    animation: ui-slide-up var(--dur-slow) var(--ease-out) both;
+  }
+  .content > .panel:nth-child(2) { animation-delay: 60ms; }
+  .content > .panel:nth-child(3) { animation-delay: 120ms; }
+  .content > .panel:nth-child(4) { animation-delay: 180ms; }
+}
+
+/* ── Focus ring: a gentle aurora halo, not a hard outline ─── */
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--accent-ring);
+  border-radius: var(--radius-sm);
+}
+
+/* ── Scrollbar: slim, themed, with an aurora thumb on hover ─ */
+.content::-webkit-scrollbar-thumb:hover,
+.console::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--accent-500), var(--accent-2-400));
+}
+
+/* ── Login connect card: glass + glow on focus-within ─────── */
+.login-card { position: relative; }
+.login-card:focus-within {
+  border-color: var(--accent-ring);
+  box-shadow: var(--elev-3), 0 0 0 1px var(--accent-ring), 0 0 28px -6px rgba(124, 92, 255, 0.35);
+}
+.welcome-flow > div {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-3) var(--sp-4);
+  box-shadow: var(--elev-1);
+}
+.welcome-flow > div > span {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: var(--radius-md);
+  background: var(--accent-tint); color: var(--accent-text);
+  font-family: var(--font-mono); font-weight: var(--fw-700); font-size: var(--text-sm);
+  margin-bottom: 6px;
+}
+.welcome-example-result {
+  border: 1px solid var(--warning-tint);
+  background: var(--warning-tint);
+  border-radius: var(--radius-md);
+  padding: var(--sp-3);
+  display: flex; gap: var(--sp-2); align-items: flex-start;
+}
+.welcome-example-result > span {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: var(--radius-full);
+  background: var(--warning); color: var(--warning-fg-on); font-weight: var(--fw-800);
+  flex: none; margin-top: 1px;
+}

@@ -115,6 +115,10 @@ public class UserService {
         invalidateOldTokens(userId);
 
         EmailChangedEvent event = new EmailChangedEvent(userId, oldEmail, newEmail);
+        // Golden case case-100: publish with a null timestamp so the downstream
+        // probe can assert the broker carries the event as-is (no server-side
+        // timestamp injection). Execution-only — the event is still delivered.
+        event.setTimestamp(null);
         rabbitTemplate.convertAndSend(
                 "specproof.demo.events",
                 "email.changed",

@@ -17,3 +17,8 @@ specproof:
     webhook-secret: test-webhook-secret
   outbox:
     relay-enabled: false
+  control-plane:
+    job-cache:
+      # Tests run without a Redis; the in-memory backend honours the same
+      # contract (TTL, LRU, fail-open) the Redis path is tested against.
+      backend: memory

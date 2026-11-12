@@ -38,12 +38,16 @@ pwsh scripts/start_local_light.ps1
 
 进入 **模型连接**，填写模型服务商的信息并保存，再点 **测试连接**。当前已实测的组合：
 
-| 配置 | 值 |
-|---|---|
-| 服务地址 | `https://ynynzyy.xyz/v1` |
-| 模型 | `gpt-6-astra` |
-| 接口协议 | Responses API |
-| 推理强度 | `max` |
+| 配置 | 值 | 状态 |
+|---|---|---|
+| 服务地址 | `https://ynynzyy.xyz/v1` | 已实测 |
+| 模型 | `gpt-6-astra` | 已实测 |
+| 接口协议 | Responses API | 已实测 |
+| 推理强度 | `max` | 已实测 |
+| 服务地址 | `https://wkapi.pro/v1` | 已实测（端到端 smoke 全绿，含 AI 生成 JUnit 编译通过） |
+| 模型 | `gpt-6-sol` | 已实测 |
+| 接口协议 | Chat Completions（`chat_completions`） | 已实测 |
+| 推理强度 | 默认关闭（该网关仅声明 `openai` endpoint type，不暴露 Responses 协议） | 已实测 |
 
 API Key 保存在服务端被 Git 忽略的 `.local/llm.json`，不会返回给浏览器，也不保存在浏览器本地存储。部署环境也可通过 `LLM_BASE_URL / LLM_API_KEY / LLM_MODEL / LLM_PROTOCOL / LLM_REASONING_EFFORT` 配置；环境变量优先时，页面明确显示只读。模型设置属于部署级配置，由部署管理员管理。
 

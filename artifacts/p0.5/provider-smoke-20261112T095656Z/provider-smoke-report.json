@@ -1,0 +1,74 @@
+{
+  "run_id": "provider-smoke-20261112T095656Z",
+  "timestamp": "2026-11-12T09:56:56.999352+00:00",
+  "provider_type": "openai_compatible",
+  "config_source": "environment",
+  "config_error": "",
+  "model": "gpt-6-sol",
+  "endpoint_base_url": "https://wkapi.pro/v1",
+  "stages": {
+    "1-probe": {
+      "result": "PASS",
+      "detail": "4/4 capabilities"
+    },
+    "2-chat": {
+      "result": "PASS",
+      "detail": "15 chars, ~4201 tokens"
+    },
+    "3-json": {
+      "result": "PASS",
+      "detail": "valid JSON with 5 fields"
+    },
+    "4-junit-gen": {
+      "result": "PASS",
+      "detail": "all 7 schema checks passed"
+    },
+    "5-compile": {
+      "result": "PASS",
+      "detail": "exit 0"
+    },
+    "6-secret": {
+      "result": "PASS",
+      "detail": "no secrets in generated code"
+    },
+    "7-digests": {
+      "result": "PASS",
+      "detail": "4/4 hashed"
+    }
+  },
+  "verdict": "PASS",
+  "capability_matrix": {
+    "chat": true,
+    "streaming": true,
+    "usage_reporting": true,
+    "thinking": true
+  },
+  "chat_usage": {
+    "prompt_tokens": 4192,
+    "completion_tokens": 9,
+    "total_tokens": 4201
+  },
+  "junit_schema_checks": {
+    "has_@Test": true,
+    "has_class": true,
+    "has_@SpringBootTest": true,
+    "has_MockMvc": true,
+    "has_401_or_Unauthorized": true,
+    "has_package": true,
+    "has_imports": true
+  },
+  "generated_test_source_digest": "1ff9c4171516d47485862a31b4ca86532682ac2f1f4eae67fe0343bddc94ae26",
+  "compile_exit_code": 0,
+  "compile_stderr_tail": " in sun.misc.Unsafe has been called\nWARNING: sun.misc.Unsafe::objectFieldOffset has been called by com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper (file:/C:/Users/18414/.m2/wrapper/dists/apache-maven-3.9.9-bin/33b4b2b4/apache-maven-3.9.9/lib/guava-33.2.1-jre.jar)\nWARNING: Please consider reporting this to the maintainers of class com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper\nWARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release\n",
+  "secret_scan": {
+    "source": "generated JUnit code",
+    "findings_count": 0,
+    "findings": []
+  },
+  "source_digest": {
+    "provider_smoke_py": "93d93f07c8b88c4a5d7ac841bb4067d322794f1f180ccfb170e6227d4c6094cf",
+    "openai_compatible_py": "764936abd541ea421424d566218ffa82f878971794121df791a3bb4b885ef9d3",
+    "capability_probe_py": "4cb58bbdf79663f9b8cc2552d53a8c3ea76bc7f3bc520bcc9c02af72579a5056",
+    "generated_junit": "1ff9c4171516d47485862a31b4ca86532682ac2f1f4eae67fe0343bddc94ae26"
+  }
+}
