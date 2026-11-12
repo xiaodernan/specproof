@@ -667,3 +667,53 @@ billing off 即 no-op-exit, 起一个立即退出的进程是噪音。发票签�
 
 ### 8.4 实测记录（2026-11-12）
 
+**命令**：`python scripts/drill_worker_kill.py`（真·本地栈：MySQL + RabbitMQ + Redis +
+MongoDB + Elasticsearch + MinIO；模型走项目自己的配置 `.local/llm.json`）。
+**注意**：本节记录的是**两轮**实测——生产恢复有**两条**路，两条都跑过。
+
+#### 8.4.1 这一轮：`queue-redelivery`（broker 重投 + 共享队列上的另一个消费者接手）
+
+- 队列起始深度：**0**
+- 对照作业 `drill-wk-ctl-1794477235`：**BLOCKED**（终态转移 1、RUNNING 转移 5、
+  findings 2、capsules 2、errors 0）
+- 被杀作业 `drill-wk-1794477309`：认领状态 **RUNNING**；worker 被杀 **true**；杀后
+  **未**到终态（`terminal_before_resume=false`）；恢复后终态 **BLOCKED**；终态转移 **1**；
+  RUNNING 转移 **5**（与对照**相同**）、findings 2、capsules 2、errors 0；
+  生产回收 sweep：`candidates=0`、`probed=0`、`reclaimed=[]`
+  （**作业在 sweep 之前就被别的消费者跑完了**）
+- 断言：`{"same_verdict_as_control": true, "identical_evidence": true,
+  "exactly_one_terminal_transition_after_resume": true, "recovery_path":
+  "queue-redelivery", "claim_footprint_matches_path": true, "claims_delta": 0}`
+- 判定：**PASS**（同判定、同证据、恰一个终态转移）
+
+**怎么读。** 被杀 worker 留下的未 ack 消息被 broker 重投，**共享队列上的另一个消费者**
+领走并跑完了它——认定数与对照作业**相同**（claims_delta = 0），因为从头到尾只被认领了
+一次。sweep 的候选是 0，因为它赶到时作业已经不是 RUNNING 了。
+
+#### 8.4.2 同一日的另一轮：`sweep`（回收器 CAS 回 QUEUED + 换新 event_id 重投）
+
+- 对照作业 `drill-wk-ctl-1794458317`：**BLOCKED**（终态转移 1、RUNNING 转移 5、
+  findings 2、capsules 2、errors 0）
+- 被杀作业 `drill-wk-1794459560`：认领 **RUNNING** → worker 被杀 **true** → 杀后未到终态
+  → **生产回收 sweep：`candidates=1`、`probed=1`、`reclaimed=[drill-wk-1794459560]`**
+  → 新 worker 认领重投的作业并从检查点续跑 → 终态 **BLOCKED**；终态转移 **1**；
+  RUNNING 转移 **6**（= 对照的 5 **+ 重新认领的那 1**）；findings 2、capsules 2、errors 0
+- 判定：这一轮在**当时那版断言**下判 FAIL——唯一不满足的是"两个作业的副作用计数**逐项
+  相同**"，而那条断言本身就是错的（崩溃恢复路径本来就会多一次认领）。按 §8 现在的契约
+  重读这一轮的读数：判定相同 ✓、证据相同 ✓、恰一个终态转移 ✓、认领足迹与路径相符 ✓
+  （claims_delta = 1，对应 sweep 那条路）⇒ **PASS**。
+
+**两条路的差别，正是它们各自留下的脚印**：
+
+| | 谁把作业接了回去 | 认领足迹 |
+|---|---|---|
+| `queue-redelivery` | broker 重投的消息被**另一个消费者**领走 | claims_delta = **0**（从头只认领一次） |
+| `sweep` | 回收器把过期 RUNNING 行 CAS 回 QUEUED、**换新 event_id** 重投 | claims_delta = **1**（多一次认领） |
+
+**诚实边界**：
+- 判定是 `BLOCKED`（夹具仓库有鉴权回归，差分节点无 pom.xml 而诚实降级，静态检查找到
+  2 处 findings）——**两边同样**是 BLOCKED，所以这条演练证明的是"崩溃恢复之后判定不变、
+  证据不重复"，不是"判定是 VERIFIED"；夹具的性质决定了它永远不会 VERIFIED。
+- `queue-redelivery` 这条路只有在**队列上还有别的消费者**时才会出现；要单独测 sweep
+  那条，需要一条安静的队列。
+- 演练的断言改过两次（见 §5.1 FIX-26 与本文 §8.3）：两次都是**写错了**，不是"产品不行"。

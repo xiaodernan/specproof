@@ -31190,3 +31190,127 @@ v13 的全量门日志 `_fullgate_final2.txt` 被我自己的清理命令误删�
 - 演练 1 的最终测量（杀 worker → 生产回收 → 新 worker 续跑）与它的对照作业。
 - 熔断阈值/窗口的真实压测调优（需要一台能按下 Redis 的机器）。
 - 截图基线（像素级回归，跨平台）未做。
+## #1632 接入真实大模型端点：provider-smoke 七阶段全过、演练 1 走通生产恢复路径、worker 遇 broker 断开改为重连
+
+**记录基准**：本节只追加；落地于附带提交（master 链 9e10866 → 22f42d6 → f65980f →
+cbe43bf → 4f423c6 → 本节提交）。
+
+**来路。** 运维提供了一个**真实的大模型端点**（`wkapi.pro`，模型 `gpt-6-sol`）。这不是
+"又一块拼图"——它把三条**一直只有说法、没有实测**的路径变成了读数：CI 的 provider-smoke
+作业、provider 的能力探针、以及演练 1 的崩溃恢复。端点与密钥只写在 `.local/llm.json`
+（**被 gitignore**），模型名属于部署配置，**不进代码**。
+
+### 一、provider-smoke 此前跑不到第 3 阶段（真缺陷，已修）
+
+用真实端点跑 `scripts/provider_smoke.py`（CI 的 provider-smoke 作业跑的就是它）：
+第 1 阶段（能力探针）**4/4 过**、第 2 阶段（普通对话）过，**第 3 阶段（结构化 JSON）
+直接崩**：
+
+    RuntimeError: Event loop is closed
+
+**病因**：httpx 的连接池绑定在**第一次使用它的事件循环**上，而 `AsyncOpenAI` 客户端被
+provider 缓存（`self._client`）；脚本每个阶段各跑一次 `asyncio.run()`——同一个进程里的
+第二个 `asyncio.run()` 是**另一个循环**——于是第一阶段建的客户端被拿到第二个循环里用。
+
+**处置**：`client` 属性记住**自己建这个客户端时所在的循环**；再次取用时若循环已换（注入
+的假客户端没有循环概念，绝不会被顶掉），就丢掉旧客户端并重建；策略路由的每 base_url
+客户端同样按循环记账；`aclose()` 关客户端时容错（绑在死循环上的客户端关不掉是必然的，
+而它本来就要被丢弃）。
+
+**修后实测（真实端点）**：provider-smoke **七个阶段全过**——能力探针 4/4（chat /
+streaming / usage_reporting / thinking）、普通对话、结构化 JSON、JUnit 生成（7/7 schema
+检查）、**生成的测试真被 maven 编译**（exit 0）、秘密扫描、4/4 摘要链——判定 **PASS**
+（运行 `provider-smoke-20261112T093833Z`）。
+
+### 二、能力探针的实测读数
+
+真实端点上，仓库自己的探针给出：`{"chat": true, "streaming": true, "thinking": true,
+"usage_reporting": true}`，`limits={}`，`errors=[]`。这条读数会经 #1615 的 Redis 能力缓存
+落盘（命中即零网关请求）。
+
+### 三、演练 1 走通生产恢复路径（2026-11-12 实测，PASS）
+
+演练 1 现在只做生产做过的事：真 worker 被 `taskkill /F /T` 杀掉 → 租约过期 → 生产回收
+（`reclaim_stale_running_jobs`，与 `specproof ops recover --running-only`、周期 tick 同一个
+函数）把过期 RUNNING 行 CAS 回 QUEUED 并换新 event_id 重投 → 新 worker 从 LangGraph
+检查点续跑。**读数**（详见 `docs/operations/DRILLS.md` §8.4）：
+
+- 对照作业 `drill-wk-ctl-1794477235`：**BLOCKED**（终态转移 1、RUNNING 转移 5、
+  findings 2、capsules 2、errors 0）；
+- 被杀作业 `drill-wk-1794477309`：认领状态 RUNNING → **worker 被杀** → 杀后**未**到终态
+  → 恢复 → **BLOCKED**（终态转移 **1**、findings/capsules/errors 与对照**逐项相同**）；
+- 断言：判定相同 ✓、证据相同 ✓、**恰一个**终态转移 ✓、认领足迹与路径相符 ✓；
+  `recovery_path = queue-redelivery`，`claims_delta = 0` —— **路径写在报告里**。
+
+**两条生产恢复路径都实测过**：
+- **queue-redelivery**（本节这一轮）：被杀 worker 留下的未 ack 消息被 broker 重投，
+  **共享队列上的另一个消费者**领走并跑完——认定数与对照相同（claims_delta = 0）；
+- **sweep**（同日早一轮）：回收器把过期 RUNNING 行 CAS 回 QUEUED 并换新 event_id 重投，
+  `reclaimed=[drill-wk-1794459560]`、**claims_delta = 1**（多出来的那一次认领就是恢复
+  该做的那一次）。
+
+**演练的断言改过两次，两次都是"写错了"而不是"产品不行"**：
+1. 最初断言"两个作业的副作用计数**逐项相同**"——**崩溃恢复路径本来就会多一次认领**，
+   这条断言会恰好否掉演练要证明的事。改为：判定相同 + **证据**（summary/findings/
+   capsules/errors）相同 + **恰一个**终态转移 + 认领足迹与路径相符；
+2. 随后又发现演练的 worker 会与邻居抢 `:9100`（`WinError 10048` → **worker 在启动那一刻
+   就死了**，演练自己提交的作业根本不是它跑的）——演练的 worker 改用 `WORKER_METRICS_PORT=0`；
+   以及报告阶段读 `ReclaimOutcome` 时把**对象**当**字典**取（我自己写的形状错误）。
+
+### 四、worker 遇 broker 断开不再退出（#1631 之后补上的一号）
+
+worker 的消费循环一断（broker 重启、升级、网络抖动），进程就 `exit(1)`："让 supervisor
+重启我"。在**没有 supervisor** 的地方（演练、开发机、裸进程）这就是**什么都不做**——
+队列里的作业只能等回收器。
+
+**处置**：`RabbitMQClient.reset_connection()` 丢掉已经被代理关掉的连接；新增
+`agent.worker.consume_forever()`：消费 → 断了就丢连接 → **有界退避**（1s 起、翻倍、
+封顶 30s）→ 再消费；每次重连计数 `specproof_worker_rabbitmq_reconnects_total`（一直重连
+说明 broker 不健康，这个数就是那个信号）。
+
+**门（四条腿）**：① 连断三次之后必须**再试一次**且每次都丢掉那条坏连接（等待序列
+1/2/4 秒）；② 退避**有界**（封顶 5s 时最大值就是 5s，且必须**走到**封顶）；③
+`start_consuming()` **正常返回**也走同一条重连路径；④ 重连计数被发布。
+
+### 五、熔断器的"值多少钱"（一条把说法变成量的腿）
+
+假后端睡 50ms——正是 Redis 命令超时在 `application.yml` 里配的值——因此对着挂掉的后端
+读 20 次代价约 1 秒；熔断打开后同样的 20 次**一次都不碰后端**，断言合计 < 200ms
+（宽松 5 倍：这条腿说的是"便宜一个数量级"，不是"这台机器多快"）。
+
+### 六、本号的读数
+
+- provider-smoke（真实端点）**七阶段全过**，判定 PASS；
+- 能力探针（真实端点）**4/4**，errors 空；
+- 演练 1 **PASS**（两条恢复路径都实测过，见 §8.4 与 DRILLS.md §5.1）；
+- 演练 2 / 4 / 5 同日实测：provider outage **PASS**（3 次尝试 / 10.31s / 断路器 open /
+  1 条契约 / `llm_used=false`）；notify outbox **PASS**（两条腿）；outbox crash window
+  **PASS**（串行；并行时红，见 §5.1 FIX-29）；
+- 前端：Playwright e2e **8 passed**、vitest **48 文件 / 421 测试**、tsc **0 错**、
+  vite build 成功；
+- control-plane JUnit **37 passed**（含熔断 5 条 + 离线韧性 1 条 + 健康探针 1 条）；
+- gateway JUnit **12 passed**；provider 相关 Python 腿 **94 passed** + 46 passed；
+  fault + rabbitmq reliability **139 passed**；SSE 退避新门 **2 passed**；
+  `ruff check .` **All checks passed**。
+
+### 七、诚实边界
+
+- **端点与密钥不进仓库**：只在 `.local/llm.json`（gitignored）里；本号没有把模型名
+  写进任何代码或文档。
+- **演练在共享队列上测，就可能读到另一条恢复路径**——报告里写明了是哪一条；要单独测
+  sweep 那条，需要一条安静的队列（本机同时有另一条演练车道）。
+- 能力探针只覆盖探针自己声明的那几项；`limits` 为空说明**这个端点没有报上限**，
+  不等于它没有上限。
+- 熔断阈值与窗口仍是**默认值**，不是实测最优值——要调优需要一台能按下 Redis 的机器。
+- 控制面**注册**进注册中心之后还没有别的服务**按名调用**它；控制面**也还没有**被
+  compose 编排。
+- 全量门在**本节提交之后**的新快照上跑，读数写进下一号（#1631 那轮的日志被我自己的
+  清理命令误删，这轮的日志落在 `D:\面试项目\gate_v15.log`，不再落在下划线开头的
+  名字里——那条删除规则正是它消失的原因）。
+
+### 八、下一号队列
+
+- 全量门 v15（快照 = 本号提交）。
+- 熔断阈值/窗口的真实压测调优（需要一台能按下 Redis 的机器）。
+- 截图基线（像素级回归，跨平台）未做。
+- 演练 2/3/5 的复跑记录已在本号登记（2/4/5），3（安全面）待排。
