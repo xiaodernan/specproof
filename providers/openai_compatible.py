@@ -151,6 +151,14 @@ def _parse_usage(usage: Any) -> dict[str, Any]:
     return parsed
 
 
+def _running_loop() -> asyncio.AbstractEventLoop | None:
+    """The loop this call runs in, or None when there is none."""
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError:
+        return None
+
+
 class OpenAICompatibleProvider(ModelProvider):
     """OpenAI-compatible provider with capability probing and degradation."""
 
@@ -188,6 +196,14 @@ class OpenAICompatibleProvider(ModelProvider):
         self.timeout = timeout
         self._probe_result: ProbeResult | None = None
         self._client: AsyncOpenAI | None = None
+        # The event loop the client above was BUILT in (None when the
+        # client was injected by a test). httpx binds its connection pool
+        # to the loop that first used it, so a client built in one loop
+        # cannot serve another: the second asyncio.run() in the same
+        # process is a different loop, and using the old client there
+        # dies with "Event loop is closed". scripts/provider_smoke.py runs
+        # one asyncio.run() per stage and hit exactly that at stage 3.
+        self._client_loop: asyncio.AbstractEventLoop | None = None
         if max_retries is not None:
             self._max_retries = max(0, max_retries)
         else:
@@ -210,6 +226,7 @@ class OpenAICompatibleProvider(ModelProvider):
         # One SDK client per routed tier base_url (policy calls only; the
         # legacy strong client remains self._client). Empty when policy off.
         self._policy_clients: dict[str, AsyncOpenAI] = {}
+        self._policy_client_loops: dict[str, asyncio.AbstractEventLoop | None] = {}
 
         if not self.api_key or self.api_key == "replace_me":
             raise ValueError(
@@ -219,8 +236,23 @@ class OpenAICompatibleProvider(ModelProvider):
 
     @property
     def client(self) -> AsyncOpenAI:
+        """The SDK client for the strong tier — rebuilt when the loop changed.
+
+        An injected client (tests) is left alone: only a client this provider
+        built itself carries a loop, and only that one can be stale.
+        """
         if self._client is None:
             self._client = self._make_client(self.base_url)
+            self._client_loop = _running_loop()
+            return self._client
+        if self._client_loop is not None and self._client_loop is not _running_loop():
+            # The old client is bound to a loop that is gone. Closing it can
+            # only fail (that is what "event loop is closed" means), so the
+            # pool is dropped with it.
+            with contextlib.suppress(Exception):
+                self._client.close()
+            self._client = self._make_client(self.base_url)
+            self._client_loop = _running_loop()
         return self._client
 
     def _make_client(self, base_url: str) -> AsyncOpenAI:
@@ -450,9 +482,17 @@ class OpenAICompatibleProvider(ModelProvider):
         if not base_url or base_url.rstrip("/") == self.base_url:
             return self.client
         client = self._policy_clients.get(base_url)
+        loop = _running_loop()
+        if client is not None:
+            built_in = self._policy_client_loops.get(base_url)
+            if built_in is not None and built_in is not loop:
+                with contextlib.suppress(Exception):
+                    client.close()
+                client = None
         if client is None:
             client = self._make_client(base_url)
             self._policy_clients[base_url] = client
+            self._policy_client_loops[base_url] = loop
         return client
 
     async def _policy_chat(
@@ -770,5 +810,10 @@ class OpenAICompatibleProvider(ModelProvider):
             await client.close()
         self._policy_clients.clear()
         if self._client:
-            await self._client.close()
+            # A client bound to a loop that has already closed raises here
+            # ("Event loop is closed"); closing is best effort — the client is
+            # being discarded either way.
+            with contextlib.suppress(Exception):
+                await self._client.close()
             self._client = None
+            self._client_loop = None

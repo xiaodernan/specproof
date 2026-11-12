@@ -385,6 +385,19 @@ def resume_job(
     under the same thread_id so LangGraph skips completed nodes, then make
     exactly one terminal transition carrying the summary. Raises
     DrillTargetError when the lease is still held or the job is missing.
+
+    **This is NOT the production recovery path, and the drill does not use
+    it.** The production path is the reclaim sweep
+    (``agent.worker.reclaim_stale_running_jobs``: a stale RUNNING row is
+    CAS-ed back to QUEUED and re-delivered with a FRESH event_id, and a
+    worker picks it up and resumes from the checkpoint). What this helper
+    does is the *same steps without the queue* — which makes it useful as
+    a unit-test double and useless as a claim about the product: it can
+    make a terminal transition the production state machine would refuse
+    (``PREPARING -> NEEDS_REVIEW``), and it never exercises the broker, the
+    idempotency gate or the sweep. Drill 1 walks the production path
+    instead (``scripts/drill_worker_kill.py``); see
+    ``docs/operations/DRILLS.md`` §8.
     """
     if not leases.acquire_lease(job_id, worker_id):
         owner = leases.get_lease_owner(job_id)
