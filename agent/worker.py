@@ -82,7 +82,13 @@ class Worker:
         )
         self.mysql = MySQLStore()
         self.redis = RedisStore()
-        self.rabbitmq = RabbitMQClient()
+        # The worker's callback can block for the whole pipeline; with the
+        # broker's 30s heartbeat it would answer two missed heartbeats with a
+        # closed connection and die at the first ack after the pipeline — the
+        # message requeues, the job never lands. The worker opens the
+        # connection heartbeat-free; its own lease clock and the reclaim
+        # sweep remain the liveness story (#1631).
+        self.rabbitmq = RabbitMQClient(heartbeat=0)
         self._running = False
         self._compiled_graph: Any = None
         # Last pipeline stage whose completion chunk reached the stream loop

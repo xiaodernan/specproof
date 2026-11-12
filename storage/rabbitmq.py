@@ -146,8 +146,21 @@ class RabbitMQClient:
         self,
         config: RabbitMQConfig | None = None,
         events: RabbitMQEventSink | None = None,
+        *,
+        heartbeat: int | None = None,
     ) -> None:
         self.config = config or RabbitMQConfig.from_env()
+        # ``heartbeat=30`` by default (unchanged). A consumer whose
+        # callback can block for minutes (the worker running a whole
+        # pipeline) cannot service heartbeats while blocked, so the
+        # broker closes the connection after two missed ones and the
+        # worker learns about it only when it acks at the end — the
+        # message is requeued and the job never reaches the
+        # assignment the worker gave it. The worker therefore opens
+        # the connection with heartbeat=0 (the broker does not
+        # demand liveness reports it cannot send); everything else
+        # keeps the 30s identity.
+        self._heartbeat = 30 if heartbeat is None else heartbeat
         self._connection: pika.BlockingConnection | None = None
         self._channel: BlockingChannel | None = None
         # #1603: opt-in W190 event bus. With the switch off,
@@ -169,7 +182,7 @@ class RabbitMQClient:
             port=self.config.port,
             virtual_host=self.config.vhost,
             credentials=credentials,
-            heartbeat=30,
+            heartbeat=self._heartbeat,
             blocked_connection_timeout=30,
             connection_attempts=3,
             retry_delay=2,

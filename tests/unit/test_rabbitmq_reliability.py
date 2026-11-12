@@ -128,3 +128,22 @@ class TestMessageSchema:
         assert deserialized["event_id"] == "outbox-42"
         assert deserialized["outbox_id"] == 42
         assert "trace_context" not in deserialized  # optional in P1.3
+
+
+
+
+class TestHeartbeat:
+    """The worker's consumer cannot service heartbeats while blocked in the
+    pipeline; its connection must therefore open heartbeat-free (#1631)."""
+
+    def test_the_default_client_keeps_the_heartbeat(self):
+        from storage.rabbitmq import RabbitMQClient
+
+        client = RabbitMQClient()
+        assert client._heartbeat == 30
+
+    def test_the_worker_consumer_disables_the_heartbeat(self):
+        from storage.rabbitmq import RabbitMQClient
+
+        client = RabbitMQClient(heartbeat=0)
+        assert client._heartbeat == 0
