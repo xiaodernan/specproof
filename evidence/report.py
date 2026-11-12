@@ -855,6 +855,16 @@ def render_eval_report(
                 contract = escape(str(row.get("contract_id") or ""))
                 verdict = escape(str(row.get("verdict") or ""))
                 diff_bits.append(f"{contract}: {verdict}{exits}")
+                # The failing side's own words, under the verdict: which
+                # assertion failed. "base passed, head failed" is the SHAPE
+                # of a regression; this is the DIAGNOSIS (#1638).
+                failure = str(row.get("head_failure") or "").strip()
+                if failure:
+                    diff_bits.append(
+                        '<span class="muted" style="font-size:12px">'
+                        + escape(failure)
+                        + "</span>"
+                    )
         differential_cell = (
             "<br />".join(diff_bits)
             if diff_bits

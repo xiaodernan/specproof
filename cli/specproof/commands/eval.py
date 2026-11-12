@@ -402,6 +402,14 @@ def _differential_evidence(final: Mapping[str, Any]) -> list[dict[str, Any]]:
             "detail": str(entry.get("detail") or "")[:400],
             "base_exit_code": entry.get("base_exit_code"),
             "head_exit_code": entry.get("head_exit_code"),
+            # The FAILING SIDE'S OWN WORDS: which assertion failed, and
+            # where. "base passed, head failed" is the shape of a
+            # regression; the failure text is the diagnosis -- and on a
+            # negative case it is often the generated test's own
+            # expectation being wrong (#1638). The report shows it, so the
+            # reader does not have to re-run the pipeline to learn why.
+            "head_failure": str(entry.get("head_failure") or "")[:300],
+            "base_failure": str(entry.get("base_failure") or "")[:300],
         })
         if len(rows) >= 6:
             break

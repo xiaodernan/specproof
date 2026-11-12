@@ -129,6 +129,36 @@ def test_a_record_from_an_older_run_still_renders() -> None:
     assert "generated" in row, row
 
 
+def test_the_page_shows_the_failing_assertion() -> None:
+    """"base passed, head failed" is the SHAPE of a regression; the failing
+    assertion is the DIAGNOSIS. On a negative case it is often the generated
+    test's own expectation being wrong -- and the reader must be able to see
+    that without re-running the pipeline."""
+    html = render_eval_report(
+        [
+            _record(
+                case="case-52",
+                differential=[
+                    {
+                        "contract_id": "AUTH-01",
+                        "verdict": "REGRESSION",
+                        "detail": "Test passes in Base (exit 0) but fails in Head.",
+                        "base_exit_code": 0,
+                        "head_exit_code": 1,
+                        "head_failure": (
+                            "type=org.opentest4j.AssertionFailedError | "
+                            "message=expected 200 but was 404"
+                        ),
+                    }
+                ],
+            )
+        ],
+        None,
+    )
+    row = _row_for(html, "case-52")
+    assert "expected 200 but was 404" in row, row
+
+
 def test_a_case_that_ran_nothing_says_not_run() -> None:
     html = render_eval_report([_record(case="case-none")], None)
     row = _row_for(html, "case-none")
