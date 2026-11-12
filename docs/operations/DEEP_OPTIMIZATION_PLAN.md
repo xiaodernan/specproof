@@ -31398,3 +31398,79 @@ tsc 0 错、vite build 成功）。
 - 全量门 v15（快照 = 本号提交）。
 - 评测池的**负例**（误报率下限）：至少 5 个负例才谈得上"精确率"。
 - 熔断阈值/窗口的真实压测调优；截图基线（跨平台）。
+## #1634 演示仓库的**真实**验证跑通了（判定 BLOCKED）；但"为什么不是 BLOCKER 级"这件事被拆到了骨头里
+
+**记录基准**：本节只追加；落地于附带提交（master 链 aca42cb → 5456a07 → 本节提交）。
+
+**来路。** #1633 记下"检出 1/1，但严重度是 MAJOR 而 ground truth 期望 BLOCKER"。
+这一号把那个漂移**拆开看**：它到底是一个 bug，还是两条路径各自的**诚实上限**。
+
+### 一、演示仓库的真实验证（`specproof demo --run`，确定性，不开 LLM）
+
+- 预检：**PASSED**（java 25.0.1、javac、JAVA_HOME、maven_wrapper 全部就位；不适用项
+  6 个：node / package_manager / python / pytest / go / node_test_script）。
+- 契约编译：**6 条**（AUTH-01 / UNIQUE-01 / TOKEN_INVALIDATION-01 /
+  BACKWARD_COMPATIBLE-01 / EVENT_ONCE-01 / TRANSACTION-01）。
+- 矩阵：**4 通过 / 1 失败（AUTH-01）/ 1 未判定**（TOKEN_INVALIDATION-01——"外部观测面未被
+  观测（存储不可达或两个时刻不可比）"，这句话本身就是诚实的：它没有被当成通过）。
+- 发现：**1 条，0 BLOCKER / 1 MAJOR**，证据 `java_source_diff`，置信度 85%，
+  描述精确到文件与方法（"Security annotation removed from mutating endpoint method
+  changeEmail() in src/main/java/com/specproof/demo/controller/UserController.java"）。
+- **作业判定：BLOCKED**（与演示仓库自己写下的期望一致："预期验证结论：BLOCKED"）。
+- 证据胶囊 **1 个**（`capsule-COURT-AUTH-01.zip`，摘要校验 OK）；驳回通知已写出
+  （未签名——没有配置签名密钥，诚实降级）。
+
+### 二、为什么"发现"是 MAJOR 而不是 BLOCKER（这是**策略**，不是 bug）
+
+评审庭的策略层（`agent/review_court/policy.py`）写死了两条：
+
+- **第三条**：静态/源码差异证据**封顶 MAJOR**，置信度封顶 0.85；
+- **第五条（BLOCKER 六条件，ADR-004）**：要 BLOCKER，必须有**真实 Base/Head 执行证据**
+  （`base_pass_head_fail` / `differential_execution`）+ 归因到 Head + DB/行为证据 +
+  胶囊可重放 + 置信度 ≥ 0.90。**缺任何一条就封顶 MAJOR。**
+
+而差异实验执行的，是 **LLM 生成的那条 JUnit**（在 Base 与 Head 两边各跑一遍 Maven）。
+**不开 LLM 时没有生成的测试可跑** → 没有执行证据 → 静态发现按第三条封顶 MAJOR →
+矩阵里那条契约只能由**源码差异**承担。**这是设计上的诚实上限**：用静态证据冒充执行证据，
+才会是 bug。
+
+所以本号的结论是：**判定（BLOCKED）是对的，级别（MAJOR）也是对的**——差的那一档来自
+"有没有执行证据"，而执行证据来自"有没有生成测试"。
+
+### 三、还剩一个真问题（下一号第一项）
+
+用 **LLM 打开**跑同一个案例（#1633 那一轮，921.8 秒）：**检出仍是 1/1，但发现仍然只有
+静态证据**（`java_source_diff`、MAJOR、0.85）——矩阵里那条实验（`DIFF-01`）的
+`base_result` / `head_result` 是**空的**。按上面第二节，开启 LLM 之后**本该**有生成的测试、
+**本该**有 Base/Head 的执行结果。**这才是缺口**：要么生成的测试没产出，要么产出了却没跑成
+（或跑成了但没有形成 `base_pass_head_fail`）。
+
+**取证办法（下一号就做）**：评测默认**不写证据包**（`cli/specproof/commands/eval.py`：
+只有环境里**显式**给了 `MONGODB_DATABASE` 才写——因为评测的包会以 `eval-*` 的作业 id
+落在产品的 MongoDB 里，没人会去删）。显式给了它再跑一遍，差异实验的片段就落在
+`eval-case-01-auth-bypass` 这个作业 id 下，能直接读到"差分为什么没有结果"。
+
+### 四、本号的其它读数
+
+- provider-smoke（真实端点）**七阶段全过**（#1632 已记）；能力探针 **4/4**；
+- **provider 的循环归属契约**已写成门（`tests/unit/test_the_provider_client_follows_the_event_loop.py`，
+  3 条腿：换循环要重建、注入的客户端不换、同循环不重建）；
+- e2e **12 passed**（含新的布局腿）；vitest 48 文件 / 421 测试；tsc 0 错；build 成功；
+- 全量门 v15（本号提交之后）在独立快照上跑，读数写进下一号。
+
+### 五、诚实边界
+
+- 演示跑的是**确定性**路径（不开 LLM），所以它**证明不了**"有生成测试时会发生什么"——
+  那正是第三节要接着查的；
+- `TOKEN_INVALIDATION-01` 的"未判定"是**诚实的未判定**（观测面没观测到），本号没有把它
+  算成通过；
+- 驳回通知**未签名**（本机没有配置签名密钥），这是诚实降级，不是产物缺陷；
+- 一次案例仍然**不构成召回率**（见 #1633 的同一句诚实边界）。
+
+### 六、下一号队列
+
+- **差分为什么没有执行结果**（开 LLM 的那一轮）：用显式 `MONGODB_DATABASE` 重跑一次评测，
+  读 `eval-case-01-auth-bypass` 的证据包。
+- 全量门 v15 的读数。
+- 评测池的**负例**（误报率下限）：至少 5 个负例才谈得上"精确率"。
+- 熔断阈值/窗口的真实压测调优；截图基线（跨平台）。
