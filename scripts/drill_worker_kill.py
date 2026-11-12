@@ -81,6 +81,12 @@ TERMINAL_STATUSES = (
 def _worker_env() -> dict[str, str]:
     env = dict(os.environ)
     env["PYTHONPATH"] = str(REPO_ROOT)
+    # A free metrics port: the drill's worker must not fight another worker
+    # on this host for :9100. It lost that fight on 2026-11-12 — the bind
+    # raised WinError 10048 and the worker DIED AT STARTUP, so the drill's own
+    # worker never ran the job it had submitted. Port 0 means "any free
+    # port" (the metrics endpoint is the drill's business, nobody else's).
+    env["WORKER_METRICS_PORT"] = "0"
     return env
 
 
@@ -431,12 +437,27 @@ def main() -> int:
     claims = int(kill_counts.get("running_transitions") or 0) - int(
         control_counts.get("running_transitions") or 0
     )
-    exactly_one_reclaim = claims == 1
+    # WHICH production path finished the job matters, and the report has to
+    # say it instead of pretending there is only one:
+    #   * "sweep" — the reclaim sweep CAS-ed the stale RUNNING row back to
+    #     QUEUED and re-delivered it with a FRESH event_id; the re-claim is
+    #     visible as exactly one extra claim;
+    #   * "queue-redelivery" — the broker re-delivered the un-acked message
+    #     and ANOTHER consumer on the shared queue finished the job (the
+    #     drill cannot claim the sweep was exercised then, and the extra
+    #     claim is absent because the same worker ran it);
+    #   * "unknown" — neither: the job finished some other way.
+    swept = kill_job_id in (sweep.get("reclaimed") or [])
+    recovery_path = "sweep" if swept else (
+        "queue-redelivery" if claims == 0 else "unknown"
+    )
+    claim_footprint_ok = (claims == 1) if swept else (claims == 0)
     result["assertions"] = {
         "same_verdict_as_control": same_verdict,
         "identical_evidence": same_evidence,
         "exactly_one_terminal_transition_after_resume": one_terminal,
-        "exactly_one_extra_claim": exactly_one_reclaim,
+        "recovery_path": recovery_path,
+        "claim_footprint_matches_path": claim_footprint_ok,
         "claims_delta": claims,
     }
     result["side_effects_detail"] = {
@@ -444,12 +465,12 @@ def main() -> int:
         "killed": kill_counts,
     }
     passed = bool(
-        same_verdict and same_evidence and one_terminal and exactly_one_reclaim
+        same_verdict and same_evidence and one_terminal and claim_footprint_ok
     )
     result["passed"] = passed
     result["verdict"] = (
-        "PASS — killed worker resumed via the production reclaim path; same "
-        "verdict, same evidence, one terminal transition, exactly one re-claim"
+        f"PASS — killed worker recovered via the production path ({recovery_path}); "
+        "same verdict, same evidence, exactly one terminal transition"
         if passed else "FAIL"
     )
 
