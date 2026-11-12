@@ -1,6 +1,13 @@
 spring:
   application:
     name: specproof-control-plane
+  config:
+    # The shared config server (services/config-server): optional by
+    # construction — a control plane that cannot reach it must still boot
+    # with the values in this file, exactly like the edge does. The word
+    # "optional" is the whole contract; a mandatory import would turn a
+    # config server outage into a fleet outage.
+    import: optional:configserver:http://localhost:8888
   datasource:
     url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:specproof_phase0}?useSSL=false&allowPublicKeyRetrieval=true
     username: ${MYSQL_USER:specproof}
@@ -28,6 +35,17 @@ specproof:
     relay-interval-ms: ${SPECPROOF_CP_OUTBOX_RELAY_INTERVAL_MS:1000}
     exchange: specproof.p1.commands
     batch-size: 10
+
+# The same registry the edge uses (services/discovery-server, #1608): the
+# control plane registers itself next to the edge so an operator can see
+# the whole cluster in one place. A downed registry is NOT fatal — the
+# client retries in the background — which
+# ControlPlaneOfflineResilienceTests pins (the edge has the same contract
+# in GatewayOfflineResilienceTests).
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
 
 management:
   endpoints:
