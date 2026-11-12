@@ -1680,8 +1680,18 @@ def _capture_db_snapshot(workspace: str) -> dict[str, Any]:
         return {
             "method": "none",
             "rows": {},
-            "note": "No file-based H2 database found after test run. "
-                    "Switch the test profile to file-based H2 to capture DB state.",
+            # The note has to name BOTH ways this can happen, because the
+            # reader otherwise acts on the wrong one: a file-based H2 is
+            # necessary but not sufficient -- the test must also BOOT the
+            # application (a plain JUnit test never creates a database at
+            # all, so no profile would ever produce a file to dump). Measured
+            # on the real model (#1638): the generated counterexample tests
+            # are plain JUnit, so the DB state simply does not exist, and the
+            # old note pointed the reader at a profile that was already right.
+            "note": "No file-based H2 database found after the test run: either "
+                    "the test never booted the application (so there is no "
+                    "database state to capture), or the test profile is not "
+                    "file-based H2 (switch it to capture DB state).",
         }
     h2_jar = _find_h2_jar()
     if h2_jar is None:
