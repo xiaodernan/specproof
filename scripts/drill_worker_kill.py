@@ -406,21 +406,51 @@ def main() -> int:
         return 1
 
     # ── assertions ──
+    #
+    # The crash path leaves ONE footprint of its own: the job is claimed a
+    # second time (the killed worker had already claimed it). So "identical
+    # side-effect counts" is the WRONG contract — it would fail exactly the
+    # behaviour the drill exists to prove. The honest contract is:
+    #
+    #   * the VERDICT is the same as the uninterrupted control job;
+    #   * the EVIDENCE is the same (summary / findings / capsules / errors)
+    #     — nothing was written twice;
+    #   * there is exactly ONE terminal transition (the job was not judged
+    #     twice);
+    #   * and the job was claimed exactly ONCE MORE than the control job —
+    #     the re-claim the recovery path is supposed to make, and no more
+    #     (a second re-claim would mean the sweep looped).
     same_verdict = kill_terminal["status"] == control_terminal["status"]
     kill_counts = kill_log["side_effects"]
     control_counts = result["control_job"]["side_effects"]
-    same_counts = kill_counts == control_counts
+    evidence_keys = ("summary_present", "findings", "capsules", "errors")
+    same_evidence = all(
+        kill_counts.get(key) == control_counts.get(key) for key in evidence_keys
+    )
     one_terminal = kill_log.get("terminal_transitions") == 1
+    claims = int(kill_counts.get("running_transitions") or 0) - int(
+        control_counts.get("running_transitions") or 0
+    )
+    exactly_one_reclaim = claims == 1
     result["assertions"] = {
         "same_verdict_as_control": same_verdict,
-        "identical_side_effect_counts": same_counts,
+        "identical_evidence": same_evidence,
         "exactly_one_terminal_transition_after_resume": one_terminal,
+        "exactly_one_extra_claim": exactly_one_reclaim,
+        "claims_delta": claims,
     }
-    passed = bool(same_verdict and same_counts and one_terminal)
+    result["side_effects_detail"] = {
+        "control": control_counts,
+        "killed": kill_counts,
+    }
+    passed = bool(
+        same_verdict and same_evidence and one_terminal and exactly_one_reclaim
+    )
     result["passed"] = passed
     result["verdict"] = (
-        "PASS — killed worker resumed via production path; identical verdict; "
-        "no duplicate side effects" if passed else "FAIL"
+        "PASS — killed worker resumed via the production reclaim path; same "
+        "verdict, same evidence, one terminal transition, exactly one re-claim"
+        if passed else "FAIL"
     )
 
     print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
