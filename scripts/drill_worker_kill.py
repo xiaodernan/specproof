@@ -447,7 +447,7 @@ def main() -> int:
     #     drill cannot claim the sweep was exercised then, and the extra
     #     claim is absent because the same worker ran it);
     #   * "unknown" — neither: the job finished some other way.
-    swept = kill_job_id in (sweep.get("reclaimed") or [])
+    swept = kill_job_id in list(sweep.reclaimed or [])
     recovery_path = "sweep" if swept else (
         "queue-redelivery" if claims == 0 else "unknown"
     )
