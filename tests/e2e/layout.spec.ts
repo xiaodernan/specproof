@@ -112,7 +112,13 @@ for (const [viewportName, viewport] of VIEWPORTS) {
       // Log in FIRST: without a credential the app shows the login gate, and
       // the gate would measure the login page four times and call it the
       // product. The pages under measurement must be the pages a reader sees.
-      await loginWithToken(page, process.env.E2E_ADMIN_TOKEN || "");
+      //
+      // And the token must EXIST: an empty token would log nobody in, the app
+      // would show the login gate, and the gate would pass while measuring the
+      // wrong screen — the exact failure this scenario already had once.
+      const token = process.env.E2E_ADMIN_TOKEN || "";
+      expect(token.length, "the layout scenario needs an admin token").toBeGreaterThan(0);
+      await loginWithToken(page, token);
       await page.emulateMedia({ colorScheme: theme });
       const problems: string[] = [];
       for (const [pageName, path] of PAGES) {
