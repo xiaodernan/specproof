@@ -59,20 +59,20 @@ assert MYSQL_DEFAULT_POOL_ACQUIRE_TIMEOUT == DEFAULT_ACQUIRE_TIMEOUT
 #: constants (IS_DEMO_COLUMN, DEMO_NOTE_PREFIX); every value travels as a
 #: bound parameter. A nosec annotation sits on the first string-literal line
 #: of each statement, where bandit keys the finding.
-_JOBS_PAGE_CURSOR_SQL = (
+#: The paging statement is built in three pieces, and the ORDER of the
+#: pieces is the ORDER of the SQL clauses: the SELECT list, then the WHERE
+#: clause, then the ORDER BY / LIMIT tail. A WHERE after a LIMIT is a
+#: syntax error — and the statement survived only because the filter-free
+#: page carried no WHERE at all, so the broken shape was never executed
+#: (found by the keyset-cursor leg, #1636).
+_JOBS_PAGE_SELECT_SQL = (
     "SELECT id, repo_path, base_ref, head_ref, "  # nosec B608
     "status, depth, retry_count, "
     "worker_id, last_error, created_at, updated_at, "
     + IS_DEMO_COLUMN + " FROM verification_jobs"
-    + " ORDER BY created_at DESC, id DESC LIMIT %s"
 )
-_JOBS_PAGE_OFFSET_SQL = (
-    "SELECT id, repo_path, base_ref, head_ref, "  # nosec B608
-    "status, depth, retry_count, "
-    "worker_id, last_error, created_at, updated_at, "
-    + IS_DEMO_COLUMN + " FROM verification_jobs"
-    + " ORDER BY created_at DESC, id DESC LIMIT %s OFFSET %s"
-)
+_JOBS_PAGE_CURSOR_TAIL_SQL = " ORDER BY created_at DESC, id DESC LIMIT %s"
+_JOBS_PAGE_OFFSET_TAIL_SQL = " ORDER BY created_at DESC, id DESC LIMIT %s OFFSET %s"
 
 _JOB_INSERT_TENANT_SQL = (
     "INSERT INTO verification_jobs "
@@ -1272,14 +1272,16 @@ class MySQLStore:
                 # so the extra row is how it knows whether a next page
                 # exists.
                 # the SELECT list precedes WHERE, so the bound prefix is first
-                cur.execute(_JOBS_PAGE_CURSOR_SQL + page_where,
+                cur.execute(_JOBS_PAGE_SELECT_SQL + page_where
+                            + _JOBS_PAGE_CURSOR_TAIL_SQL,
                             (DEMO_NOTE_PREFIX, *page_params, limit + 1))
             else:
                 # The offset path does NOT need the extra row: the count it
                 # already holds says whether rows remain after this page, so
                 # the page is exactly the size that was asked for.
                 # the SELECT list precedes WHERE, so the bound prefix is first
-                cur.execute(_JOBS_PAGE_OFFSET_SQL + page_where,
+                cur.execute(_JOBS_PAGE_SELECT_SQL + page_where
+                            + _JOBS_PAGE_OFFSET_TAIL_SQL,
                             (DEMO_NOTE_PREFIX, *page_params, limit, offset))
             rows = cur.fetchall()
         next_cursor = None

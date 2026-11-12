@@ -91,23 +91,25 @@ NON_STATIC_SQL_SITES: dict[str, str] = {
         "no request data). The static prover proves single-function "
         "dataflow, so the helper's return value needs this registration."
     ),
-    "storage/mysql.py::cur.execute(_JOBS_PAGE_CURSOR_SQL + page_where, "
-    "(DEMO_NOTE_PREFIX, *page_params, limit + 1))": (
-        "the keyset-cursor paging leg (#1618): page_where is assembled from "
-        "literal fragments only (every condition is a constant; the keyset "
-        "predicate '(created_at, id) < (%s, %s)' is a constant; the separator "
-        "is ' WHERE '/' AND '), every value travels as a bound parameter, and "
-        "IS_DEMO_COLUMN/DEMO_NOTE_PREFIX are module constants — the text "
-        "contains no request data, only placeholders and constants"
+    "storage/mysql.py::cur.execute(_JOBS_PAGE_SELECT_SQL + page_where + "
+    "_JOBS_PAGE_CURSOR_TAIL_SQL, (DEMO_NOTE_PREFIX, *page_params, limit + 1))": (
+        "the keyset-cursor paging leg (#1618/#1636): page_where is assembled "
+        "from literal fragments only (every condition is a constant; the "
+        "keyset predicate '(created_at, id) < (%s, %s)' is a constant; the "
+        "separator is ' WHERE '/' AND '), every value travels as a bound "
+        "parameter, and IS_DEMO_COLUMN/DEMO_NOTE_PREFIX are module "
+        "constants — the text contains no request data, only placeholders "
+        "and constants. The prover cannot follow it because page_conditions "
+        "is grown with list.append (the prover reads the empty list it was "
+        "born as), not because the text is data"
     ),
-    "storage/mysql.py::cur.execute(_JOBS_PAGE_OFFSET_SQL + page_where, "
-    "(DEMO_NOTE_PREFIX, *page_params, limit, offset))": (
-        "the keyset-cursor paging leg (#1618): page_where is assembled from "
-        "literal fragments only (every condition is a constant; the keyset "
-        "predicate '(created_at, id) < (%s, %s)' is a constant; the separator "
-        "is ' WHERE '/' AND '), every value travels as a bound parameter, and "
-        "IS_DEMO_COLUMN/DEMO_NOTE_PREFIX are module constants — the text "
-        "contains no request data, only placeholders and constants"
+    "storage/mysql.py::cur.execute(_JOBS_PAGE_SELECT_SQL + page_where + "
+    "_JOBS_PAGE_OFFSET_TAIL_SQL, (DEMO_NOTE_PREFIX, *page_params, limit, offset))": (
+        "the offset paging leg (#1618/#1636): the same statement as the "
+        "cursor page, with the offset bound instead of the extra row — "
+        "page_where is assembled from literal fragments only, every value "
+        "travels as a bound parameter, and the SELECT list / WHERE / "
+        "ORDER BY / LIMIT pieces are module constants"
     ),
 }
 
