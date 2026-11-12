@@ -30966,3 +30966,227 @@ model-settings.css 12、base.css 8）。相邻两档常常只差 **1px**（15/16
 - 截图基线（像素级回归）、崩溃注入演练、SSE 的 Redis 阻塞读（与有界池的连接预算冲突，
   需要单独决策）；
 - 全量门：最终一轮（快照 c22a115）在独立工作树后台跑；本节提交后需按新 master 再排一轮。
+## #1631 v13 的 36 条红逐条闭账；六个旋钮接到运维面；worker 消费连接不再带心跳；缓存后端加熔断；控制面进 Spring Cloud 家族；SSE 按安静退避
+
+**记录基准**：本节只追加；落地于附带提交（master 链 422deca → 33230ab → 0006a3c →
+58ea501 → 8c6b2c6 → 7789a40 → c22f114 → f913282 → ed113c2 → 本节提交）。
+
+**来路。** #1623 之后 master 其实是**红的**，而当时没有人知道：v11/v12 两次全量门
+结论都作废（快照被并行车道的工作树污染 / 被在途文件顶红），v13 是第一个**干净树**的
+测量（sp-final2 工作树，`git status` 空，快照 422deca），它报出 **36 条红**。
+本节把这 36 条**逐条**归因并闭账——没有一条靠改弱断言变绿。
+
+### 一、账本型红（16 条）：树变了，账没跟上——重钉，而不是改断言
+
+1. **fake_inventory 两条**：实测 census 与钉住的数字不同——`sql-fake 21→22`
+   （#1622 的 `_FakeConn`）、`store-duck-type 46→42`、`plain-double 212→218`
+   （#1603/#1605 并轨带来的 `_FakeChannel`，以及 #1611 把 Redis acquire/renew
+   改走 EVAL 之后 `test_redis_stream.py` 四个 `FakeRedis` 的方法列表重划）。
+   **处置**：重钉到 422deca（22 / 42 / 218，合计 282），
+   `docs/architecture/FAKE_INVENTORY.md` 追加「2026-11-12 重钉」节并把
+   `--explain-drift 3a39bdc` 的每一处来由抄进去。
+2. **指标清单 / ops docs / java 普查四条**：三处 JVM 上报点此前**不在普查面**——
+   `GatewayMqEventConsumer` 用 `registry.counter(METRIC_NAME, …)` 动态查表注册
+   （普查只认 builder 写法），两个 #1626 的 control-plane 缓存门面用了扁平下划线
+   命名（与 JVM 面的点分名 + micrometer 渲染规约不同一）。
+   **处置**：两个缓存门面改点分名（`specproof.cp.job.cache.requests` /
+   `…backend.ops`，JUnit 同步）；消费者改 `Counter.builder` 幂等注册；
+   `JAVA_EMIT_DIRS` 收进 `gateway/mq` 与 `control-plane/cache` 两个树；普查面补上
+   **命名常量解析**（`static final String X = "dotted.name"` → `builder(X)`，
+   与 Python 面 `incr(METRIC_X)` 同构），后来又补上**对象形式的量表**
+   （`Gauge.builder("name", obj, obj::method)`，见第三节）。实测普查文件 46→47，
+   `OBSERVABILITY.md` 补三个 Java 条目、手填数目 四十三→四十七并登记订正史实。
+3. **Python 侧 w190 三个计数**（与上面 ops docs 两条同源）：上报点把 `specproof_`
+   前缀写死了，而仓库的规约是"exposition 只在渲染时加前缀"。**处置**：改裸名。
+4. **近似复制群两条**：#1621 把 `RedisStore.close()` 改成"只释放引用"（连接归进程），
+   三人群因此变两人群。**处置**：roster 按实测改写并登记 #1621。
+5. **SQL 文本静态门一条**：keyset 分页的两个执行点内联拼接 + 行内注释，静态证明器
+   读不出常量。**处置**：抽成模块级常量（`_JOBS_PAGE_CURSOR_SQL` /
+   `_JOBS_PAGE_OFFSET_SQL`，nosec 落在首个字符串片段行——bandit 就把发现记在那一行），
+   注册表同步。
+6. **前端契约普查八条**：`#1668bab` 的 `next_cursor` 与 `#1630` 之后 `api.ts` 的行号
+   位移（+3）让 34 处 `(file, line)` 钉全部过期。**处置**：按实测重钉；
+   `ROSTERED_EXTRA_KEYS` 补 `next_cursor`，并写明来由：Guide/Jobs 的配对**已声明**
+   它（`JobsPage.next_cursor?`），Matrix 的内联 `{ jobs: Job[] }` 没有——三条配对的
+   并集才是这条登记。
+7. **web token 三门合起来一条**：三处 `p.parts` 修剪读的是**绝对路径**组件
+   （#541 量过的"祖先误判"）。**处置**：改读 walk root 之下的相对路径。
+
+### 二、环境与裁决型红（12 条）：本机漂移 + #1623 归档后的读法
+
+1. **工具链钉三条**：本机 venv 的 mypy 2.3.1 / ruff 0.16.9 与 pyproject 的 pin
+   （2.4.0 / 0.17.1，即 uv.lock 的锁定值）不符。**处置**：本机升级到锁定值——
+   门自己给的处置就是"要么改 pin（CI 就不按这个版本跑），要么装 pin"。
+2. **#1623 归档的第一次真实后果（一条）**：三条根分支并轨后，裁决表整体归档为
+   `MERGED_*`（活表清空，因为"master 已拥有的文件不能再挂活处置"），而
+   provider-smoke 的 C6 腿仍在读活表。**处置**：改成"活表优先、MERGED 档案兜底"，
+   并补上 `MERGED_REGISTERED_GAPS` / `MERGED_RENAMED_JOBS` 两条对账腿——
+   归档表也需要腿，否则它会静默腐烂（本号是它第一次被门真正读）。
+3. **我自己两个 MySQL 测试文件自开探针（三条 no-infra 腿）**：keyset 分页与有界连接池
+   各自探活并自己 `pytest.skip`——"没库就跳过"这件事一旦由文件自己决定，就没有人
+   决定过它。**处置**：折叠到共享的隔离裁决（`tests/_mysql_gate.requires_mysql`），
+   游牧员数回到 0；两个文件按 #600 的口径进 `tests-with-infra` 作业的 pytest 清单。
+4. **responses_provider 的探针腿（一条）**：本机 dev Redis 里存着上一次探测的能力
+   缓存，命中即零 Gateway 请求——单测的红绿取决于开发机上 Redis 的历史。
+   **处置**：`provider_with` 显式短路能力缓存（缓存腿由 `test_provider_capability_cache.py`
+   专责）。
+5. **子进程编解码（一条）**：spring 服务一致性门里的 `git ls-files` 没写 codec。
+   **处置**：按仓库惯例补 `encoding="utf-8", errors="replace"`。
+
+### 三、干扰型红（2 条）与它抓到的**真**缺陷
+
+v13 里 `test_create_auto_start_then_poll_get_to_terminal`（180 秒墙钟窗）与
+`test_job_list_cursor_paging`（MySQL 读超时 267 秒）红——两门全量门 + 一次演练同时压在
+这台机器上。空闲机器上隔离实测：**49.8 秒通过** / **5 passed**。诚实的结论是"这两条
+不是代码问题"，而不是"它们绿了所以没问题"：它们在 CI 的 `tests-with-infra` 作业里有家。
+
+**而这轮排障顺手抓到一件真的**：演练的控制作业跑了 18 分钟才到终态，中途 worker 的
+**消费连接被代理按心跳静默关掉**，worker 在管线跑完后的第一次 `basic_ack` 撞
+`StreamLostError` 退出，**作业从未进入 RUNNING**。长管线堵着回调就发不出心跳——
+这是产品的缺陷，不是演练的。**处置**：worker 的消费连接以 `heartbeat=0` 打开
+（`8c6b2c6`），活性改由它自己的租约（Redis 30s TTL）与过期回收负责；现场对照写进
+`docs/operations/RUNBOOK.md` §5。
+
+### 四、六个旋钮：从"代码里的旋钮"变成"运维看得见的旋钮"
+
+`MYSQL_POOL_SIZE`、`MYSQL_POOL_ACQUIRE_TIMEOUT`、`REDIS_CONNECT_TIMEOUT_SECONDS`、
+`REDIS_HEALTH_CHECK_INTERVAL_SECONDS`、`REDIS_MAX_CONNECTIONS`、
+`SPECPROOF_MQ_EVENTS_ENABLED`——这六个名字在产品代码里读，在 `.env.example` 里**没有行**，
+compose 也**不投递**：运维既看不见也改不动（有界池正是为了在高压下不把自己打死，
+而它的旋钮是隐形的）。
+
+**处置**：`.env.example` 声明六行（注释 + 出厂值，0/1 语义写明"只有精确的 1 才开"）；
+`compose.production.yml` 按**读取方**投递（api 与 worker 得 `REDIS_*` 与
+`SPECPROOF_MQ_EVENTS_ENABLED`，outbox-relay / notify-relay / invoice-cron 得
+`MYSQL_POOL_*` 与 `SPECPROOF_MQ_EVENTS_ENABLED`）；L10 的多默认值表补
+`SPECPROOF_MQ_EVENTS_ENABLED`（code 读到的默认是空串、compose 投递的是 "0"——两者
+都是"关"，载体是 compose）；`bus_enabled` 改按字面
+`os.environ.get("SPECPROOF_MQ_EVENTS_ENABLED", …)` 读：之前的读法经由模块常量，
+**运维改不动它而门也看不见它**（"假杠杆"腿因此转绿）。
+
+### 五、缓存后端前加熔断器（Redis 挂掉时不再让每个请求都付一次超时）
+
+`RedisJobReadCache` 的契约是"缓存永不抛异常"（失败答"我没有"，请求照旧读库）——这条
+契约保住了 API，却藏住了它的代价：**后端每一次尝试都要付**（50ms 命令超时）。Redis 挂掉
+时每个 GET 都付一次超时加一次连接尝试，服务从"正常"退化成"对谁都慢"。
+
+**处置**（Spring Cloud 家族：resilience4j，与边缘网关同源）：连续失败达阈值即**跳闸**，
+跳闸期间**根本不再调用后端**；窗口过后放**一个探针**，探针成功即复位。窗口用计数窗 +
+100% 失败率阈值（等价"连续 N 次失败"：缓存后端要么答要么不答，用百分比需要流量来算）。
+**跳闸不计为后端错误**（`backend.ops{result=error}` 回答"后端失败了吗"，跳闸恰恰相反），
+跳闸另有自己的计数与量表。
+
+**门（计数）**：① 连续失败 3 次后跳闸，第 4 次读取**一次都没碰后端**而答案照旧为空；
+② 跳闸**不计**后端错误；③ 窗口过后放一个探针，探针成功即复位；④ 健康的后端**十次都
+照常被调用**。control-plane 全量 **35 passed**。
+
+**顺带修好一处尺子的盲区**：Java 侧普查面此前只认 `Gauge.builder("name")` 一种写法，
+`Gauge.builder("name", obj, obj::method)`（读活值的正常写法）**看不见**——本仓库此前没有
+Java 量表，所以这个盲区一直没人撞上；本号的熔断器状态量表正好撞上。普查面因此补上
+对象写法；**Java 侧有多少种 meter 写法**这件事从"我以为只有两种"变成"两种都读"。
+
+### 六、控制面加入 Spring Cloud 家族（同一个配置中心、同一个注册中心，且离线仍然起得来）
+
+仓库里已经有四个 Spring 服务：边缘网关、配置中心、注册中心、控制面——但**控制面是唯一
+一个不在 Spring Cloud 家族里的**：它没有配置客户端、没有注册客户端，"集群"其实是"三个
+Spring 服务 + 一个孤立的 Spring Boot 服务"。而它管着租户、用户、Webhook 与作业投影，
+恰恰是最该被统一配置、统一发现的那个。
+
+**处置**：引入 `spring-cloud-dependencies` BOM（**2024.0.1**，与网关同一列车）、
+`spring-cloud-starter-config`、`spring-cloud-starter-netflix-eureka-client`；客户端版本按
+网关的**同一套已验证钉法**钉住（4.2.0 及 `commons-codec` 1.17.1、
+`spring-boot-starter-cache` 3.4.1、`error_prone_annotations` 2.28.0、`guava` 33.3.1-jre）——
+理由与网关 pom 里写的那条一样：BOM 选到的是 4.2.1 / 1.17.2 那一组，本机镜像里有的是
+4.2.0 / 1.17.1 那一组；**两个服务不能跑在不同版本的同一个客户端上**。
+`application.yml`：`spring.config.import=optional:configserver:…`（**可选**是承重的：
+一个配置中心抖动不该变成整个机队起不来）、Eureka 客户端指向注册中心（注册失败**不是**
+致命错误）。
+
+**门**：新增 `ControlPlaneOfflineResilienceTests`——**两个服务端都指向丢弃端口 9**
+（每台机器上都关着）时控制面**照样起得来**，并且**保留自己的默认值**（后端 redis、
+熔断阈值 5、窗口 5000ms）：配置中心 outage 不能悄悄改掉缓存的降级方式。
+
+### 七、SSE 按"安静程度"退避（决策记录：为什么不做阻塞读）
+
+进度流是作业的**观看者**：每个开着的标签页都在替服务器付钱，而作业的一生里大半是安静的。
+固定 500ms 轮询意味着**每个观众每秒两次 Redis 往返**。**处置**：间隔起始 250ms
+（作业最初的事件成串来，不能让它等）、安静时逐级退避（0.5 → 1 → 2 秒，封顶 2 秒）、
+**有新事件立刻回到 250ms**（退避不是单向的）。
+
+**为什么不做阻塞读**：阻塞 XREAD 会让**每个观众占住一条专属连接**，直接吃掉
+`max_connections=32` 的预算——而 SSE 观众恰恰最不需要独占连接。退避拿到同一个收益
+（安静时往返更少）却不占连接。阻塞读留待"单独的连接预算"被正式决策时再谈。
+
+**门（量"要等多久"，不量墙钟）**：间隔序列以最小值起步、安静时翻倍、封顶不超过 2 秒、
+有事件后**重新回到最小值**；**同样的 6 秒里，退避后的轮询次数不到固定 500ms 的一半**
+（退避必须真的买到东西）。测的是"流请求了多长的等待"——墙钟测试恰好会在机器最忙的时候
+飘，而它测的其实是调度器而不是契约。
+
+### 八、演练 1 改走生产恢复路径（杀 worker → 生产回收 → 新 worker 续跑）
+
+旧实现是"演练自制的恢复"（`ops/drills.resume_job` 直奔判定的应用逻辑），它绕开了生产
+路径，并且会做**非法状态转移**（`PREPARING → NEEDS_REVIEW` 被状态机拒绝）。新实现只做
+生产做过的事：真实 worker 被 `taskkill /F /T` 杀掉 → 租约过期 → 调生产回收函数
+`reclaim_stale_running_jobs`（与 `specproof ops recover --running-only` 和周期 tick
+**同一个函数**）把过期 RUNNING 行 CAS 回 QUEUED 并**换新 event_id** 重投 → 新 worker
+认领并从 LangGraph 检查点续跑。
+
+途中记下三条对恢复语义有决定意义的事实（详见 `docs/operations/DRILLS.md` §5.1 与 §8）：
+
+- **broker 自己重入队恢复不了崩溃的 worker**——生产 worker 的 Redis 幂等键在管线
+  **之前** SETNX，重投的同一条 event_id 会被判为重复直接 ack 丢弃；真正的恢复路径是
+  **换 event_id 的回收重投**。
+- **回收只认 RUNNING 行**——崩溃落在 `PREPARING` / `CONTRACT_REVIEW` 的行不在回收面内
+  （本机实测遗留：`drill-wk-1794423770` 停在 `PREPARING`、`drill-wk-1794423192` 停在
+  `CONTRACT_REVIEW`）。这是**已知边界**，演练没有为了好看去扩大状态机。
+- **演练之间共享同一条队列**——并行跑两个演练时，后一个演练的作业被前一个演练的 worker
+  领走（实测：`drill_outbox_crash` 报 `worker never reached terminal`）。演练因此
+  **串行**跑，并把**起始队列深度**写进报告。
+
+**契约门重写**：演练不再注入凭据、不再改写 `SPECPROOF_MODEL_CONFIG`（旧实现清空了
+`LLM_*` 环境变量却把配置文件留在原地——"无凭据"只是说说；而且没有凭据时管线走确定性
+短路分支，**根本到不了**演练要打断的那些阶段）。新门测的是：**演练用项目自己的模型配置
+（若存在）、不注入任何凭据、不改写 `SPECPROOF_MODEL_CONFIG`**。
+
+### 九、一次自造成的事故登记（证据完整性）
+
+v13 的全量门日志 `_fullgate_final2.txt` 被我自己的清理命令误删（删除条件匹配了
+"最近 6 小时内修改过的、下划线开头的文件"）。**登记而不是掩盖**：完整的 36 条红名单与
+逐条处置保留在本号的记录里；下一号按新快照重新测量并落盘新日志。
+
+### 十、验证读数（本号实跑）
+
+- fake_inventory **11 passed**；前端契约普查 **55 passed**；
+  观测对账 + ops docs + 指标清单 **17 passed**；no-infra 承诺 **11 passed**；
+  env 旋钮两件套 **23 passed**；numeric 旋钮 + security 全套 **101 passed / 2 skipped**；
+  SQL 静态 **18 passed**；近似复制 **14 passed**；bandit earned **7 passed**；
+  子进程编码 + spring 一致性 **10 passed**；web token 三门 + 扫描 **24 passed**；
+  provider-smoke **9 passed**；agent_runtime **14 passed**；keyset 分页 **5 passed**；
+  control-plane JUnit **35 passed**（含熔断 4 条 + 离线韧性 1 条）；
+  gateway JUnit **12 passed**；fault + rabbitmq reliability **139 passed**；
+  SSE 退避新门 **2 passed**；API 邻近 **63 passed**；`ruff check .` **All checks passed**。
+- 演练 2 / 4 / 5 同日实测：provider outage **PASS**（3 次尝试 / 10.31s / 断路器 open /
+  1 条契约 / `llm_used=false`）；notify outbox **PASS**（两条腿：恰好投递一次；死信重放后
+  投递）；outbox crash window **PASS**（串行；并行时红，见 §5.1 FIX-29）。
+- 演练 1（生产恢复路径）的最终测量与全量门 v14 的读数：见**下一号**。
+
+### 十一、诚实边界
+
+- v13 的两条红是**环境干扰**，不是代码问题；"隔离通过"不等于"任何机器上通过"。
+- 本号重钉的是**测量**，不是断言：每条重钉都对得上在场的实测输出，没有一条把断言改弱。
+- 心跳修复只覆盖"在管线回调里阻塞的消费者"这一类客户端；别的客户端仍按 30 秒心跳
+  被代理管理。
+- 熔断的阈值与窗口是**默认值**，不是实测出来的最优值——调优需要真实的 Redis 故障压测，
+  本号没有那台机器。
+- 控制面**注册**进注册中心之后还没有别的服务**按名调用**它——本号只把"能被发现"做成
+  真的，没有顺手造一条没有读者的服务间调用；控制面**也还没有**被 compose 编排。
+- SSE 的退避把安静期的到达延迟放宽到最多 2 秒；作业最初的事件仍然是 250ms 级的。
+- MERGED 归档是"并轨前的事实"；它被门读到（本号是第一次）说明**归档表也需要腿**。
+
+### 十二、下一号队列
+
+- **全量门 v14**（快照 = 本号提交）：本号把 master 修到"已知红全部闭账"，该跑一轮完整的
+  了；v14 的读数写进下一号。
+- 演练 1 的最终测量（杀 worker → 生产回收 → 新 worker 续跑）与它的对照作业。
+- 熔断阈值/窗口的真实压测调优（需要一台能按下 Redis 的机器）。
+- 截图基线（像素级回归，跨平台）未做。
