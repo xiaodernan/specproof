@@ -26,6 +26,12 @@
              supports both this JDK and the JDK 21 CI pins — not a change to
              the source target, only to the test-time bytecode generator. -->
         <byte-buddy.version>1.17.8</byte-buddy.version>
+        <!-- Circuit breaker for the cache backend (#1631). The version is
+             pinned here for the same reason byte-buddy is: the control
+             plane has no Spring Cloud BOM to inherit one, and a floating
+             version is a version nobody validated. 2.2.0 is the version
+             the edge gateway already resolves. -->
+        <resilience4j.version>2.2.0</resilience4j.version>
     </properties>
 
     <dependencies>
@@ -71,6 +77,11 @@
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-circuitbreaker</artifactId>
+            <version>${resilience4j.version}</version>
         </dependency>
     </dependencies>
 

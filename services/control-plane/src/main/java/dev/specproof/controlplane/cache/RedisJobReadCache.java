@@ -36,6 +36,19 @@ import java.util.Optional;
  *       written down rather than implied.</li>
  * </ol>
  *
+ * <h2>And a fourth: the backend is not called at all while it is down</h2>
+ * A 50ms timeout per request is the <i>bounded</i> cost of a dead Redis, but it
+ * is still a cost paid by every GET, and the connection pool pays it too. The
+ * {@link JobCacheBreaker} in front of the backend turns consecutive failures into
+ * an open breaker: the calls stop being made, the answers are the same
+ * ("I have nothing" → the database answers), and the counters say which
+ * happened — {@code specproof.cp.job.cache.breaker.calls} with
+ * {@code state=short_circuited} counts the calls that were never made.
+ * <p>Note what a short-circuit does NOT do: it does not increment the
+ * {@code backend.ops result=error} counter. That counter answers "did the
+ * backend fail?", and a short-circuit is the opposite of a failure — it is the
+ * system deciding not to ask.
+ *
  * <p>What this deliberately does NOT do: distributed locking, write-through,
  * pub/sub invalidation. The writer of {@code verification_jobs} is the Python
  * runtime (a different process, a different language); adding a lock here would
@@ -50,13 +63,22 @@ public final class RedisJobReadCache implements JobReadCache {
 
     private final StringRedisTemplate redis;
     private final ObjectMapper mapper;
+    private final JobCacheBreaker breaker;
     private final Counter hits;
     private final Counter misses;
     private final Counter errors;
 
     public RedisJobReadCache(StringRedisTemplate redis, ObjectMapper mapper, MeterRegistry meters) {
+        this(redis, mapper, meters, new JobCacheBreaker(meters));
+    }
+
+    public RedisJobReadCache(StringRedisTemplate redis,
+                             ObjectMapper mapper,
+                             MeterRegistry meters,
+                             JobCacheBreaker breaker) {
         this.redis = redis;
         this.mapper = mapper;
+        this.breaker = breaker;
         this.hits = Counter.builder("specproof.cp.job.cache.backend.ops")
                 .tag("backend", "redis").tag("result", "hit").register(meters);
         this.misses = Counter.builder("specproof.cp.job.cache.backend.ops")
@@ -67,7 +89,7 @@ public final class RedisJobReadCache implements JobReadCache {
 
     @Override
     public Optional<List<JobView>> getRecent() {
-        try {
+        return guarded("getRecent", () -> {
             String json = redis.opsForValue().get(JobCachePolicy.recentKey());
             if (json == null) {
                 misses.increment();
@@ -75,26 +97,23 @@ public final class RedisJobReadCache implements JobReadCache {
             }
             hits.increment();
             return Optional.of(mapper.readValue(json, RECENT_TYPE));
-        } catch (Exception e) {
-            return failed("getRecent", e);
-        }
+        });
     }
 
     @Override
     public void putRecent(List<JobView> jobs) {
-        try {
+        guarded("putRecent", () -> {
             redis.opsForValue().set(
                     JobCachePolicy.recentKey(),
                     mapper.writeValueAsString(jobs),
                     JobCachePolicy.RECENT_TTL);
-        } catch (Exception e) {
-            failed("putRecent", e);
-        }
+            return Optional.of(jobs);
+        });
     }
 
     @Override
     public Optional<JobView> getJob(String id) {
-        try {
+        return guarded("getJob", () -> {
             String json = redis.opsForValue().get(JobCachePolicy.jobKey(id));
             if (json == null) {
                 misses.increment();
@@ -102,24 +121,56 @@ public final class RedisJobReadCache implements JobReadCache {
             }
             hits.increment();
             return Optional.of(mapper.readValue(json, JobView.class));
-        } catch (Exception e) {
-            return failed("getJob", e);
-        }
+        });
     }
 
     @Override
     public void putJob(JobView job) {
-        try {
+        guarded("putJob", () -> {
             Duration ttl = JobCachePolicy.ttlForStatus(job.status());
             redis.opsForValue().set(JobCachePolicy.jobKey(job.id()), mapper.writeValueAsString(job), ttl);
-        } catch (Exception e) {
-            failed("putJob", e);
-        }
+            return Optional.of(job);
+        });
     }
 
     @Override
     public String backend() {
         return "redis";
+    }
+
+    /**
+     * Run one backend call through the breaker.
+     *
+     * <p>Three outcomes, and the difference between them is the whole point:
+     * the call went through and worked; the call went through and failed (the
+     * backend is unhealthy — the breaker counts it); the call was never made
+     * (the breaker is open — nothing failed, we simply stopped asking).</p>
+     */
+    private <T> Optional<T> guarded(String op, BackendCall<T> call) {
+        if (!breaker.tryAcquire()) {
+            // Short-circuited: the answer is "I have nothing", exactly what a
+            // failing cache would have answered — but no round trip was paid.
+            log.debug("job read cache {} skipped: the backend is short-circuited", op);
+            return Optional.empty();
+        }
+        try {
+            Optional<T> value = call.run();
+            breaker.onSuccess();
+            return value;
+        } catch (Exception e) {
+            breaker.onFailure(e);
+            return failed(op, e);
+        }
+    }
+
+    /**
+     * One backend call. The checked exception is part of the contract because
+     * the Jackson calls inside the lambdas throw it — and a backend call that
+     * cannot say what went wrong is exactly what the breaker has to see.
+     */
+    @FunctionalInterface
+    private interface BackendCall<T> {
+        Optional<T> run() throws Exception;
     }
 
     /** Counts the failure, logs at debug (a dead cache must not flood the log), returns empty. */

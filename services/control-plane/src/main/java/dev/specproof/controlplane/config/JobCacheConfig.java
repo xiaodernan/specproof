@@ -2,6 +2,7 @@ package dev.specproof.controlplane.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.specproof.controlplane.cache.InMemoryJobReadCache;
+import dev.specproof.controlplane.cache.JobCacheBreaker;
 import dev.specproof.controlplane.cache.JobQueryService;
 import dev.specproof.controlplane.cache.JobReadCache;
 import dev.specproof.controlplane.cache.NoopJobReadCache;
@@ -14,6 +15,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
+import java.time.Duration;
+
 /**
  * Wires the job facade cache. Exactly one {@link JobReadCache} bean exists in a
  * context — the three {@code @ConditionalOnProperty} beans below are mutually
@@ -24,12 +27,19 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 public class JobCacheConfig {
 
     @Bean
+    public JobCacheBreaker jobCacheBreaker(MeterRegistry meters, JobCacheProperties props) {
+        return new JobCacheBreaker(meters, props.getBreakerFailureThreshold(),
+                Duration.ofMillis(props.getBreakerWaitMs()));
+    }
+
+    @Bean
     @ConditionalOnProperty(name = "specproof.control-plane.job-cache.backend",
             havingValue = "redis", matchIfMissing = true)
     public JobReadCache redisJobReadCache(StringRedisTemplate redis,
                                           ObjectMapper mapper,
-                                          MeterRegistry meters) {
-        return new RedisJobReadCache(redis, mapper, meters);
+                                          MeterRegistry meters,
+                                          JobCacheBreaker breaker) {
+        return new RedisJobReadCache(redis, mapper, meters, breaker);
     }
 
     @Bean

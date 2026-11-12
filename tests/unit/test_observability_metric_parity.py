@@ -89,6 +89,10 @@ JAVA_EMIT_DIRS = (
 
 _JAVA_COUNTER = re.compile(r"Counter\.builder\(\s*\"([a-z0-9_.]+)\"\s*\)")
 _JAVA_GAUGE = re.compile(r"Gauge\.builder\(\s*\"([a-z0-9_.]+)\"\s*\)")
+#: The object form — ``Gauge.builder("name", obj, obj::method)`` — is how a
+#: gauge reads a live value. The literal is still first, so the name is
+#: still read here; the difference is only what follows it.
+_JAVA_GAUGE_OBJECT = re.compile(r"Gauge\.builder\(\s*\"([a-z0-9_.]+)\"\s*,")
 #: ``static final String X = "dotted.name"`` — the named-constant form the
 #: python plane already resolves for ``incr(METRIC_X)``. Mirrors it so
 #: a file that holds its meter name in a constant is still seen.
@@ -123,6 +127,8 @@ def _java_emission_sites() -> tuple[tuple[str, str, str, bool], ...]:
                 if resolved is not None:
                     found.append((rel, "java_counter", _resolve_java(resolved, "_total"), False))
             for raw in _JAVA_GAUGE.findall(text):
+                found.append((rel, "java_gauge", _resolve_java(raw, ""), False))
+            for raw in _JAVA_GAUGE_OBJECT.findall(text):
                 found.append((rel, "java_gauge", _resolve_java(raw, ""), False))
             for raw in _JAVA_GAUGE_REF.findall(text):
                 resolved = constants.get(raw)
