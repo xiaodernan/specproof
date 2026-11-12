@@ -408,6 +408,39 @@ def _differential_evidence(final: Mapping[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
+def _generation_evidence(final: Mapping[str, Any]) -> dict[str, Any]:
+    """What happened to the generated counterexample test, in short form.
+
+    "The generated test failed on BOTH sides" is the sentence that makes a
+    case UNJUDGEABLE -- and the reason for it lives in the generation
+    record: a test that never compiled cannot testify about anything,
+    and a test that ran and failed on both sides says the case is
+    pre-existing rather than about the change.
+
+    A record that carries the verdict but not this asks the reader a
+    question it does not answer: "both sides failed" is not a diagnosis,
+    "it never compiled" is (#1636).
+    """
+    record = final.get("generation_record") or {}
+    if not isinstance(record, Mapping):
+        record = {}
+    head_run = record.get("head_run") or {}
+    if not isinstance(head_run, Mapping):
+        head_run = {}
+    errors = [
+        str(entry) for entry in (record.get("errors") or []) if str(entry).strip()
+    ]
+    return {
+        "generated": bool(final.get("generated_tests_path")),
+        "source": str(record.get("source") or ""),
+        "attempts": int(record.get("attempts") or 0),
+        "compile_passed": bool(record.get("compile_passed")),
+        "compile_error": bool(head_run.get("compile_error")),
+        "head_exit_code": head_run.get("exit_code"),
+        "first_error": errors[0][:300] if errors else "",
+    }
+
+
 def _finding_evidence(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Compact evidence per finding, for the report the reader actually gets.
 
@@ -1186,7 +1219,7 @@ def eval_cmd(
         # there no execution evidence?"), and the answer lives in the
         # pipeline's diff_results, not in the report's summary (#1634).
         record["differential"] = _differential_evidence(final)
-        record["generated_test"] = bool(final.get("generated_tests_path"))
+        record["generated_test"] = _generation_evidence(final)
         # Ground-truth level call: True = exact match, False = drift,
         # None = no level call (recall miss or negative case).
         record["severity_match"] = severity_match_of(record)

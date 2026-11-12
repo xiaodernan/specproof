@@ -836,6 +836,48 @@ def render_eval_report(
             )
         else:
             sev_cell = escape(level)
+        # WHY the level is what it is -- the differential's own words, and
+        # whether the generated test could testify at all. Both live in the
+        # record (#1636); this page is the artifact a human reads, so it
+        # answers the question HERE instead of sending the reader to the
+        # JSON sidecar.
+        diff_rows = r.get("differential") or []
+        diff_bits: list[str] = []
+        if isinstance(diff_rows, (list, tuple)):
+            for row in diff_rows:
+                if not isinstance(row, dict):
+                    continue
+                exits = ""
+                base_code = row.get("base_exit_code")
+                head_code = row.get("head_exit_code")
+                if base_code is not None or head_code is not None:
+                    exits = f" ({base_code} \u2192 {head_code})"
+                contract = escape(str(row.get("contract_id") or ""))
+                verdict = escape(str(row.get("verdict") or ""))
+                diff_bits.append(f"{contract}: {verdict}{exits}")
+        differential_cell = (
+            "<br />".join(diff_bits)
+            if diff_bits
+            else '<span class="muted">not run</span>'
+        )
+        generated = r.get("generated_test")
+        if isinstance(generated, dict):
+            if not generated.get("generated"):
+                generated_cell = '<span class="muted">none</span>'
+            elif generated.get("compile_error") or not generated.get(
+                "compile_passed"
+            ):
+                generated_cell = (
+                    '<span style="color:#ff7b72">never compiled</span>'
+                )
+            else:
+                generated_cell = escape(
+                    str(generated.get("source") or "generated")
+                )
+        elif generated:
+            generated_cell = "generated"
+        else:
+            generated_cell = '<span class="muted">none</span>'
         rows_html += f"""<tr>
             <td>{r.get("case", "")}</td>
             <td style="color:{color};font-weight:700">{v}</td>
@@ -845,6 +887,8 @@ def render_eval_report(
             <td>{r.get("matched_findings", 0)}</td>
             <td style="color:{sev_color}">{sev_cell}</td>
             <td>{r.get("contracts_found", "")}</td>
+            <td>{differential_cell}</td>
+            <td>{generated_cell}</td>
         </tr>"""
 
     # The severity drift, in the report. The agreement number above says
@@ -1023,6 +1067,7 @@ def render_eval_report(
             <th>Case</th><th>Verdict</th><th>Expected Contract</th>
             <th>Expected Severity</th><th>Expected Evidence</th>
             <th>Matched</th><th>Severities</th><th>Contracts Found</th>
+            <th>Differential</th><th>Generated Test</th>
         </tr></thead>
         <tbody>{rows_html}</tbody>
     </table>
