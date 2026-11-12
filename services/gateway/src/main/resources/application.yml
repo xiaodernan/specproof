@@ -38,6 +38,22 @@ spring:
     # the OTel resource name defaults to this; the compose observability
     # stack keys on OTEL_SERVICE_NAME=specproof-gateway
     name: specproof-gateway
+  data:
+    redis:
+      # The edge talks to Redis IN THE REQUEST PATH: the distributed token
+      # bucket (#1634) decides every request's admission, and the response
+      # cache reads on the way through. Both promise to fall back instead of
+      # stalling -- "never blocks the event loop" -- and that promise is only
+      # true while the call itself is BOUNDED. Spring's default command
+      # timeout is 60s, so an unbounded edge would hold a request for a
+      # minute whenever Redis is slow: the fallback would arrive long after
+      # the caller gave up.
+      #
+      # 50ms is the edge's budget for a decision it will make anyway. The
+      # bound is DECLARED here, not hoped for; the gate that keeps it
+      # declared is tests/unit/test_the_edge_bounds_its_redis_backend.py.
+      timeout: ${REDIS_COMMAND_TIMEOUT:50ms}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:50ms}
   # Config server (services/config-server, #1609): the edge reads its dynamic
   # overrides from a central config server so the edge never needs a redeploy
   # to change a non-route setting (rate-limit, breaker knobs). The `optional:`
