@@ -141,6 +141,25 @@ def test_a_negative_case_counts_any_finding_as_a_false_positive() -> None:
     assert row["verdict"] == "FALSE_POSITIVE"
 
 
+def test_a_negative_case_does_not_count_an_ERROR_finding_as_a_false_positive() -> None:
+    """An ERROR-severity finding is the pipeline saying "I could not judge".
+
+    The differential ran and produced no comparable observation (the generated
+    test failed on BOTH sides, which the policy treats as a pre-existing
+    failure, not an attribution). That is not a claim about the product, so
+    it must not be counted as a false positive -- a false positive IS a
+    claim, and the accounting has to be right about which findings claim
+    something (#1636: three negative cases, measured on the real model).
+    """
+    gt = dict(GT)
+    gt["should_detect"] = False
+    row = judge_case("case-01", gt, [_finding(severity="ERROR")])
+    assert row["verdict"] == "PASS", row
+    # and a real defect level still counts
+    row = judge_case("case-01", gt, [_finding(severity="MAJOR")])
+    assert row["verdict"] == "FALSE_POSITIVE", row
+
+
 def test_the_shared_verdict_rule_is_the_one_the_eval_uses() -> None:
     findings = [_finding()]
     matched = shared_matched(findings, "COURT-01", "base_pass_head_fail")

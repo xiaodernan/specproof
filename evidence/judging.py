@@ -75,6 +75,28 @@ def matched_findings(
     return matched
 
 
+#: The severities that ASSERT a defect. "ERROR" is the pipeline's own
+#: "the evidence path could not judge this" marker (the differential ran but
+#: produced no comparable observation -- e.g. the generated test failed on
+#: BOTH sides, which the policy treats as a pre-existing failure, not as an
+#: attribution). Counting that as a defect would turn an unjudgeable case
+#: into a false positive -- and a false positive is a claim about the
+#: product, so the accounting has to be right about which findings are
+#: claims (#1636: three negative cases, measured).
+ASSERTED_DEFECT_SEVERITIES = frozenset({
+    "BLOCKER", "MAJOR", "MINOR", "NEEDS_CONFIRMATION",
+})
+
+
+def _asserts_a_defect(findings: list[dict[str, Any]]) -> bool:
+    """Whether any finding actually claims a defect."""
+    return any(
+        str(finding.get("severity") or "").upper() in ASSERTED_DEFECT_SEVERITIES
+        for finding in findings
+        if isinstance(finding, dict)
+    )
+
+
 def verdict_for(
     should_detect: bool,
     findings: list[dict[str, Any]],
@@ -94,4 +116,4 @@ def verdict_for(
         if matched:
             return "PARTIAL"
         return "MISS"
-    return "FALSE_POSITIVE" if findings else "PASS"
+    return "FALSE_POSITIVE" if _asserts_a_defect(findings) else "PASS"
