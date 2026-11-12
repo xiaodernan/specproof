@@ -141,15 +141,69 @@ class _Folder(ast.NodeVisitor):
 
 _module_constants: dict[str, Any] = {}
 
+#: The fragments a statement is built from, per module. A statement is often
+#: a CONCATENATION ("SELECT ... " + IS_DEMO_COLUMN + " FROM ..."), and
+#: ``ast.literal_eval`` cannot read a concatenation -- it is not a literal.
+#: So the folder used to read the whole statement as "<var>", the census
+#: could not see that the read ships a job row, and the read VANISHED from
+#: the population the rest of this file measures (#1636).
+_FRAGMENT_CACHE: dict[str, dict[str, str]] = {}
+
+
+def _fragments_of(path: Path) -> dict[str, str]:
+    """Every module-level string constant of `path`, folded to text."""
+    key = str(path)
+    if key in _FRAGMENT_CACHE:
+        return _FRAGMENT_CACHE[key]
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError):
+        _FRAGMENT_CACHE[key] = {}
+        return _FRAGMENT_CACHE[key]
+    assignments: dict[str, ast.expr] = {}
+    imported: dict[str, str] = {}
+    for node in tree.body:
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+        ):
+            assignments[node.targets[0].id] = node.value
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            target = REPO.joinpath(*node.module.split(".")).with_suffix(".py")
+            if not target.is_file():
+                continue
+            others = _fragments_of(target)
+            for alias in node.names:
+                if alias.name in others:
+                    imported[alias.name] = others[alias.name]
+    values: dict[str, str] = dict(imported)
+
+    def fold(node: ast.expr, depth: int = 0) -> str:
+        if depth > 8:
+            return "<var>"
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        if isinstance(node, ast.Name):
+            if node.id in values:
+                return values[node.id]
+            if node.id in assignments:
+                folded = fold(assignments[node.id], depth + 1)
+                values[node.id] = folded
+                return folded
+            return "<var>"
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+            return fold(node.left, depth + 1) + fold(node.right, depth + 1)
+        return "<var>"
+
+    for name, expression in assignments.items():
+        values[name] = fold(expression)
+    _FRAGMENT_CACHE[key] = values
+    return values
+
 
 def _load_module_constants(source: str) -> None:
-    tree = ast.parse(source)
-    for node in tree.body:
-        if isinstance(node, ast.Assign) and len(node.targets) == 1:
-            name = node.targets[0]
-            if isinstance(name, ast.Name):
-                with contextlib.suppress(ValueError, SyntaxError):
-                    _module_constants[name.id] = ast.literal_eval(node.value)
+    _module_constants.update(_fragments_of(MYSQL))
 
 
 def _store_method_source(source: str, name: str) -> str:
