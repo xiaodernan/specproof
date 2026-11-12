@@ -152,6 +152,16 @@ def main() -> int:
     # drill touches the outbox/job state machine.
     store.ensure_tables()
     result: dict[str, Any] = {"drill": "worker_kill_recovery"}
+    # The queue is shared with whatever the operator left behind; the
+    # depth is part of the reading (a worker serves the oldest event
+    # first, so a backlog is why a leg waits).
+    try:
+        declared = rabbitmq.channel.queue_declare(
+            queue="q.p1.verify.job", passive=True,
+        )
+        result["queue_depth_at_start"] = int(declared.method.message_count)
+    except Exception:  # noqa: BLE001 - a missing queue is a fact too
+        result["queue_depth_at_start"] = None
     try:
         if not store.is_ready():
             raise DrillInfraUnavailableError("MySQL not reachable")
@@ -206,7 +216,11 @@ def main() -> int:
     control_proc = _start_worker(control_out)
     try:
         control_terminal = wait_for_status(
-            store, control_job_id, TERMINAL_STATUSES, timeout=1_800.0,
+            # The queue is shared: a worker consumes what is oldest first,
+            # so a backlog of earlier events is served before this job is
+            # claimed. The wait has to outlast that backlog (the drill
+            # prints its own queue depth so a reader can see the wait).
+            store, control_job_id, TERMINAL_STATUSES, timeout=3_600.0,
         )
     finally:
         control_proc.terminate()
@@ -241,7 +255,7 @@ def main() -> int:
         # window. The row is RUNNING from claim until the first
         # stage-boundary advance (the LLM stages keep it there for minutes).
         running = wait_for_status(
-            store, kill_job_id, ["RUNNING"], timeout=300.0,
+            store, kill_job_id, ["RUNNING"], timeout=900.0,
             keepalive=rabbitmq.keepalive,
         )
         if running is None:
@@ -334,7 +348,7 @@ def main() -> int:
                 "exhausted": [r.get("id") for r in sweep.exhausted],
             }
             kill_terminal = wait_for_status(
-                store, kill_job_id, TERMINAL_STATUSES, timeout=1_800.0,
+                store, kill_job_id, TERMINAL_STATUSES, timeout=3_600.0,
             )
         finally:
             resume_proc.terminate()

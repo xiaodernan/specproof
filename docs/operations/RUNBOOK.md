@@ -167,6 +167,16 @@ traceback, 而且 killed 的正是他本想保持不动的那个旋钮。现在�
 
 ## 5. 日常运维
 
+- **worker 的消费连接不带心跳 (2026-11-12)**。worker 在管线回调里可能阻塞数分钟
+  （LLM 慢或被限流），此时它发不出心跳帧，代理按两次漏检就会关闭这条连接——
+  worker 会在管线跑完后的第一次 ack 撞上 `StreamLostError` 退出，作业停在队里
+  等下一次认领。因此 worker 的 RabbitMQ 消费连接以 `heartbeat=0` 打开：代理不再
+  向它索要它给不出的活性。worker 的活性由**它自己的租约**（Redis，30s TTL，
+  心跳线程续租）与**过期回收**（`specproof ops recover` / 周期 tick 把过期 RUNNING
+  行 CAS 回 QUEUED 并换新 event_id 重投）负责。现场看到的现象对照：
+  作业长时间停在 QUEUED 而 worker 进程已退出 → 租约过期后由回收重投接上；
+  作业停在 RUNNING 而 worker 不在 → 同一条回收路径（前提是行未超过 `expire_overdue`
+  的时限，过了就落 EXPIRED）。
 - 备份: mysqldump specproof_phase0 每日; MinIO bucket 同步到冷存储;
   MongoDB 至少保留 checkpoint 集合。
 - 磁盘: 定时清理 workspace (--keep-worktrees 只在调试用);
