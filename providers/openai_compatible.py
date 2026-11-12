@@ -268,7 +268,7 @@ class OpenAICompatibleProvider(ModelProvider):
             return None
         try:
             store = RedisStore()
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001 - a cache must never break the probe
             return None
         try:
             snapshot = store.get_cached_provider_capability(
@@ -286,11 +286,11 @@ class OpenAICompatibleProvider(ModelProvider):
         """Write the verdict to the cache; failures are ignored."""
         try:
             from storage.redis import RedisStore
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001 - the provider must not need Redis
             return
         try:
             store = RedisStore()
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001 - a cache must never break the probe
             return
         try:
             store.cache_provider_capability(

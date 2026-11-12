@@ -332,10 +332,20 @@ def test_C5_the_leg_declares_the_environment_that_holds_the_credentials() -> Non
 def test_C6_the_register_earns_the_count_in_its_own_reason() -> None:
     register = _register()
     key = f"a756f5338:{BRANCH_QUALITY}"
-    entry = register.FILE_DISPOSITIONS.get(key)
+    # #1623 adjudicated every orphan-branch disposition as MERGED (the
+    # three root branches landed in master) and archived the whole table,
+    # so the live table is empty by construction; the entry lives in the
+    # historical home. The arithmetic and the reason are unchanged either
+    # way — this is where the row moved, not what it says.
+    entry = register.FILE_DISPOSITIONS.get(key) or register.MERGED_FILE_DISPOSITIONS.get(key)
     assert entry, f"the register dropped its {key} disposition"
     reason = " ".join(str(x) for x in (entry["reason"],))
-    absent = _branch_job_ids() - _master_job_ids() - set(register.RENAMED_JOBS)
+    # #1623 archived the whole adjudication as MERGED_* (the refs are
+    # ancestors of master now; the live tables are empty by construction).
+    # The merged rename only ever had one row, and the ruler gets it from
+    # the archive like the FILE disposition two lines up does.
+    renamed = set(register.RENAMED_JOBS) | set(register.MERGED_RENAMED_JOBS)
+    absent = _branch_job_ids() - _master_job_ids() - renamed
     measured = _LEADING_INT.search(reason)
     assert measured, f"reason carries no number at all: {reason!r}"
     assert int(measured.group(1)) == len(absent), (
@@ -347,9 +357,16 @@ def test_C6_the_register_earns_the_count_in_its_own_reason() -> None:
     assert JOB_ID not in register.REGISTERED_GAPS, (
         f"REGISTERED_GAPS still lists {JOB_ID}: #1548's P8 re-derives gaps from the "
         "refs, so a stale row here is a gap that reads as still open")
+    assert JOB_ID not in register.MERGED_REGISTERED_GAPS, (
+        f"MERGED_REGISTERED_GAPS still lists {JOB_ID}: the #1549 landing carried "
+        "the branch's job into master's ci.yml step-for-step, so the archive row "
+        "reading as open is the same ghost the live table would have been")
     assert JOB_ID not in register.RENAMED_JOBS, (
         f"{JOB_ID} is registered as a rename, not as landed -- ci.yml carries the "
         "branch's own job id, so there is nothing to rename")
+    assert JOB_ID not in register.MERGED_RENAMED_JOBS, (
+        f"{JOB_ID} is registered as a rename in the MERGED archive either; the "
+        "branch's job carried the id verbatim, so no row can say rename")
 
 
 # ══════════════════════════════════════════════════════════════════════════

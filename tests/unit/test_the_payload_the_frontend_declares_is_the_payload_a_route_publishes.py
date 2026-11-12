@@ -289,7 +289,13 @@ UNPAIRED_ENDPOINTS: frozenset[Key] = frozenset(
 ROSTERED_EXTRA_KEYS: dict[Key, frozenset[str]] = {
     ("get", "/agent/jobs"): frozenset({"next_offset"}),
     ("get", "/api/v1/jobs/{}/findings"): frozenset({"sources"}),
-    ("get", "/jobs"): frozenset({"limit", "offset", "total"}),
+    # next_cursor arrived with the keyset cursor pagination (#1618/#1668bab).
+    # Guide.tsx/Jobs.tsx pair the route with `JobsPage`, which DECLARES it
+    # (optional, api.ts:445); Matrix.tsx pairs it with its inline
+    # `{ jobs: Job[] }`, which declares neither it nor total — the union is
+    # what this register records, so the key belongs here even though two of
+    # the three pairs now owe it nothing.
+    ("get", "/jobs"): frozenset({"limit", "offset", "total", "next_cursor"}),
     ("get", "/jobs/{}/summary"): frozenset({"job_id"}),
     ("post", "/api/v1/demo/prepare"): frozenset({"repo"}),
     ("post", "/api/v1/model/test"): frozenset({"error_code"}),
@@ -479,6 +485,15 @@ AXIS_C_BANDS: dict[Key, tuple[tuple[str, int], dict[str, tuple[str, ...]]]] = {
         ("apps/web/src/pages/Matrix.tsx", 22),
         {"always": ("counts_source", "rows_total", "rows_truncated", "sources")},
     ),
+    # #1631: the row is back, keyed on the keyset cursor (#1668bab) — Guide.tsx
+    # pairs with JobsPage, which declares `next_cursor?` (optional, api.ts:445),
+    # so axis (d) files the key as optional and this register files it as
+    # `always` in the route's own exits: the two registers still describe one
+    # tree. `total` stays in axis (d)'s required column, untouched by #547.
+    ("get", "/jobs"): (
+        ("apps/web/src/pages/Guide.tsx", 74),
+        {"always": ("next_cursor",)},
+    ),
     ("post", "/api/v1/model/test"): (
         ("apps/web/src/agent/pages/AgentSettings.tsx", 91),
         {"overstated": ("usage",)},
@@ -489,7 +504,7 @@ AXIS_C_BANDS: dict[Key, tuple[tuple[str, int], dict[str, tuple[str, ...]]]] = {
 #: *between* bands on a route that keeps speaking: ``always`` 7 -> 10 and ``overstated``
 #: 3 -> 0 is one line in the owner (arm E2) and leaves all four rows standing.
 AXIS_C_KEY_TOTALS: dict[str, int] = {
-    "always": 7,
+    "always": 8,
     "overstated": 3,
     "sometimes": 0,
     "absent": 2,
@@ -692,27 +707,27 @@ CONSUMER_BINDING_STYLES: dict[str, int] = {
 #: implementation that assigns styles by position pass every leg here.
 CONSUMER_BINDING_ROSTER: dict[str, tuple[tuple[str, int], ...]] = {
     "forward": (
-        ("apps/web/src/api.ts", 454),
-        ("apps/web/src/api.ts", 469),
-        ("apps/web/src/api.ts", 587),
-        ("apps/web/src/api.ts", 594),
-        ("apps/web/src/api.ts", 997),
-        ("apps/web/src/api.ts", 1005),
-        ("apps/web/src/api.ts", 1014),
-        ("apps/web/src/api.ts", 1024),
-        ("apps/web/src/api.ts", 1043),
-        ("apps/web/src/api.ts", 1052),
-        ("apps/web/src/api.ts", 1058),
-        ("apps/web/src/api.ts", 1107),
-        ("apps/web/src/api.ts", 1148),
-        ("apps/web/src/api.ts", 1155),
-        ("apps/web/src/api.ts", 1163),
-        ("apps/web/src/api.ts", 1167),
-        ("apps/web/src/api.ts", 1171),
-        ("apps/web/src/api.ts", 1178),
-        ("apps/web/src/api.ts", 1185),
-        ("apps/web/src/api.ts", 1195),
-        ("apps/web/src/api.ts", 1199),
+        ("apps/web/src/api.ts", 457),
+        ("apps/web/src/api.ts", 472),
+        ("apps/web/src/api.ts", 590),
+        ("apps/web/src/api.ts", 597),
+        ("apps/web/src/api.ts", 1000),
+        ("apps/web/src/api.ts", 1008),
+        ("apps/web/src/api.ts", 1017),
+        ("apps/web/src/api.ts", 1027),
+        ("apps/web/src/api.ts", 1046),
+        ("apps/web/src/api.ts", 1055),
+        ("apps/web/src/api.ts", 1061),
+        ("apps/web/src/api.ts", 1110),
+        ("apps/web/src/api.ts", 1151),
+        ("apps/web/src/api.ts", 1158),
+        ("apps/web/src/api.ts", 1166),
+        ("apps/web/src/api.ts", 1170),
+        ("apps/web/src/api.ts", 1174),
+        ("apps/web/src/api.ts", 1181),
+        ("apps/web/src/api.ts", 1188),
+        ("apps/web/src/api.ts", 1198),
+        ("apps/web/src/api.ts", 1202),
     ),
     "then-chain": (
         ("apps/web/src/agent/pages/AgentSettings.tsx", 48),
@@ -736,9 +751,9 @@ CONSUMER_BINDING_ROSTER: dict[str, tuple[tuple[str, int], ...]] = {
     "await-binding": (
         ("apps/web/src/agent/components.tsx", 66),
         ("apps/web/src/agent/pages/AgentSettings.tsx", 73),
-        ("apps/web/src/api.ts", 1225),
-        ("apps/web/src/api.ts", 1237),
-        ("apps/web/src/pages/Jobs.tsx", 45),
+        ("apps/web/src/api.ts", 1228),
+        ("apps/web/src/api.ts", 1240),
+        ("apps/web/src/pages/Jobs.tsx", 58),
     ),
     "hook": (
         ("apps/web/src/pages/Contracts.tsx", 17),
@@ -750,7 +765,7 @@ CONSUMER_BINDING_ROSTER: dict[str, tuple[tuple[str, int], ...]] = {
         ("apps/web/src/pages/Login.tsx", 84),
     ),
     "promise-bound": (
-        ("apps/web/src/api.ts", 1135),
+        ("apps/web/src/api.ts", 1138),
     ),
     "destructuring": (
         ("apps/web/src/pages/JobDetail.tsx", 241),
@@ -791,7 +806,7 @@ CONSUMER_BINDING_STATEMENT_READS: dict[
 CONSUMER_BINDING_BLOCK_GUARDS: dict[tuple[str, int], tuple[str, ...]] = {
     ("apps/web/src/pages/Contracts.tsx", 17): ("contracts:nullish", "contracts:optchain"),
     ("apps/web/src/pages/JobDetail.tsx", 222): ("summary:logical-or",),
-    ("apps/web/src/pages/Jobs.tsx", 45): ("jobs:logical-or",),
+    ("apps/web/src/pages/Jobs.tsx", 58): ("jobs:logical-or", "next_cursor:nullish"),
     ("apps/web/src/pages/Matrix.tsx", 21): ("jobs:nullish", "jobs:optchain"),
     ("apps/web/src/pages/Matrix.tsx", 22): (
         "degraded_reason:logical-or",
@@ -803,7 +818,7 @@ CONSUMER_BINDING_BLOCK_GUARDS: dict[tuple[str, int], tuple[str, ...]] = {
 #: ``(sites, shape rows, distinct (site, key))`` for the register above: 5 /
 #: 9 / 7. The third column is smaller because two sites guard one key
 #: in two shapes, and keeping both counts is what makes the flattening mistake visible.
-CONSUMER_BINDING_BLOCK_TOTALS = (5, 9, 7)
+CONSUMER_BINDING_BLOCK_TOTALS = (5, 10, 8)
 
 #: Every ``x.k || fallback`` access in either lens: ``(file, line, key)``, three rows.
 #: The shape is ranked last in the classifier, so these three are accesses nothing else
@@ -812,7 +827,7 @@ CONSUMER_BINDING_BLOCK_TOTALS = (5, 9, 7)
 #: turns a missing key into an empty list and is what keeps a live guard in ``vitest``.
 CONSUMER_BINDING_LOGICAL_OR: tuple[tuple[str, int, str], ...] = (
     ("apps/web/src/pages/JobDetail.tsx", 222, "summary"),
-    ("apps/web/src/pages/Jobs.tsx", 45, "jobs"),
+    ("apps/web/src/pages/Jobs.tsx", 58, "jobs"),
     ("apps/web/src/pages/Matrix.tsx", 22, "degraded_reason"),
 )
 
@@ -852,13 +867,13 @@ CONSUMER_BINDING_FORWARD_READS: frozenset[tuple[str, int]] = frozenset()
 #: distinction -- refusing is honest only while the refusal is named.
 CONSUMER_BINDING_UNREAD_BLOCKS: frozenset[tuple[str, int]] = frozenset(
     {
-        ("apps/web/src/api.ts", 594),
-        ("apps/web/src/api.ts", 997),
-        ("apps/web/src/api.ts", 1014),
-        ("apps/web/src/api.ts", 1052),
-        ("apps/web/src/api.ts", 1155),
-        ("apps/web/src/api.ts", 1195),
-        ("apps/web/src/api.ts", 1237),
+        ("apps/web/src/api.ts", 597),
+        ("apps/web/src/api.ts", 1000),
+        ("apps/web/src/api.ts", 1017),
+        ("apps/web/src/api.ts", 1055),
+        ("apps/web/src/api.ts", 1158),
+        ("apps/web/src/api.ts", 1198),
+        ("apps/web/src/api.ts", 1240),
     }
 )
 
@@ -888,20 +903,20 @@ CONSUMER_BINDING_UNREAD_BLOCKS: frozenset[tuple[str, int]] = frozenset(
 CLIENT_ISSUER_ROSTER: dict[str, tuple[int, int, bool, tuple[str, ...]]] = {
     "doFetch": (194, 0, False, ()),
     "openEventStream": (274, 0, False, ()),
-    "apiDelete": (944, 1, True, ("doFetch",)),
+    "apiDelete": (947, 1, True, ("doFetch",)),
     "apiGet": (203, 1, True, ("doFetch",)),
-    "apiPost": (949, 1, True, ("doFetch",)),
-    "createFindingFeedback": (590, 1, True, ("apiPost",)),
+    "apiPost": (952, 1, True, ("doFetch",)),
+    "createFindingFeedback": (593, 1, True, ("apiPost",)),
     "downloadCapsule": (363, 1, True, ("doFetch",)),
-    "getAgentDiff": (1057, 1, True, ("apiGet",)),
-    "getAuthConfig": (1106, 1, True, ("apiGet",)),
-    "getInvoiceByPeriod": (1224, 1, True, ("apiGet",)),
-    "getJobFeedback": (586, 1, True, ("apiGet",)),
+    "getAgentDiff": (1060, 1, True, ("apiGet",)),
+    "getAuthConfig": (1109, 1, True, ("apiGet",)),
+    "getInvoiceByPeriod": (1227, 1, True, ("apiGet",)),
+    "getJobFeedback": (589, 1, True, ("apiGet",)),
     "logout": (149, 1, True, ("doFetch",)),
-    "openAgentEventStream": (966, 1, True, ("openEventStream",)),
+    "openAgentEventStream": (969, 1, True, ("openEventStream",)),
     "openProgressStream": (259, 1, True, ("openEventStream",)),
-    "prepareDemoRepo": (468, 1, True, ("apiPost",)),
-    "transitionInvoiceStatus": (1233, 1, True, ("apiPost",)),
+    "prepareDemoRepo": (471, 1, True, ("apiPost",)),
+    "transitionInvoiceStatus": (1236, 1, True, ("apiPost",)),
 }
 
 #: How many issuers sit at each graph distance from a transport. The absence of a ``2`` is the
@@ -991,8 +1006,8 @@ DENOMINATOR_NAMED_WITHOUT_A_CENSUS_ROW: frozenset[tuple[str, int, str, str]] = f
         ("apps/web/src/agent/pages/AgentResult.tsx", 104, "issuer-call", "useAgentJob"),
         ("apps/web/src/agent/pages/AgentToolStream.tsx", 56, "issuer-call", "useAgentJob"),
         ("apps/web/src/api.ts", 203, "internal", "apiGet"),
-        ("apps/web/src/api.ts", 944, "internal", "apiDelete"),
-        ("apps/web/src/api.ts", 949, "internal", "apiPost"),
+        ("apps/web/src/api.ts", 947, "internal", "apiDelete"),
+        ("apps/web/src/api.ts", 952, "internal", "apiPost"),
         ("apps/web/src/hooks/useRemoteData.ts", 5, "issuer-def", "useRemoteData"),
         ("apps/web/src/hooks/useRemoteData.ts", 32, "verb-name", "apiGet"),
     }
@@ -2733,9 +2748,12 @@ def test_an_optional_key_is_rostered_in_the_band_the_route_puts_it_in() -> None:
     answered it on its only exit. Two frontend files disagreed with each other, and the
     census was the only thing in the repo that could say so. #551 read that disagreement
     off this register and repaired it -- the type is imported from `api.ts` now -- so the
-    `/jobs` row is gone, `AXIS_C_BANDS` has four entries, and `always` totals 7 instead
-    of 8. Those numbers are asserted below, so a rollback of the declaration shows up as
-    a red leg rather than as a comment that has stopped being true.
+    `/jobs` row was gone, `AXIS_C_BANDS` had four entries, and `always` totalled 7 instead
+    of 8. #1631 measured it back: the keyset cursor (#1668bab) made `next_cursor` an
+    `always` key of the /jobs exits, so the register reads five entries and `always`
+    totals 8 — the /jobs row keys on `next_cursor` (axis (d) files it optional),
+    never on `total` (axis (d) files it required). Those numbers are asserted below,
+    so a rollback of the declaration shows up as a red leg rather than as a comment.
 
     The bands are asserted per endpoint *and* summed, because those catch different edits:
     a route whose reading changed, and keys moving between bands on a route that keeps
@@ -3166,9 +3184,14 @@ def test_a_defence_on_a_key_the_route_always_publishes_is_rostered() -> None:
     assert guide == ("get", "/jobs", "typeof", "required", "always"), (
         f"the guard this number exists for changed shape: {guide}"
     )
-    assert ("get", "/jobs") not in AXIS_C_BANDS, (
-        "axis (c) has a /jobs row again while axis (d) files the same key as required: "
-        "two registers of one tree would be describing two trees"
+    jobs_row = AXIS_C_BANDS.get(("get", "/jobs"))
+    assert jobs_row == (
+        ("apps/web/src/pages/Guide.tsx", 74),
+        {"always": ("next_cursor",)},
+    ), (
+        "the /jobs row in axis (c) is the keyset cursor (#1668bab): axis (d) files "
+        "`total` as required and `next_cursor` as optional, so a re-entry keyed on "
+        "`total` would be describing a second, stale tree"
     )
 
 

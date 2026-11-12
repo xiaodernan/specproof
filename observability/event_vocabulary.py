@@ -37,6 +37,10 @@ EXCHANGE_EVENTS = "specproof.observability.events"
 #: else (unset, empty, "0", "true") leaves the legacy no-op sink in place, so
 #: an unconfigured deployment is byte-identical to the pre-#1603 behavior.
 ENV_BUS_ENABLED = "SPECPROOF_MQ_EVENTS_ENABLED"
+# Tied on purpose: `bus_enabled` spells the literal below so the shipped
+# bytes carry the name an operator sets (the knob census counts literal
+# reads; a switch read through a constant is invisible to it — #L06).
+assert ENV_BUS_ENABLED == "SPECPROOF_MQ_EVENTS_ENABLED"
 
 #: The durable queue owned by the Spring Cloud edge. The producer may declare
 #: and bind it (``RabbitMQClient.declare_events_bus``) but never consumes it.
@@ -66,8 +70,12 @@ EVENT_KINDS: tuple[str, ...] = (
 
 def bus_enabled(env: Mapping[str, str] | None = None) -> bool:
     """True only for the literal ``1``; every other value keeps the bus off."""
-    source: Mapping[str, str] = os.environ if env is None else env
-    return source.get(ENV_BUS_ENABLED, "").strip() == "1"
+    if env is not None:
+        return env.get("SPECPROOF_MQ_EVENTS_ENABLED", "").strip() == "1"
+    # Spelled as ``os.environ.get(...)`` with the literal name so the shipped
+    # bytes carry the read an operator performs (the knob census counts this
+    # shape); ``env=`` keeps the test seam.
+    return os.environ.get("SPECPROOF_MQ_EVENTS_ENABLED", "").strip() == "1"
 
 
 def routing_key_for(kind: str) -> str:

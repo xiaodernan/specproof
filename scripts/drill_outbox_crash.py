@@ -21,6 +21,7 @@ Exit codes: 0 = PASS, 1 = FAIL, 2 = infrastructure unavailable.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import subprocess
@@ -62,11 +63,16 @@ VERIFY_QUEUE = "q.p1.verify.job"
 
 
 def _worker_env() -> dict[str, str]:
-    """Deterministic worker environment: no LLM credentials leak in."""
+    """The same environment a real worker starts with: nothing invented.
+
+    The drill runs the same pipeline the product runs: it uses the
+    project's own model configuration if one exists (.local/llm.json or
+    SPECPROOF_MODEL_CONFIG), exactly as a real worker would. It injects no
+    credentials of its own -- an operator who wants a credential-free run
+    unsets the file and gets the deterministic route, which is a real
+    degradation but short-circuits early.
+    """
     env = dict(os.environ)
-    env.pop("LLM_API_KEY", None)
-    env.pop("LLM_BASE_URL", None)
-    env.pop("LLM_MODEL", None)
     env["PYTHONPATH"] = str(REPO_ROOT)
     return env
 
@@ -77,6 +83,16 @@ def _queue_message_count(rabbitmq: RabbitMQClient, queue: str) -> int:
 
 
 def main() -> int:
+    # The console's encoding is not the repository's: on a GBK console a
+    # character the worker logged (the replacement character a partial
+    # UTF-8 sequence leaves behind) made the drill's OWN report fail to
+    # print -- the evidence was lost by the tool that produced it. The
+    # report is written as UTF-8 and never dies on an unprintable
+    # character.
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if callable(reconfigure):
+        with contextlib.suppress(Exception):
+            reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="emit JSON only")
     parser.parse_args()
@@ -174,6 +190,10 @@ def main() -> int:
         terminal = wait_for_status(
             store, job_id, ["VERIFIED", "BLOCKED", "FAILED", "ERROR", "STALE"],
             timeout=600.0,
+            # the wait can outlast the broker's heartbeat; a connection
+            # nobody services is taken away, and the publish that follows
+            # would fail for a reason that has nothing to do with the drill
+            keepalive=rabbitmq.keepalive,
         )
         result["terminal_status"] = terminal["status"] if terminal else None
         if terminal is None:
@@ -235,7 +255,13 @@ def main() -> int:
         except subprocess.TimeoutExpired:
             worker_proc.kill()
         worker_log_handle.close()
-    result["worker_log_tail"] = worker_out.read_text(encoding="utf-8")[-1200:]
+    # The worker writes in the console encoding of its own process, so the log
+    # is NOT necessarily UTF-8: reading it strictly raised a
+    # UnicodeDecodeError INSIDE the failure report, and the drill lost the
+    # very evidence it was trying to show.
+    result["worker_log_tail"] = worker_out.read_text(
+        encoding="utf-8", errors="replace"
+    )[-1200:]
 
     print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
     return 0 if result.get("passed") else 1

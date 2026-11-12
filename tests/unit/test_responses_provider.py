@@ -42,6 +42,13 @@ def provider_with(outcome):
         base_url="https://gateway.test", api_key="test-key", model="gpt-6-astra",
         reasoning_effort="max", protocol="responses", max_retries=0,
     )
+    # Unit tests must not depend on (or pollute) the ambient dev Redis: a
+    # cache hit from a past run would answer "streaming" without ever
+    # reaching the stubbed client (#1617), and a miss would write back into
+    # the shared key. The capability cache is fenced by its own suite
+    # (test_provider_capability_cache.py); this suite exercises the wire stub.
+    provider._cached_capability_snapshot = lambda: None  # noqa: SLF001
+    provider._store_capability_snapshot = lambda snapshot: None  # noqa: SLF001
     calls = []
 
     async def create(**kwargs):

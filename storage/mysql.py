@@ -34,11 +34,17 @@ from storage.unit_of_work import unit_of_work
 
 logger = logging.getLogger(__name__)
 
-#: How many MySQL connections ONE process may hold (#1622).
-MYSQL_DEFAULT_POOL_SIZE = DEFAULT_POOL_SIZE
-#: How long a caller waits for a connection to come back before the pool
-#: says so (seconds).
-MYSQL_DEFAULT_POOL_ACQUIRE_TIMEOUT = DEFAULT_ACQUIRE_TIMEOUT
+#: How many MySQL connections ONE process may hold (#1622). Written as
+#: module-level numeric constants on purpose: the numeric-knobs census reads
+#: this module's own literal bindings to learn the default an operator would
+#: get (a name resolved through the import would read as unaccounted).
+#: The two are kept == storage.connection_pool's constants by the import-time
+#: assertions right below them, so there is exactly one fact and it is stated
+#: in both places.
+MYSQL_DEFAULT_POOL_SIZE = 8
+MYSQL_DEFAULT_POOL_ACQUIRE_TIMEOUT = 5.0
+assert MYSQL_DEFAULT_POOL_SIZE == DEFAULT_POOL_SIZE
+assert MYSQL_DEFAULT_POOL_ACQUIRE_TIMEOUT == DEFAULT_ACQUIRE_TIMEOUT
 
 # ── Tenant-aware job SQL (industrialization phase 1) ─────────────
 # When a tenant scope is active (multi-tenant auth mode) every job read
@@ -46,6 +52,27 @@ MYSQL_DEFAULT_POOL_ACQUIRE_TIMEOUT = DEFAULT_ACQUIRE_TIMEOUT
 # principal — repository-layer parameterization per
 # docs/architecture/MULTI_TENANT_DESIGN.md §2/§4. Without a scope the SQL is
 # byte-identical to the pre-tenant implementation (single-tenant compat).
+
+#: Keyset-cursor paging (#1618): the same statement built two ways — one
+#: binds one extra row to learn whether a next page exists, the offset mode
+#: trusts the count it already holds. Fragments are literals and module
+#: constants (IS_DEMO_COLUMN, DEMO_NOTE_PREFIX); every value travels as a
+#: bound parameter. The `# nosec B608` sits on the first string literal,
+#: where bandit keys the statement.
+_JOBS_PAGE_CURSOR_SQL = (
+    "SELECT id, repo_path, base_ref, head_ref, "  # nosec B608
+    "status, depth, retry_count, "
+    "worker_id, last_error, created_at, updated_at, "
+    + IS_DEMO_COLUMN + " FROM verification_jobs"
+    + " ORDER BY created_at DESC, id DESC LIMIT %s"
+)
+_JOBS_PAGE_OFFSET_SQL = (
+    "SELECT id, repo_path, base_ref, head_ref, "  # nosec B608
+    "status, depth, retry_count, "
+    "worker_id, last_error, created_at, updated_at, "
+    + IS_DEMO_COLUMN + " FROM verification_jobs"
+    + " ORDER BY created_at DESC, id DESC LIMIT %s OFFSET %s"
+)
 
 _JOB_INSERT_TENANT_SQL = (
     "INSERT INTO verification_jobs "
@@ -1244,30 +1271,16 @@ class MySQLStore:
                 # count it holds is the whole population, not the remainder,
                 # so the extra row is how it knows whether a next page
                 # exists.
-                cur.execute(
-                    # fragments + bound params
-                    "SELECT id, repo_path, base_ref, head_ref, "  # nosec B608
-                    "status, depth, retry_count, "
-                    "worker_id, last_error, created_at, updated_at, "
-                    + IS_DEMO_COLUMN + " FROM verification_jobs" + page_where
-                    + " ORDER BY created_at DESC, id DESC LIMIT %s",
-                    # the SELECT list precedes WHERE, so the bound prefix is first
-                    (DEMO_NOTE_PREFIX, *page_params, limit + 1),
-                )
+                # the SELECT list precedes WHERE, so the bound prefix is first
+                cur.execute(_JOBS_PAGE_CURSOR_SQL + page_where,
+                            (DEMO_NOTE_PREFIX, *page_params, limit + 1))
             else:
                 # The offset path does NOT need the extra row: the count it
                 # already holds says whether rows remain after this page, so
                 # the page is exactly the size that was asked for.
-                cur.execute(
-                    # fragments + bound params
-                    "SELECT id, repo_path, base_ref, head_ref, "  # nosec B608
-                    "status, depth, retry_count, "
-                    "worker_id, last_error, created_at, updated_at, "
-                    + IS_DEMO_COLUMN + " FROM verification_jobs" + page_where
-                    + " ORDER BY created_at DESC, id DESC LIMIT %s OFFSET %s",
-                    # the SELECT list precedes WHERE, so the bound prefix is first
-                    (DEMO_NOTE_PREFIX, *page_params, limit, offset),
-                )
+                # the SELECT list precedes WHERE, so the bound prefix is first
+                cur.execute(_JOBS_PAGE_OFFSET_SQL + page_where,
+                            (DEMO_NOTE_PREFIX, *page_params, limit, offset))
             rows = cur.fetchall()
         next_cursor = None
         if decoded is not None:

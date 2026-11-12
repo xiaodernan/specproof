@@ -26,15 +26,19 @@ import uuid
 import pytest
 
 from storage.mysql import MySQLStore, decode_job_cursor, encode_job_cursor
+from tests._mysql_gate import requires_mysql
+
+#: The keyset-cursor paging legs all write to MySQL, and they skip on the
+#: session's isolation verdict like every other live-database case — not on
+#: a probe of their own (#1622 folded the self-deciding files onto the shared
+#: owner; LEGACY_RUN_TIME_SKIPS stays empty).
+pytestmark = requires_mysql("the keyset-cursor paging leg writes to MySQL")
 
 
 @pytest.fixture()
 def store() -> MySQLStore:
     s = MySQLStore()
-    try:
-        s.ensure_tables()
-    except Exception:
-        pytest.skip("MySQL not available")
+    s.ensure_tables()
     return s
 
 

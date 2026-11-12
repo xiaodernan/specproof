@@ -3,7 +3,7 @@
 > 这份清单是**测出来的**，不是列出来的。生成器：`scripts/classify_test_fakes.py`
 > （可重复运行；`--json` 给出机器可读的形式）。
 >
-> 本页数字对应 `3a39bdc`（2026-11-10 重钉：`705d254`（#1560）引入的 `_FakeRedis`、`e4dc722`（#1562）引入的 `_FailingMetadataStore`，见下「2026-11-10 重钉」一节；`--explain-drift 3a39bdc` 全程在场输出）。规则或 `tests/` 里的假一变，
+> 本页数字对应 `422deca`（2026-11-12 重钉，见下「2026-11-12 重钉」一节；`--explain-drift 3a39bdc` 全程在场输出）。规则或 `tests/` 里的假一变，
 > `tests/unit/test_fake_inventory_stays_measured.py` 会先红——数字不能靠手改跟上代码。
 >
 > **红自己交代原因（#601 起）**：门里钉的不是四个整数，而是一个**提交号** + 那一棵树上的三个数。
@@ -37,17 +37,17 @@
 
 | 类别 | 数量 | 含义 | 求值器能替吗 |
 |---|---|---|---|
-| **SQL 假** | **21** | 实现了 SQL 面（`cursor` / `fetchall` / `fetchone` / `commit` / `rollback` / `executemany` / `query` / `select` / `insert` / `update`；**`execute` 单独出现不算**，见下面「`execute` 撞名」） | **能**——求值器就是替这一面 |
-| 仓储鸭子类型 | 46 | 实现的是**领域方法**（`save` / `find_by_id` / `incr` / `expire` / `publish` / `delete` …） | **不能**——换成求值器等于把它变成**真 store**，那是另一类改动 |
-| 普通替身 | 212 | 只实现被测代码用到的那几个方法 | 不在讨论范围内 |
+| **SQL 假** | **22** | 实现了 SQL 面（`cursor` / `fetchall` / `fetchone` / `commit` / `rollback` / `executemany` / `query` / `select` / `insert` / `update`；**`execute` 单独出现不算**，见下面「`execute` 撞名」） | **能**——求值器就是替这一面 |
+| 仓储鸭子类型 | 42 | 实现的是**领域方法**（`save` / `find_by_id` / `incr` / `expire` / `publish` / `delete` …） | **不能**——换成求值器等于把它变成**真 store**，那是另一类改动 |
+| 普通替身 | 218 | 只实现被测代码用到的那几个方法 | 不在讨论范围内 |
 
-⇒ ⇒ **手写假一共 279 个，而「SQL 假」只有 21 个（约 7.5%）** ⇒ ⇒ 原队列项瞄准的集合比看上去小一个数量级 ⇒ ⇒
-且那 21 个类（SQL 替身 13 处）分布在 **13 个文件**里（其中 8 处是「一个游标 + 一个连接/存储」的分体：`fixture_server.py` `test_audit_action_parity.py` `test_drill_helpers.py` `test_feedback_store_read.py` `test_mcp_server.py` `test_mysql_isolation_contract.py` `test_tenant_auth.py` `test_web_api.py`；`fake_sql_engine.py` 的 `SqlFakeCursor` 是 SQL 求值器本体，按上表入账），——本页各处数字以 `3a39bdc` 实测为准（见 `tests/unit/test_fake_inventory_stays_measured.py` 钉脚本）。
+⇒ ⇒ **手写假一共 282 个，而「SQL 假」只有 22 个（约 7.8%）** ⇒ ⇒ 原队列项瞄准的集合比看上去小一个数量级 ⇒ ⇒
+且那 22 个类（SQL 替身 14 处）分布在 **14 个文件**里（其中 8 处是「一个游标 + 一个连接/存储」的分体：`fixture_server.py` `test_audit_action_parity.py` `test_drill_helpers.py` `test_feedback_store_read.py` `test_mcp_server.py` `test_mysql_isolation_contract.py` `test_tenant_auth.py` `test_web_api.py`；`fake_sql_engine.py` 的 `SqlFakeCursor` 是 SQL 求值器本体，按上表入账），——本页各处数字以 `422deca` 实测为准（见 `tests/unit/test_fake_inventory_stays_measured.py` 钉脚本）。
 
 ⇒ ⇒ **结论（这条队列项就此重框）**：
 1. 「把手写假换成求值器」**不成立**——多数手写假**根本不与 SQL 打交道**（它们替的是领域方法）⇒ ⇒ 换掉它们会让测试**从替身变成真 store**（⇒ 更慢、⇒ 更容易因环境而红、⇒ 且测的是**真 store**而不是被测代码）✗。
 2. 真正可以换的只有**12 处 SQL 替身** ⇒ ⇒ 那是**一小块**具体工作（⇒ 下一个号可以做，或干脆不值得做——**判据是「换了以后，测的是不是同一件事」**）。
-3. 剩下的 46 处仓储鸭子类型与 212 处普通替身**留在原处**——它们是**恰当的**测试替身（替的是**被测代码依赖的接口**，不是数据库）✓。
+3. 剩下的 42 处仓储鸭子类型与 218 处普通替身**留在原处**——它们是**恰当的**测试替身（替的是**被测代码依赖的接口**，不是数据库）✓。
 
 ## 再收窄一层：哪些 SQL 假**真的**在写规则？
 
@@ -122,3 +122,33 @@ python scripts/classify_test_fakes.py --explain-drift 3a39bdc   # 数目为什�
 - 类名是启发式（`Fake*` / `Stub*` / `*Store` / `*Db` / 含 `fake`）⇒ ⇒ **没被名字命中的替身不进名单**（⇒ 名单也是下界 ✓）。
 - 本页的**当前数字**由门每轮重测 ⇒ ⇒ 它一旦与代码不符，门先红，并且**红里带着「哪几个类造成的」**（⇒ ⇒ 前提是钉住的那个提交在本次历史里可达；不可达时另一条腿先红，不会给出一个读不出来的解释）✓。
 - 本清单**只做分类** ⇒ ⇒ **没有换任何一处替身** ⇒ ⇒ 「换不换」的**结论**已给出，**动作**没做。
+
+## 2026-11-12 重钉（`422deca` 实测）
+
+**起因（诚实）。** 全量门在 `422deca`（master 快照，干净树）上红了两条本页的腿
+（`test_the_counts_are_pinned` / `test_the_inventory_quotes_the_measured_numbers`）。
+不是断言被改弱了——树本身测出来的数目变了，而本页与钉脚本还钉在 `3a39bdc`。
+`--explain-drift 3a39bdc` 的输出（在场，本节末尾要点）显示：
+
+- **SQL 假 21 → 22**：`tests/unit/test_mysql_connection_pool_is_bounded_and_reused.py:42`
+  的 `_FakeConn`（`__init__, ping, commit, rollback, close`）——**#1622**（`90591ac`，
+  共享工作单元改走有界连接池）带来的；
+- **普通替身 212 → 218**（+6）：`tests/unit/test_rabbitmq_bus_sink.py:27` `_FakeChannel`
+  （`3a38840`，#1603 W190 事件总线）；`tests/unit/test_redis_stream.py:55,63,72,81`
+  四个 `FakeRedis [eval]`（`0d85586`，interview-hardening 并轨随行）；
+  `tests/unit/test_w190_event_bus_producer.py:45` `_FakeChannel`（`9b8324b`，#1605）；
+- **仓储鸭子类型 46 → 42**：`test_redis_stream.py` 里 4 个 `FakeRedis` 的方法列表变了
+  （`cd2e483`，#1611 Redis acquire/renew 改走 EVAL），分类器按新方法列表重划；
+- 两处桶内方法列表重划（件数不变）：`tests/e2e/fixture_server.py:225` 的 FakeMySQLStore、
+  `tests/unit/test_lease_max_hold.py:16` 的 FakeRedis——分类器如实指出 "no commit in
+  this range, so it is the method list"；
+- 合计 **279 → 282**，SQL 假占比 7.5% → 7.8%。
+
+**处置。** 钉脚本 `PIN_COMMIT` 改 `422decae3a8acf618f72c3a91bf26f6194b5021e`，
+`PIN_COUNTS` 改为 `{"sql-fake": 22, "store-duck-type": 42, "plain-double": 218}`；
+本页表与叙述数字同步为实测值。SQL 假现在分布 **14 个文件**
+（`test_mysql_connection_pool_is_bounded_and_reused.py` 是第 14 个，`_FakeConn` 单类），
+分体 8 处不变。
+
+**诚实边界。** 这类红不是"代码错了"，是"账本没记上"；树再干净它也不会消失——
+下一次分支并轨进 master 后，这两条腿还会再红一次，下一次重钉该由 CI 在场实测后追加。

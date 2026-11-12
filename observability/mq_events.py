@@ -38,9 +38,13 @@ from observability.metrics import incr
 
 LOGGER = logging.getLogger(__name__)
 
-METRIC_PUBLISHED = "specproof_w190_events_published_total"
-METRIC_FAILED = "specproof_w190_events_publish_failures_total"
-METRIC_UNKNOWN = "specproof_w190_events_unknown_total"
+# Emission names are BARE; observability/metrics.py prepends
+# ``specproof_`` only at exposition time. Writing the prefix here
+# would render ``/metrics`` as ``specproof_specproof_*`` and break
+# every reader-facing comparison the docs make against this module.
+METRIC_PUBLISHED = "w190_events_published_total"
+METRIC_FAILED = "w190_events_publish_failures_total"
+METRIC_UNKNOWN = "w190_events_unknown_total"
 
 
 class GuardedBusSink:

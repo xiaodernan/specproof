@@ -184,6 +184,27 @@ class RabbitMQClient:
             self._connect()
         return self._channel
 
+    def keepalive(self) -> None:
+        """Service the connection without publishing anything.
+
+        The connection is opened with ``heartbeat=30``, so the broker
+        closes it after two missed heartbeats (60 seconds). A client that
+        waits for something else -- a worker finishing a job, a drill
+        polling MySQL -- sends no frames, and the broker takes the
+        connection away. Then the next publish fails with "Transport
+        indicated EOF", minutes after the wait that caused it.
+
+        Pumping the connection's events is what any long-lived client
+        does, and it is what keeps a long wait honest.
+        """
+        connection = self._connection
+        if connection is None or connection.is_closed:
+            return
+        try:
+            connection.process_data_events(time_limit=0)
+        except Exception:  # noqa: BLE001 - a keepalive never breaks a wait
+            logger.debug("rabbitmq keepalive failed; the connection is gone")
+
     # ── topology ──────────────────────────────────────────────
 
     def ensure_topology(self) -> None:

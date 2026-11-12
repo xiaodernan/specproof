@@ -176,14 +176,18 @@ KNOWN_NEAR_CLONES: dict[Clone, str] = {
     ): "`self._running = False` on two independent loop classes; no shared base exists "
     "and a one-line setter would not be it.",
     # ---- the backend clients: readiness, teardown, constructors ----
+    # #1631: was three members until #1621 made `RedisStore.close()` a
+    # reference release (the client belongs to the process); the remaining
+    # two backends still share a verbatim body.
     frozenset(
         {
             ("storage/elasticsearch.py", "close"),
             ("storage/mongodb.py", "close"),
-            ("storage/redis.py", "close"),
         }
-    ): "`if self._client: self._client.close(); self._client = None` — three clients, no "
-    "common ancestor; the pattern is the whole body.",
+    ): "`if self._client: self._client.close(); self._client = None` — two clients, no "
+    "common ancestor (`storage/redis.py` was the third sibling until #1621 made "
+    "RedisStore.close() release the reference instead of the socket); the "
+    "pattern is the whole body.",
     frozenset(
         {
             ("storage/elasticsearch.py", "is_ready"),

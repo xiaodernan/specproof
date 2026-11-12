@@ -137,10 +137,18 @@ def wait_for_status(
     statuses: Collection[str],
     timeout: float = 120.0,
     interval: float = DEFAULT_POLL_INTERVAL,
+    keepalive: Callable[[], None] | None = None,
 ) -> dict[str, Any] | None:
     """Poll MySQL until the job row reaches one of ``statuses`` (or timeout).
 
     Returns the job row dict, or None on timeout.
+
+    ``keepalive`` is called once per poll. It exists for the waits that are
+    LONGER than a broker heartbeat: a RabbitMQ connection that is not
+    serviced sends no heartbeat frames, so the broker closes it after two
+    missed ones -- and the drill then discovers, minutes later, that the
+    connection it was going to publish with is gone. Keeping the
+    connection serviced during the wait is what any long-lived client does.
     """
     wanted = frozenset(statuses)
     deadline = time.monotonic() + timeout
@@ -150,6 +158,8 @@ def wait_for_status(
             return row
         if time.monotonic() >= deadline:
             return None
+        if keepalive is not None:
+            keepalive()
         time.sleep(interval)
 
 

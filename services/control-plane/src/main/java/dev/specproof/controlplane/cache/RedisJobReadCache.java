@@ -57,11 +57,11 @@ public final class RedisJobReadCache implements JobReadCache {
     public RedisJobReadCache(StringRedisTemplate redis, ObjectMapper mapper, MeterRegistry meters) {
         this.redis = redis;
         this.mapper = mapper;
-        this.hits = Counter.builder("specproof_cp_job_cache_backend_ops_total")
+        this.hits = Counter.builder("specproof.cp.job.cache.backend.ops")
                 .tag("backend", "redis").tag("result", "hit").register(meters);
-        this.misses = Counter.builder("specproof_cp_job_cache_backend_ops_total")
+        this.misses = Counter.builder("specproof.cp.job.cache.backend.ops")
                 .tag("backend", "redis").tag("result", "miss").register(meters);
-        this.errors = Counter.builder("specproof_cp_job_cache_backend_ops_total")
+        this.errors = Counter.builder("specproof.cp.job.cache.backend.ops")
                 .tag("backend", "redis").tag("result", "error").register(meters);
     }
 

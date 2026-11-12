@@ -27,6 +27,7 @@ Exit codes: 0 = PASS, 1 = FAIL, 2 = infrastructure unavailable.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import sys
 import time
 import uuid
@@ -225,6 +226,16 @@ def run_dead_letter_leg(mysql: MySQLStore) -> dict[str, Any]:
 
 
 def main() -> int:
+    # The console's encoding is not the repository's: on a GBK console a
+    # character the worker logged (the replacement character a partial
+    # UTF-8 sequence leaves behind) made the drill's OWN report fail to
+    # print -- the evidence was lost by the tool that produced it. The
+    # report is written as UTF-8 and never dies on an unprintable
+    # character.
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if callable(reconfigure):
+        with contextlib.suppress(Exception):
+            reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description=__doc__)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.parse_args()

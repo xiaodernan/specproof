@@ -2,6 +2,7 @@ package dev.specproof.gateway.mq;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,6 +17,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import dev.specproof.gateway.config.GatewayProperties;
+import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 
 /**
@@ -74,6 +76,8 @@ public class GatewayMqEventConsumer {
 
     private final MeterRegistry registry;
     private final ObjectMapper mapper;
+    /** Per-event counters, registered once per tag value (the builder idiom the rest of the Java plane uses). */
+    private final ConcurrentHashMap<String, Counter> counters = new ConcurrentHashMap<>();
     private final String exchange;
     private final String queue;
 
@@ -121,7 +125,7 @@ public class GatewayMqEventConsumer {
         try {
             payload = mapper.readValue(message.getBody(), PAYLOAD_TYPE);
         } catch (Exception e) {
-            registry.counter(METRIC_NAME, "event", "malformed").increment();
+            incrementEventCounter("malformed");
             return;
         }
         handle(payload);
@@ -135,7 +139,14 @@ public class GatewayMqEventConsumer {
     void handle(Map<String, Object> payload) {
         Object raw = payload == null ? null : payload.get("event");
         String name = raw instanceof String s ? s : "unknown";
-        registry.counter(METRIC_NAME, "event", name).increment();
+        incrementEventCounter(name);
+    }
+
+    private void incrementEventCounter(String event) {
+        counters.computeIfAbsent(event, kind -> Counter.builder(METRIC_NAME)
+                        .tag("event", kind)
+                        .register(registry))
+                .increment();
     }
 
     /** The exchange this consumer subscribes to (for diagnostics/health). */

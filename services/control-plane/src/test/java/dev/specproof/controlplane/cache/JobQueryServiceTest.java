@@ -199,9 +199,9 @@ class JobQueryServiceTest {
         service.recent();
         service.recent();
 
-        assertEquals(1.0, meters.get("specproof_cp_job_cache_requests_total")
+        assertEquals(1.0, meters.get("specproof.cp.job.cache.requests")
                 .tag("result", "miss").counter().count(), 0.0001);
-        assertEquals(1.0, meters.get("specproof_cp_job_cache_requests_total")
+        assertEquals(1.0, meters.get("specproof.cp.job.cache.requests")
                 .tag("result", "hit").counter().count(), 0.0001);
     }
 

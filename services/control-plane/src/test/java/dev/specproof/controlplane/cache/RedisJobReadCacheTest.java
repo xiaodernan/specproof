@@ -71,7 +71,7 @@ class RedisJobReadCacheTest {
 
         assertTrue(cache.getJob("job-1").isEmpty());
         assertTrue(cache.getRecent().isEmpty());
-        assertEquals(2.0, meters.get("specproof_cp_job_cache_backend_ops_total")
+        assertEquals(2.0, meters.get("specproof.cp.job.cache.backend.ops")
                 .tag("backend", "redis").tag("result", "miss").counter().count(), 0.0001);
     }
 
@@ -86,7 +86,7 @@ class RedisJobReadCacheTest {
         assertTrue(read.isPresent());
         assertEquals("job-1", read.get().id());
         assertEquals("VERIFIED", read.get().status());
-        assertEquals(1.0, meters.get("specproof_cp_job_cache_backend_ops_total")
+        assertEquals(1.0, meters.get("specproof.cp.job.cache.backend.ops")
                 .tag("backend", "redis").tag("result", "hit").counter().count(), 0.0001);
     }
 
@@ -131,7 +131,7 @@ class RedisJobReadCacheTest {
         assertTrue(cache.getJob("job-1").isEmpty(),
                 "a dead cache must read as empty, never as a failed GET");
         assertTrue(cache.getRecent().isEmpty());
-        assertEquals(2.0, meters.get("specproof_cp_job_cache_backend_ops_total")
+        assertEquals(2.0, meters.get("specproof.cp.job.cache.backend.ops")
                 .tag("backend", "redis").tag("result", "error").counter().count(), 0.0001);
     }
 
@@ -143,7 +143,7 @@ class RedisJobReadCacheTest {
         cache.putJob(job("job-1", "RUNNING"));
         cache.putRecent(List.of(job("job-1", "RUNNING")));
 
-        assertEquals(2.0, meters.get("specproof_cp_job_cache_backend_ops_total")
+        assertEquals(2.0, meters.get("specproof.cp.job.cache.backend.ops")
                 .tag("backend", "redis").tag("result", "error").counter().count(), 0.0001);
     }
 }

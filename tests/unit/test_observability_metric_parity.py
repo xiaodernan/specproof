@@ -73,17 +73,30 @@ EMIT_DIRS = (
     "storage", "observability", "providers",
 )
 
-#: Java emission sites (#1592): the edge gateway is the only service in this
-#: repository emitting through micrometer. A meter bound to the prometheus
-#: bridge renders its DOTTED builder literal with underscores, and micrometer
-#: counters gain the ``_total`` suffix in exposition (gauges do not). The
-#: builder is already ``specproof_``-namespaced, so no prefix is added here —
-#: unlike the Python plane, whose render_text prepends it. New Java services
-#: with meters join this list the same way cli/ joined EMIT_DIRS in #539.
-JAVA_EMIT_DIRS = ("services/gateway/src/main/java/dev/specproof/gateway/filter",)
+#: Java emission sites (#1592, extended at #1631): the meter-owning trees
+#: in this repository. A meter bound to the prometheus bridge renders its
+#: DOTTED builder literal with underscores, and micrometer counters gain
+#: the ``_total`` suffix in exposition (gauges do not). The builder is
+#: already ``specproof_``-namespaced, so no prefix is added here — unlike
+#: the Python plane, whose render_text prepends it. New Java services
+#: with meters join this list the same way cli/ joined EMIT_DIRS in #539
+#: and the mq consumer and the control-plane cache did at #1631.
+JAVA_EMIT_DIRS = (
+    "services/gateway/src/main/java/dev/specproof/gateway/filter",
+    "services/gateway/src/main/java/dev/specproof/gateway/mq",
+    "services/control-plane/src/main/java/dev/specproof/controlplane/cache",
+)
 
 _JAVA_COUNTER = re.compile(r"Counter\.builder\(\s*\"([a-z0-9_.]+)\"\s*\)")
 _JAVA_GAUGE = re.compile(r"Gauge\.builder\(\s*\"([a-z0-9_.]+)\"\s*\)")
+#: ``static final String X = "dotted.name"`` — the named-constant form the
+#: python plane already resolves for ``incr(METRIC_X)``. Mirrors it so
+#: a file that holds its meter name in a constant is still seen.
+_JAVA_CONSTANT = re.compile(
+    r"static\s+final\s+String\s+([A-Z][A-Z0-9_]*)\s*=\s*\"([a-z0-9_.]+)\""
+)
+_JAVA_COUNTER_REF = re.compile(r"Counter\.builder\(\s*([A-Z][A-Z0-9_]*)\s*\)")
+_JAVA_GAUGE_REF = re.compile(r"Gauge\.builder\(\s*([A-Z][A-Z0-9_]*)\s*\)")
 
 
 def _java_emission_sites() -> tuple[tuple[str, str, str, bool], ...]:
@@ -102,10 +115,19 @@ def _java_emission_sites() -> tuple[tuple[str, str, str, bool], ...]:
         for path in sorted((ROOT / emit_dir).rglob("*.java")):
             text = path.read_text(encoding="utf-8")
             rel = path.relative_to(ROOT).as_posix()
+            constants = dict(_JAVA_CONSTANT.findall(text))
             for raw in _JAVA_COUNTER.findall(text):
                 found.append((rel, "java_counter", _resolve_java(raw, "_total"), False))
+            for raw in _JAVA_COUNTER_REF.findall(text):
+                resolved = constants.get(raw)
+                if resolved is not None:
+                    found.append((rel, "java_counter", _resolve_java(resolved, "_total"), False))
             for raw in _JAVA_GAUGE.findall(text):
                 found.append((rel, "java_gauge", _resolve_java(raw, ""), False))
+            for raw in _JAVA_GAUGE_REF.findall(text):
+                resolved = constants.get(raw)
+                if resolved is not None:
+                    found.append((rel, "java_gauge", _resolve_java(resolved, ""), False))
     return tuple(found)
 
 

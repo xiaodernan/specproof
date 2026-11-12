@@ -60,7 +60,7 @@ public final class JobQueryService {
     }
 
     private static Counter counter(MeterRegistry meters, String result) {
-        return Counter.builder("specproof_cp_job_cache_requests_total")
+        return Counter.builder("specproof.cp.job.cache.requests")
                 .description("Job facade cache outcomes; hit+miss+coalesced+bypass == requests served")
                 .tag("result", result)
                 .register(meters);

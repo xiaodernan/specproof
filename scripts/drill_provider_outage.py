@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import json
 import os
 import sys
@@ -107,6 +108,16 @@ def run_job_level_drill() -> dict[str, Any]:
 
 
 def main() -> int:
+    # The console's encoding is not the repository's: on a GBK console a
+    # character the worker logged (the replacement character a partial
+    # UTF-8 sequence leaves behind) made the drill's OWN report fail to
+    # print -- the evidence was lost by the tool that produced it. The
+    # report is written as UTF-8 and never dies on an unprintable
+    # character.
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if callable(reconfigure):
+        with contextlib.suppress(Exception):
+            reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="emit JSON only")
     args = parser.parse_args()

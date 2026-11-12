@@ -39,7 +39,7 @@ ELEVATION = re.compile(r"^--elev-\d$")
 
 
 def _css_files() -> list[Path]:
-    return sorted(p for p in SRC.glob("**/*.css") if "node_modules" not in p.parts)
+    return sorted(p for p in SRC.glob("**/*.css") if "node_modules" not in p.relative_to(SRC).parts)
 
 
 def _strip_comments(text: str) -> str:

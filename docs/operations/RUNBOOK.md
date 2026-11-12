@@ -51,7 +51,7 @@
     # 不打开 = SDK 禁用, edge 正常启动不受影响。
 
 - 数据库迁移在应用启动时自动执行 (infra/mysql/migrations/*.sql,
-  schema_migrations 记录版本; 当前 0001-0017, 见 docs/architecture/DATA_DICTIONARY.md
+  schema_migrations 记录版本; 当前 0001-0018, 见 docs/architecture/DATA_DICTIONARY.md
   的逐字段登记与 `tests/unit/test_data_dictionary_covers_migrations.py`)。
   回滚入口: `specproof ops rollback-migrations --to N [--dry-run] [--i-am-sure-rolling-back]`
   按版本倒序执行 down/ 目录里的降级脚本; 默认 `--dry-run` 只打印计划,

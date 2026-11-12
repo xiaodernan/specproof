@@ -43,7 +43,8 @@ _EXPECTED_CLOUD_TRAIN = "2024.0.1"
 def _modules() -> list[Path]:
     out = subprocess.run(
         ["git", "ls-files", "services/*/pom.xml"],
-        capture_output=True, text=True, check=True, cwd=_REPO,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        check=True, cwd=_REPO,
     ).stdout
     return [_REPO / line.strip() for line in out.splitlines() if line.strip()]
 

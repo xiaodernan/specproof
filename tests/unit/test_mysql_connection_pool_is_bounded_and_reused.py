@@ -37,6 +37,7 @@ from storage.connection_pool import (
 )
 from storage.mysql import MySQLConfig, MySQLStore
 from storage.unit_of_work import unit_of_work
+from tests._mysql_gate import requires_mysql
 
 
 class _FakeConn:
@@ -235,6 +236,7 @@ def test_two_stores_talking_to_the_same_server_share_one_pool() -> None:
     )
 
 
+@requires_mysql("the pool leg connects to MySQL")
 def test_the_store_reuses_one_connection_for_two_units_of_work() -> None:
     """The store really uses the pool (a real MySQL).
 
@@ -243,13 +245,10 @@ def test_the_store_reuses_one_connection_for_two_units_of_work() -> None:
     """
     config = MySQLConfig.from_env()
     store = MySQLStore(config=config)
-    try:
-        with store.connection() as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT 1")
-            cur.fetchall()
-    except Exception as exc:  # noqa: BLE001
-        pytest.skip(f"no reachable MySQL for the pool legs: {exc}")
+    with store.connection() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT 1")
+        cur.fetchall()
 
     pool = pool_for(store._connect, store.config)  # noqa: SLF001 - the pool is the point
     before = pool.stats().created_total

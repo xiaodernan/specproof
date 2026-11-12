@@ -122,6 +122,16 @@ _DIVERGENT_DEFAULTS = {
         "why": "two production caps read one name; the run-level Budget is the "
         "binding one, and the CLI help quotes only the other",
     },
+    "SPECPROOF_MQ_EVENTS_ENABLED": {
+        "documented": "compose",
+        "readings": {
+            "compose": "0",
+            "observability/event_vocabulary.py": "",
+        },
+        "why": "the code reader defaults to the empty string (off) and compose "
+        "ships 0 (also off): both mean disabled — the switch is only ever on "
+        "through an explicit 1, and the template default keeps a copied .env inert",
+    },
 }
 
 

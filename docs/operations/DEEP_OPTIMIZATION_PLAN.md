@@ -30463,7 +30463,7 @@ store：`agent_jobs` / `billing` / `identity` / `object_metadata`）都走
   （门 `tests/unit/test_unit_of_work.py` 仍绿）；
 - 目标（连的是哪个库）由**连接函数背后的 store** 自动读出（`config` 或
   `_connect_kwargs`），所以调用点不必重复声明；测试里造的 store 没有目标，
-  就按实现分池（仍是��界池）。
+  就按实现分池（仍是有界池）。
 
 **验证读数（实测）：**
 - 新增 `tests/unit/test_mysql_connection_pool_is_bounded_and_reused.py`（10 腿）：
