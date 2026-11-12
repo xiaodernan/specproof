@@ -246,11 +246,10 @@ class OpenAICompatibleProvider(ModelProvider):
             self._client_loop = _running_loop()
             return self._client
         if self._client_loop is not None and self._client_loop is not _running_loop():
-            # The old client is bound to a loop that is gone. Closing it can
-            # only fail (that is what "event loop is closed" means), so the
-            # pool is dropped with it.
-            with contextlib.suppress(Exception):
-                self._client.close()
+            # The old client is bound to a loop that is gone: closing it would
+            # raise ("event loop is closed"), and its sockets die with that loop
+            # anyway. Dropping the reference IS the disposal — there is nothing
+            # to close and nothing to wait for.
             self._client = self._make_client(self.base_url)
             self._client_loop = _running_loop()
         return self._client
