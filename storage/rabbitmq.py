@@ -160,7 +160,7 @@ class RabbitMQClient:
         # the connection with heartbeat=0 (the broker does not
         # demand liveness reports it cannot send); everything else
         # keeps the 30s identity.
-        self._heartbeat = 30 if heartbeat is None else heartbeat
+        self.heartbeat = 30 if heartbeat is None else heartbeat
         self._connection: pika.BlockingConnection | None = None
         self._channel: BlockingChannel | None = None
         # #1603: opt-in W190 event bus. With the switch off,
@@ -182,7 +182,7 @@ class RabbitMQClient:
             port=self.config.port,
             virtual_host=self.config.vhost,
             credentials=credentials,
-            heartbeat=self._heartbeat,
+            heartbeat=self.heartbeat,
             blocked_connection_timeout=30,
             connection_attempts=3,
             retry_delay=2,

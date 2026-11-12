@@ -140,10 +140,33 @@ class TestHeartbeat:
         from storage.rabbitmq import RabbitMQClient
 
         client = RabbitMQClient()
-        assert client._heartbeat == 30
+        assert client.heartbeat == 30
 
     def test_the_worker_consumer_disables_the_heartbeat(self):
         from storage.rabbitmq import RabbitMQClient
 
         client = RabbitMQClient(heartbeat=0)
-        assert client._heartbeat == 0
+        assert client.heartbeat == 0
+
+    def test_the_worker_consumer_connection_is_heartbeat_free(self, monkeypatch):
+        """The WORKER's connection, not just a client's constructor.
+
+        The worker's callback blocks for the whole pipeline, so it cannot
+        service heartbeats: the connection must open heartbeat-free. The
+        worker sets that on the instance (a stand-in for the client class
+        must not have to learn a constructor keyword), so this leg watches
+        the instance the worker actually built.
+        """
+        from agent import worker as worker_module
+
+        class _Stand:
+            heartbeat = 30
+
+        stand = _Stand()
+        monkeypatch.setattr(worker_module, "MySQLStore", lambda: None)
+        monkeypatch.setattr(worker_module, "RedisStore", lambda: None)
+        monkeypatch.setattr(worker_module, "RabbitMQClient", lambda: stand)
+
+        worker_module.Worker(worker_id="w-heartbeat")
+
+        assert stand.heartbeat == 0, "the consumer connection must be heartbeat-free"

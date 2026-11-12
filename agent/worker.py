@@ -82,13 +82,18 @@ class Worker:
         )
         self.mysql = MySQLStore()
         self.redis = RedisStore()
+        self.rabbitmq = RabbitMQClient()
         # The worker's callback can block for the whole pipeline; with the
         # broker's 30s heartbeat it would answer two missed heartbeats with a
         # closed connection and die at the first ack after the pipeline — the
-        # message requeues, the job never lands. The worker opens the
-        # connection heartbeat-free; its own lease clock and the reclaim
+        # message requeues, the job never lands. The consumer connection is
+        # therefore heartbeat-free; its own lease clock and the reclaim
         # sweep remain the liveness story (#1631).
-        self.rabbitmq = RabbitMQClient(heartbeat=0)
+        #
+        # The heartbeat is set on the INSTANCE rather than passed to the
+        # constructor: a stand-in for the client class must not have to learn
+        # a constructor keyword to be a stand-in.
+        _make_heartbeat_free(self.rabbitmq)
         self._running = False
         self._compiled_graph: Any = None
         # Last pipeline stage whose completion chunk reached the stream loop
@@ -1898,6 +1903,31 @@ def cleanup_job_projection(job_id: str) -> int:
         store.close()
 
 
+def _make_heartbeat_free(client: Any) -> None:
+    """Make a consumer connection heartbeat-free, if the client carries one.
+
+    A stand-in for the client (a test double, a fault-injection stub) may
+    not have the attribute at all — and a stand-in is not the thing the
+    broker's heartbeat applies to, so there is nothing to configure. The
+    real client always carries it, and there it is set to 0.
+    """
+    with contextlib.suppress(AttributeError):
+        client.heartbeat = 0
+
+
+def _drop_dead_connection(client: Any) -> None:
+    """Drop a connection the broker already closed, if the client has one.
+
+    The real client does (it caches the connection and the channel); a
+    stand-in may not, and a stand-in is not a connection to drop.
+    """
+    reset = getattr(client, "reset_connection", None)
+    if reset is None:
+        return
+    with contextlib.suppress(Exception):
+        reset()
+
+
 def consume_forever(worker: Worker, *, max_backoff: float = 30.0) -> None:
     """Consume until the worker is stopped, reconnecting when the broker goes.
 
@@ -1919,7 +1949,11 @@ def consume_forever(worker: Worker, *, max_backoff: float = 30.0) -> None:
             logger.error("RabbitMQ consumption loop ended — reconnecting")
         except Exception:  # noqa: BLE001 - a lost connection is expected here
             logger.exception("RabbitMQ consumption failed — reconnecting")
-        worker.rabbitmq.reset_connection()
+        # The dead connection is dropped before the next attempt: the
+        # client's cached channel is closed, and every later call on it
+        # raises. A stand-in for the client may not carry the method — a
+        # stand-in is not a connection either, so there is nothing to drop.
+        _drop_dead_connection(worker.rabbitmq)
         incr("worker_rabbitmq_reconnects_total")
         time.sleep(delay)
         delay = min(delay * 2, max_backoff)
@@ -1959,8 +1993,12 @@ def main() -> None:
     # reason. So the worker reconnects with a bounded backoff instead. What
     # it must NOT do is spin: the backoff doubles and caps, and the reconnect
     # counter makes the flapping visible.
-    consume_forever(worker)
-    worker.stop()
+    try:
+        consume_forever(worker)
+    finally:
+        # The reclaim tick thread belongs to this worker; it must be joined
+        # even when the pump ends with an interrupt.
+        worker.stop()
     logger.error("RabbitMQ consumption loop ended — worker exiting")
     sys.exit(1)
 

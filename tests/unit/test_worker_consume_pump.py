@@ -39,6 +39,12 @@ class _FakeRabbitClient:
 
     def start_consuming(self) -> None:
         self.pump_calls += 1
+        if self.pump_calls > 1:
+            # The pump reconnects now (#1632), so the FIRST call ending is not
+            # the end of the world: the loop asks again. A stand-in for a
+            # connection that never comes back ends the world the way an
+            # interrupt does.
+            raise KeyboardInterrupt("the connection never came back")
 
     def close(self) -> None:
         return None
@@ -131,7 +137,10 @@ def test_main_pumps_the_consumption_loop(monkeypatch: pytest.MonkeyPatch) -> Non
     # of terminating the test process.
     monkeypatch.setattr(sys, "exit", lambda code: None)
 
-    worker_module.main()
+    # The pump now reconnects instead of exiting, so the test ends the world
+    # the way an interrupt does — and main() must still stop the worker.
+    with pytest.raises(KeyboardInterrupt):
+        worker_module.main()
 
     assert fake_worker.calls == ["start", "stop"]
-    assert fake_worker.rabbitmq.pump_calls == 1
+    assert fake_worker.rabbitmq.pump_calls == 2
