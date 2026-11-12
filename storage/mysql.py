@@ -57,8 +57,8 @@ assert MYSQL_DEFAULT_POOL_ACQUIRE_TIMEOUT == DEFAULT_ACQUIRE_TIMEOUT
 #: binds one extra row to learn whether a next page exists, the offset mode
 #: trusts the count it already holds. Fragments are literals and module
 #: constants (IS_DEMO_COLUMN, DEMO_NOTE_PREFIX); every value travels as a
-#: bound parameter. The `# nosec B608` sits on the first string literal,
-#: where bandit keys the statement.
+#: bound parameter. A nosec annotation sits on the first string-literal line
+#: of each statement, where bandit keys the finding.
 _JOBS_PAGE_CURSOR_SQL = (
     "SELECT id, repo_path, base_ref, head_ref, "  # nosec B608
     "status, depth, retry_count, "
