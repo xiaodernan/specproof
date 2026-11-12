@@ -134,6 +134,51 @@ class JobCacheBreakerTest {
         Mockito.verify(values, Mockito.times(3)).get(Mockito.anyString());
     }
 
+    /**
+     * What the breaker actually buys, measured rather than asserted.
+     *
+     * <p>The fake backend sleeps for the same 50ms the Redis command timeout
+     * is configured to ({@code application.yml}); that is the cost a request
+     * pays while the cache backend is unreachable. Twenty reads against a
+     * dead backend therefore cost about a second. With the breaker open the
+     * backend is not called at all, so the same twenty reads cost
+     * milliseconds.</p>
+     *
+     * <p>The bound is deliberately loose (a factor of five) because this is a
+     * timing leg: the claim it makes is "the short-circuit is orders of
+     * magnitude cheaper", not "the machine is this fast".</p>
+     */
+    @Test
+    void the_short_circuit_is_orders_of_magnitude_cheaper_than_the_timeout_it_skips() {
+        JobCacheBreaker breaker = new JobCacheBreaker(meters, 2, Duration.ofMinutes(5));
+        RedisJobReadCache cache = cacheWith(breaker);
+        Mockito.when(values.get(Mockito.anyString())).thenAnswer(invocation -> {
+            try {
+                Thread.sleep(50);   // the configured Redis command timeout
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            throw new IllegalStateException("redis is down");
+        });
+
+        cache.getRecent();                 // failure 1
+        cache.getRecent();                 // failure 2 -> the breaker opens
+        assertEquals(io.github.resilience4j.circuitbreaker.CircuitBreaker.State.OPEN,
+                breaker.state());
+
+        long started = System.nanoTime();
+        for (int read = 0; read < 20; read++) {
+            assertTrue(cache.getRecent().isEmpty());
+        }
+        long elapsedMillis = (System.nanoTime() - started) / 1_000_000;
+
+        // 20 reads against a dead backend would cost ~1000ms; the
+        // short-circuited path must be a small fraction of that.
+        assertTrue(elapsedMillis < 200,
+                "twenty short-circuited reads took " + elapsedMillis + "ms -- the "
+                        + "breaker did not remove the timeout cost");
+    }
+
     @Test
     void a_healthy_backend_is_never_short_circuited() {
         JobCacheBreaker breaker = new JobCacheBreaker(meters, 2, Duration.ofMinutes(5));
