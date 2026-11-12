@@ -85,12 +85,36 @@ test.describe("设计系统 design system — 渲染出来的页面仍在阶梯�
               const parts = m[1].split(",").map((p) => parseFloat(p.trim()));
               return parts.length >= 4 ? parts[3] : 1;
             };
+            const contrast = (l1: number, l2: number): number => {
+              const hi = Math.max(l1, l2);
+              const lo = Math.min(l1, l2);
+              return (hi + 0.05) / (lo + 0.05);
+            };
             const luminance = (rgb: number[]): number => {
               const ch = rgb.map((v) => {
                 const c = v / 255;
                 return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
               });
               return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+            };
+            // A text painted with a GRADIENT (background-clip: text) is not
+            // painted in its `color` -- the color is transparent on purpose and
+            // the gradient IS the ink. Reading the color would measure
+            // transparent-black against the surface and report a contrast
+            // nobody can see (the aurora gradient numbers, #1633). The honest
+            // reading is the WORST stop of that gradient.
+            const gradientStops = (node: Element): number[][] | null => {
+              const st = getComputedStyle(node);
+              const clip = String(st.webkitBackgroundClip || st.backgroundClip || "");
+              if (!clip.includes("text")) return null;
+              const image = String(st.backgroundImage || "");
+              if (!image.includes("gradient")) return null;
+              const stops: number[][] = [];
+              for (const match of image.matchAll(/rgba?\(([^)]+)\)/g)) {
+                const rgb = parse(match[0]);
+                if (rgb) stops.push(rgb);
+              }
+              return stops.length ? stops : null;
             };
             const backgroundOf = (node: Element): number[] | null => {
               let cur: Element | null = node;
@@ -152,9 +176,42 @@ test.describe("设计系统 design system — 渲染出来的页面仍在阶梯�
               const key = "contrast:" + where;
               if (seen.has(key)) continue;
               seen.add(key);
-              const fg = parse(st.color);
               const bg = backgroundOf(parent);
-              if (!fg || !bg) continue;
+              if (!bg) continue;
+              const stops = gradientStops(parent);
+              let fg: number[] | null;
+              if (stops) {
+                // the painted ink is the gradient: the WORST stop decides
+                const l2 = luminance(bg);
+                let worst = Infinity;
+                let worstRgb = stops[0];
+                for (const stop of stops) {
+                  const ratio = contrast(luminance(stop), l2);
+                  if (ratio < worst) {
+                    worst = ratio;
+                    worstRgb = stop;
+                  }
+                }
+                fg = worstRgb;
+              } else if (alpha(st.color) < 0.05) {
+                // transparent ink and no gradient to paint it: the text is
+                // INVISIBLE. That is a finding of its own, not a contrast
+                // number -- and it is rarer than a broken gradient.
+                const transparentKey = "transparent:" + where;
+                if (!seen.has(transparentKey)) {
+                  seen.add(transparentKey);
+                  bad.push({
+                    kind: "transparent-text",
+                    value: "the text is painted with no color at all",
+                    where,
+                    minimum: 0,
+                  });
+                }
+                continue;
+              } else {
+                fg = parse(st.color);
+              }
+              if (!fg) continue;
               const l1 = luminance(fg);
               const l2 = luminance(bg);
               const ratio =
