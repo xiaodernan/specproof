@@ -279,6 +279,21 @@ specproof:
       enabled: false   # 默认关：边缘不主动连 RabbitMQ；开启需有 specproof.observability.events 交换机与六个路由键（见 #1603）
       exchange: specproof.observability.events
       queue: q.gateway.mq-events
+    # Opt-in DISTRIBUTED rate limiter (#1634): a Redis-backed token bucket that
+    # holds the ingress limit across every gateway replica (the in-memory
+    # EdgeRateLimiter is per-instance, so N replicas admit N× the rate). OFF by
+    # default: the EdgeDistributedRateLimiter filter bean only exists when this is
+    # true, and a route must not reference it until it is. When on, a route opts
+    # in with a filter like:
+    #   - name: EdgeDistributedRateLimiter
+    #     args:
+    #       name: specproof-edge-distributed
+    #       capacity: 100
+    #       refillPerSecond: 50
+    #       keyStrategy: global          # or x-forwarded-for for per-origin shaping
+    #       failMode: open               # open=admit on Redis error, closed=429
+    distributed-ratelimit:
+      enabled: false
     # Routes that are deliberately NOT served at the edge.  A route that is
     # neither here nor claimed by a route above would be a route that
     # vanished; the gate refuses to let that happen silently.
@@ -296,6 +311,12 @@ specproof:
           "status": "ok"}), so one of them must not answer for the other.
 
 management:
+  # Redis is an OPTIONAL edge dependency (only the opt-in distributed rate
+  # limiter touches it). A downed Redis must not turn /health red, so the edge
+  # does not report a Redis health component at all.
+  health:
+    redis:
+      enabled: false
   server:
     # The management endpoints live on their OWN port, bound to loopback by
     # default. On the edge port the actuator would publish the upstream

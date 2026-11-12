@@ -184,6 +184,14 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <!-- Edge DISTRIBUTED rate limiter (#1634): a Redis-backed token bucket
+                 that holds the ingress limit across every gateway replica (the
+                 in-memory EdgeRateLimiter is per-instance, so N replicas admit
+                 N× the rate). Reactive so it never blocks the Netty event loop. -->
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis-reactive</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
