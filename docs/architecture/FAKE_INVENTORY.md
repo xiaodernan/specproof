@@ -3,7 +3,7 @@
 > 这份清单是**测出来的**，不是列出来的。生成器：`scripts/classify_test_fakes.py`
 > （可重复运行；`--json` 给出机器可读的形式）。
 >
-> 本页数字对应 `422deca`（2026-11-12 重钉，见下「2026-11-12 重钉」一节；`--explain-drift 3a39bdc` 全程在场输出）。规则或 `tests/` 里的假一变，
+> 本页数字对应 `71e5b6e`（2026-11-13 重钉，见下「2026-11-13 重钉」一节；`--explain-drift 422deca` 全程在场输出）。规则或 `tests/` 里的假一变，
 > `tests/unit/test_fake_inventory_stays_measured.py` 会先红——数字不能靠手改跟上代码。
 >
 > **红自己交代原因（#601 起）**：门里钉的不是四个整数，而是一个**提交号** + 那一棵树上的三个数。
@@ -39,15 +39,15 @@
 |---|---|---|---|
 | **SQL 假** | **22** | 实现了 SQL 面（`cursor` / `fetchall` / `fetchone` / `commit` / `rollback` / `executemany` / `query` / `select` / `insert` / `update`；**`execute` 单独出现不算**，见下面「`execute` 撞名」） | **能**——求值器就是替这一面 |
 | 仓储鸭子类型 | 42 | 实现的是**领域方法**（`save` / `find_by_id` / `incr` / `expire` / `publish` / `delete` …） | **不能**——换成求值器等于把它变成**真 store**，那是另一类改动 |
-| 普通替身 | 218 | 只实现被测代码用到的那几个方法 | 不在讨论范围内 |
+| 普通替身 | 223 | 只实现被测代码用到的那几个方法 | 不在讨论范围内 |
 
-⇒ ⇒ **手写假一共 282 个，而「SQL 假」只有 22 个（约 7.8%）** ⇒ ⇒ 原队列项瞄准的集合比看上去小一个数量级 ⇒ ⇒
-且那 22 个类（SQL 替身 14 处）分布在 **14 个文件**里（其中 8 处是「一个游标 + 一个连接/存储」的分体：`fixture_server.py` `test_audit_action_parity.py` `test_drill_helpers.py` `test_feedback_store_read.py` `test_mcp_server.py` `test_mysql_isolation_contract.py` `test_tenant_auth.py` `test_web_api.py`；`fake_sql_engine.py` 的 `SqlFakeCursor` 是 SQL 求值器本体，按上表入账），——本页各处数字以 `422deca` 实测为准（见 `tests/unit/test_fake_inventory_stays_measured.py` 钉脚本）。
+⇒ ⇒ **手写假一共 287 个，而「SQL 假」只有 22 个（约 7.7%）** ⇒ ⇒ 原队列项瞄准的集合比看上去小一个数量级 ⇒ ⇒
+且那 22 个类（SQL 替身 14 处）分布在 **14 个文件**里（其中 8 处是「一个游标 + 一个连接/存储」的分体：`fixture_server.py` `test_audit_action_parity.py` `test_drill_helpers.py` `test_feedback_store_read.py` `test_mcp_server.py` `test_mysql_isolation_contract.py` `test_tenant_auth.py` `test_web_api.py`；`fake_sql_engine.py` 的 `SqlFakeCursor` 是 SQL 求值器本体，按上表入账），——本页各处数字以 `71e5b6e` 实测为准（见 `tests/unit/test_fake_inventory_stays_measured.py` 钉脚本）。
 
 ⇒ ⇒ **结论（这条队列项就此重框）**：
 1. 「把手写假换成求值器」**不成立**——多数手写假**根本不与 SQL 打交道**（它们替的是领域方法）⇒ ⇒ 换掉它们会让测试**从替身变成真 store**（⇒ 更慢、⇒ 更容易因环境而红、⇒ 且测的是**真 store**而不是被测代码）✗。
 2. 真正可以换的只有**12 处 SQL 替身** ⇒ ⇒ 那是**一小块**具体工作（⇒ 下一个号可以做，或干脆不值得做——**判据是「换了以后，测的是不是同一件事」**）。
-3. 剩下的 42 处仓储鸭子类型与 218 处普通替身**留在原处**——它们是**恰当的**测试替身（替的是**被测代码依赖的接口**，不是数据库）✓。
+3. 剩下的 42 处仓储鸭子类型与 223 处普通替身**留在原处**——它们是**恰当的**测试替身（替的是**被测代码依赖的接口**，不是数据库）✓。
 
 ## 再收窄一层：哪些 SQL 假**真的**在写规则？
 
@@ -105,7 +105,7 @@
 python scripts/classify_test_fakes.py            # 人读的（按「哪一面」分类）
 python scripts/classify_test_fakes.py --json     # 机器读的
 python scripts/find_rule_shaped_sql_fakes.py     # 再收窄：哪些按 SQL 文本做决定
-python scripts/classify_test_fakes.py --explain-drift 3a39bdc   # 数目为什么变了（红路径上也会自动印）
+python scripts/classify_test_fakes.py --explain-drift 422deca   # 数目为什么变了（红路径上也会自动印）
 ```
 
 分类判据（脚本里写死，且**可改**）：
@@ -152,3 +152,30 @@ python scripts/classify_test_fakes.py --explain-drift 3a39bdc   # 数目为什�
 
 **诚实边界。** 这类红不是"代码错了"，是"账本没记上"；树再干净它也不会消失——
 下一次分支并轨进 master 后，这两条腿还会再红一次，下一次重钉该由 CI 在场实测后追加。
+
+## 2026-11-13 重钉（`71e5b6e` 实测）
+
+**起因（诚实）。** 全量门在 `71e5b6e` 之前的快照上红了本页两条腿
+（`test_the_counts_are_pinned` / `test_the_inventory_quotes_the_measured_numbers`）。
+不是断言被改弱了——树本身测出来的数目变了，而本页与钉脚本还钉在 `422deca`。
+`--explain-drift 422deca` 的输出（在场）显示：**普通替身 218 → 223**（+5），
+另外两桶一件不动：
+
+- `tests/unit/test_the_progress_stream_backs_off_while_it_is_quiet.py:36` 的 `_FakeRedis`
+  （`ed113c2`，SSE 安静时退避）与 `:52` 的 `_FakeRequest`——它们替的是
+  `xread_progress` 与 `is_disconnected` 这两个**领域方法**，不碰 SQL；
+- `tests/unit/test_the_provider_client_follows_the_event_loop.py:39` 的 `_FakeSDKClient`
+  （`5456a07`，SDK 客户端跟着事件循环走）——它替的是 `close`，不碰 SQL；
+- `tests/unit/test_the_worker_reconnects_instead_of_exiting.py:38` 的 `_FakeRabbit`
+  （`9e10866`，broker 断开后有界退避重连）与 `:56` 的 `_FakeWorker`——前者替的是
+  `start_consuming` / `reset_connection`，后者只替 `stop`。
+
+五处都是**测新行为时顺手写的替身**，按判据都是普通替身：换句话说，这五个类
+**没有扩大**"手写假里 SQL 假"的那一小块，队列项④依然不必重开。
+
+**处置。** 钉脚本 `PIN_COMMIT` 改 `71e5b6ecd47104a30cae7833d7a1103496e7079a`，
+`PIN_COUNTS` 改为 `{"sql-fake": 22, "store-duck-type": 42, "plain-double": 223}`；
+本页表与叙述数字同步为实测值。SQL 假仍分布 **14 个文件**、分体 8 处不变，
+SQL 假占比 7.8% → 7.7%。
+
+**诚实边界。** 同上一节：这是"账本没记上"，不是"代码错了"。
