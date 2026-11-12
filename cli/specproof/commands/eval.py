@@ -23,6 +23,7 @@ import json
 import os
 import subprocess
 import time
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, TextIO
 
@@ -380,6 +381,31 @@ _EVIDENCE_FIELDS = (
     "evidence_type",
     "db_state_verdict",
 )
+
+
+def _differential_evidence(final: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """What the differential experiment said about itself, in short form.
+
+    The level of a finding is decided by the EVIDENCE behind it (the review
+    court's policy caps source-diff evidence at MAJOR and demands a real
+    Base/Head execution for BLOCKER), so a report that shows the level
+    without the experiment's own verdict asks the reader a question it
+    does not answer. These rows answer it.
+    """
+    rows: list[dict[str, Any]] = []
+    for entry in (final.get("diff_results") or []):
+        if not isinstance(entry, dict):
+            continue
+        rows.append({
+            "contract_id": str(entry.get("contract_id") or ""),
+            "verdict": str(entry.get("verdict") or ""),
+            "detail": str(entry.get("detail") or "")[:400],
+            "base_exit_code": entry.get("base_exit_code"),
+            "head_exit_code": entry.get("head_exit_code"),
+        })
+        if len(rows) >= 6:
+            break
+    return rows
 
 
 def _finding_evidence(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1155,6 +1181,12 @@ def eval_cmd(
         # from the report alone (see _finding_evidence). When nothing matched,
         # fall back to every finding so a MISS is diagnosable too.
         record["finding_evidence"] = _finding_evidence(matched or findings)
+        # WHY the level is what it is: the differential's own words. A severity
+        # that did not reach the ground truth's level is a QUESTION ("why is
+        # there no execution evidence?"), and the answer lives in the
+        # pipeline's diff_results, not in the report's summary (#1634).
+        record["differential"] = _differential_evidence(final)
+        record["generated_test"] = bool(final.get("generated_tests_path"))
         # Ground-truth level call: True = exact match, False = drift,
         # None = no level call (recall miss or negative case).
         record["severity_match"] = severity_match_of(record)

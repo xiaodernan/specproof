@@ -335,6 +335,11 @@ a {
   background: none;
   border: none;
   padding: 0;
+  /* WCAG 2.2 target size (2.5.8): a clickable header must be at least
+     24x24 CSS pixels. The sort buttons measured 18px tall — a table header
+     is the densest thing on the page, and "dense" is not a reason for a
+     target a finger cannot hit. */
+  min-height: 24px;
   color: inherit;
   font: inherit;
   font-weight: inherit;
@@ -635,6 +640,10 @@ a {
 .ui-select,
 .ui-textarea {
   width: 100%;
+  /* WCAG 2.2 target size (2.5.8): the controls that measured BELOW 24px
+     (the jobs search box was 20px tall) get a floor; the ones already
+     taller are untouched. */
+  min-height: 24px;
   background: var(--color-control);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);

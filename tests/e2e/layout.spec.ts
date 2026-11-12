@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { loginWithToken } from "./helpers";
 
 /**
  * The LAYOUT of the real app, measured in a real browser.
@@ -70,7 +71,11 @@ async function measure(page: import("@playwright/test").Page): Promise<Layout> {
         el.textContent.trim().length > 0 &&
         el.scrollWidth > el.clientWidth + 2 &&
         style.overflowX === "hidden" &&
-        style.textOverflow !== "ellipsis"
+        style.textOverflow !== "ellipsis" &&
+        // A screen-reader-only label is clipped ON PURPOSE (that is how it
+        // stays invisible to the eye and readable to a screen reader).
+        // Judging it as a clipped sentence is a measurement bug.
+        !el.closest(".sr-only")
       ) {
         out.clipped.push({
           el: describe(el),
@@ -104,6 +109,10 @@ async function measure(page: import("@playwright/test").Page): Promise<Layout> {
 for (const [viewportName, viewport] of VIEWPORTS) {
   for (const theme of ["light", "dark"] as const) {
     test(`layout holds on every page (${viewportName}, ${theme})`, async ({ page }) => {
+      // Log in FIRST: without a credential the app shows the login gate, and
+      // the gate would measure the login page four times and call it the
+      // product. The pages under measurement must be the pages a reader sees.
+      await loginWithToken(page, process.env.E2E_ADMIN_TOKEN || "");
       await page.emulateMedia({ colorScheme: theme });
       const problems: string[] = [];
       for (const [pageName, path] of PAGES) {

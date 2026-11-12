@@ -103,8 +103,8 @@ export default function Jobs() {
       </div>
       <ErrorBox error={error} />
       <Panel title="验证记录" right={<div className="verification-toolbar">
-        <input aria-label="搜索验证" type="search" maxLength={256} placeholder="搜索项目、分支或任务编号" value={textFilter} onChange={(e) => setTextFilter(e.target.value)} />
-        <select aria-label="验证状态" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); setCursors({}); }}>
+        <input className="ui-input" aria-label="搜索验证" type="search" maxLength={256} placeholder="搜索项目、分支或任务编号" value={textFilter} onChange={(e) => setTextFilter(e.target.value)} />
+        <select className="ui-select" aria-label="验证状态" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); setCursors({}); }}>
           <option value="ALL">全部状态</option>{JOB_STATUSES.map((value) => <option key={value} value={value}>{statusLabel(value)}</option>)}
         </select>
         <Button variant="ghost" size="sm" loading={refreshing} onClick={() => setRefresh((value) => value + 1)}>刷新</Button>
