@@ -48,8 +48,10 @@ two cases are #499's G2 and G4.
 
 from __future__ import annotations
 
+import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 from itertools import takewhile
@@ -365,16 +367,33 @@ def test_the_job_being_modelled_really_runs_without_infrastructure() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_a_live_database_leg_is_red_when_no_database_answers(tmp_path: Path) -> None:
+def test_a_live_database_leg_is_red_when_no_database_answers() -> None:
     """A planted live leg fails in exactly the environment P3 judges with.
 
     Without this, P3's green would be indistinguishable from a child that never
     reached the database at all — a ruler that cannot fail is not a ruler, and
     #499's G2 has the same shape for the same reason.
+
+    THE PLANTED CASE LIVES IN THE REPO'S OWN ``.scratch/``, not in the
+    machine's shared ``%TEMP%``. Measured on the development machine (#1636):
+    a case planted under ``%TEMP%`` made the child die BEFORE it judged
+    anything — the collection walked the shared temp root and tripped over a
+    file that was swept away while it walked (``FileNotFoundError`` on
+    ``%TEMP%\\marketplace-mutation-source-….lock``), so the session ended
+    with exit code 2 and no outcome. The child was told "the runner died"
+    twice and the gate blamed the runner — correctly, and for the wrong
+    reason: the case had been planted in the busiest directory on the
+    machine. A quiet directory the sweep does not touch is the honest place
+    for a case whose whole job is to be collected.
     """
-    planted = tmp_path / f"{PLANTED_LEG}.py"
-    planted.write_text(PLANTED_CASE.format(root=str(ROOT)), encoding="utf-8")
-    report = _child_run([str(planted)])
+    planted_dir = ROOT / ".scratch" / f"no-infra-planted-{os.getpid()}"
+    planted_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        planted = planted_dir / f"{PLANTED_LEG}.py"
+        planted.write_text(PLANTED_CASE.format(root=str(ROOT)), encoding="utf-8")
+        report = _child_run([str(planted)])
+    finally:
+        shutil.rmtree(planted_dir, ignore_errors=True)
     assert report.rc != 0, (
         "the planted live-database leg PASSED with no database configured, so the "
         "environment this gate hands its children is not a no-database environment "
