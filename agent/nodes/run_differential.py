@@ -824,6 +824,20 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
             "generation_source": generation_record.get("source", "unknown"),
         }]
 
+    # ── Attribution (EVIDENCE, never a verdict) ──────────────────────────
+    # "base passed, head failed" is the SHAPE of a regression. Whether the
+    # failure actually names the code this change touched is the QUESTION
+    # that separates "the change broke it" from "the generated test's own
+    # expectation was wrong". The answer is recorded here so the report can
+    # show it; it changes no verdict, no severity and no confidence.
+    _changed_paths = head_changed_paths(state)
+    for _entry in primary_entries:
+        if _entry.get("verdict") != "REGRESSION":
+            continue
+        _entry["attribution"] = _attribution_of(
+            str(_entry.get("head_output") or ""), _changed_paths
+        )
+
     # Source-diff findings computed earlier are prepended; the generated-test
     # verdict is the primary experiment for DIFF-01 (split per failing test
     # method when both sides fail); probe results (when the case declares a
@@ -1508,6 +1522,38 @@ def _first_maven_error_line(*results: dict[str, Any]) -> str:
             if stripped.startswith("[ERROR]"):
                 return stripped[:300]
     return ""
+
+
+def _attribution_of(failure_text: str, changed_paths: list[str]) -> str:
+    """Whether the failing side's output names the code this change touched.
+
+    * ``changed_code_in_failure`` — the failure names a changed file (by
+      path, file name or class name): the failure and the change are in the
+      same place.
+    * ``changed_code_not_in_failure`` — it does not: the failure is
+      **unattributed**. On a negative case that usually means the GENERATED
+      TEST's own expectation was wrong rather than that the change broke
+      something (#1638, measured on the real model: the one false positive
+      in six negative cases was exactly this shape).
+    * ``unknown`` — nothing to compare against (no changed paths, or no
+      output to read).
+
+    This is EVIDENCE, never a verdict: an unattributed failure is not
+    PROVED innocent, it is only not attributed. Nothing here changes a
+    severity, a confidence or a verdict.
+    """
+    if not changed_paths or not failure_text.strip():
+        return "unknown"
+    needles: set[str] = set()
+    for path in changed_paths:
+        normalised = path.replace("\\", "/")
+        needles.add(normalised)
+        needles.add(normalised.rsplit("/", 1)[-1])
+        needles.add(Path(normalised).stem)
+    for needle in needles:
+        if needle and needle in failure_text:
+            return "changed_code_in_failure"
+    return "changed_code_not_in_failure"
 
 
 def _h2_db_file(workspace: str) -> Path | None:

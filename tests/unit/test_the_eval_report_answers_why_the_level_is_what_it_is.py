@@ -159,6 +159,32 @@ def test_the_page_shows_the_failing_assertion() -> None:
     assert "expected 200 but was 404" in row, row
 
 
+def test_the_page_says_when_the_failure_is_unattributed() -> None:
+    """A regression whose failure never names the changed code is
+    UNATTRIBUTED -- and the page says so, because that is the question a
+    reader asks about a regression on a negative case (#1638)."""
+    html = render_eval_report(
+        [
+            _record(
+                case="case-52",
+                differential=[
+                    {
+                        "contract_id": "AUTH-01",
+                        "verdict": "REGRESSION",
+                        "detail": "Test passes in Base (exit 0) but fails in Head.",
+                        "base_exit_code": 0,
+                        "head_exit_code": 1,
+                        "attribution": "changed_code_not_in_failure",
+                    }
+                ],
+            )
+        ],
+        None,
+    )
+    row = _row_for(html, "case-52")
+    assert "归因未成立" in row, row
+
+
 def test_a_case_that_ran_nothing_says_not_run() -> None:
     html = render_eval_report([_record(case="case-none")], None)
     row = _row_for(html, "case-none")

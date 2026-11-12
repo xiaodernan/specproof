@@ -409,6 +409,10 @@ def _differential_evidence(final: Mapping[str, Any]) -> list[dict[str, Any]]:
             # expectation being wrong (#1638). The report shows it, so the
             # reader does not have to re-run the pipeline to learn why.
             "head_failure": str(entry.get("head_failure") or "")[:300],
+            # Did the failure name the code this change touched? The
+            # question that separates "the change broke it" from "the
+            # generated test's expectation was wrong" (#1638).
+            "attribution": str(entry.get("attribution") or ""),
             "base_failure": str(entry.get("base_failure") or "")[:300],
         })
         if len(rows) >= 6:

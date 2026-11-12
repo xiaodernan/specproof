@@ -220,6 +220,11 @@ def _build_candidates(state: Phase0State) -> list[dict[str, Any]]:
             "source": "differential",
             "status": "candidate",
             "diff_verdict": dr.get("verdict"),
+            # Whether the failure names the code this change touched. Pure
+            # capture: it changes no severity, no confidence and no verdict
+            # (#1638) -- it is the question a reader asks about a
+            # regression ("is this failure even about my change?").
+            "attribution": dr.get("attribution", ""),
             "db_state_verdict": dr.get("db_state_verdict", ""),
             "db_state_detail": dr.get("db_state_detail", ""),
             # In-flight evidence copy (#250 / #253 / #254): run_differential

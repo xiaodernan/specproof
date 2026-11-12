@@ -865,6 +865,18 @@ def render_eval_report(
                         + escape(failure)
                         + "</span>"
                     )
+                # Did the failure name the code this change touched? A
+                # regression whose failure never mentions the changed
+                # files is UNATTRIBUTED -- which on a negative case usually
+                # means the generated test's expectation was wrong rather
+                # than that the change broke something (#1638).
+                attribution = str(row.get("attribution") or "").strip()
+                if attribution == "changed_code_not_in_failure":
+                    diff_bits.append(
+                        '<span class="muted" style="font-size:12px">'
+                        "失败未指向本次改动的代码（归因未成立）"
+                        "</span>"
+                    )
         differential_cell = (
             "<br />".join(diff_bits)
             if diff_bits
