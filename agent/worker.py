@@ -1898,6 +1898,33 @@ def cleanup_job_projection(job_id: str) -> int:
         store.close()
 
 
+def consume_forever(worker: Worker, *, max_backoff: float = 30.0) -> None:
+    """Consume until the worker is stopped, reconnecting when the broker goes.
+
+    The loop is deliberately boring: consume, and when the consumption ends
+    (the connection is gone) drop that connection, wait a little longer each
+    time, and consume again. The backoff is bounded, so a broker that stays
+    down costs a reconnect every 30 seconds instead of a hot loop.
+
+    Each reconnect is counted (``worker_rabbitmq_reconnects_total``): a
+    worker that reconnects forever is a worker whose broker is unhealthy, and
+    the operator has to be able to see that.
+    """
+    from observability.metrics import incr
+
+    delay = 1.0
+    while True:
+        try:
+            worker.rabbitmq.start_consuming()
+            logger.error("RabbitMQ consumption loop ended — reconnecting")
+        except Exception:  # noqa: BLE001 - a lost connection is expected here
+            logger.exception("RabbitMQ consumption failed — reconnecting")
+        worker.rabbitmq.reset_connection()
+        incr("worker_rabbitmq_reconnects_total")
+        time.sleep(delay)
+        delay = min(delay * 2, max_backoff)
+
+
 def main() -> None:
     """CLI entry point for the Worker."""
     from observability.logging import configure_logging
@@ -1924,10 +1951,15 @@ def main() -> None:
 
     worker.start()
     # Pump deliveries: the blocking connection only dispatches consumer
-    # callbacks while start_consuming() runs. It returns when the
-    # connection is lost (logged by RabbitMQClient), after which the
-    # process exits non-zero so the launcher/supervisor can restart it.
-    worker.rabbitmq.start_consuming()
+    # callbacks while start_consuming() runs. It returns (or raises) when the
+    # connection is lost.
+    #
+    # A lost connection is a NORMAL event — brokers restart during upgrades —
+    # and exiting on it hands every queued job to the reclaim sweep for no
+    # reason. So the worker reconnects with a bounded backoff instead. What
+    # it must NOT do is spin: the backoff doubles and caps, and the reconnect
+    # counter makes the flapping visible.
+    consume_forever(worker)
     worker.stop()
     logger.error("RabbitMQ consumption loop ended — worker exiting")
     sys.exit(1)

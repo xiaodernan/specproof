@@ -197,6 +197,26 @@ class RabbitMQClient:
             self._connect()
         return self._channel
 
+    def reset_connection(self) -> None:
+        """Drop the current connection so the next use reconnects.
+
+        A connection the broker closed is not a connection: every later call
+        on it raises (the channel is closed, the socket is gone). Dropping it
+        here is what lets the consumer RECONNECT instead of exiting — a
+        broker restart is a normal event, and a worker that exits on it
+        hands every in-flight job to the reclaim sweep for no reason.
+        """
+        connection = self._connection
+        self._connection = None
+        self._channel = None
+        if connection is None:
+            return
+        try:
+            if not connection.is_closed:
+                connection.close()
+        except Exception:  # noqa: BLE001 - a dead connection cannot be closed
+            logger.debug("rabbitmq connection was already gone")
+
     def keepalive(self) -> None:
         """Service the connection without publishing anything.
 

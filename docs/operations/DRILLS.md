@@ -615,3 +615,55 @@ prometheus 名册加 invoice-cron:9103 抓取行并配 SpecproofInvoiceCronDown
 告警属预期, warning 档)。start_local.ps1 **刻意不加**: 轻量模式无 MySQL,
 billing off 即 no-op-exit, 起一个立即退出的进程是噪音。发票签发流的操作
 入口 (draft→issued→paid 的操作员界面) 与每作业成本 UI 接线仍开放。
+
+## 8. Drill 1 — 生产崩溃恢复路径（2026-11-12 重写并实测）
+
+**为什么重写。** 旧版演练的"恢复"是**演练自己造的**：`ops/drills.py::resume_job`
+拿着作业直接跑图、把判定直译成终态转移。那条路**绕开了生产路径**，于是它能做生产
+绝不会做的状态转移（`PREPARING → NEEDS_REVIEW` 被状态机拒绝），测出来的"恢复能力"
+也并不是产品的恢复能力。本节记录重写后的演练、途中查明的事实，以及一次真事故。
+
+### 8.1 演练做了什么（生产路径，不是自制恢复）
+
+1. 造一个确定性夹具仓库（鉴权回归、无 pom.xml —— 差分节点诚实降级，静态检查找到回归）。
+2. **对照作业**：走 outbox 事务投递，由真实 worker 跑到终态。
+3. **被杀作业**：同样投递；worker 认领后跑到飞行中，演练用 `taskkill /F /T` 杀掉
+   **整棵进程树**（就像运维手杀）。
+4. **等待租约过期**（worker 的 Redis 租约 30s TTL，心跳线程随进程一起死）。
+5. **触发生产回收**：`reclaim_stale_running_jobs()`——与 `specproof ops recover
+   --running-only`、与周期 tick **同一个函数**——把过期 RUNNING 行 CAS 回 QUEUED
+   并**换新 event_id** 重投。
+6. **新 worker 认领**重投的作业，从 LangGraph 检查点续跑（已完成的节点不重做），
+   跑到终态。
+7. **断言**：两个作业的终态判定一致、副作用计数逐项相同（没有重复副作用）、
+   被杀作业**恰一个**终态转移。
+
+### 8.2 途中查明的事实（比"演练通过"更有价值）
+
+- **broker 自己重入队恢复不了崩溃的 worker。** 生产 worker 消费 `q.p1.verify.job`
+  时带着 Redis 幂等键（`storage/rabbitmq.py::make_idempotency_check`）：键在管线
+  **之前** SETNX，崩溃后 broker 重投的**同一条** event_id 会被判为重复、直接 ack
+  丢弃。真正的恢复路径是**换 event_id 的回收重投**——演练因此走回收，而不是等重投。
+- **回收只认 RUNNING 行。** 崩溃落在 `PREPARING` / `CONTRACT_REVIEW` 的行不在回收面内
+  （本机实测遗留：`drill-wk-1794423770` 停在 `PREPARING`、
+  `drill-wk-1794423192` 停在 `CONTRACT_REVIEW`）。这是**已知边界**，演练没有为了
+  好看去扩大状态机。
+- **长管线会杀死 worker 的消费连接（2026-11-12 真事故，已修）。** worker 在管线回调
+  里阻塞十四分钟（LLM 侧 429 重试后恢复）期间连接零帧，代理按两次心跳漏检关闭了连接；
+  管线跑完后 worker 在 `basic_ack` 撞 `StreamLostError` 退出，**作业从未进入 RUNNING**，
+  队列里更早的事件先被消费。修复：worker 的消费连接以 `heartbeat=0` 打开
+  （`8c6b2c6`）——代理不再向它索要它给不出的活性；worker 的活性由它自己的租约与
+  过期回收负责。现场对照见 `docs/operations/RUNBOOK.md` §5。
+
+### 8.3 演练契约也改了（此前它自称的"无凭据"是假的）
+
+旧实现清空 `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` 环境变量，却把**配置文件**
+（`providers/config.py` 的 `SPECPROOF_MODEL_CONFIG`，默认 `.local/llm.json`）留在原地
+——"无凭据"只是说说；而且没有凭据时管线走确定性短路分支，**根本到不了**演练要打断的
+那些阶段。新契约（门：`tests/unit/test_drills_run_without_model_credentials.py`）：
+**演练用项目自己的模型配置（若存在）、不注入任何凭据、不改写
+`SPECPROOF_MODEL_CONFIG`**。想跑无凭据版本的操作者，去掉配置文件即可——那时会拿到
+确定性路线（诚实降级，但会短路）。
+
+### 8.4 实测记录（2026-11-12）
+
