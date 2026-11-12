@@ -29,6 +29,10 @@ export default function Jobs() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
   const activeRef = useRef(false);
+  // WHEN this page's rows were read. The page polls on its own, so without
+  // this the reader cannot tell a fresh list from a stale one -- and on a
+  // verification list "is this current?" is the first question.
+  const [lastLoadedAt, setLastLoadedAt] = useState<string | null>(null);
 
   useEffect(() => {
     if (textFilter.trim() === query) return;
@@ -64,6 +68,7 @@ export default function Jobs() {
         // page size (25) as if it were the number of matching verifications.
         setTotal(data.total);
         setNextCursor(data.next_cursor ?? null);
+        setLastLoadedAt(new Date().toISOString());
         activeRef.current = (data.jobs || []).some((job) => ACTIVE.has((job.status || "").toUpperCase()));
         setError(null);
       } catch (e) {
@@ -74,9 +79,15 @@ export default function Jobs() {
       }
     };
     void load();
+    // A search term is a FULL SCAN on the server (the filter is four LOCATE
+    // calls per row and no index can serve it), so polling it every ten
+    // seconds turns the page into a load generator against the production
+    // table. The searched view polls three times slower; the unfiltered one
+    // -- which the composite index serves -- keeps the quick rhythm.
+    const pollMs = query ? 30_000 : 10_000;
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible" && activeRef.current) void load(true);
-    }, 10000);
+    }, pollMs);
     return () => { alive = false; controller.abort(); window.clearInterval(timer); };
   }, [page, query, statusFilter, refresh, cursors]);
 
@@ -108,6 +119,11 @@ export default function Jobs() {
           <option value="ALL">全部状态</option>{JOB_STATUSES.map((value) => <option key={value} value={value}>{statusLabel(value)}</option>)}
         </select>
         <Button variant="ghost" size="sm" loading={refreshing} onClick={() => setRefresh((value) => value + 1)}>刷新</Button>
+        {lastLoadedAt ? (
+          <span className="verification-freshness" title="这一页的数据最后一次读取的时间">
+            更新于 {new Date(lastLoadedAt).toLocaleTimeString()}
+          </span>
+        ) : null}
       </div>}>
         {loading ? <Spinner /> : jobs.length === 0 ? (
           <div className="verification-empty"><span aria-hidden="true">◎</span><h3>{error ? "暂时无法读取验证记录" : query || statusFilter !== "ALL" ? "没有找到符合条件的验证" : "从第一次验证开始"}</h3>

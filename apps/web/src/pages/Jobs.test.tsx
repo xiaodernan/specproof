@@ -142,3 +142,23 @@ describe("the list reports the server's total, not the window size", () => {
     expect(screen.getByText("1 / 3")).toBeTruthy();
   });
 });
+
+describe("the list says when it last read", () => {
+  it("shows the time of the last read, because it polls on its own", async () => {
+    // The page refreshes itself every ten seconds, so a reader cannot tell a
+    // fresh list from a stale one by looking at it. The toolbar says when the
+    // rows were read -- a page that polls MUST say so, or "is this current?"
+    // is unanswerable.
+    get.mockResolvedValue({
+      jobs: [{ id: "job-1", repo_path: "/workspace/orders", status: "VERIFIED" }],
+      total: 1,
+    });
+    render(<Jobs />);
+    await screen.findByRole("link", { name: "orders" });
+
+    const freshness = screen.getByText(/更新于/);
+    expect(freshness.textContent).toMatch(/更新于/);
+    // and it carries a clock reading, not just the word
+    expect((freshness.textContent || "").replace("更新于", "").trim().length).toBeGreaterThan(0);
+  });
+});
