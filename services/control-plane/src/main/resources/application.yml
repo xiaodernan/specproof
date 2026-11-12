@@ -1,6 +1,21 @@
 spring:
   application:
     name: specproof-control-plane
+  data:
+    redis:
+      # The cache's safety argument rests on these two numbers
+      # (RedisJobReadCache's javadoc says so in as many words): EVERY call to
+      # the backend must be bounded, so a dead Redis costs one round trip
+      # instead of the socket default. Spring's default command timeout is
+      # 60s -- five consecutive failures at that cost hold five request
+      # threads for five minutes, which is the outage the breaker was added
+      # to prevent. So the bound is DECLARED here, not hoped for.
+      #
+      # 50ms is the deployment's budget: the cache answers "I have nothing"
+      # and the caller reads the database, so the round trip only has to be
+      # cheaper than the database read it saves.
+      timeout: ${REDIS_COMMAND_TIMEOUT:50ms}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:50ms}
   config:
     # The shared config server (services/config-server): optional by
     # construction — a control plane that cannot reach it must still boot
