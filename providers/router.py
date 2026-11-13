@@ -42,6 +42,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from .config import load_model_config
+
 DEFAULT_STRONG_MODEL = "deepseek-v4-pro"
 
 ENV_CHEAP_BASE_URL = "SPECPROOF_ROUTER_CHEAP_BASE_URL"
