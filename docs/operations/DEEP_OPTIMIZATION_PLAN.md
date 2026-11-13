@@ -32701,3 +32701,36 @@ demo/spring-backend 的嵌套脚手架中：HEAD = 3194fb6（tag `base`），工
 case-100 变异（pom byte-buddy 1.17.8 + mockito 5.17.0、UserService.setTimestamp(null)、
 未跟踪的 probe/ 脚手架）。外层仓库 HEAD 与工作树一致（outer repo 干净）——**本轮不在此
 目录做任何恢复**：对抗性内容是 eval 资产，归属其重建流水线，删除/还原属于别人的决定。
+
+## #1659 真实性词表重钉：case-01 严重度漂移的死因——词表漂移，不是判级器病
+
+**记录基准**：本节只追加；master = c6749f5。
+
+### 一、实测 → 结论（只读）
+
+`eval-c1-rerun.results.json`（#1633 当次的实录）列着：
+`expected_severity=BLOCKER`、`expected_evidence=differential_test`、
+`matched_findings=2`、`matched_severities=BLOCKER, MAJOR`、`contract_level=BLOCKER`——
+**期待的 BLOCKER 命中了**；案例 PASS；缺陷检出（AUTH-01）。
+
+`differential_test` 是旧词（#87 之前的名），不是现行 `EVIDENCE_KINDS` 成员；
+现行词表：`base_pass_head_fail / probe_differential / self_test_diff / differential_execution`。
+`evidence/judging.py` 的匹配支持"contract id 或 evidence type"两路——旧词落不到任何现行
+证据，匹配走 **contract id 兜底** 依然命中：评测从未契约性地红——
+它只是**语义更粗**（词表对不上时收窄不了证据粒度，也不可能再命中 evidence path）。
+
+### 二、处置
+
+- `golden-cases/case-01-auth-bypass/ground-truth.json` `expected_evidence_type`
+  → `base_pass_head_fail`（本机有真实运行实录支撑该语义；
+  `evidence_vocabulary_parity` 对词表两向锁定已过）；
+- **其余 5 例**（case-17/18/19/20 等 start with `differential_test`）**保持原样** ——
+  本机没有它们的真实运行记录，在语气上等于摸彩，不在本号动；若要做，先把每一例跑一遍再落笔；
+- 审计腿：`evidence_vocabulary_parity` + `golden_probe_expectations_are_evaluable` 7/7 绿。
+
+### 三、两条诚实边界
+
+- #1633 登记的"漂移"本质上是**词表漂移**而非判级器或评审庭策略偏离：matched_severities
+  "BLOCKER, MAJOR" 两个等级同时被命中、contract_level=BLOCKER、评测结果 PASS——判级器没有
+  失职；本节不讳上行同时出现两个等级、以及 evidence 词表那一侧的问题已记在前文；
+- 本改动**收窄**匹配门、不放宽；contract id 兜底路径不受影响。
