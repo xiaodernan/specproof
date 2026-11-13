@@ -26,6 +26,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from storage.env_config import int_env
+
 _REDIS_SOCKET_TIMEOUT_SECONDS = 0.05
 _REDIS_CONNECT_TIMEOUT_SECONDS = 0.05
 _REDIS_DEFAULT_DB = 0
@@ -52,7 +54,7 @@ class SemanticCacheRedisStore:
 
         self._client = redis.Redis(
             host=host if host is not None else os.getenv("REDIS_HOST", "localhost"),
-            port=int(port if port is not None else os.getenv("REDIS_PORT", "6379")),
+            port=port if port is not None else int_env("REDIS_PORT", 6379),
             password=(
                 password
                 if password is not None
