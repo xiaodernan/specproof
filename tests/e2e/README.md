@@ -11,6 +11,7 @@
 | 详情 detail | detail.spec.ts | 验证任务详情页渲染矩阵摘要 (Verdict/PASS/FAIL/UNVERIFIED)、证据与产物 (报告路径)、阶段时间线、Findings、证书文档; 需求矩阵页渲染合约行 |
 | 权限 permissions | permissions.spec.ts | W37 身份 UI: admin 可见身份控制台 (新建用户/角色管理); viewer 看不到 admin 专属控件 (身份页无权限提示 + 控件不渲染, 侧栏入口随 App.tsx 导航门隐藏或点击后仍被拦; 只读页面仍可用); 未认证访客只能看到登录门 |
 | 降级 degradation | degradation.spec.ts | 后端完全不启动: 登录页/总览/任务/向导均渲染优雅错误提示 (data-testid=errorbox), 无白屏; 应用级 ErrorBoundary 兜底渲染崩溃 |
+| 主题基线 theme-baseline | theme-baseline.spec.ts | **画出来的那一版**被钉住：十个表面在两个主题下的**计算样式**（文字色、背景、边框、圆角、字号字重、内距、间距、阴影），在真浏览器里量。基线是**一份测量**（`baselines/theme-baseline.json`，进仓仓）；改动它就是改设计，所以差异会被打印出来，由人决定——重新测量用 `UPDATE_THEME_BASELINE=1`。为什么不用**像素**：字体的光栅化、阴影、渐变在 Windows 与 Linux 上都不同，像素基线要么 flaky，要么每个平台各钉一份；这里记的是**平台无关的事实**（#1641） |
 | 长理由 longtext | longtext.spec.ts | #122: 一条 305 字符不换行的验收理由, 在风险详情页里必须"够得到"——最近的裁剪祖先是有滚动条的 `.ui-table-wrap`, 而不是 `.panel{overflow:hidden}` 那种直接截断; 同一次运行里把同样的字符串塞回旧markup (`<table class="data">`) 作为对照臂, 断言它确实被截断 |
 
 ### 长理由场景为什么要有对照臂
