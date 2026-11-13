@@ -32780,3 +32780,35 @@ fixture 的 job 是演示作业（`e2e00000-…`），证据包 259 字符说明
 - 该 fixture 的 job 是演示作业，本次解读是手工数据上的一次真模型调用，
   不等于任何质量证据；
 - 判决 = 确定性证据 × review court × 人；AI 只负责把已经存在的证据讲清楚。
+
+## #1661 AI 解读腿的 e2e 与一枚现存越界修补：并入 worktree 的 policy-lane 修复
+
+**记录基准**：本节只追加；master = 2341125。
+
+### 一、e2e 腿：`tests/e2e/ai-summary.spec.ts`
+
+浏览器→真 FastAPI 应用（e2e fixture，:8010）→ 真模型调用（fixture 从 `.local/llm.json`
+读凭证，`SPECPROOF_MODEL_CONFIG` 缺省路径）。流程：登录 → 进 `#/jobs/{id}` →
+点「AI 解读本次验收」→ 等待 `.ai-summary-text`（provider 可用）或 `.errorbox`
+（provider 不可用）——两种都合法，腿不判 who wins，只判"按钮真的提交、页面真的出结果或真的报错，且按钮文案变为「重新解读」"。
+
+**实跑**：1 passed（1.5m，含真 LLM 计费；控制在 21.7s 即用）。
+
+### 二、worktree 发现的 policy-lane 越界及其并入
+
+`providers/router.py` 的未提交差异：`ModelRouter.__init__` 对 strong 缺失时
+fallback 到 `DEFAULT_STRONG_MODEL = "deepseek-v4-pro"`（gpt-6-sol 网关上没有这个模型）
+→ policy lane（`SPECPROOF_PROVIDER_POLICY=1`）kind-tagged 调用一律 503。
+差异标注：env 注入的测试映射保持原行为，真实环境才 fallback 到
+`.local/llm.json` 的 `base_url`/`model`（`source is os.environ` 守卫）。
+
+验证：`test_client_policy.py + test_kind_threading.py`，**25/25 绿**。
+本号审阅后原文并入（包括注释），无改写。
+
+### 三、诚实边界
+
+- 本腿在离线/无凭证 CI 上会走 provider-不可用分支（errorbox 出现），但也完成断言；
+- 截图留档：`shots/jobdetail-ai-panel.png`（真模型输出，"通过：本次验收结论为 VERIFIED」
+  "，真终端机 - **真实模型直接拉 12.7s**）；
+- `.local/llm.json` 未入库；该修复**不自己编造**文件内容，仅让 policy lane 读取与强制绑定一致；
+- 本节只登记本号并入的审计，不把这笔修复算到本号名下（作者未署名，非本号所写）。
