@@ -32624,3 +32624,30 @@ contracts extracted: 6
 * aurora.css 收口：::view-transition-old/new(root) 用 aurora 的 --dur-slow × --ease-out；
 * App.tsx 的 hashchange 渲染路径接入；4 腿 vitest；全量 438/438 绿；build 绿；
 * e2e 重跑在途（13 主腿 + 4 degradation + ui-kit/print 回归基线已实拍留档）。
+
+## #1656 最终 e2e 全绿：主 14 腿 + 降级 4 腿；外层 wrapper 的 exit-1 伪影记录
+
+**记录基准**：本节只追加；e2e 复测于 2026-11-13 22:14（直接 shell 调用，真 `.state` 凭证）。
+
+### 一、双套件实测结果
+
+| 套件 | 结果 | 覆盖 |
+|---|---|---|
+| specproof-e2e | **14 passed**（1.8m） | print.spec（打印媒体腿）、theme-baseline（涂装双主题基线）、layout（桌面/手机/双主题 4 腿）、design-system、permissions ×3、longtext ×2、wizard、detail |
+| specproof-degradation | **4 passed**（15.6s） | 后端不可达时：login 页渲染、凭证拒入工作区、jobs 页错误提示不白屏、Agent 向导不白屏（vite proxy ECONNREFUSED 是**降级剧场本身**，不是故障） |
+
+### 二、exit=1 伪影（诚实）记录
+
+`npm run test:e2e` 套两层 PowerShell（EncodedCommand + 外层 pipe）时，内层套件的大量
+stderr（vite proxy 错误刷屏）触发外层 wrapper 的 CLIXML 解析崩溃，pipe 中途死亡，
+外层报 `exit=1` 而日志只有 suite 横幅、没有任何腿——此前两次"降级套件静默失败"
+（含吐不出测试）都是这个伪影，不是产品或测试回归。直接在 shell 里执行
+`npx playwright test --config=...degradation...` 则 stdout 直达、输出完整、4/4 绿；
+诊断路径：先确认 vite dev（e2e config）可起、可访问（:5174 返回 200 + "SpecProof"），
+再用同端口交给 playwright webServer，套件正常收口。
+
+### 三、frontend 集大成闭环
+
+自本轮起前端所有"未交付"项全部 closed：打印输出（门 + 实拍 + e2e 腿）、键盘地图
+（locale 双语种 + 434 → 438 腿全绿）、ui-kit 键盘表、视图过渡（#1655）、aurora 双主题
+（theme-baseline 双主题绿）。
