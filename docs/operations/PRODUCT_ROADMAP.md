@@ -188,7 +188,7 @@
     `classify_request()` 重推导，不依赖任何手写数字）。前端 `accessRoles.test.ts`
     覆盖登录后渲染。GUIDE_GAP_AUDIT 的“核心完成 W37”未被伪称超越；
     SAML/邀请流保留为独立项（与本行不重合）。
-- [ ] **5.2 用量与账单准确**：模型 token/成本核算对齐真实 provider。
+- [x] **5.2 用量与账单准确**：模型 token/成本核算对齐真实 provider。（2026-11-13 记：流式调用 + `prompt_cache_hit_tokens`/`cache_miss` 入账， `providers/budget.py` 0.1× 缓存命中权重，billing 链 listener 同口径； `_JUNIT_GENERATION_PROMPT` 前缀 2270 字符 42.1s → 9.1s，96.5% 命中； `tokens` 真实用量透传到 tenant 账本，本条由 #1645 的实测关账。）
 - [~] **5.3 可观测性默认开启**：`observability/` + compose 指标看板开箱可用。
   - 2026-11-09 本机复核（阻挡）：`docker daemon` 对 `docker run`/`docker network create`
     降级（hello-world 也超时零输出），冷启动 Grafana/Prometheus 本机无法再次复验。
