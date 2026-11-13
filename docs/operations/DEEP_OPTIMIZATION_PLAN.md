@@ -32903,3 +32903,38 @@ Markdown digest（verdict + 矩阵计数 + 风险发现 + capsules + 链接 + �
 - vitest **441/441 绿**（38 + 3 新腿：8 file → 48 file 运行时间约 73s，全链路绿）；
 - typecheck 干净；vite build 绿；
 - 不动 e2e（Markdown 渲染 ≠ 屏幕渲染，e2e 测不出东西）。
+
+## #1665 AI 解读增量流式——把评审者看到的等待压进体感里
+
+**记录基准**：本节只追加；master = ae87bf3。
+
+### 一、动机
+
+评审者点「AI 解读本次验收」后看着「正在解读…」干等 10 秒以上——在慢网/高负载下更糟。
+增量流式把到达即显示：评审者边读边看到解读的骨架、色彩（tone-block 按 verdict 切色）、
+以及"以上文本已到达但解读被中断"这种如实边界。
+
+### 二、实现分层
+
+| 层 | 责任 |
+|---|---|
+| `api/ai_summary.py :: generate_ai_summary_stream` | yield `delta`/piece、`done`（含 usage/latency）、`error`（含 detail+partial 保留） |
+| `api/routes/web.py :: GET /jobs/{id}/ai-summary/stream` | 缓存 hit → 重放为 delta+done；miss → live forward；StreamingResponse；`X-Accel-Buffering: no` |
+| `apps/web/src/api.ts :: streamAiSummary` | 已存在的 `openEventStream` + 按 type 分派 |
+| `apps/web/src/pages/JobDetail.tsx` | 按帧累积到 `aiSummaryStream`；`▋` 插入符（reduced-motion 下不动）；done 后切换为 cache/延迟 tag + 复制摘要按钮；error 中保留已到文本 + "被中断"声明 |
+| 验迹 | `tests/unit/test_ai_summary_stream.py` 3 腿（delta→done / 空→error / provider 异常含 partial）全绿 |
+
+### 三、实测
+
+- SSE 现场窥听（urllib 等价 curl）确认流式 frame 现场重现：
+  `event: delta / data: {"type":"delta","text":"通"}` → … 多段逐字 stream → done；
+- typecheck 干净；vite build 绿；vitest JobDetail 31/31 绿；
+- e2e 不改（UI 行为未移；e2e 仍按按钮态做）。
+
+### 四、诚实边界
+
+- 缓存 hit 仍按"整段重放"走，不提供 per-frame 中途断续回放——**这正是预期**（缓存键不变量语义——verdict/matrix 不变就是同一段解读）；
+- 中断 frame 保留已到文本但**不**渲染为"AI 完成了"——错误与完成态永远分开；
+- 严格遵循：delta 只来自 model output、不拼接任何助词；error frame 的 detail 直接引用 provider 原文（无代笔）；
+- 本次未联网真打（e2e 上下文中拉真 API 仍算 token 成本，按证路线人工留在本文件——观测者端的真实 stream 帧可以本地复现）；
+- `openai_compatible.chat_stream` 该调用点原本不含 policy 注入（`SPECPROOF_PROVIDER_POLICY` 不向 stream 注入），本号未触碰该政策局面。
