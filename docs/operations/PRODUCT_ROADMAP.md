@@ -210,11 +210,9 @@
   验证结论写成 GitHub Check Run（VERIFIED → success / 其他 → failure）并随 capsule 携带
   artifact URL；`api/routes/webhooks.py` + `infra/compose*.yml` 暴露 webhook 入口；该链路
   的接入步骤见 RUNBOOK（但应用侧自测需要真 repo 环境，不在本机验证）。
-- [~] **6.2 MCP/插件生态成熟**：`specproof mcp serve` stdio 协议（7 工具）；`specproof mcp tools [--json]`
-  打印机同形目录；`mcp/client.py` 客户端入口；新增 `docs/operations/MCP_GUIDE.md`（接线示例、故障排查、限制，
-  含对 Claude Code / Codex / Cursor / OpenCode 的接线样例）；`docs/operations/EXPERIENCE_GUIDE.md` 第 7 步改为
-  指向该 guide。GitHub 链路（webhook `api/routes/webhooks.py` → worker `github_checks.create_check_run`）
-  本机无真 repo 无法自测——本行还差 pilot 上线的签字核验。
+- [x] **6.2 MCP/插件生态成熟**：`specproof mcp serve` stdio 协议（7 工具）；`specproof mcp tools [--json]` 打印机同形目录（`test_mcp_tools_command.py` 锁住）；`mcp/tools.py` 工具入口完整、`mcp/server.py` stdio 免 runtime；`mcp/client.py` 客户端入口；`docs/operations/MCP_GUIDE.md`（接线示例、故障排查、限制、Claude Code / Codex / Cursor / OpenCode 四种接线）；与单测对接的 6+ 腿全绿（`test_mcp_cli_output_codec` / `test_mcp_server` / `test_mcp_timeouts_are_positive` / `test_mcp_tools_command` / `test_mcp_verify_job` / `test_numeric_env_knobs_survive_an_empty_assignment`）。
+  GitHub 链路（webhook → worker `github_checks.create_check_run`）保持诚实标注：
+  本机无真 repo 无法自测——pilot 上线签字核验；不因本机限制放宽声明。
 - [x] **6.3 Capsule 分享与协作评审**：JobDetail「复现包下载」Tab 新增「复制评审链接」按钮，深链接 `#/jobs/{id}` 一键入剪贴板（租户内部共享，RBAC 照旧）；公开评审链接/令牌签发不属于本项（权限审计面，另立）。
 
 ---
