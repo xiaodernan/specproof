@@ -63,6 +63,17 @@ eureka:
       defaultZone: http://localhost:8761/eureka/
 
 management:
+  prometheus:
+    metrics:
+      export:
+        # Boot 3.x does NOT export metrics by default — with this absent the
+        # PrometheusMeterRegistry bean never exists and /actuator/prometheus
+        # answers 404 (the include list names the endpoint, but Boot's
+        # registry decides whether it's real). Mirrors the edge's wiring;
+        # the scrape job is still the operator's call (RUNBOOK §5), this only
+        # makes the endpoint exist so a future scrape target has something to
+        # reach. Wired by ControlPlanePrometheusEndpointTests.
+        enabled: true
   endpoints:
     web:
       exposure:
