@@ -93,6 +93,10 @@ JAVA_EMIT_DIRS = (
     # /actuator/refresh-driven EnvironmentChangeEvents from this tree --
     # the meter lives next to the listener, not next to the endpoints.
     "services/control-plane/src/main/java/dev/specproof/controlplane/config",
+    # The edge's refresh witness (#1650) counts /actuator/refresh-driven
+    # EnvironmentChangeEvents from this tree -- the meter lives next to the
+    # listener, not next to the endpoints.
+    "services/gateway/src/main/java/dev/specproof/gateway/config",
 )
 
 _JAVA_COUNTER = re.compile(r"Counter\.builder\(\s*\"([a-z0-9_.]+)\"\s*\)")

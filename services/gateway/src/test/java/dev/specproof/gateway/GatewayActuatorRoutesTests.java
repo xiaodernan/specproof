@@ -60,6 +60,12 @@ class GatewayActuatorRoutesTests {
     @LocalServerPort
     private int edgePort;
 
+    @Autowired
+    private io.micrometer.core.instrument.MeterRegistry meters;
+
+    @Autowired
+    private dev.specproof.gateway.config.EdgeConfigRefreshMetrics refreshWitness;
+
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private ResponseEntity<String> get(String url) {
@@ -85,6 +91,37 @@ class GatewayActuatorRoutesTests {
 
     private static String routeId(Map<String, Object> route) {
         return String.valueOf(route.get("route_id"));
+    }
+
+    /**
+     * The refresh contract, same claim-on-the-wire as the routes:
+     * POST /actuator/refresh on the MANAGEMENT port must answer 200, and the
+     * edge's own witness meter must move — the "命名" half and the "存在" half
+     * are different claims, and only this one distinguishes them. The edge
+     * port deliberately does not serve this endpoint, and the control-plane
+     * witness (#1646) is a separate meter; nothing here proves the fleet
+     * moved together — only that THIS edge refreshed.
+     */
+    @Test
+    void theRefreshEndpointActuallyRefreshesAndCounts() {
+        double before = meters
+                .get(dev.specproof.gateway.config.EdgeConfigRefreshMetrics.REFRESH_EVENTS_METER)
+                .counter()
+                .count();
+
+        ResponseEntity<String> response = restTemplate.postForEntity(
+                "http://127.0.0.1:" + managementPort + "/actuator/refresh", null, String.class);
+        assertThat(response.getStatusCode().value())
+                .as("the edge's refresh endpoint must answer on the management port; body was: %s",
+                        response.getBody())
+                .isEqualTo(200);
+
+        double after = meters
+                .get(dev.specproof.gateway.config.EdgeConfigRefreshMetrics.REFRESH_EVENTS_METER)
+                .counter()
+                .count();
+        assertThat(after).isGreaterThanOrEqualTo(before + 1.0);
+        assertThat(refreshWitness.lastRefreshAt()).isNotNull();
     }
 
     @Test

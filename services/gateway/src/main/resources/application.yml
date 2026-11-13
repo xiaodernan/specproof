@@ -391,7 +391,11 @@ management:
         # prometheus: the EdgeCircuitBreaker's gauges/counters so the
         # container-ops stack can scrape them (loopback only, like the
         # rest of the management surface).
-        include: health,info,gateway,prometheus
+        # refresh: Spring Cloud's refresh endpoint — POST it after a
+        # config-server push; it republishes the Environment and fires the
+        # EnvironmentChangeEvent the EdgeConfigRefreshMetrics witness counts.
+        # It lives ONLY on this port, never on the public one.
+        include: health,info,gateway,prometheus,refresh
   endpoint:
     gateway:
       enabled: true
