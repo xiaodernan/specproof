@@ -32287,3 +32287,47 @@ llm.json 维持 chat_completions，不动用户机器上的配置。
   需要注册中心/配置中心推送机制，本号不虚标；
 - 50/50 是离线模式结果；CI（有网络、有 MySQL/RabbitMQ）另有 tests-with-infra 腿兜底，
   本号未在有网络环境下重跑。
+
+## #1647 前端"登峰造极"：键盘地图（`?`）+ 证据级打印件（print.css）
+
+**记录基准**：本节只追加；落在 3c4ec00（键盘地图）与 7bbf274（打印件）两提交；
+master = 7bbf274。
+
+### 一、键盘快捷键表 —— 可发现性是 Linear/GitHub 级的细节
+
+新增 `ShortcutHelp`（`?` 全局开合，可编辑目标守卫与命令面板同款）：三张手牌
+（全局 / 命令面板 / 页签与表格），每一行都对应**真实接线**的处理器——
+`ui/shortcuts.ts` 是唯一数据源，杜绝"榜上有名、代码无线"的假快捷键。
+
+* 组件：`ui/ShortcutHelp.tsx`（role=dialog、aria-modal、面板聚焦、开/关归还焦点、
+  Esc / 背景点击关闭、prefers-reduced-motion 才有动效）；
+* 样式：aurora.css 追加 `.ui-shortcuts-*`（全 token，零 raw hex，圆角/字号全在阶梯上）；
+* 导出：`ui/index.ts`；App 根部挂载（与 CommandPalette 同级）；
+* 腿：`ui/__tests__/ShortcutHelp.test.tsx` 6 腿；vitest **434/434 绿**（此前 428），
+  tsc 干净，vite build 绿；
+* 实拍：dark aurora 下 overlay 与设计系统一致（D:\面试项目\shots\aurora-shortcuts-dark.png）。
+
+### 二、打印件 —— 证据进评审会的形状
+
+新增 `styles/print.css`（main.tsx 加载）+ 新门 `test_print_styles_are_evidence_grade.py`（5 腿）：
+
+* @page A4；白纸近黑墨；交互 chrome 全隐（sidebar/topbar/footer/palette/shortcuts/
+  toast/modal-foot/ui-btn/skip-link/freshness —— **真实类名 `.ui-btn`**，本号初稿写的
+  `.btn` 对仓库不存在，已按在场类名修正并由腿锁定）；
+* 所有 gradient-text 工具类（`background-clip: text` = 纸面透明墨）强制实心 Ink 覆盖；
+  门从 aurora.css/base.css **推导清点**梯度墨类并逐项要求 print 覆盖——新增
+  gradient-text 工具类不给 print 墨 → 门红；
+* panel 细线 + break-inside: avoid；thead 跨页重复（`table-header-group`）；
+  code/kbd 浅灰 chip；外链尾注 URL；aurora 洗 print 时 content: none；
+* 实拍 print-guide.png：按钮消失、标题实墨、无横向滚动；
+* **诚实边界**：print 面未接入 e2e（设计系统门本就不测打印媒体）；
+  `.verification-freshness` 在 print 中隐藏是本号决定，非产品语义声明。
+
+### 三、Gate v19 中断与 Gate v20 重跑（重要：v19 不作数）
+
+* gate_v19（sp-final9 worktree，运行自 8d85743）跑到 **59%、0 FAILED** 时被**服务器重启杀死**；
+  按纪律，那一次不算结论；worktree 现停在 71c3507（旧快照）；
+* **Gate v20** 已从 master HEAD **b3173ab** 重新开 detached worktree（D:\tmp\sp-final10）、
+  新日志 gate_v20.log 全量重跑；本号前端提交（3c4ec00/7bbf274）在其快照之后，
+  但 python 门与前端改动无交集（门扫 .py/.yml/.sql/.md，前端为 .tsx/.css）；
+  v20 完成后其摘要随 #1648 入账。
