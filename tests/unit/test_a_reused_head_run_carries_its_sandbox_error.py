@@ -125,7 +125,12 @@ def _producer_state(workspace: str) -> dict[str, Any]:
         "app_dir": "",
         "static_findings": [],
         "confirmed_findings": [],
-        "contracts": [],
+        # The deterministic template is SELECTED by the compiled contracts
+        # since #1638's follow-up: a change with no family this tier can
+        # execute produces no test at all — so the demo-repo branch here
+        # compiles AUTH-01, which its "unauthenticated email change"
+        # requirement describes.
+        "contracts": [{"id": "AUTH-01"}],
         "requirement_text": "unauthenticated email change must be rejected",
         "use_llm": False,
     }
