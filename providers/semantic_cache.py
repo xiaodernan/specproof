@@ -15,7 +15,7 @@ request params::
 
     key = sha256(prompt_digest + "|" + model + "|" + canonical_json(params))
 
-The cache is an in-memory TTL + LRU store: expired entries are evicted on
+The default cache is an in-memory TTL + LRU store: expired entries are evicted on
 read and on capacity pressure, and when full the least recently used entry
 is dropped. It is OFF by default (enabled=False). ``craft/loop.py`` and
 ``providers/client_policy.py`` both import it at module scope, but the loop
@@ -29,6 +29,13 @@ no cache, not because nothing matched. Enable explicitly::
     key = cache_key(digest, model, params)
     if cacheable(kind):
         hit = cache.get(key) or cache.put(key, compute(), kind=kind)
+
+Distributed backing (optional, same fail-closed kinds): pass ``store=`` (any
+``SemanticCacheStore`` — the shipped implementation is the Redis one in
+``providers/semantic_cache_redis.py``) plus ``encode``/``decode`` for the payload.
+The evidence-kind exclusions and the disabled default are unchanged; every
+store operation is wrapped so a Redis hiccup becomes a counter and a miss,
+never an exception — a cache must not fail the call it accelerates.
 """
 
 from __future__ import annotations
@@ -38,7 +45,7 @@ import json
 import time
 from collections import OrderedDict
 from collections.abc import Callable, Mapping
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 #: The only task kinds a semantic cache may serve (non-evidence, mechanical).
 CACHEABLE_KINDS: frozenset[str] = frozenset({"draft", "diagnose"})
@@ -51,6 +58,21 @@ EVIDENCE_KINDS: frozenset[str] = frozenset(
 
 DEFAULT_MAX_ENTRIES = 1024
 DEFAULT_TTL_SECONDS = 300.0
+
+
+@runtime_checkable
+class SemanticCacheStore(Protocol):
+    """The minimal distributed-store contract the cache needs (fail-open).
+
+    Implementations must return ``str | None`` from ``get`` and accept a TTL
+    in seconds (``ex``) in ``set``; any exception they raise is counted and
+    treated as absence (never as failure of the caller's work). The only
+    implementation shipped is the Redis one in ``semantic_cache_redis.py``.
+    """
+
+    def get(self, key: str) -> str | None: ...
+
+    def set(self, key: str, value: str, ex: int) -> None: ...
 
 
 def cacheable(kind: str) -> bool:
@@ -90,6 +112,9 @@ class SemanticCache:
         ttl_seconds: float = DEFAULT_TTL_SECONDS,
         enabled: bool = False,
         clock: Callable[[], float] = time.monotonic,
+        store: SemanticCacheStore | None = None,
+        encode: Callable[[Any], str] | None = None,
+        decode: Callable[[str], Any] | None = None,
     ) -> None:
         if max_entries < 1:
             raise ValueError("max_entries must be >= 1")
@@ -100,6 +125,13 @@ class SemanticCache:
         self.enabled = enabled
         self._clock = clock
         self._entries: OrderedDict[str, tuple[float, Any]] = OrderedDict()
+        self.store = store
+        #: Serialization for the distributed path. Defaults to an identity pair
+        #: (raw Python objects are not storable cross-process, so callers that
+        #: pass a store must pass encode/decode too — the identity fallback
+        #: exists for stores that hold native objects, e.g. test fakes).
+        self._encode = encode if encode is not None else (lambda value: value)
+        self._decode = decode if decode is not None else (lambda raw: raw)
         # Counters (disabled operations never touch them).
         self.hits = 0
         self.misses = 0
@@ -107,6 +139,8 @@ class SemanticCache:
         self.expirations = 0
         self.puts = 0
         self.rejected = 0
+        #: Distributed-store failures observed (fail-open: counted, never raised).
+        self.store_errors = 0
 
     @property
     def size(self) -> int:
@@ -121,6 +155,25 @@ class SemanticCache:
         """
         if not self.enabled:
             return None
+        if self.store is not None:
+            raw: str | None
+            try:
+                raw = self.store.get(key)
+            except Exception:  # noqa: BLE001 - the cache must not fail the call
+                self.store_errors += 1
+                self.misses += 1
+                return None
+            if raw is None:
+                self.misses += 1
+                return None
+            try:
+                value = self._decode(raw)
+            except Exception:  # noqa: BLE001 - a poisoned entry is a miss
+                self.store_errors += 1
+                self.misses += 1
+                return None
+            self.hits += 1
+            return value
         now = self._clock()
         entry = self._entries.get(key)
         if entry is None:
@@ -147,6 +200,15 @@ class SemanticCache:
         if kind is not None and not cacheable(kind):
             self.rejected += 1
             return False
+        if self.store is not None:
+            try:
+                payload = self._encode(value)
+                self.store.set(key, payload, ex=max(1, int(self.ttl_seconds)))
+            except Exception:  # noqa: BLE001 - writing a cache is best-effort
+                self.store_errors += 1
+                return False
+            self.puts += 1
+            return True
         self._entries[key] = (self._clock() + self.ttl_seconds, value)
         self._entries.move_to_end(key)
         self.puts += 1
@@ -154,7 +216,12 @@ class SemanticCache:
         return True
 
     def clear(self) -> None:
-        """Drop every entry (counters are kept)."""
+        """Drop every entry (counters are kept).
+
+        With a distributed store, only the local LRU is dropped — remote
+        entries expire on their TTL; callers wanting a fleet-wide flush
+        must flush the keyspace, not this method.
+        """
         self._entries.clear()
 
     def _enforce_capacity(self, now: float) -> None:
@@ -179,6 +246,8 @@ class SemanticCache:
             "max_entries": self.max_entries,
             "ttl_seconds": self.ttl_seconds,
             "size": self.size,
+            "backend": "redis" if self.store is not None else "memory",
+            "store_errors": self.store_errors,
             "hits": self.hits,
             "misses": self.misses,
             "evictions": self.evictions,

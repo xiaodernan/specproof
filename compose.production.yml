@@ -35,6 +35,9 @@ services:
       SPECPROOF_CORS_ORIGINS: ${SPECPROOF_CORS_ORIGINS:-http://localhost:3000}
       MYSQL_HOST: mysql
       REDIS_HOST: redis
+      # Semantic cache backend for the provider policy layer: memory
+      # (default) or redis (shared across replicas; non-evidence kinds only).
+      SPECPROOF_SEMANTIC_CACHE_BACKEND: ${SPECPROOF_SEMANTIC_CACHE_BACKEND:-memory}
       MONGODB_HOST: mongodb
       ES_HOST: http://elasticsearch:9200
       RABBITMQ_HOST: rabbitmq
@@ -143,6 +146,9 @@ services:
       TMPDIR: /workspaces
       MYSQL_HOST: mysql
       REDIS_HOST: redis
+      # Semantic cache backend for the provider policy layer: memory
+      # (default) or redis (shared across replicas; non-evidence kinds only).
+      SPECPROOF_SEMANTIC_CACHE_BACKEND: ${SPECPROOF_SEMANTIC_CACHE_BACKEND:-memory}
       MONGODB_HOST: mongodb
       RABBITMQ_HOST: rabbitmq
       MINIO_HOST: minio

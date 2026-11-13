@@ -31,12 +31,21 @@ The layer never builds SDK clients: the provider injects make_client(base_url)
 and create(client, kwargs), which keeps this layer thin. A cheap-tier failure
 is NOT auto-failed-over here — ModelRouter.on_failure() offers that fallback
 for a caller that wants it; it is left out so the layer stays predictable.
+
+SPECPROOF_SEMANTIC_CACHE_BACKEND (default "memory") selects where cacheable
+(draft | diagnose) payload lives: "memory" = per-process LRU; "redis" =
+shared fleet cache (the api/worker replicas answer the same mechanical
+prompts once). The evidence-kind exclusions are identical on both backends;
+"redis" means one shared store with 50ms socket budgets and TTL'd entries,
+and like every other wiring in this layer it fails open — a dead Redis is a
+miss, never a crash.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
@@ -44,6 +53,8 @@ from typing import Any
 from .resilience import CircuitBreaker, RetryPolicy
 from .router import ModelRouter, ProviderRoute
 from .semantic_cache import SemanticCache, cache_key, cacheable
+
+log = logging.getLogger(__name__)
 
 #: Environment gate — the single switch for the whole layer (default off).
 ENV_POLICY = "SPECPROOF_PROVIDER_POLICY"
@@ -57,6 +68,52 @@ def client_policy_enabled(env: Mapping[str, str] | None = None) -> bool:
 
 def _sha256_digest(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _encode_sdk_response(response: Any) -> str:
+    """Serialize one raw SDK response for the shared store (JSON text)."""
+    dump = (
+        response.model_dump(mode="json")
+        if hasattr(response, "model_dump")
+        else response
+    )
+    return json.dumps(dump, ensure_ascii=False, default=str)
+
+
+def _decode_sdk_response(raw: str) -> Any:
+    """Rehydrate a ChatCompletion the Redis store served up."""
+    from openai.types.chat import ChatCompletion
+
+    return ChatCompletion.model_validate(json.loads(raw))
+
+
+def _default_cache() -> SemanticCache:
+    """The policy's own cache; backend from SPECPROOF_SEMANTIC_CACHE_BACKEND.
+
+    "memory" (default) is byte-identical to the historical construction.
+    "redis" builds the fleet-shared store; any build failure falls back to
+    in-memory (fail-open) rather than wedging the policy path.
+    """
+    backend = os.environ.get("SPECPROOF_SEMANTIC_CACHE_BACKEND", "memory").strip().lower()
+    if backend != "redis":
+        return SemanticCache(enabled=True)
+    try:
+        from .semantic_cache_redis import SemanticCacheRedisStore
+
+        store = SemanticCacheRedisStore()
+    except Exception as exc:  # noqa: BLE001 - backend must not wedge the layer
+        log.warning(
+            "SPECPROOF_SEMANTIC_CACHE_BACKEND=redis requested but the store "
+            "could not be built (%s); falling back to in-memory cache",
+            type(exc).__name__,
+        )
+        return SemanticCache(enabled=True)
+    return SemanticCache(
+        enabled=True,
+        store=store,
+        encode=_encode_sdk_response,
+        decode=_decode_sdk_response,
+    )
 
 
 def _canonical_json(value: Any) -> str:
@@ -83,7 +140,7 @@ class ClientPolicy:
         )
         # The policy owns its cache instance and switches it ON: the env gate
         # above is the layer switch, not the module's standalone default.
-        self.cache = cache if cache is not None else SemanticCache(enabled=True)
+        self.cache = cache if cache is not None else _default_cache()
 
     def route(self, kind: str) -> ProviderRoute:
         """Resolve the provider config (tier + base_url + model) for a kind."""
