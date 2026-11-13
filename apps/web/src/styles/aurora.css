@@ -25,9 +25,9 @@
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(40vmax 40vmax at 12% 8%, rgba(124, 92, 255, 0.16), transparent 60%),
-    radial-gradient(38vmax 38vmax at 88% 12%, rgba(34, 211, 238, 0.12), transparent 58%),
-    radial-gradient(46vmax 46vmax at 60% 100%, rgba(124, 92, 255, 0.10), transparent 62%);
+    radial-gradient(40vmax 40vmax at 12% 8%, var(--accent-tint), transparent 60%),
+    radial-gradient(38vmax 38vmax at 88% 12%, color-mix(in srgb, var(--accent-2-400) 12%, transparent), transparent 58%),
+    radial-gradient(46vmax 46vmax at 60% 100%, color-mix(in srgb, var(--accent-500) 10%, transparent), transparent 62%);
   background-size: 140% 140%, 140% 140%, 140% 140%;
   filter: saturate(1.1);
   opacity: 0.9;
@@ -36,9 +36,9 @@
 :root[data-theme="light"] .shell::before,
 :root[data-theme="light"] .login-wrap::before {
   background:
-    radial-gradient(40vmax 40vmax at 12% 8%, rgba(106, 70, 240, 0.12), transparent 60%),
-    radial-gradient(38vmax 38vmax at 88% 12%, rgba(6, 182, 212, 0.10), transparent 58%),
-    radial-gradient(46vmax 46vmax at 60% 100%, rgba(106, 70, 240, 0.08), transparent 62%);
+    radial-gradient(40vmax 40vmax at 12% 8%, color-mix(in srgb, var(--accent-600) 12%, transparent), transparent 60%),
+    radial-gradient(38vmax 38vmax at 88% 12%, color-mix(in srgb, var(--accent-2-500) 10%, transparent), transparent 58%),
+    radial-gradient(46vmax 46vmax at 60% 100%, color-mix(in srgb, var(--accent-600) 8%, transparent), transparent 62%);
   opacity: 0.85;
 }
 
@@ -59,7 +59,7 @@
   border-color: var(--color-border-strong);
   box-shadow:
     var(--elev-2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    inset 0 1px 0 var(--shadow-hairline);
   transition:
     transform var(--dur) var(--ease-out),
     box-shadow var(--dur) var(--ease-out),
@@ -74,7 +74,7 @@
     box-shadow:
       var(--elev-3),
       0 0 0 1px var(--accent-ring),
-      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      inset 0 1px 0 var(--shadow-hairline-strong);
   }
 }
 
@@ -86,7 +86,7 @@
   position: absolute;
   inset: 0 0 auto 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+  background: linear-gradient(90deg, transparent, var(--shadow-highlight), transparent);
   opacity: 0.6;
 }
 
@@ -94,7 +94,7 @@
 .stat {
   position: relative;
   border-color: var(--color-border-strong);
-  box-shadow: var(--elev-2), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow: var(--elev-2), inset 0 1px 0 var(--shadow-hairline);
   transition: transform var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out);
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -113,8 +113,8 @@
 
 /* ── Brand mark: a soft, breathing glow ───────────────────── */
 @keyframes brand-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 92, 255, 0.0), var(--shadow-accent); }
-  50%      { box-shadow: 0 0 18px 2px rgba(124, 92, 255, 0.45), var(--shadow-accent); }
+  0%, 100% { box-shadow: 0 0 0 0 transparent, var(--shadow-accent); }
+  50%      { box-shadow: var(--glow-brand), var(--shadow-accent); }
 }
 .brand-mark,
 .prev-logo,
@@ -129,8 +129,8 @@
 
 /* ── Primary action: luminous, animated halo ──────────────── */
 @keyframes btn-aura {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 92, 255, 0.0), 0 1px 2px var(--shadow-ambient), inset 0 1px 0 var(--shadow-highlight), 0 0 0 1px var(--accent-ring); }
-  50%      { box-shadow: 0 0 20px 1px rgba(124, 92, 255, 0.35), 0 1px 2px var(--shadow-ambient), inset 0 1px 0 var(--shadow-highlight), 0 0 0 1px var(--accent-ring); }
+  0%, 100% { box-shadow: 0 0 0 0 transparent, 0 1px 2px var(--shadow-ambient), inset 0 1px 0 var(--shadow-highlight), 0 0 0 1px var(--accent-ring); }
+  50%      { box-shadow: var(--glow-primary), 0 1px 2px var(--shadow-ambient), inset 0 1px 0 var(--shadow-highlight), 0 0 0 1px var(--accent-ring); }
 }
 .ui-btn-primary {
   background: linear-gradient(135deg, var(--accent-600) 0%, var(--accent-500) 55%, var(--accent-2-400) 130%);
@@ -169,7 +169,7 @@
   background-clip: text;
   color: transparent;
 }
-.welcome-brand { display: inline-flex; align-items: center; gap: 10px; font-weight: var(--fw-800); font-size: var(--text-xl); }
+.welcome-brand { display: inline-flex; align-items: center; gap: 12px; font-weight: var(--fw-800); font-size: var(--text-xl); }
 .welcome-brand span {
   display: inline-flex; align-items: center; justify-content: center;
   width: 30px; height: 30px; border-radius: var(--radius-md);
@@ -206,7 +206,7 @@
 .login-card { position: relative; }
 .login-card:focus-within {
   border-color: var(--accent-ring);
-  box-shadow: var(--elev-3), 0 0 0 1px var(--accent-ring), 0 0 28px -6px rgba(124, 92, 255, 0.35);
+  box-shadow: var(--elev-3), 0 0 0 1px var(--accent-ring), var(--glow-focus);
 }
 .welcome-flow > div {
   border: 1px solid var(--color-border);
@@ -220,7 +220,7 @@
   width: 26px; height: 26px; border-radius: var(--radius-md);
   background: var(--accent-tint); color: var(--accent-text);
   font-family: var(--font-mono); font-weight: var(--fw-700); font-size: var(--text-sm);
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 .welcome-example-result {
   border: 1px solid var(--warning-tint);

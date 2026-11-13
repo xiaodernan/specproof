@@ -5,6 +5,18 @@
    ============================================================ */
 
 :root {
+  /* The aurora layer's glass highlights and its glows (#1640).
+     They used to be literals inside aurora.css, which meant they could
+     not follow the theme -- the light theme painted the same darkness as
+     the dark one. They are declared HERE, for BOTH themes, so the shadow
+     ladder's rule holds: a shadow that only exists in one theme is a
+     theme-blind shadow wearing a token's name. */
+  --shadow-hairline: rgba(255, 255, 255, 0.04);
+  --shadow-hairline-strong: rgba(255, 255, 255, 0.06);
+  --glow-brand: 0 0 18px 2px rgba(124, 92, 255, 0.45);
+  --glow-primary: 0 0 20px 1px rgba(124, 92, 255, 0.35);
+  --glow-focus: 0 0 28px -6px rgba(124, 92, 255, 0.35);
+
   /* Brand — aurora pair (violet -> cyan) */
   --accent-100: #ede9ff;
   --accent-200: #d9d0ff;
@@ -187,6 +199,14 @@
 }
 
 :root[data-theme="light"] {
+  /* The same aurora highlights and glows, for the light theme: the dark
+     theme's white sheen would be invisible on a light surface, and its
+     violet glow would be far too loud. */
+  --shadow-hairline: rgba(9, 9, 11, 0.03);
+  --shadow-hairline-strong: rgba(9, 9, 11, 0.05);
+  --glow-brand: 0 0 18px 2px rgba(106, 70, 240, 0.28);
+  --glow-primary: 0 0 20px 1px rgba(106, 70, 240, 0.22);
+  --glow-focus: 0 0 28px -6px rgba(106, 70, 240, 0.22);
   --color-bg: #f7f7f8;
   --color-sidebar: #fbfbfc;
   --color-surface: #ffffff;
