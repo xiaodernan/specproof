@@ -32837,3 +32837,42 @@ Capsule 下载页仅剩"复制评审链接"按钮——深链接 `#/jobs/{id}` �
 
 `PRODUCT_ROADMAP.md` 的 **0 个 `- [ ]` 未完成项**，仅剩进行中的 `[~]`（I 阶段中已拆细
 并各转子阶段附 jar 可独立关账的具体项；none are required for this round to close）。
+
+## #1663 双车道流式统一 + policy 路由修复（worktree 中发现的遗留修复，本号审阅并入）
+
+**记录基准**：本节只追加；master = 92079a0（两笔即 commit 链 #1659 → 87118ba → 92079a0）。
+
+### 一、事情的起源
+
+用户初次反馈"为什么我的大模型 API 一直缓存命中率低 + 一直显示非流"——那个时候的实测已经定位并当时改了 legacy 车道；policy 车道（`SPECPROOF_PROVIDER_POLICY=1`）被刻意留在
+"不流式，因为语义缓存需要存整个 SDK response 流"的旧说法里——实际上聚合后只是另一套
+response object，可以一样地编码。policy 车道不改 = 命中率没有一点改善，
+**真正只改了 legacy 的话等于假修复**。
+
+### 二、修法（87118ba）
+
+* `openai_compatible.chat()`：两条车道统一 `stream=True + include_usage`；
+  policy 路径同样走 `_collect_chat_stream` 聚合成单响应契约；
+* `client_policy._encode_sdk_response`：同时兼容两种形状——真 SDK response 的
+  `model_dump`，以及聚合后 SimpleNamespace 的重组 ChatCompletion dict
+  （含 `reasoning_content` 透传；`_decode_sdk_response` 仍 model_validate）；
+* `ModelRouter`：强 tier 的环境变量链为空且 `source is os.environ` 时，
+  回落读 `.local/llm.json` 的 `base_url`/`model`——消灭 policy 车道 kind-tagged
+  调用路由到 `DEFAULT_STRONG_MODEL="deepseek-v4-pro"` 而网关没有该模型 → `503 model_not_found`；
+* 注入式测试的 env 映射全部不走这条回落（`source is os.environ` 守卫）。
+
+### 三、实测（现场跑过）
+
+| 情形 | 结果 |
+|---|---|
+| `tests/unit/test_client_policy.py + test_kind_threading.py` | 25/25 绿 |
+| `+ test_semantic_cache_redis.py + test_semantic_cache.py` | **66/66 绿** |
+| 现场实测（policy 路径 3 连发） | 33s → 9.8s → 8.3s，hit≈4224/4411 ≈ **95.7%** |
+
+### 四、诚实边界
+
+- 本号审阅了 worktree 中这批未提交改动，判定为**真实且有据可依的修复**，原文并入
+  （未改写任何字节）——本号不拥有这笔修复的原创归属，提交主题如实写"worktree 发现"；
+- 未自己编造实测数据：95.7% / 三连发数字由 commit 87118ba 的提交说明所载，
+  本节按该条记录引用；本号未重新复现该序列，只复核了单测侧 66/66 绿；
+- 若未来要按这条数字做承诺对外，**必须现场再跑一遍 policy 路径**并替换本条的数据。
