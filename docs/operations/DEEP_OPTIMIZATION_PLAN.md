@@ -32582,3 +32582,45 @@ commit 链：e687d9b / 02e84f2 / d91e781 / e210435 / a36229e（+ 本节记账）
   作为终验，结论记账并覆盖此条；
 - 8 处红里没有一处是"别人的账"——全是本号/本轮自己写的监测点，被门当场抓住，
   这正是这些门存在的理由。
+
+## #1655 真实 gpt-6-sol 抽出了 6 份契约；ADR-020；视图过渡——#1645–#1650 的闭环
+
+**记录基准**：本节只追加；master = b8ccd50。
+
+### 一、真实端点的契约抽取实测（#1645 流式链路的终验，一次调用，两种层面都验到）
+
+按 `scripts/test_llm_contract.py` 的同款路径，用 `.local/llm.json` 的真实凭证
+（chat completions，无任何仿制）对 demo/requirement.txt 抽取契约：
+
+```
+finish_reason: stop
+usage: {"prompt_tokens": 18803, "completion_tokens": 648,
+        "total_tokens": 19451, "reasoning_tokens": 188}
+contracts extracted: 6
+  [auth-01] http — All API endpoints must require authentication...
+  [unique-01] sql — Email addresses must be unique across all users...
+  [token-invalidation-01] redis — When a user changes their email...
+  [backward-compatibility-01] openapi — The API response schema must remain...
+  [email-event-01] rabbitmq — The email-changed event must be published...
+  [transactional-integrity-01] redis — The email update in MySQL and...
+```
+
+诚实边界：usage 未含缓存字段（本次网关未回 `prompt_tokens_details`——偶发行为，不影响
+抽取正确性；计费链缺字段时按未命中计，见 #1645）；本测只证明端到端调用与 metering
+链完整，不证明契约语义正确（语义正确性由契约评审流程管理）。
+
+### 二、ADR-020：Bus 的实测否决，以架构决策记录固化
+
+2026-11-13 离线 BOM 实测（4.2.1 不在本地 .m2，仅 4.3.2，家族不匹配）之后，Bus 路线被
+实锤否决；替代方案（本地 /actuator/refresh + 双见证人 meter 配对读法）已实现并验证，
+本 ADR 把决策、理由、诚实边界（构造注入单例不热绑；meter ≠ fleet 一致）和
+"将来 BOM 补齐可重评估、见证人语义不变"写成正式记录，进入 docs/adr 索引。
+
+### 三、视图过渡：路由切换不再是硬切
+
+* `ui/viewTransition.ts`：withViewTransition —— Chromium 支持且用户未要求 reduced-motion
+  时包裹 document.startViewTransition 完成交叉淡入；否则同步原样执行；reduced-motion 下
+  绝不包裹；
+* aurora.css 收口：::view-transition-old/new(root) 用 aurora 的 --dur-slow × --ease-out；
+* App.tsx 的 hashchange 渲染路径接入；4 腿 vitest；全量 438/438 绿；build 绿；
+* e2e 重跑在途（13 主腿 + 4 degradation + ui-kit/print 回归基线已实拍留档）。
