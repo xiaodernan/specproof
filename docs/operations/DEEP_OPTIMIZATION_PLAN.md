@@ -32412,3 +32412,32 @@ SPECPROOF_PROVIDER_POLICY=1 才启用）。api 与 worker 是两个副本、多�
 - `_LIST_SQL` 未建索引是本号测量决定，非遗忘；
 - 索引只加不删数据、不改变查询语义；EXPLAIN 成本数字来自本机 probe，未在别的规模/
    并发模型上重复。
+
+## #1650 边缘配置热刷新见证人：与控制面对等的 refresh 闭环
+
+**记录基准**：本节只追加；落在 7fce680；master = 7fce680。
+
+### 一、为什么是边缘
+
+#1609 让边缘读 config-server 的动态覆盖值（"推一下，edge 不用重部署"），
+#1646 给控制面补了 witness——但同型缺口原样留在了边缘。本号补上：
+
+* `services/gateway/.../EdgeConfigRefreshMetrics.java`：计数
+  `specproof.edge.config.refresh.events`，记忆最近一次 keys（排序）与时刻；
+  meter 名走 edge 自己的 namespace，不占用 cp 的 meter；
+* 管理端口 expose 列表加 `refresh`（管理端口本来就是 loopback 绑定）；
+* 腿：EdgeConfigRefreshMetricsTest 3 腿 + 网关
+  `GatewayActuatorRoutesTests.theRefreshEndpointActuallyRefreshesAndCounts`：
+  真 POST `http://127.0.0.1:<management>/actuator/refresh` → 200，
+  witness meter before+1 → after（0.881s 实测运行）；边缘离线全量 81/81 绿；
+* OBSERVABILITY.md 8.10 新增条目、手-typed 五十一 → 五十二（在场实测）；
+  JAVA_EMIT_DIRS 收 gateway/config；inventory/parity 两门绿。
+
+### 二、诚实边界
+
+- **@ConfigurationProperties 单例不重绑**：edge 的 GatewayProperties 被
+  过滤器/RouteTableIsomorphismGate/GatewayMqEventConsumer **构造注入**，
+  refresh 重发 Environment 与 EnvironmentChangeEvent，但不重建这些过滤器
+  持有的旧实例。要重绑必须波及到的过滤器改 @RefreshScope/lookup，本号不做、不虚标；
+* "fleet 一起动" 也不由此证明——两个 meter 配对读（specproof_cp_* 与 specproof_edge_*）
+  才是运维图景里的完整句子；两个 witness 保证两跳各自可见，仅此而已。
