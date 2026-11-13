@@ -32226,3 +32226,64 @@ run; source-diff evidence recorded separately`。
   （case 内容）每次都不同 ⇒ 永远全价。前缀 ≈ 4906 token（96.5%），可变部分 ≈ 170 token；
 - 42s → 9s 的对比不排除 gateway 侧排队抖动；本测量只证明"启用后同提示词命中缓存"
   不是玄学，而是可复现的事实，且本产品代码路径今天起就会让它每次出现。
+
+## #1646 Spring Cloud Bus 落地受阻的实测收口：改走**本地 /actuator/refresh**；Responses 协议实测缓存 0 命中
+
+**记录基准**：本节只追加；落在本号提交里（master 链 8d85743 → 本提交）。
+
+### 一、Bus 路线为什么没有落地（真实失败原因，不是"后来没做"）
+
+目标是把 Spring Cloud Bus 经 RabbitMQ 接进 fleet-wide 配置刷新。离线 .m2 普查结果：
+
+| 构件 | 本地版本 |
+|---|---|
+| spring-cloud-starter-bus-amqp | **只有 4.3.2** |
+| spring-cloud-dependencies（BOM，2024.0.1）钉的 bus 版本 | **4.2.1（不存在）** |
+| spring-cloud-context | 4.2.0（含 RefreshEndpoint / RefreshAutoConfiguration / RefreshEndpointAutoConfiguration） |
+
+`mvn -o` 解析 starter 失败，原文：`The POM for org.springframework.cloud:spring-cloud-starter-bus-amqp:jar:4.2.1 is missing ... Cannot access central ... in offline mode`。
+4.3.2 是 cloud 2025.x 家族的产物，与 BOM 2024.0.1（cloud 2024.x）混读会让
+"一份 BOM 管家族版本"的约定失效——在本号只为一个 endpoint 引入版本漂移不成立。
+
+**改落同一语义的本地路线（零新 jar）**：`POST /actuator/refresh`（spring-cloud-context 的
+refresh 端点，已在 AutoConfiguration.imports）+ 本号新增的 `ConfigRefreshMetrics`（对
+`EnvironmentChangeEvent` 计数并记忆最近一次 keys 与时刻）。
+
+### 二、落地验证了什么（每一腿都是现场跑）
+
+| 腿 | 结果 |
+|---|---|
+| 控制面离线全量 `mvn -o test` | **50/50 绿，BUILD SUCCESS**（含 ControlPlaneOfflineResilienceTests） |
+| ControlPlaneApplicationTests（含本号新增 POST /actuator/refresh 腿） | **4/4 绿**——端点真实 200，且见证人 meter 从 before+1 涨到 after |
+| ConfigRefreshMetricsTest（3 腿：计数/最近 keys 排序/零事件） | 3/3 绿（SimpleMeterRegistry，无 broker 直测） |
+| Python 清单门：inventory names every emission site + stated count | 绿（JAVA_EMIT_DIRS 收 config tree；OBSERVABILITY.md 8.10 新增条目，五十 → 五十一） |
+
+**/actuator/refresh 与见证人的配套**：yml 把 refresh 加入
+`management.endpoints.web.exposure.include`；端点存在性不再是"命名了就算"，而是测试里
+真 POST 拿到 200、meter 真 +1。
+
+### 三、Responses 协议的缓存实测：0 命中（本节最该被记住的负结果）
+
+`.local/llm.json` 的 `protocol` 若改为 `responses`，能不能让缓存更好？实测（同一稳定前缀、
+连续 3 次相同请求，Responses 协议）：
+
+```
+protocol = responses
+call 1: 3.1s hit=0 total=4758
+call 2: 5.8s hit=0 total=4758
+call 3: 4.8s hit=0 total=4758
+```
+
+同前缀下 chat_completions + stream（#1645 口径）稳定 hit=4736。
+**结论：不换协议**——0 命中不是"等缓存暖起来"，是该路径在本网关上没见缓存收益（字段读得到、
+值恒 0；store=A/B 中性与否本号不深挖，本号记录的是"今天换过去会更差"）。
+llm.json 维持 chat_completions，不动用户机器上的配置。
+
+### 四、诚实边界
+
+- 本机 refresh 链路闭合，跨实例的 fleet refresh（一到所有）仍需运维 curl 每个实例或 LB 循环——
+  Bus 路线（一条消息）在离线环境无法成立，恢复网络后可重新评估（BOM 补齐或家族版本对齐）；
+- 见证人只证明"本实例收到了 EnvironmentChangeEvent"，不证明别的实例收到了——跨实例一致性
+  需要注册中心/配置中心推送机制，本号不虚标；
+- 50/50 是离线模式结果；CI（有网络、有 MySQL/RabbitMQ）另有 tests-with-infra 腿兜底，
+  本号未在有网络环境下重跑。

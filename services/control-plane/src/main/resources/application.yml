@@ -74,7 +74,12 @@ management:
         # MySQL), so adding a scrape target here would mint a target no deploy
         # file backs; enabling it is one scrape job + one alert, and it is
         # the operator's call.
-        include: health,info,metrics,prometheus
+        # refresh is the Spring Cloud refresh endpoint (spring-cloud-context
+        # is on the classpath via spring-cloud-starter-config): POST it after
+        # a config-server push to reload the @ConfigurationProperties /
+        # @RefreshScope state in place. Exposing it is the whole delivery
+        # mechanism for the refresh witness — no broker, no new jar.
+        include: health,info,metrics,prometheus,refresh
   metrics:
     distribution:
       percentiles-histogram:

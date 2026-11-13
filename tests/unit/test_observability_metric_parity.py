@@ -89,6 +89,10 @@ JAVA_EMIT_DIRS = (
     # not next to the filter that calls it.
     "services/gateway/src/main/java/dev/specproof/gateway/ratelimit",
     "services/control-plane/src/main/java/dev/specproof/controlplane/cache",
+    # The control plane's in-place refresh witness (#1646) counts
+    # /actuator/refresh-driven EnvironmentChangeEvents from this tree --
+    # the meter lives next to the listener, not next to the endpoints.
+    "services/control-plane/src/main/java/dev/specproof/controlplane/config",
 )
 
 _JAVA_COUNTER = re.compile(r"Counter\.builder\(\s*\"([a-z0-9_.]+)\"\s*\)")

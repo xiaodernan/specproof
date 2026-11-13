@@ -25,6 +25,12 @@ class ControlPlaneApplicationTests {
     @Autowired
     private ObjectProvider<DiscoveryClient> discoveryClient;
 
+    @Autowired
+    private io.micrometer.core.instrument.MeterRegistry meters;
+
+    @Autowired
+    private dev.specproof.controlplane.config.ConfigRefreshMetrics refreshWitness;
+
     @Test
     void healthEndpointResponds() {
         ResponseEntity<Map> resp = rest.getForEntity("/health", Map.class);
@@ -63,6 +69,40 @@ class ControlPlaneApplicationTests {
                 && client.getServices().contains("specproof-control-plane");
         assertThat((Boolean) discovery.get("registered")).isEqualTo(expected);
         assertThat(String.valueOf(body.get("config_import"))).isNotEmpty();
+    }
+
+    /**
+     * The refresh path we exposed in application.yml is real, end to end
+     * (#1646). Two halves, both measurable from inside the process:
+     *
+     * <ol>
+     *   <li>POST /actuator/refresh answers — the endpoint the expose list
+     *   names actually exists on this instance, not just on paper;</li>
+     *   <li>the witness bean counted the EnvironmentChangeEvent the refresh
+     *   published — the metric we tell an operator to watch actually moves
+     *   when the reload happens. A refresh that lands silently (200, no
+     *   event) would fail the second half, which is exactly the green that
+     *   hides "the config never really reloaded".</li>
+     * </ol>
+     */
+    @Test
+    void theExposedRefreshEndpointActuallyRefreshesAndCounts() {
+        double before = refreshWatcherCount();
+
+        ResponseEntity<String> resp = rest.postForEntity("/actuator/refresh", null, String.class);
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        double after = refreshWatcherCount();
+        // The publish always fires the listener (empty key set is still an
+        // event); an increase of at least one is the contract.
+        assertThat(after).isGreaterThanOrEqualTo(before + 1.0);
+        assertThat(refreshWitness.lastRefreshAt()).isNotNull();
+    }
+
+    private double refreshWatcherCount() {
+        return meters.get(dev.specproof.controlplane.config.ConfigRefreshMetrics.REFRESH_EVENTS_METER)
+                .counter()
+                .count();
     }
 
     @Test
