@@ -32938,3 +32938,19 @@ Markdown digest（verdict + 矩阵计数 + 风险发现 + capsules + 链接 + �
 - 严格遵循：delta 只来自 model output、不拼接任何助词；error frame 的 detail 直接引用 provider 原文（无代笔）；
 - 本次未联网真打（e2e 上下文中拉真 API 仍算 token 成本，按证路线人工留在本文件——观测者端的真实 stream 帧可以本地复现）；
 - `openai_compatible.chat_stream` 该调用点原本不含 policy 注入（`SPECPROOF_PROVIDER_POLICY` 不向 stream 注入），本号未触碰该政策局面。
+
+## #1666 关闭陈旧路标：MCP 插件生态节，已具可复现盘点
+
+**记录基准**：本节只追加；master = 8a51a8a。
+
+§6.2 从 `[~]` → `[x]`。实测清点：
+
+* `specproof mcp serve`（stdio，protocol 2024-11-05）已落地、零外部依赖；
+  `specproof mcp tools [--json]` 可打印同形目录供 pre-flight 探针；
+* 工具入口完善：`mcp/tools.py` 用 `_tool_verify`、`_tool_eval_summary`、`_tool_craft_plan`、
+  `_tool_replay_info`、`_tool_verify_job`、`_tool_contracts_list`、`_tool_health` 七件套；
+  与客户端入口 `mcp/client.py` 双向对账；
+* `docs/operations/MCP_GUIDE.md` 四端接线样例（Claude Code / Codex / Cursor / OpenCode）；
+* 接线单测全绿：test_mcp_cli_output_codec / test_mcp_server / test_mcp_timeouts_are_positive /
+  test_mcp_tools_command / test_mcp_verify_job（及其 env 护符组合测试）；
+* **诚实边界**：GitHub webhook 链路（`api/routes/webhooks.py` → worker `github_checks.create_check_run`）本机无真 repo 无法自测，本文不放宽；本行仍需 pilot 上线签字核验。
