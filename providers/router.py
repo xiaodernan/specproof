@@ -120,8 +120,10 @@ class ModelRouter:
                     cfg = load_model_config()
                 except Exception:  # noqa: BLE001 — broken file → defaults
                     cfg = {}
-                strong_base = strong_base or cfg.get("base_url", "")
-                strong_model = strong_model or cfg.get("model", "")
+                if not strong_base:
+                    strong_base = cfg.get("base_url", "")
+                if not strong_model:
+                    strong_model = cfg.get("model", "")
         if not strong_model:
             strong_model = DEFAULT_STRONG_MODEL
 
