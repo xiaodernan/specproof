@@ -1,0 +1,158 @@
+/* ============================================================
+   SpecProof — Print: evidence-grade A4 output.
+
+   A verification result is evidence; it gets carried into review
+   boards, printed, and archived. The screen design (aurora, glass,
+   elevation) is noise on paper — print output keeps the ARGUMENT
+   and drops the chrome.
+
+   Rules of this file:
+     - white paper, near-black ink, one accent at most per element
+     - all interactive chrome (nav, palette, toasts, modals) hidden
+     - gradient-text utilities neutralized: `background-clip: text`
+       paints transparent ink, invisible on paper
+     - panels keep a hairline border; shadows and animation removed
+     - nothing may rely on hover/focus state to be visible
+   ============================================================ */
+
+@page {
+  size: A4;
+  margin: 16mm 15mm;
+}
+
+@media print {
+  /* ── Chrome: navigation, overlays, transient UI ─────────── */
+  .skip-link,
+  .sidebar,
+  .workspace-topbar,
+  .workspace-footer,
+  .nav-backdrop,
+  .icon-button,
+  .command-trigger,
+  .ui-palette-root,
+  .ui-shortcuts-root,
+  .ui-toast-viewport,
+  .ui-modal-backdrop,
+  .ui-modal-foot,
+  .ui-btn,
+  .verification-freshness {
+    display: none !important;
+  }
+
+  /* ── Paper: kill the aurora, keep the ink ───────────────── */
+  body,
+  .shell,
+  .workspace-main,
+  .content {
+    background: #ffffff !important;
+  }
+  *,
+  *::before,
+  *::after {
+    background-image: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    animation: none !important;
+    transition: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* Gradient-text utilities paint transparent ink — invisible on
+     paper. Force solid ink on every one of them. */
+  .stat-value,
+  .stat-ok .stat-value,
+  .stat-bad .stat-value,
+  .stat-warn .stat-value,
+  .stat-info .stat-value,
+  .text-gradient,
+  .welcome-story h1 span,
+  .welcome-brand,
+  .ui-text-gradient {
+    background: none !important;
+    -webkit-background-clip: border-box !important;
+    background-clip: border-box !important;
+    -webkit-text-fill-color: #111111 !important;
+    color: #111111 !important;
+  }
+
+  /* ── Geometry: full-width paper flow ────────────────────── */
+  html,
+  body,
+  .shell,
+  .product-shell {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+  .content {
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    max-width: none !important;
+  }
+
+  /* ── Panels & cards: hairline is enough ─────────────────── */
+  .panel,
+  .ui-card,
+  .ui-modal-panel,
+  .preflight-card,
+  .verification-freshness-wrap,
+  [class*="card"],
+  section {
+    border: 1px solid #d7d7d7 !important;
+    border-radius: 4px !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* ── Tables: repeat the header across page breaks ───────── */
+  thead {
+    display: table-header-group;
+  }
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* ── Typography: audit ink ──────────────────────────────── */
+  body,
+  .content,
+  main {
+    color: #111111 !important;
+    font-size: 10.5pt;
+  }
+  a {
+    color: #111111 !important;
+    text-decoration: none !important;
+  }
+  /* External links carry their address on paper — a printed report
+     an auditor cannot trace is just decoration. */
+  a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 8pt;
+    color: #555555;
+    word-break: break-all;
+  }
+
+  /* ── Code, proofs, diffs: legible, wrap, no horizontal scrollbar */
+  pre,
+  code,
+  kbd {
+    color: #111111 !important;
+    background: #f4f4f4 !important;
+    border: 1px solid #e0e0e0 !important;
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+  }
+
+  /* ── The aurora wash is pure decoration ─────────────────── */
+  .shell::before,
+  .login-wrap::before {
+    content: none !important;
+    display: none !important;
+  }
+}

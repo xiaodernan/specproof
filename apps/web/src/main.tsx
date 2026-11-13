@@ -5,6 +5,7 @@ import "./theme/tokens.css";
 import "./styles/base.css";
 import "./styles/aurora.css";
 import "./styles/viz.css";
+import "./styles/print.css";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
