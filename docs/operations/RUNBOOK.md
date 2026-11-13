@@ -117,6 +117,7 @@
 | LLM_API_KEY | 管线确定性降级 (与 --no-llm 同效果) |
 | SPECPROOF_SANDBOX | auto: 有 Docker 用 docker, 否则 local_fallback (结果标注 mode) |
 | SPECPROOF_PUBLIC_URL | Check Run details_url 链接 (可选) |
+| REDIS_COMMAND_TIMEOUT / REDIS_CONNECT_TIMEOUT | 未配置 = **50ms**（控制面与边缘的 Redis 调用时限；这两个名字由 `services/*/src/main/resources/application.yml` 读，**别删那两行**——删掉就退回 Spring 的默认 60 秒，于是死掉的 Redis 把每个请求按住一分钟，而降级来得比调用方放弃还晚；#1640） |
 | MYSQL_DATABASE | 回落**产品库名** `specproof_phase0` —— 见 §5 的测试库隔离条目, 这是 #79 登记的缺陷; 测试会话已由 conftest 自动重定向到 `specproof_test` |
 
 **这张表只说"未配置时的行为", 没说"设了就能抵达"** (#257 实测订正): 一个名字要在
