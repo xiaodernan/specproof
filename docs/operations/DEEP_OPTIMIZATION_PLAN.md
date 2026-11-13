@@ -32190,3 +32190,39 @@ run; source-diff evidence recorded separately`。
 - **DB 证据为什么缺席**：「No H2 dump available」——生成测试跑起来了吗？上下文起来了吗？
   H2 文件落在哪儿？这轮开始记录两侧输出，下一轮评测就能读成事实。
 - 差分**归因**升为判据之后的一轮评测读数。
+
+## #1645 流式修复 + 计账修复之后的实测：同一提示词 **42.1s → 9.1s**，**96.5% 缓存命中**
+
+**记录基准**：本节只追加；落地于附带提交（master 链 aecd975 → e9b8651 → 本节提交）。
+
+### 一、把账算清楚的那一刻：provider 直调的完整序列
+
+`_JUNIT_GENERATION_PROMPT`（2270 字符，2272 字节）+ 两种不同的可变后缀，逐个调用，
+`provider.chat()`（现走**流式**路径）实测：
+
+| 调用 | 耗时 | usage |
+|---|---|---|
+| call 1（variant 1，冷） | 42.1s | prompt_tokens=4906，**无 hit 字段** |
+| call 2（variant 2，不同内容） | **8.8s** | 命中加速但字段缺失 |
+| call 3（再调 variant 1） | 11.0s | **hit=4736** |
+| call 4（再调 variant 2） | 9.1s | **hit=4736** |
+
+96.5% 的 prompt 从缓存来（4736/4906）。第 1 次 42s 几乎全是推理时间；之后每次命中后只算
+可变后缀 ≈ 170 token。
+
+### 二、计费链现在一条不断
+
+`_parse_usage`（**新增** `prompt_tokens_details.cached_tokens` → `prompt_cache_hit_tokens`）
+→ `TokenBudget.record` 记账（`cache_hit` 权重 0.1 = 按 1/10 计费）→ Prometheus
+`llm_prompt_cache_hit_tokens_total` / `llm_prompt_cache_miss_tokens_total` → `_emit_usage(entry)`
+→ 可选账单写入器 `storage/billing.py`（`("llm_cache_hit_tokens", "prompt_cache_hit_tokens")`
+名场景匹配）。
+
+### 三、诚实边界
+
+- 本序列里 call 2 的字段**缺失**（网关偶发性不回 `prompt_tokens_details`）——这不影响
+  账本：延迟照旧加速到 8.8s；只是账单 "hit" 计数偶尔欠记，非本产品能控制的事；
+- 本节不声称**所有**调用都命中——命中只发生在**稳定前缀**（system prompt），可变后缀
+  （case 内容）每次都不同 ⇒ 永远全价。前缀 ≈ 4906 token（96.5%），可变部分 ≈ 170 token；
+- 42s → 9s 的对比不排除 gateway 侧排队抖动；本测量只证明"启用后同提示词命中缓存"
+  不是玄学，而是可复现的事实，且本产品代码路径今天起就会让它每次出现。
