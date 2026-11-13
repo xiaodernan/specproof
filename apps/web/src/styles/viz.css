@@ -150,3 +150,76 @@
 @media (max-width: 900px) {
   .insight-grid { grid-template-columns: 1fr; }
 }
+
+
+/* ── Stage timeline (execution waterfall bars) ──────────────
+   时间花在哪一眼可见——每个阶段一根比例条，挂在共享时间轴上；
+   颜色只表达状态语义（done / running / failed），位置与宽度只
+   表达时间事实。不存在的时间戳绝不补画。 ── */
+.stage-timeline { display: grid; gap: var(--sp-2); }
+.stage-timeline-track {
+  position: relative;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background:
+    repeating-linear-gradient(90deg, transparent 0 10%, color-mix(in srgb, var(--color-border) 65%, transparent) 10% calc(10% + 1px)),
+    var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+}
+.stage-timeline-bar {
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  min-width: 6px;
+  border-radius: 999px;
+  transition: filter var(--dur) var(--ease-out), transform var(--dur) var(--ease-out);
+}
+.stage-timeline-bar:hover {
+  filter: brightness(1.14) saturate(1.1);
+  transform: scaleY(1.18);
+  z-index: 1;
+}
+.stage-bar-done {
+  background: linear-gradient(90deg, var(--success), color-mix(in srgb, var(--success) 45%, transparent));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--success) 35%, transparent);
+}
+.stage-bar-run {
+  background: linear-gradient(90deg, var(--accent-600), var(--accent-2-400));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent-500) 38%, transparent);
+}
+.stage-bar-failed {
+  background: linear-gradient(90deg, var(--danger), color-mix(in srgb, var(--danger) 50%, transparent));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--danger) 42%, transparent);
+}
+.stage-timeline-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+}
+.stage-timeline-row {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-2);
+}
+.stage-timeline-node { color: var(--accent-text); }
+.stage-timeline-dur { color: var(--color-text-3); font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) {
+  .stage-timeline-bar { transition: none; }
+  .stage-timeline-bar:hover { transform: none; }
+}
+
+.stage-timeline-scale {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-3);
+  font-variant-numeric: tabular-nums;
+  padding: 0 var(--sp-1);
+  margin-top: calc(-1 * var(--sp-1));
+}

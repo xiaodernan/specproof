@@ -32954,3 +32954,34 @@ Markdown digest（verdict + 矩阵计数 + 风险发现 + capsules + 链接 + �
 * 接线单测全绿：test_mcp_cli_output_codec / test_mcp_server / test_mcp_timeouts_are_positive /
   test_mcp_tools_command / test_mcp_verify_job（及其 env 护符组合测试）；
 * **诚实边界**：GitHub webhook 链路（`api/routes/webhooks.py` → worker `github_checks.create_check_run`）本机无真 repo 无法自测，本文不放宽；本行仍需 pilot 上线签字核验。
+
+## #1667 并轨车道收尾：执行阶段时间线落地（StageTimeline 从"创建了"到"可交付"）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、缘由
+
+并轨车道此前在 master 上方留了两处未提交改动：新文件 `apps/web/src/pages/StageTimeline.tsx`（执行阶段比例条——Phase 3.1 观测可视化）与 `JobDetail.tsx` 的导入/渲染接线。随后停摆。本号接手收尾并做到可交付。
+
+### 二、修掉的硬伤
+
+1. **JSX 括号不平衡**（JobDetail.tsx）：`stages && (<>…{map(...))}</>)` 结构缺一个 `}`，`tsc --noEmit` 直接 TS1005；按并轨车道原意补齐并保持原有渲染位置（空态/单行条形列表双轨渲染 + Timeline 块）；
+2. **`Span` 接口悬空**（StageTimeline.tsx）：声明未使用 → `TS6196`；删除；
+3. **右端钉形溢出**：最后一个阶段若落在时间轴右端（left=100%），min-width 6px 的条会被 `overflow:hidden` 整根吃掉 → 增加 `clamped`：`left = min(left, max(0, 100 - width))`，保证"至少露出它真实存在的事实"；
+4. **跳过的行数按行计数**：并轨版的 skipped 判据借同名节点遮住没有时间戳的记录（`!spans.some(s.node===r.node && parseMs(r.started_at)!==null)`）——同名阶段一条有时间戳、一条没有时，无时间戳的那条被静默吞掉；改为纯按行判据 `skippableRows()`：没有可解析 started_at **或** duration_seconds 不是非负 number → 诚实列为跳过；
+5. **CSS 未补**：`.stage-timeline-*` / `.stage-bar-*` 样式缺失（组件裸渲染）→ 补入 `viz.css`：共享时间轴 + 10% 刻度网格（repeating-linear-gradient）、状态三色（done=绿辉光 / run=accent 渐变 / failed=红辉光）、`hover` 浮起、`prefers-reduced-motion` 下静止；`scale` 刻度行 mono 字体、等宽数字（窗口 X.XXs + 两端时钟）；`role="img" + aria-label` 可读；
+6. **新增 5 腿单测** `StageTimeline.test.tsx`：start 排序/同名 start 并列按 node 名稳定序；started_at 缺失/不可解析 → 丢弃 + 如实列入 skipped；duration_seconds 非 number/负数/缺失 → 丢弃；0 秒 duration **是真实退化 span** 不是 skip；skipped 与 spans 一一对应。
+
+### 三、验迹
+
+- `tsc --noEmit` 干净（此前 TS6196 + TS1005 两条都清）；
+- vitest：`StageTimeline.test.tsx` 5/5、`JobDetail.test.tsx` 31/31；
+- `npm run build` 绿；
+- e2e 夹具（fixture_server.py port 8010）+ vite e2e config：浏览器内 `.stage-timeline` 实渲染、`.stage-timeline-bar` × 3、scale 行（窗口 720.00s + 16:00:00 → 16:12:00）——截图存于会话内 `shots/jobdetail-stages-timeline.png`（本项为人工目检证据，不作为 CI 合同）；
+- 全量 vitest **446/446 绿**（2026-11-14 本机实测，`vitest run` 全量套件，含本号 5 腿）。
+
+### 四、诚实边界
+
+- fixture 三个阶段 duration 全为 0.00s、跨 12 分钟——比例条是合法的"退化点"，不是 bug；真实执行会得到有宽度的条；
+- `shoot-timeline.mjs` 为本会话取证脚本，提交在 `apps/web/scripts/`（与仓内 `shoot-*.cjs` 同类、仅本地取证用途）；
+- `services/control-plane/pom.xml`（纯 CRLF 改动）未动——仍待其车道自理。

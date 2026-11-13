@@ -12,6 +12,7 @@ import {
   type Column, type PreflightResult,
 } from "../ui";
 import { SameRepoCraftPanel } from "./SameRepoCraftPanel";
+import { StageTimeline } from "./StageTimeline";
 import { buildMarkdownSummary } from "../ui/copySummary";
 import { recordRecentJob } from "../ui/recentJobs";
 import { describePipelineError, loadFailed, terminalStageNote } from "../ui/errorHints";
@@ -648,27 +649,34 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
           {stages && stages.stages.length === 0 ? (
             <Empty text="暂无执行进度，任务可能尚未开始。" />
           ) : (
-            stages && stages.stages.map((st) => (
-              <div className="stage-row" key={st.node}>
-                <span className="stage-node" title={st.node}>{stageLabel(st.node)}</span>
-                <span className="stage-msg">{st.message || st.status}</span>
-                <div className="bar" style={{ width: 120, margin: 0 }}>
-                  <div className="bar-fill" style={{ width: Math.min(100, st.percent) + "%" }} />
+            stages && (
+              <>
+                <div style={{ marginBottom: "var(--sp-3)" }}>
+                  <StageTimeline stages={stages.stages} />
                 </div>
-                <span className="stage-duration" title={st.started_at ? "开始：" + st.started_at : undefined}>{fmtDurationSeconds(st.duration_seconds)}</span>
-                {st.failed_at ? <span className="stage-failed-at" title={st.failed_at}>失败于 {fmtTime(st.failed_at)}</span> : null}
-                {st.artifact_refs && st.artifact_refs.length > 0 ? (
-                  <span className="stage-artifacts" title={st.artifact_refs.join("\n")}>
-                    {st.artifact_refs.slice(0, 3).map((ref) => (
-                      <span key={ref} className="stage-artifact">{ref}</span>
-                    ))}
-                    {st.artifact_refs.length > 3 ? <span className="stage-artifact">+{st.artifact_refs.length - 3}</span> : null}
-                  </span>
-                ) : null}
-                <span className="stage-pct">{st.percent}%</span>
-                <StatusPill status={st.status} />
-              </div>
-            ))
+                {stages.stages.map((st) => (
+                  <div className="stage-row" key={st.node}>
+                    <span className="stage-node" title={st.node}>{stageLabel(st.node)}</span>
+                    <span className="stage-msg">{st.message || st.status}</span>
+                    <div className="bar" style={{ width: 120, margin: 0 }}>
+                      <div className="bar-fill" style={{ width: Math.min(100, st.percent) + "%" }} />
+                    </div>
+                    <span className="stage-duration" title={st.started_at ? "开始：" + st.started_at : undefined}>{fmtDurationSeconds(st.duration_seconds)}</span>
+                    {st.failed_at ? <span className="stage-failed-at" title={st.failed_at}>失败于 {fmtTime(st.failed_at)}</span> : null}
+                    {st.artifact_refs && st.artifact_refs.length > 0 ? (
+                      <span className="stage-artifacts" title={st.artifact_refs.join("\n")}>
+                        {st.artifact_refs.slice(0, 3).map((ref) => (
+                          <span key={ref} className="stage-artifact">{ref}</span>
+                        ))}
+                        {st.artifact_refs.length > 3 ? <span className="stage-artifact">+{st.artifact_refs.length - 3}</span> : null}
+                      </span>
+                    ) : null}
+                    <span className="stage-pct">{st.percent}%</span>
+                    <StatusPill status={st.status} />
+                  </div>
+                ))}
+              </>
+            )
           )}
           <div style={{ marginTop: 14 }}>
             <div className="kv-label">实时执行日志</div>
