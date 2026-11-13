@@ -98,3 +98,51 @@
 @media (prefers-reduced-motion: reduce) { .ai-summary-caret { animation: none; } }
 .ai-summary-error-partial { border-left: 2px solid var(--warning); padding-left: var(--sp-2); margin-top: var(--sp-2); }
 .ai-summary-stream-error { font-size: var(--text-sm); color: var(--danger-fg); margin: var(--sp-1) 0 0; }
+
+
+/* ── Usage / 缓存健康 page (LLM 用量账本只读面板) ───────────
+   命中率只按网关真正上报的调用计——"不知道"就说"不知道"；
+   空账本不编造数字；错误端点不伪造任何一格。 */
+.usage-page { display: grid; gap: var(--sp-4); }
+.usage-en { font-size: var(--text-xs); color: var(--color-text-3); font-weight: var(--fw-600);
+  letter-spacing: 0.14em; text-transform: uppercase; margin-left: var(--sp-2); }
+.usage-window-bar { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; padding: var(--sp-1) var(--sp-1); }
+.usage-window-label { font-size: var(--text-sm); color: var(--color-text-2); }
+.usage-chip {
+  appearance: none; border: 1px solid var(--color-border); background: var(--color-surface);
+  color: var(--color-text-2); border-radius: var(--radius-full);
+  padding: 6px var(--sp-4); font-size: var(--text-sm); cursor: pointer;
+  transition: border-color var(--dur) var(--ease-out), color var(--dur) var(--ease-out),
+    background var(--dur-slow) var(--ease-out), transform var(--dur) var(--ease-out);
+}
+.usage-chip:hover { border-color: var(--accent-400); color: var(--color-text); transform: translateY(-1px); }
+.usage-chip-active {
+  background: var(--gradient-aurora); border-color: transparent; color: var(--color-on-accent, #fff);
+  box-shadow: var(--shadow-accent);
+}
+.usage-generated { margin-left: auto; font-family: var(--font-mono); font-size: var(--text-xs);
+  color: var(--color-text-3); font-variant-numeric: tabular-nums; }
+.usage-basis-note { font-size: var(--text-sm); line-height: 1.8; margin: 0; padding: 0 var(--sp-1); }
+.usage-basis-note strong { color: var(--accent-text); font-variant-numeric: tabular-nums; }
+.usage-meter { height: 10px; border-radius: 999px; background: var(--color-surface-2);
+  border: 1px solid var(--color-border); overflow: hidden; }
+.usage-meter-fill { height: 100%; min-width: 4px; background: var(--gradient-aurora);
+  transition: width var(--dur-slow) var(--ease-out); }
+.usage-meter-note { font-size: var(--text-xs); margin-top: var(--sp-2); }
+.usage-trend { display: grid; gap: var(--sp-2); }
+.usage-trend-axis { stroke: var(--color-border-strong); stroke-width: 1; }
+.usage-trend-bar { fill: var(--accent-500); opacity: 0.72; transition: opacity var(--dur) var(--ease-out); }
+.usage-trend-bar:hover { opacity: 1; }
+.usage-trend-line { stroke: var(--success); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.usage-trend-dot { fill: var(--color-surface); stroke: var(--success); stroke-width: 1.6; }
+.usage-trend-legend { display: flex; gap: var(--sp-5); flex-wrap: wrap; }
+.usage-legend-item { display: inline-flex; align-items: center; gap: var(--sp-2);
+  font-size: var(--text-xs); color: var(--color-text-3); }
+.usage-legend-bar { width: 12px; height: 10px; border-radius: 2px; background: var(--accent-500);
+  opacity: 0.8; display: inline-block; }
+.usage-legend-line { width: 16px; height: 2px; background: var(--success); border-radius: 1px;
+  display: inline-block; }
+@media (prefers-reduced-motion: reduce) {
+  .usage-chip, .usage-trend-bar, .usage-meter-fill { transition: none; }
+  .usage-chip:hover { transform: none; }
+}

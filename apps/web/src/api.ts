@@ -810,6 +810,52 @@ export interface HealthData {
   checks?: Record<string, HealthCheck>;
 }
 
+// ── LLM usage & cache health (mirror api/routes/llm_usage.py) ──
+// Token-level ledger, read-only aggregate. Honesty rules are inherited:
+// hit_rate is computed ONLY over calls whose gateway reported cached
+// tokens (hit_basis_calls tells how many); calls without the figure
+// neither inflate nor deflate the rate. Absent figures stay null —
+// never a fabricated zero.
+export interface LlmUsageKindRow {
+  kind: string;
+  calls: number;
+  prompt_tokens: number;
+  cached_tokens: number;
+  hit_rate: number | null;
+}
+
+export interface LlmUsageTrendBucket {
+  bucket_start: string;
+  calls: number;
+  prompt_tokens: number;
+  cached_tokens: number;
+  hit_rate: number | null;
+}
+
+export interface LlmUsageSummary {
+  window_hours: number;
+  generated_at: string;
+  calls: number;
+  errors: number;
+  error_rate: number | null;
+  streamed_ratio: number | null;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  cached_tokens: number;
+  hit_rate: number | null;
+  hit_basis_calls: number;
+  latency_p50_ms: number | null;
+  latency_p95_ms: number | null;
+  by_kind: LlmUsageKindRow[];
+  trend: LlmUsageTrendBucket[];
+}
+
+/** Token-level usage and cache health over the given window (read-only). */
+export function getLlmUsageSummary(windowHours: number): Promise<LlmUsageSummary> {
+  return apiGet<LlmUsageSummary>("/api/v1/llm/usage/summary?window_hours=" + encodeURIComponent(windowHours));
+}
+
 // ── SpecCraft Agent console (mirror api/routes/agent_console.py) ──
 
 export interface AgentJobSummary {

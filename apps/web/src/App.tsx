@@ -21,6 +21,7 @@ const Contracts = lazy(() => import("./pages/Contracts"));
 const Eval = lazy(() => import("./pages/Eval"));
 const Health = lazy(() => import("./pages/Health"));
 const Billing = lazy(() => import("./pages/Billing"));
+const Usage = lazy(() => import("./pages/Usage"));
 const Audit = lazy(() => import("./pages/Audit"));
 const AgentApp = lazy(() => import("./agent/AgentApp"));
 const IdentityApp = lazy(() => import("./identity/IdentityApp"));
@@ -45,6 +46,7 @@ const NAV: NavItem[] = [
   { path: "eval", label: "效果评测", icon: "chart", group: "质量与证据" },
   { path: "identity", label: "团队与权限", icon: "team", group: "管理", roles: IDENTITY_ROLES },
   { path: "billing", label: "用量与账单", icon: "billing", group: "管理", roles: BILLING_ROLES },
+  { path: "usage", label: "缓存健康", icon: "chart", group: "管理" },
   { path: "audit", label: "审计轨迹", icon: "health", group: "管理", roles: AUDIT_ROLES },
   { path: "settings", label: "模型连接", icon: "agent", group: "管理" },
   { path: "health", label: "服务状态", icon: "health", group: "管理" },
@@ -69,6 +71,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "eval") return <Eval />;
   if (seg[0] === "health") return <Health />;
   if (seg[0] === "billing") return <Billing />;
+  if (seg[0] === "usage") return <Usage />;
   if (seg[0] === "audit") return <Audit />;
   return <div className="product-empty"><ProductIcon name="guide" size={36} /><h1>没有找到这个页面</h1><p>链接可能已更新，你可以回到工作台继续。</p><a className="btn btn-primary" href="#/dashboard">返回工作台</a></div>;
 }
