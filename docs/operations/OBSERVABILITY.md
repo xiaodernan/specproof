@@ -12,6 +12,7 @@
 | alertmanager | prom/alertmanager:v0.27.0 | 9093 | SLO 告警接收端 (prometheus.yml `alerting:` 指向它); 默认 receiver 为 null 占位 — **不发送任何通知**，需运维接真实路由后才有通知 (infra/prometheus/alertmanager.yml 头) |
 | grafana | grafana/grafana:11.6.1 | 3000 | provisioning 自动接 Prometheus 数据源 + SLO 看板 (uid: specproof-slo) |
 | specproof-edge | specproof-edge:local (build: services/gateway) | 8080 (edge) / 8090 (management) | Spring Cloud Gateway 边缘 (#1544); 6 条路由归属表 + resilience4j 断路器 (#1554); management 端口只绑 loopback; 暴露 resilience4j.circuitbreaker.state 等指标 (#1555) |
+| specproof-control-plane | 无 compose 服务定义（控制面不进默认部署）| 8081 | Spring Boot 控制面 (#1609); **端点自 #1657 起真实存在**（`management.prometheus.metrics.export.enabled=true`，wiring 腿 ControlPlanePrometheusEndpointTests 抓到并修复了此前 404）; 暴露 `specproof_cp_*` 系列（含 #1646 配置热刷新见证人 specproof_cp_config_refresh_events_total）; **不进 scrape roster** —— 控制面不在默认部署里，添一个永远 down 的目标违背 roster 的"目标存在必须有部署支撑"纪律; 运维如把控制面加入部署，把 `control-plane:8081/actuator/prometheus` 加入 prometheus.yml 并在此补齐一行 |
 
 数据流: api / worker / outbox-relay (进程内 registry, observability/metrics.py)
 → 各进程 /metrics (api 用 FastAPI 端点; worker/relay 用 observability/metrics_http.py 的 stdlib 端点)
