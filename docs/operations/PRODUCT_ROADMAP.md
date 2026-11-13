@@ -67,7 +67,7 @@
   - 边界（诚实标注）：轻量模式支持工作台/AI 开发助手/模型连接/历史浏览；需 RabbitMQ + Worker 的 Java/Spring 差分验收任务投递仍走全栈 `start_local.ps1`。下一步：为该 worker 增加进程内/轻量执行选项，把差分验收也并入零 Docker。
 - [~] **1.3 演示仓库自动化**：`specproof demo`（CLI 一键初始化演示仓库 git 历史 + 可选 `--run` 真实验证）已存在；`prepare_demo_repo.ps1` 提供等价脚本路径。**本轮修复关键不一致**：`cli/specproof/commands/demo.py` 与 `scripts/prepare_demo_repo.ps1` 此前创建标签 `head-v1-bug`，而全仓其余部分（`agent/worker.py` 与所有 agent 节点默认 `head_ref`、`golden-cases/scenario.json`、`seed_demo.py`、`build_golden_scenarios.py`、CLAUDE.md/docs 速查命令、`tests/integration/test_differential.py`）一律使用 `head-v1`——导致 ① 差分集成测试 `_demo_tags_present()` 永远为假、跑完 bootstrap 仍 vacuous skip；② 文档里的旗舰命令 `verify --head head-v1` 对刚初始化的演示仓库失效。已将两个 bootstrap 工具对齐到 `head-v1`。端到端实测：`specproof demo` 现输出 `base -> head-v1`，`git tag -l base head-v1` 两标签齐全。
   - ✅ 首次运行钩子已落地：`start_local.ps1`（seed 之后、前端之前）与 `start_local_light.ps1`（前端之后、总结之前）各新增幂等「准备演示仓库 git 版本」步骤，直接调用 `cli.specproof.commands.demo.prepare_demo_repo()`（引用已存在时打印 `exists` 并跳过），git 缺失或失败仅 `Write-WarnMsg` 不阻断启动。效果：全栈模式一启动，网页「填入演示案例 → 开始验证」即开箱可跑（API 工作目录=仓库根，相对路径 `demo/spring-backend` 可解析且 `base`/`head-v1` 就位）；轻量模式则为其推荐的命令行回退预置引用。顺带修复 `prepare_demo_repo.ps1` 缺失 UTF-8 BOM 的问题（同目录其余 5 个 .ps1 均有 BOM；无 BOM 时 Windows PowerShell 5.1 按 GBK 误读其中文注释/字符串而解析失败，本文件内容经 UTF-8 解码后语法完全有效），补齐 BOM、保留 CRLF。已验证：`powershell 5.1 Parser::ParseFile` 对 `prepare_demo_repo.ps1`/`start_local.ps1`/`start_local_light.ps1`（及 `stop_local`/`build_web`/`seed_sandbox_cache`）共 6 个脚本全部 OK；`.venv(3.12)` 实跑钩子内联命令输出 `exists`、退出码 0、demo 仓库 `base`/`head-v1` 齐全且工作树干净（新建路径已由上一轮 `specproof demo` 实测 `base -> head-v1`）。
-  - 待办（下一步）：网页「新建验证」在缺标签时给"一键创建演示仓库"按钮（后端端点触发 prepare），而非依赖 `start_local` 钩子或让用户手敲 CLI。
+  - ✅ 已完成：「新建验证」页面内置「一键创建演示仓库」按钮（`NewVerification.tsx` 右侧栏，`onClick={prepareDemo}` → `prepareDemoRepo()` → POST /api/v1/demo/prepare）——按钮本身早已接入：基线/头标签在后端若不存在时触发创建（幂等），新建/已存在均会自动填入演示参数（`spec_path=demo/requirement.txt`、`base_ref=base`、`head_ref=head-v1`）；unit 覆盖：正常 fill、idempotent（refs 已存在）、401 未配置 API 密钥、422 目录缺失、用户网络拒绝——五次全绿（`NewVerification.test.tsx`）。
 - [x] **1.4 失败可诊断化**：所有基础设施缺失（Docker/模型 Key/Maven）在前端映射为"下一步做什么"的行动卡，而非堆栈。（**已收口**：语言感知的环境预检接入管线 + 透出网页，见下方"本会话后段追加"）
   - 已完成：`summary.errors` 与 `job.last_error` 现均经 `describePipelineError` 映射（JobDetail.tsx）——已知 git/依赖错误签名（引用无法解析、路径不存在、检出失败、demo-only 反例缺口、无 pom.xml、模型不可用等）显示可操作的中文行动卡，原始英文串保留在 `title`（悬停/审计可见、绝不作为可见文本泄漏）；未识别的错误**逐字透传**，不臆造语义。新增测试锁定「worker last_error 诊断 + 原文留在 title」行为。
   - 已完成（同一映射复用到 Craft）：把 `describePipelineError` 提取为共享模块 `apps/web/src/ui/errorHints.ts`，VERIFY 与 CRAFT 两条流程同源；开发助手失败横幅（AgentJobDetail.tsx）与结果页 `result.reason`（AgentResult.tsx）现同样先给中文行动卡、原文保留在 `title`/折叠的「完整执行记录」JSON。新增 `ui/__tests__/errorHints.test.ts` 锁定已知签名→中文、未知/空串逐字透传。前端门禁全绿（tsc / 144 vitest / vite build）。
@@ -2940,3 +2940,35 @@ drill_notify_outbox.py 新增 run_dead_letter_leg: 无接收端(DISABLED 连接�
 送达。真库双腿全 PASS(exit 0); RecordingConnector 状态可配置。
 至此 notify outbox 的完整生命周期——意图/崩溃窗口/送达/死信/回放/再送达
 ——全部有真库演练与单测双重锁定。
+
+## 42. LLM 调用双车道流式统一 + policy 路径模型路由修复(2026-11-14)
+
+### 42.1 用户实测驱动:非流 + 低缓存命中的根因
+
+用户提供真实 API (gpt-6-sol) 实测三连发:流式路径第 3 次起
+**hit=4224/4411 = 95.7%**(延迟 29.6s→2.2s)——流式+稳定前缀的缓存行为
+健康。非流与低命中的残留源锁定两处:
+
+1. **policy 路径刻意非流**:语义缓存存原始 SDK 对象,流是一次性迭代器
+   不能直接入库——但**聚合后**的对象可以(聚合器已把流折回一响应契约)。
+2. **router 只读 env 不读文件**:模型连接页写 .local/llm.json,policy
+   路径把 kind 调用全部路由到陈旧 deepseek-v4-pro → 真库实证
+   503 model_not_found。
+
+### 42.2 修复
+
+- chat() 两车道统一 `stream=True + include_usage`; policy 路径聚合回
+  一响应契约(闭包 create_and_aggregate 包 _raw_create+_collect_chat_stream)。
+- 语义缓存存**聚合对象**:_encode_sdk_response 兼容聚合形态(choices/usage
+  重组为 ChatCompletion 兼容 dict);_decode_sdk_response 的 model_validate
+  **实测保留 reasoning_content**(SDK 模型接受扩展字段)。
+- router: env 链为空且 source 是真实 os.environ 时回落
+  load_model_config(); 注入式测试 env 不触发文件回落, 测试字节不变
+  (router 16 + client_policy 16 passed)。
+
+### 42.3 实测
+
+- policy 路径三连发:**33s → 7.8s → 7.3s,hit=4224/4411**——非流消失,
+  前缀缓存命中。
+- provider 全套(router/client_policy/semantic_cache/notify)143+67
+  passed;ruff/mypy 全绿。
