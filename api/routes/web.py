@@ -26,13 +26,14 @@ import logging
 import os
 import re
 import time
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from api.auth import enforce_rate_limit, require_api_key
 from api.errors import (
@@ -1026,3 +1027,116 @@ async def ai_summary(job_id: str) -> dict[str, Any]:
                 exc,
             )
     return body
+
+
+def _sse_frame(event: str, data: dict[str, Any]) -> str:
+    """One SSE frame in the same shape /agent/jobs/{id}/events uses."""
+    payload = json.dumps(data, ensure_ascii=False)
+    return f"event: {event}\ndata: {payload}\n\n"
+
+
+@router.get("/jobs/{job_id}/ai-summary/stream")
+async def ai_summary_stream(job_id: str) -> StreamingResponse:
+    """AI 解读的流式端点 (SSE)：证据不变时直接重放缓存全文，未命中则
+    逐段转发模型的输出流。
+
+    事件帧与 /agent/jobs/{id}/events 同型：
+        event: delta / data: {"text": "..."}     — 客户端累积
+        event: done  / data: {完整 body}         — 含 usage/latency/cached
+        event: error / data: {"detail": ...}     — 如实错误，保留已到文本
+    """
+    from api.ai_summary import fingerprint, generate_ai_summary_stream
+    from api.services.verification_service import VerificationApplicationService
+
+    service = VerificationApplicationService()
+    try:
+        payload = service.get_job_summary(job_id)
+    except ApiError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - degraded store is an honest 503
+        raise ApiError(
+            status_code=503,
+            code=PROVIDER_UNAVAILABLE,
+            detail=f"MySQL unavailable: {exc}",
+        ) from exc
+
+    summary = payload.get("summary") or {}
+    findings: list[dict[str, Any]] = []
+    try:
+        with MySQLStore().connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT contract_id, severity, confidence, evidence_type "
+                "FROM findings WHERE job_id = %s ORDER BY created_at, id LIMIT 8",
+                (job_id,),
+            )
+            findings = [dict(row) for row in cur.fetchall()]
+    except Exception:  # noqa: BLE001 - findings power only the prompt
+        findings = []
+
+    fp = fingerprint(summary, findings)
+    cache_key = f"ai-summary:{job_id}:{fp[:16]}"
+    redis = ai_summary_redis()
+
+    async def event_stream() -> AsyncIterator[str]:
+        try:
+            cached: dict[str, Any] | None = None
+            if redis is not None:
+                try:
+                    cached = redis.get_cached_llm_response(cache_key)
+                except Exception:  # noqa: BLE001 - fail-open on cache errors
+                    cached = None
+            if cached is not None:
+                body = dict(cached)
+                body["cached"] = True
+                yield _sse_frame("delta", {"text": body.get("summary", "")})
+                yield _sse_frame("done", body)
+                return
+            async for event in generate_ai_summary_stream(summary, findings):
+                kind = event.get("type")
+                if kind == "done":
+                    body = {
+                        "job_id": job_id,
+                        "summary": event["summary"],
+                        "model_latency_ms": event["model_latency_ms"],
+                        "evidence_packet_chars": event["evidence_packet_chars"],
+                        "usage": event.get("usage"),
+                        "cached": False,
+                    }
+                    if redis is not None:
+                        from storage.env_config import int_env
+
+                        try:
+                            redis.cache_llm_response(
+                                cache_key, body,
+                                ttl=int_env("AI_SUMMARY_TTL_SECONDS", 86_400),
+                            )
+                        except Exception as exc:  # noqa: BLE001 - best-effort
+                            logger.info(
+                                "ai-summary stream cache write failed: %s: %s",
+                                type(exc).__name__, exc,
+                            )
+                    yield _sse_frame("done", body)
+                elif kind == "error":
+                    yield _sse_frame(
+                        "error",
+                        {"detail": str(event.get("detail", "")),
+                         "partial": str(event.get("partial", ""))},
+                    )
+                else:
+                    yield _sse_frame(str(kind), event)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - honest error event
+            logger.exception("ai-summary stream failed")
+            yield _sse_frame("error", {"detail": f"AI 解读流失败: {exc}"})
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

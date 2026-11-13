@@ -377,6 +377,42 @@ export function requestAiSummary(jobId: string): Promise<AiSummary> {
   );
 }
 
+/**
+ * Streamed twin of requestAiSummary: deltas arrive as the model emits them so
+ * the reviewer sees the reading build in place. Never invents content; if the
+ * provider fails mid-stream the tail shows an honest error and whatever
+ * already arrived stays visible.
+ */
+export function streamAiSummary(
+  jobId: string,
+  onDelta: (piece: string) => void,
+  onDone: (full: AiSummary) => void,
+  onError: (detail: string) => void,
+): () => void {
+  return openEventStream(
+    "/api/v1/jobs/" + encodeURIComponent(jobId) + "/ai-summary/stream",
+    (type, data) => {
+      const frame = data as Record<string, unknown>;
+      if (type === "delta" && typeof frame.text === "string") {
+        onDelta(frame.text);
+      } else if (type === "done") {
+        onDone({
+          job_id: jobId,
+          summary: typeof frame.summary === "string" ? frame.summary : "",
+          model_latency_ms: typeof frame.model_latency_ms === "number" ? frame.model_latency_ms : 0,
+          evidence_packet_chars: typeof frame.evidence_packet_chars === "number" ? frame.evidence_packet_chars : 0,
+          usage: (frame.usage as Record<string, unknown> | null | undefined) ?? null,
+          cached: Boolean(frame.cached),
+        });
+      } else if (type === "error") {
+        onError(typeof frame.detail === "string" ? frame.detail : "AI 解读流式失败");
+      }
+    },
+    () => {},
+    () => {},
+  );
+}
+
 export async function downloadCapsule(jobId: string, name?: string): Promise<void> {
   let path = "/api/v1/jobs/" + encodeURIComponent(jobId) + "/capsule";
   if (name) path += "?name=" + encodeURIComponent(name);

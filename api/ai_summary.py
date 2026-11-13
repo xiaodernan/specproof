@@ -18,7 +18,8 @@ import hashlib
 import json
 import logging
 import time
-from typing import Any, Callable
+from collections.abc import AsyncIterator, Callable
+from typing import Any
 
 from providers.base import LLMMessage, LLMResponse
 from providers.openai_compatible import OpenAICompatibleProvider
@@ -172,3 +173,74 @@ async def generate_ai_summary(
         "usage": response.usage,
         "evidence_packet_chars": len(packet),
     }
+
+
+async def generate_ai_summary_stream(
+    summary: dict[str, Any],
+    findings: list[dict[str, Any]] | None = None,
+    *,
+    provider_factory: Callable[..., OpenAICompatibleProvider] | None = None,
+) -> AsyncIterator[dict[str, Any]]:
+    """Streaming twin of generate_ai_summary.
+
+    Yields SSE-ready event dicts:
+
+      {"type": "delta", "text": piece}   — one per non-empty content chunk
+                                           (the client accumulates);
+      {"type": "done",  "summary": full, "model_latency_ms": ...,
+       "usage": ..., "evidence_packet_chars": ...}
+
+    Any provider failure mid-stream (or an empty final text) yields
+    {"type": "error", "detail": ..., "partial": text-so-far} instead of
+    raising — the client keeps whatever already arrived and shows the honest
+    error; nothing is fabricated to fill the gap.
+    """
+    if provider_factory is None:
+        provider_factory = OpenAICompatibleProvider
+    packet = build_evidence_packet(summary, findings=findings)
+    provider: OpenAICompatibleProvider | None = None
+    started = time.perf_counter()
+    pieces: list[str] = []
+    last_usage: dict[str, Any] | None = None
+    try:
+        provider = provider_factory(timeout=LLM_TIMEOUT_SECONDS, max_retries=0)
+        stream = provider.chat_stream(
+            _prompt(packet), timeout=LLM_TIMEOUT_SECONDS,
+        )
+        async for response in stream:
+            usage = response.usage
+            if isinstance(usage, dict) and usage:
+                last_usage = usage
+            piece = response.content or ""
+            if piece:
+                pieces.append(piece)
+                yield {"type": "delta", "text": piece}
+        text = "".join(pieces).strip()
+        if not text:
+            raise AiSummaryUnavailable(
+                "模型返回了空解读。为避免误导，这里不显示任何内容；请直接阅读上方证据。"
+            )
+        yield {
+            "type": "done",
+            "summary": text,
+            "model_latency_ms": round((time.perf_counter() - started) * 1000),
+            "usage": last_usage,
+            "evidence_packet_chars": len(packet),
+        }
+    except AiSummaryUnavailable as exc:
+        yield {"type": "error", "detail": str(exc), "partial": "".join(pieces)}
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - any provider failure is one honest error
+        logger.info("ai-summary stream provider failure: %s", type(exc).__name__)
+        yield {
+            "type": "error",
+            "detail": "模型暂时不可用，无法生成 AI 解读。可以稍后重试，或直接阅读上方证据。",
+            "partial": "".join(pieces),
+        }
+    finally:
+        if provider is not None:
+            try:
+                await provider.close()
+            except Exception:  # noqa: BLE001 - close is best-effort
+                pass

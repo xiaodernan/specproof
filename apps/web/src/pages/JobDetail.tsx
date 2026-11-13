@@ -4,7 +4,7 @@ import {
   ProgressEvent, StagesData,
   // #245: invoice status transition
   getInvoiceByPeriod, transitionInvoiceStatus,
-  requestAiSummary, type AiSummary,
+  streamAiSummary, type AiSummary,
 } from "../api";
 import {
   Breadcrumbs, Button, Degraded, Empty, ErrorBox, Panel, PreflightCard, Progress, Spinner, StatCard, StatusPill, Table, Term,
@@ -182,19 +182,25 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
   const [aiSummary, setAiSummary] = useState<AiSummary | null>(null);
   const [aiSummaryState, setAiSummaryState] = useState<"idle" | "loading" | "error">("idle");
   const [aiSummaryError, setAiSummaryError] = useState<string | null>(null);
+  const [aiSummaryStream, setAiSummaryStream] = useState("");
   const [aiSummaryCopied, setAiSummaryCopied] = useState(false);
   const loadAiSummary = async (): Promise<void> => {
     if (aiSummaryState === "loading") return;
     setAiSummaryState("loading");
     setAiSummaryError(null);
-    try {
-      const result = await requestAiSummary(jobId);
-      setAiSummary(result);
-      setAiSummaryState("idle");
-    } catch (err) {
-      setAiSummaryState("error");
-      setAiSummaryError(err instanceof Error ? err.message : String(err));
-    }
+    setAiSummaryStream("");
+    streamAiSummary(
+      jobId,
+      (piece) => setAiSummaryStream((current) => current + piece),
+      (full) => {
+        setAiSummary(full);
+        setAiSummaryState("idle");
+      },
+      (detail) => {
+        setAiSummaryState("error");
+        setAiSummaryError(detail);
+      },
+    );
   };
   const copyAiSummary = async (): Promise<void> => {
     if (!aiSummary) return;
@@ -518,19 +524,32 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
                 title="AI 解读"
                 right={<Button size="sm" variant="ghost" onClick={loadAiSummary} disabled={aiSummaryState === "loading"}>{aiSummaryState === "loading" ? "正在解读…" : aiSummary ? "重新解读" : "AI 解读本次验收"}</Button>}
               >
-                {aiSummary ? (
+                {aiSummaryState === "loading" || aiSummaryStream || aiSummary ? (
                   <>
                     <div className={"ai-summary-body tone-" + verdictTone(s.verdict)}>
-                    <p className="ai-summary-text">{aiSummary.summary}</p>
-                    <div className="ai-summary-meta">
-                      <span>{aiSummary.cached ? "Redis 缓存命中" : "模型直出" + (aiSummary.model_latency_ms != null ? " · " + (aiSummary.model_latency_ms / 1000).toFixed(1) + "s" : "")}</span>
-                      <span>AI 解读 · 不是判决</span>
-                      <button type="button" className="ai-summary-copy" onClick={copyAiSummary}>{aiSummaryCopied ? "已复制" : "复制摘要"}</button>
+                      <p className="ai-summary-text">
+                        {aiSummary ? aiSummary.summary : aiSummaryStream}
+                        {aiSummaryState === "loading" ? <span className="ai-summary-caret" aria-hidden="true">▋</span> : null}
+                      </p>
+                      {aiSummary ? (
+                        <div className="ai-summary-meta">
+                          <span>{aiSummary.cached ? "Redis 缓存命中" : "模型直出" + (aiSummary.model_latency_ms != null ? " · " + (aiSummary.model_latency_ms / 1000).toFixed(1) + "s" : "")}</span>
+                          <span>AI 解读 · 不是判决</span>
+                          <button type="button" className="ai-summary-copy" onClick={copyAiSummary}>{aiSummaryCopied ? "已复制" : "复制摘要"}</button>
+                        </div>
+                      ) : (
+                        <div className="ai-summary-meta">
+                          <span>{aiSummaryStream.length ? "正在流式生成…（按帧到达，约为上文）" : "正在读取证据、编译解读……"}</span>
+                        </div>
+                      )}
                     </div>
-                    </div>
+                    {aiSummaryState === "error" && aiSummaryStream ? (
+                      <div className="ai-summary-error-partial">
+                        <p className="muted">以上文本已到达但解读被中断，下面是完整错误。</p>
+                        <p className="ai-summary-stream-error">{aiSummaryError || "AI 解读不可用"}</p>
+                      </div>
+                    ) : null}
                   </>
-                ) : aiSummaryState === "loading" ? (
-                  <div className="ai-summary-shimmer"><div className="shimmer-bar" /><span>正在读取证据、编译解读……</span></div>
                 ) : aiSummaryState === "error" ? (
                   <ErrorBox error={aiSummaryError || "AI 解读不可用"} />
                 ) : (
