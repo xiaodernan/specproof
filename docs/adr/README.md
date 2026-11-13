@@ -25,6 +25,7 @@
 | [ADR-017](ADR-017.md) | LLM 私有推理不保存 | 已接受 | ADR-017 |
 | [ADR-018](ADR-018.md) | 为什么边缘网关是 Spring Cloud Gateway | 已接受 | ADR-018 |
 | [ADR-019](ADR-019.md) | 为什么边缘用 Resilience4j RateLimiter | 已接受 | ADR-019 |
+| [ADR-020](ADR-020.md) | 为什么配置热刷新走本地 /actuator/refresh 而非 Spring Cloud Bus | 已接受 | ADR-020 |
 
 ## 历史文件
 
