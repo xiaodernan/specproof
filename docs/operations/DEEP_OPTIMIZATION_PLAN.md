@@ -32985,3 +32985,52 @@ Markdown digest（verdict + 矩阵计数 + 风险发现 + capsules + 链接 + �
 - fixture 三个阶段 duration 全为 0.00s、跨 12 分钟——比例条是合法的"退化点"，不是 bug；真实执行会得到有宽度的条；
 - `shoot-timeline.mjs` 为本会话取证脚本，提交在 `apps/web/scripts/`（与仓内 `shoot-*.cjs` 同类、仅本地取证用途）；
 - `services/control-plane/pom.xml`（纯 CRLF 改动）未动——仍待其车道自理。
+
+## #1668 KV-cache 变量后置：两车道殊途同归——5c2f708 并入 master；本节定格本车道的独立复核与今日实测
+
+**记录基准**：本节只追加；master = 5c2f708（并行车道提交并推送，含本修复）。
+
+### 一、事情经过（如实记）
+
+1. 本车道先独立分析出同一结构性问题：三个呼叫点把变量载荷插在 prompt **中段**
+   （`review_court` 的 `{candidates_json}` 在第三行、`compile_contracts` 的
+   spec/context 占满中部、`parser` 的静态尾句压在 `{spec_text}` 之后）——
+   网关 KV 缓存按前缀匹配时，第一个变量字节之后的静态指令+persona 全部作废；
+2. 本车道完成同样重排（static 指令 → `build_judge_prompt` persona → 变量载荷挂尾）、
+   同样修改 `test_judge_persona_wiring.py` 断言序（persona 位置 < 变量段位置、变量段含真实载荷）；
+3. 03:39:43 并行车道提交并推送 `5c2f708`（量 `#BB4`，含 roadmap §43），内容与本车道工作树
+   字节一致——`git diff HEAD` 只剩本车道未提交的本节。**不声称原创归属、不重复计账；**
+   本节记录的是本车道侧的独立分析、独立复核与独立实测，供交叉对照；
+4. `generate_counterexamples`（ADDITIONAL CONTEXT 挂尾）与 `ai_summary`（packet 在 user role、
+   system 静态）本就正确——本车道核对未动。
+
+### 二、本车道独立复核（5c2f708 内容，当前工作树 == origin/master）
+
+- `test_judge_persona_wiring.py + test_judge_persona.py + test_kind_threading.py + test_client_policy.py`：39/39 绿；
+- 提示词相关全集 `-k "parser or compile_contracts or review_court or prompt or junit or counterexample"`：157/157 绿；
+- 全量 `pytest tests/unit` 后台进行中——本节不声称其读数，结果随 #1669 记账。
+
+### 三、今日现场 A/B 实测（真实端点 wkapi.pro / gpt-6-sol，2026-11-14，本车道直调）
+
+| 调用 | 耗时 | prompt | cached |
+|---|---|---|---|
+| NEW #1（新形状，冷-ish） | 19.2s | 4536 | 3968（87.5%） |
+| NEW #2（同 prompt 复读） | 5.8s | 4536 | 3968 |
+| NEW #3（新 candidates 变量） | 4.6s | 4810 | **None** |
+| OLD #1（旧形状，冷-ish） | 7.2s | 18881 | None |
+| OLD #2（同 prompt 复读） | 7.0s | 18881 | 18878（99.98%） |
+| OLD #3（新 candidates 变量） | 6.6s | 18888 | **None** |
+
+### 四、与并行车道实测并列记录（不调和分歧，原样呈现）
+
+- 并行车道（roadmap §43）记录：新排序三连调 call 1 prompt=4910、**cached=4736、命中 96.5%、13.2s**，
+  判定"前缀跨调用持久命中"；旧排序对照组两连调 **0 次命中报告**；
+- 本车道今日实测：换变量后 NEW/OLD 两种形状均报 None；同 prompt 复读两种形状均命中；
+- 两组数据**不一致**（一个称新排序换变量仍命中 96.5%，一个称换变量均 None）。
+  可确认的共识只有两点：①同 prompt 字节复读命中可靠；②prompt_tokens 计数本身
+  噪声极大（892 / 4536 / 18881 / 4910 同内容量级跳动）属网关侧账目问题。
+  **本节不声称哪一组"正确"——如实并列，等下一次大样本复测裁决。**
+- 结论（克制版）：①"非流"已消灭（#1644/#1663 两车道统一 stream=True+include_usage，
+  网关仪表盘不再看到非流）；②重排保留（零代价、前缀缓存网关受益）；
+  ③对本网关今日行为，提升命中率的**可靠**杠杆是应用层语义缓存（Redis，#1659 系列）——
+  那是本产品可控的节省，不是网关的恩赐。
