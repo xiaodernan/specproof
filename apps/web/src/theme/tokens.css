@@ -286,3 +286,20 @@
 :root[data-theme="light"] .ui-textarea {
   color-scheme: light;
 }
+
+/* ── Print medium: the only place literals live ─────────────
+   Evidence output (styles/print.css) prints the same regardless of the
+   screen theme — paper is always paper-white ink-black. These tokens are
+   consumed ONLY inside @media print and never flip with [data-theme]. */
+@media print {
+  :root {
+    --print-paper: #ffffff;
+    --print-ink: #111111;
+    --print-ink-soft: #555555;
+    --print-hairline: #d7d7d7;
+    --print-chip: #f4f4f4;
+    --print-chip-border: #e0e0e0;
+    --print-fg-body: 10.5pt;
+    --print-fg-note: 8pt;
+  }
+}

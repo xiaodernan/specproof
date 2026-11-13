@@ -44,7 +44,7 @@
   .shell,
   .workspace-main,
   .content {
-    background: #ffffff !important;
+    background: var(--print-paper) !important;
   }
   *,
   *::before,
@@ -72,8 +72,8 @@
     background: none !important;
     -webkit-background-clip: border-box !important;
     background-clip: border-box !important;
-    -webkit-text-fill-color: #111111 !important;
-    color: #111111 !important;
+    -webkit-text-fill-color: var(--print-ink) !important;
+    color: var(--print-ink) !important;
   }
 
   /* ── Geometry: full-width paper flow ────────────────────── */
@@ -103,8 +103,8 @@
   .verification-freshness-wrap,
   [class*="card"],
   section {
-    border: 1px solid #d7d7d7 !important;
-    border-radius: 4px !important;
+    border: 1px solid var(--print-hairline) !important;
+    border-radius: var(--radius-2xs) !important;
     break-inside: avoid;
     page-break-inside: avoid;
   }
@@ -122,19 +122,19 @@
   body,
   .content,
   main {
-    color: #111111 !important;
-    font-size: 10.5pt;
+    color: var(--print-ink) !important;
+    font-size: var(--print-fg-body);
   }
   a {
-    color: #111111 !important;
+    color: var(--print-ink) !important;
     text-decoration: none !important;
   }
   /* External links carry their address on paper — a printed report
      an auditor cannot trace is just decoration. */
   a[href^="http"]::after {
     content: " (" attr(href) ")";
-    font-size: 8pt;
-    color: #555555;
+    font-size: var(--print-fg-note);
+    color: var(--print-ink-soft);
     word-break: break-all;
   }
 
@@ -142,9 +142,9 @@
   pre,
   code,
   kbd {
-    color: #111111 !important;
-    background: #f4f4f4 !important;
-    border: 1px solid #e0e0e0 !important;
+    color: var(--print-ink) !important;
+    background: var(--print-chip) !important;
+    border: 1px solid var(--print-chip-border) !important;
     white-space: pre-wrap !important;
     word-break: break-word !important;
   }
