@@ -717,3 +717,52 @@ MongoDB + Elasticsearch + MinIO；模型走项目自己的配置 `.local/llm.jso
 - `queue-redelivery` 这条路只有在**队列上还有别的消费者**时才会出现；要单独测 sweep
   那条，需要一条安静的队列。
 - 演练的断言改过两次（见 §5.1 FIX-26 与本文 §8.3）：两次都是**写错了**，不是"产品不行"。
+
+#### 8.4.3 2026-11-13：尺子自己坏了——它把"回收列表"当 **id 列表**比
+
+**这一轮先判了 FAIL，而生产记录说恢复是完美的。** 读数：
+
+```
+05:52:40  worker-31784  job_status_transition        None -> RUNNING      （被杀的 worker 认领）
+05:53:11  reclaimer      job_reclaimed_stale_running  RUNNING -> QUEUED   （**回收扫描回收了它**）
+05:53:17  worker-34784  job_status_transition        None -> RUNNING      （恢复 worker 重新认领）
+05:53:18  worker-34784  job_status_transition        RUNNING -> PREPARING
+05:53:31  worker-34784  job_status_transition        PREPARING -> CONTRACT_REVIEW
+05:53:33  worker-34784  job_status_transition        CONTRACT_REVIEW -> RUNNING
+05:53:36  worker-34784  job_status_transition        RUNNING -> REVIEWING
+05:53:38  system         job_status_transition        None -> BLOCKED      （**恰一个终态**）
+```
+
+而演练当时判的是：`recovery_path: "unknown"`、`claim_footprint_matches_path: false`、
+`claims_delta: 1` ⇒ FAIL。**坏的是尺子，不是产品**：
+
+1. 它把 `sweep.reclaimed`（**行的字典**）当 id 列表比——`job_id in [ {...}, ... ]` 永远是
+   False ⇒ 演练**从来没有**认得出"回收"这条路，任何回收都被报成 "unknown"。`scripts/` 不在
+   mypy 的扫描面里，所以这处比较一直没被类型检查看见（直接跑 mypy 立刻抓到）。
+2. 它从"**我自己那一次调用**返回了什么"读路径，而这套系统有**不止一个**回收者（幸存 worker
+   的周期 tick、新 worker 的 tick、演练自己的触发器）——先到的那份赢下这一行，所以"我的调用
+   什么都没找到"**不等于**"没有回收发生"。
+
+**处置**：比 id（`any(str(row.get("id")) == job_id ...)`）；路径从**生产记录**读（回收会写
+自己的审计行 `job_reclaimed_stale_running`）；报告另加 `reclaimed_by`（`drill-trigger` /
+`another-sweeper` / `none`），说清是谁回收的。
+
+**重跑（修好之后）的读数**：
+
+- 对照作业：终态转移 1、RUNNING 转移 5、findings 2、capsules 2、errors 0
+- 被杀作业：worker 被杀 **true** → 杀后未到终态 → **恢复路径 `sweep`** → 恢复后终态
+  **BLOCKED**；终态转移 **1**；RUNNING 转移 **6**（= 对照的 5 **+ 重新认领的那 1**）；
+  findings 2、capsules 2、errors 0
+- 断言：`same_verdict_as_control: true`、`identical_evidence: true`、
+  `exactly_one_terminal_transition_after_resume: true`、`recovery_path: "sweep"`、
+  `claim_footprint_matches_path: true`、`claims_delta: 1`、`reclaimed_by: "drill-trigger"`
+- 判定：**PASS**（同判定、同证据、恰一个终态转移、认领足迹与路径相符）
+
+**诚实边界**：
+- 这一轮的判定是 **BLOCKED**（夹具仓库有鉴权回归，差分节点无 pom.xml 而诚实降级，静态检查找到
+  2 处 findings）——**两边同样**是 BLOCKED，所以它证明的是"崩溃恢复之后判定不变、证据不重复"，
+  不是"判定是 VERIFIED"；
+- `reclaimed_by` 是**这一轮**的赢家：上一次（修好之前的那次）是 `another-sweeper`（幸存 worker
+  的周期 tick 先到了），这一次是演练自己的触发器——两条路都是**生产路径**，同一个函数；
+- 演练的断言改过三次（§5.1 FIX-26、本节、以及本节的归因修复）：前两次是**写错了**，第三次是
+  **尺子读错了**——都不是"产品不行"。
