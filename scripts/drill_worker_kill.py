@@ -54,12 +54,16 @@ from ops.drills import (  # noqa: E402
     JobAuditStore,
     SideEffectStore,
     build_deterministic_fixture,
+    count_audit_actions,
     side_effect_counts,
     terminal_transitions,
     wait_for_lease_available,
     wait_for_status,
 )
-from storage.mysql import MySQLStore  # noqa: E402
+from storage.mysql import (  # noqa: E402
+    RECLAIM_STALE_RUNNING_ACTION,
+    MySQLStore,
+)
 from storage.outbox_relay import OutboxRelay  # noqa: E402
 from storage.rabbitmq import RabbitMQClient  # noqa: E402
 from storage.redis import RedisStore  # noqa: E402
@@ -447,7 +451,33 @@ def main() -> int:
     #     drill cannot claim the sweep was exercised then, and the extra
     #     claim is absent because the same worker ran it);
     #   * "unknown" — neither: the job finished some other way.
-    swept = kill_job_id in list(sweep.reclaimed or [])
+    # WHICH production path finished the job -- read from the PRODUCTION
+    # RECORD, not from this drill's own call.
+    #
+    # The system has more than one sweeper: the surviving worker's periodic
+    # tick, the fresh worker's tick, and the drill's own trigger. They all
+    # call the SAME production function, and whichever gets there first wins
+    # the row. So "my sweep call returned an empty list" does NOT mean "no
+    # sweep happened" -- it means "another sweeper got there first", and a
+    # drill that believes otherwise reports the recovery as "unknown" and
+    # fails a run that in fact recovered PERFECTLY (measured 2026-11-13:
+    # the audit trail showed the reclaim at 05:53:11, the re-claim at
+    # 05:53:17, and exactly one terminal transition -- while the drill's own
+    # sweep had already found nothing to do).
+    #
+    # The reclaim writes its OWN audit row (RECLAIM_STALE_RUNNING_ACTION),
+    # so the truth is in the row's history: that is what this now reads.
+    reclaimed_by_sweep = count_audit_actions(
+        cast(JobAuditStore, store), kill_job_id, RECLAIM_STALE_RUNNING_ACTION
+    ) > 0
+    # The reclaimed list holds ROWS (dicts), not ids -- comparing a job id
+    # against it with `in` was always False, so the drill could NEVER
+    # attribute the sweep path and reported every sweep recovery as
+    # "unknown" (a FAIL) even when the recovery was perfect. That is the
+    # instrument lying, not the product.
+    swept = reclaimed_by_sweep or any(
+        str(row.get("id")) == kill_job_id for row in (sweep.reclaimed or [])
+    )
     recovery_path = "sweep" if swept else (
         "queue-redelivery" if claims == 0 else "unknown"
     )
@@ -459,6 +489,16 @@ def main() -> int:
         "recovery_path": recovery_path,
         "claim_footprint_matches_path": claim_footprint_ok,
         "claims_delta": claims,
+        # Who did the reclaim: the drill's own trigger, or another sweeper in
+        # the same production fleet (the surviving worker's periodic tick).
+        "reclaimed_by": (
+            "drill-trigger"
+            if any(
+                str(row.get("id")) == kill_job_id
+                for row in (sweep.reclaimed or [])
+            )
+            else ("another-sweeper" if reclaimed_by_sweep else "none")
+        ),
     }
     result["side_effects_detail"] = {
         "control": control_counts,
