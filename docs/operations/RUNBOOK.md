@@ -51,7 +51,7 @@
     # 不打开 = SDK 禁用, edge 正常启动不受影响。
 
 - 数据库迁移在应用启动时自动执行 (infra/mysql/migrations/*.sql,
-  schema_migrations 记录版本; 当前 0001-0018, 见 docs/architecture/DATA_DICTIONARY.md
+  schema_migrations 记录版本; 当前 0001-0019, 见 docs/architecture/DATA_DICTIONARY.md
   的逐字段登记与 `tests/unit/test_data_dictionary_covers_migrations.py`)。
   回滚入口: `specproof ops rollback-migrations --to N [--dry-run] [--i-am-sure-rolling-back]`
   按版本倒序执行 down/ 目录里的降级脚本; 默认 `--dry-run` 只打印计划,
@@ -168,6 +168,23 @@ traceback, 而且 killed 的正是他本想保持不动的那个旋钮。现在�
 
 ## 5. 日常运维
 
+- **配置热刷新一体化（2026-11-13 起）**：edge 与 control plane 都暴露
+  `POST /actuator/refresh`。edge 在**管理端口**（默认 `8090`，loopback 绑定，永不上公网）；
+  control plane 与 app 同端口（默认 `8081`，`CONTROL_PLANE_PORT` 可覆盖）。
+  操作员流程：编辑 config-server 的值 → 对两台各 curl 一次：
+  `curl -X POST localhost:8090/actuator/refresh` 与 `curl -X POST localhost:8081/actuator/refresh`
+  （两台都要，漏一个等于 fleet 一致性假绿）→ 验证各自的见证 meter：
+  edge = `specproof_edge_config_refresh_events_total`，control plane = `specproof_cp_config_refresh_events_total`。
+  **meter 配对读才是 fleet 一致**——一个涨一个不涨 = 某实例漏刷（LB 循环刷全部实例，或逐台 curl）。
+  **诚实边界**：refresh 重发 Environment 并发布 EnvironmentChangeEvent；
+  @ConfigurationProperties 的单例消费者（edge 过滤器 / RouteTableIsomorphismGate / GatewayMqEventConsumer，
+  control plane 的缓存与熔断配置）被**构造注入**，不会因为 refresh 重绑——
+  见证人只证明"本实例收到了事件"，不证明某 bean 已经按新值工作；要真正重绑需要 @RefreshScope 波及面。
+  control plane 的 prometheus 端点目前**没有抓取作业**（RUNBOOK 自己记着：另开、共享同一 MySQL 后再接），
+  要在看板上读见证 meter 由运维按该条目决策。
+  配套腿：`ControlPlaneApplicationTests#theExposedRefreshEndpointActuallyRefreshesAndCounts`（8081）
+  与 `GatewayActuatorRoutesTests#theRefreshEndpointActuallyRefreshesAndCounts`（8090 管理端口）——
+  两条腿分别真 POST 断言 200 + meter 从 before+1 涨到 after，"yml 里写了 refresh"与"端点真的存在"是两回事。
 - **worker 的消费连接不带心跳 (2026-11-12)**。worker 在管线回调里可能阻塞数分钟
   （LLM 慢或被限流），此时它发不出心跳帧，代理按两次漏检就会关闭这条连接——
   worker 会在管线跑完后的第一次 ack 撞上 `StreamLostError` 退出，作业停在队里
