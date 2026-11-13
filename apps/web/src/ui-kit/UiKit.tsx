@@ -25,6 +25,31 @@ import {
 } from "../ui";
 import { InboxIcon, MoonIcon, SunIcon } from "../ui/icons";
 import { ControlRoomPreview } from "./ControlRoomPreview";
+import { SHORTCUT_GROUPS } from "../ui/shortcuts";
+
+interface ShortcutRow {
+  group: string;
+  label: string;
+  keys: string[];
+}
+
+const SHORTCUT_ROWS: ShortcutRow[] = SHORTCUT_GROUPS.flatMap((group) =>
+  group.items.map((item) => ({ group: group.title, label: item.label, keys: item.keys }))
+);
+
+const SHORTCUT_COLUMNS: Column<ShortcutRow>[] = [
+  { key: "group", header: "分组" },
+  { key: "label", header: "功能" },
+  {
+    key: "keys",
+    header: "按键",
+    render: (row) => (
+      <span style={{ display: "inline-flex", gap: "4px", alignItems: "center" }}>
+        {row.keys.map((key) => <Kbd key={key}>{key}</Kbd>)}
+      </span>
+    ),
+  },
+];
 
 /* ── demo data ────────────────────────────────────────────── */
 
@@ -435,6 +460,15 @@ export default function UiKit(): JSX.Element {
               面板已全局挂载：可导航全部 <span className="ui-kit-chip">/agent/*</span> 与已验证路由、切换主题、打开
               localStorage 中的最近任务。现在按 <Kbd>Ctrl</Kbd> <Kbd>K</Kbd> 试试 —— 本页面无需登录即可使用。
             </p>
+          </Demo>
+          <DemoTitle>键盘快捷键 ShortcutHelp（按 <Kbd>?</Kbd> 打开）</DemoTitle>
+          <Demo col>
+            <Table
+              columns={SHORTCUT_COLUMNS}
+              rows={SHORTCUT_ROWS}
+              rowKey={(row) => row.group + ":" + row.label}
+              dense
+            />
           </Demo>
         </Section>
 
