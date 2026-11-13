@@ -81,12 +81,23 @@ def _only(*words: str) -> dict[str, float]:
 
 
 def _state(workspace: str, **overrides: Any) -> dict[str, Any]:
+    # The AUTH contract is part of the default state because the
+    # deterministic template is now SELECTED by the compiled contracts
+    # (#1638): a change with no family this tier can execute produces no
+    # test at all, so a state that compiles nothing has no template to
+    # write. The legs that want "no template" say so explicitly.
     state: dict[str, Any] = {
         "head_workspace": workspace,
         "app_dir": "",
         "static_findings": [],
         "confirmed_findings": [],
-        "contracts": [],
+        "contracts": [
+            {
+                "id": "AUTH-01",
+                "expected_behavior": "unauthenticated email change is rejected",
+                "requirement": "unauthenticated email change must be rejected",
+            }
+        ],
         "requirement_text": "unauthenticated email change must be rejected",
     }
     state.update(overrides)

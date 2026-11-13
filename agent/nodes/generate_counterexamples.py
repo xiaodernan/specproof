@@ -321,7 +321,23 @@ def _build_deterministic_test(
 ) -> str:
     """Deterministic differential tests for the demo repository.
 
-    Always: unauthenticated PUT -> 401 AND DB row unchanged (AUTH family).
+    Each family contributes ITS OWN template, and the AUTH one is only
+    written when an AUTH contract is compiled.
+
+    WHY THE AUTH TEMPLATE IS NO LONGER THE ALWAYS-ONE (2026-11-13). It used
+    to be the base of every generated test: unauthenticated PUT -> 401 AND
+    the DB row unchanged. That is the right test for a change that removed
+    a guard -- and the WRONG test for a change that did not. Measured on the
+    real model (#1638): a PR that merely ADDED a product-detail endpoint
+    got that test, it failed on Head, and the review court reported a MAJOR
+    regression. The tool asserted a defect it had no evidence for.
+
+    So the template now FOLLOWS THE CONTRACTS: a change whose contracts
+    name no family we can execute produces NO test at all, and the case is
+    honestly UNJUDGEABLE ("no generated test") instead of falsely red.
+    That is the difference between "we looked and found nothing" and "we
+    did not look".
+
     When a UNIQUE contract is compiled: the duplicate-email rejection
     test - the static tier can only see REMOVED guards, so inverted-guard
     regressions (case-17) are only catchable by EXECUTING the behaviour.
@@ -329,9 +345,12 @@ def _build_deterministic_test(
     P6: additional families select additional templates (cache, concurrency,
     idempotency, atomicity, boundaries, N+1, order events, email format).
     Templates are keyed on families the pre-P6 case specs never compile,
-    so case-01..20 keep exactly the generated test they already had.
+    so case-01..20 keep exactly the generated test they already had (their
+    specs compile AUTH-01, so the AUTH template is still theirs).
     """
-    body = _AUTH_TEST_TEMPLATE
+    body = ""
+    if _has_family(contracts, "AUTH-01"):
+        body += _AUTH_TEST_TEMPLATE
     if _has_unique_contract(contracts):
         # Duplicate-rejection catches guard REMOVALS; fresh-email-success
         # (with exact-email assertion) catches guard INVERSIONS (case-17)
@@ -400,6 +419,14 @@ def _build_deterministic_test(
         # (times-1 semantics) would count the payload test's own publish
         # and fail spuriously on the honest base.
         body += _EVENT_PAYLOAD_TEST_TEMPLATE
+
+    if not body.strip():
+        # No family we can execute was compiled for this change: there is no
+        # honest test to write. A header-only class would compile and test
+        # NOTHING -- and a test that asserts nothing passes on both sides,
+        # which is a verdict the tool did not earn. So: no test at all, and
+        # the caller says why (#1638).
+        return ""
 
     domain_families = (
         "CACHE-01", "CONCURRENCY-01", "IDEMPOTENT-01", "ATOMICITY-01",
@@ -741,6 +768,30 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
             }
 
         fallback_code = _build_deterministic_test(contracts)
+        if not fallback_code.strip():
+            # No family we can execute was compiled for this change, so
+            # there is no honest test to write. Writing the AUTH test
+            # anyway is what produced the false regression (#1638); the
+            # honest answer is "no test", which the differential reports
+            # as UNVERIFIED rather than as a defect.
+            record.errors.append(
+                "No deterministic template matches the compiled contracts "
+                "(the change's contracts name no family this tier can "
+                "execute) and LLM generation did not produce a test. "
+                "No counterexample test produced."
+            )
+            incr("generate_counterexamples_outcomes_template_unsupported_total")
+            return {
+                "generated_tests_path": "",
+                "generation_record": {
+                    "source": record.source,
+                    "attempts": record.attempts,
+                    "compile_passed": False,
+                    "test_path": "",
+                    "errors": record.errors,
+                    "llm_code_len": len(record.llm_code),
+                },
+            }
         record.final_code = fallback_code
         test_file.write_text(fallback_code, encoding="utf-8")
 
