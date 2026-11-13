@@ -185,6 +185,33 @@ def test_the_page_says_when_the_failure_is_unattributed() -> None:
     assert "归因未成立" in row, row
 
 
+def test_the_page_shows_the_failing_side_s_own_output() -> None:
+    """"Base passed, Head failed" says WHAT happened; the toolchain's output
+    says WHY. The record used to carry that output only for the cases it
+    could NOT judge -- so the judged ones (the interesting ones) had no
+    diagnosis at all, and a reader had to re-run the pipeline to learn it."""
+    html = render_eval_report(
+        [
+            _record(
+                case="case-52",
+                differential=[
+                    {
+                        "contract_id": "AUTH-01",
+                        "verdict": "REGRESSION",
+                        "detail": "Test passes in Base (exit 0) but fails in Head.",
+                        "base_exit_code": 0,
+                        "head_exit_code": 1,
+                        "head_output": "Tests run: 1, Failures: 1\nexpected 401 but was 200",
+                    }
+                ],
+            )
+        ],
+        None,
+    )
+    row = _row_for(html, "case-52")
+    assert "expected 401 but was 200" in row, row
+
+
 def test_a_case_that_ran_nothing_says_not_run() -> None:
     html = render_eval_report([_record(case="case-none")], None)
     row = _row_for(html, "case-none")

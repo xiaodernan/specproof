@@ -877,6 +877,19 @@ def render_eval_report(
                         "失败未指向本次改动的代码（归因未成立）"
                         "</span>"
                     )
+                # The failing side's OWN output: the diagnosis. "Base
+                # passed, Head failed" says what happened; this says why --
+                # and a reader must not have to re-run the pipeline to
+                # learn it (#1638).
+                output = str(row.get("head_output") or "").strip()
+                if output:
+                    diff_bits.append(
+                        '<pre style="white-space:pre-wrap;font-size:11px;'
+                        'background:#161b22;border:1px solid #30363d;padding:6px;'
+                        'border-radius:6px;max-height:180px;overflow:auto">'
+                        + escape(output[-700:])
+                        + "</pre>"
+                    )
         differential_cell = (
             "<br />".join(diff_bits)
             if diff_bits

@@ -413,6 +413,13 @@ def _differential_evidence(final: Mapping[str, Any]) -> list[dict[str, Any]]:
             # question that separates "the change broke it" from "the
             # generated test's expectation was wrong" (#1638).
             "attribution": str(entry.get("attribution") or ""),
+            # The TOOLCHAIN's own words for each side. "Base passed, Head
+            # failed" is the shape; this is the diagnosis -- and the record
+            # used to carry it only for the cases it could NOT judge, so
+            # the judged ones (the interesting ones) had no diagnosis at
+            # all.
+            "base_output": str(entry.get("base_output") or "")[-1200:],
+            "head_output": str(entry.get("head_output") or "")[-1200:],
             "base_failure": str(entry.get("base_failure") or "")[:300],
         })
         if len(rows) >= 6:
