@@ -32734,3 +32734,49 @@ case-100 变异（pom byte-buddy 1.17.8 + mockito 5.17.0、UserService.setTimest
   "BLOCKER, MAJOR" 两个等级同时被命中、contract_level=BLOCKER、评测结果 PASS——判级器没有
   失职；本节不讳上行同时出现两个等级、以及 evidence 词表那一侧的问题已记在前文；
 - 本改动**收窄**匹配门、不放宽；contract id 兜底路径不受影响。
+## #1660 「AI 解读本次验收」—— 真模型把证据讲成人话，**摘要不是判决**
+
+**记录基准**：本节只追加；master = 1e9634f。
+
+### 一、这个功能为什么加（用户抱怨即需求）
+
+"跑完我不知道该干嘛" —— JobDetail 的判决是给机器看的。评审者要的是一段中文：
+哪些契约被阻止了、为什么（证据类型）、下一步做什么。判决路径不动
+（确定性证据卡 + review court 负责），AI 只翻译成人话。
+
+### 二、实现
+
+| 层 | 文件 | 责任 |
+|---|---|---|
+| 证据包 | `api/ai_summary.py` | 把已经持久化的 summary（verdict / 矩阵 / findings / capsules）序列化为 ≤6000 字符 JSON；**只含评审者已经看到的信息，不含路径/凭证/业务数据** |
+| 缓存 | `fingerprint()`（verdict + 矩阵计数 + 已排序 rows + findings_total + coverage_reason）→ Redis key `specproof:cache:model:ai-summary:{job_id}:{fp[:16]}` | 同一份证据只生成一次；变了才重新消耗 token |
+| LLM | `generate_ai_summary()` + `OpenAICompatibleProvider(timeout=45)` | 系统提示词约束：第一句用 verdict 定性、不编造、不夹带 Markdown 标题；超时/空内容/异常一律 `AiSummaryUnavailable` → **HTTP 503，不生成假摘要** |
+| API | `api/routes/web.py` POST /api/v1/jobs/{id}/ai-summary | /api/v1（Python agent-runtime 前缀，与边缘路由对齐） |
+| UI | `apps/web/src/pages/JobDetail.tsx` + `styles/verification.css` | 按钮「AI 解读本次验收」+ 结果卡（模型延迟 / Redis 缓存命中 / 复制摘要） |
+
+### 三、两次真实调用的实测（e2e fixture，真 FastAPI 应用，真 gpt-6-sol）
+
+| 调用 | cached | model_latency_ms | usage(prompt/completion/total) | evidence_packet_chars |
+|---|---|---|---|---|
+| 1st | false | 7925 | 4643/79/4722 | 259 |
+| 2nd | false | 16292 | 4643/68/4711 | 259 |
+
+fixture 的 job 是演示作业（`e2e00000-…`），证据包 259 字符说明真实作业（完整矩阵）
+包会更接近 4~6KB 上限；本次只证明链路跑通且响应语义正确，**不代表
+本项目的解释质量**；两条调用均为缓存 miss（fixture 的 FakeRedisStore 没有
+`cache_llm_response`，且不应有 — 它只做 rate-limit/progress 流）。
+
+**唯一被验证的缓存路径**：真 Redis（setex/get 往返已验）；fixture 记录的
+`ai-summary cache write failed (continuing uncached)` 是**设计的失败降级**：
+缓存不可达时功能照常可用、照样把摘要返回给用户，只是不缓存 — 这正是诚实
+行为，不是缺陷。
+
+### 四、诚实边界
+
+- AI 摘要**不是判决**：解读文本旁永远有「判决沿用确定性证据」字样，评审者
+  不需要也不应该被 AI 说服合并/拒绝一个 PR；
+- 模型失败（网关 502/429/超时/空白）一律 503 + 中文行动提示，**没有
+  "模型挂了就编一个假解读"的路径**；
+- 该 fixture 的 job 是演示作业，本次解读是手工数据上的一次真模型调用，
+  不等于任何质量证据；
+- 判决 = 确定性证据 × review court × 人；AI 只负责把已经存在的证据讲清楚。
