@@ -824,19 +824,24 @@ def run_differential_node(state: Phase0State) -> dict[str, Any]:
             "generation_source": generation_record.get("source", "unknown"),
         }]
 
-    # ── Attribution (EVIDENCE, never a verdict) ──────────────────────────
+    # ── Attribution: the failure must NAME the code this change touched ──
     # "base passed, head failed" is the SHAPE of a regression. Whether the
     # failure actually names the code this change touched is the QUESTION
     # that separates "the change broke it" from "the generated test's own
-    # expectation was wrong". The answer is recorded here so the report can
-    # show it; it changes no verdict, no severity and no confidence.
+    # expectation was wrong" (measured: it was the one false positive in
+    # six negative cases, #1638).
+    #
+    # An UNATTRIBUTED failure is BOOKKEEPING, not a finding -- exactly like
+    # a failing test that did not exercise the contract (the court already
+    # treats severity NONE that way). The tool saw something fail on Head;
+    # it cannot say it is about this change, so it must not claim a defect
+    # with a level. The entry keeps the whole story (the exit codes, the
+    # outputs, the attribution) so a reader can judge it.
     _changed_paths = head_changed_paths(state)
     for _entry in primary_entries:
         if _entry.get("verdict") != "REGRESSION":
             continue
-        _entry["attribution"] = _attribution_of(
-            str(_entry.get("head_output") or ""), _changed_paths
-        )
+        _apply_attribution(_entry, _changed_paths)
 
     # Source-diff findings computed earlier are prepended; the generated-test
     # verdict is the primary experiment for DIFF-01 (split per failing test
@@ -1554,6 +1559,31 @@ def _attribution_of(failure_text: str, changed_paths: list[str]) -> str:
         if needle and needle in failure_text:
             return "changed_code_in_failure"
     return "changed_code_not_in_failure"
+
+
+def _apply_attribution(entry: dict[str, Any], changed_paths: list[str]) -> None:
+    """Record the attribution, and demote an UNATTRIBUTED regression.
+
+    An unattributed failure is BOOKKEEPING, not a finding -- exactly like a
+    failing test that did not exercise the contract (the Review Court
+    already treats severity NONE that way). The tool saw something fail on
+    Head; it cannot say it is about this change, so it must not claim a
+    defect with a level. The entry keeps the whole story (the exit codes,
+    the outputs, the attribution), so a reader can judge it themselves.
+    """
+    attribution = _attribution_of(
+        str(entry.get("head_output") or ""), changed_paths
+    )
+    entry["attribution"] = attribution
+    if attribution == "changed_code_not_in_failure":
+        entry["severity"] = "NONE"
+        entry["detail"] = (
+            str(entry.get("detail") or "")
+            + " The failing side's output does not name any changed file, so "
+            "this failure is UNATTRIBUTED: the tool saw something fail on "
+            "Head but cannot say this change caused it, and it will not "
+            "claim a defect it cannot attribute (#1638)."
+        )
 
 
 def _h2_db_file(workspace: str) -> Path | None:
