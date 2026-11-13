@@ -32441,3 +32441,35 @@ SPECPROOF_PROVIDER_POLICY=1 才启用）。api 与 worker 是两个副本、多�
   持有的旧实例。要重绑必须波及到的过滤器改 @RefreshScope/lookup，本号不做、不虚标；
 * "fleet 一起动" 也不由此证明——两个 meter 配对读（specproof_cp_* 与 specproof_edge_*）
   才是运维图景里的完整句子；两个 witness 保证两跳各自可见，仅此而已。
+
+## #1651 差分路径的超线性代价裁剪：SequenceMatcher 只为"变了的窗口"工作
+
+**记录基准**：本节只追加；落在 3cfb307；master = 3cfb307。
+
+### 一、找到它的方式
+
+`compute_structured_diff`：Python AST 路径是多项式的；非 Python（Java 等——本产品
+的主战场）路径走 `_text_diff` → `difflib.SequenceMatcher(a=全部行, b=全部行)`。
+小改动藏在大文件里时，matcher 仍对等量前后缀付超线性代价。
+
+### 二、裁剪（不改变输出的前提下）
+
+先算第一个不同行 `head` 与最后一个不同行 `tail`，matcher 只跑内窗口；
+外窗口逐行相等 → equal opcode 本来就被下游丢弃 ⇒ **输出逐字节一致**
+（已用随机回放腿锁定）。
+
+### 三、实测（40k 行 Java 风格 fixture，局部 40 行改动）
+
+| 场景 | stock | trimmed |
+|---|---|---|
+| 局部插入 40 行 | 0.183s（全路径实测）/ 0.132s（裸 matcher） | **0.024s（全路径）** / ≈0.000s |
+| 局部修改 40 行 | 0.093s | ≈0.000s |
+| 全打乱（非代码 diff，adversarial） | 0.635s | 0.780s（不优化、不声称） |
+
+### 四、腿与诚实边界
+
+- `tests/unit/test_structured_diff_trims_common_ends.py` 5/5：随机局部编辑的
+  stock-vs-trimmed 逐 hunk 等价回放；前缀/后缀/空输入边界；mode 标签 text；
+- 既有 `test_structured_diff.py` 10/10 全绿；
+- 全打乱场景略慢——本优化只为真实 diff（局部改动），已写死在模块注释里，
+  不是藏起来的 trade-off。
