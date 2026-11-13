@@ -5,7 +5,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import TenantSwitcher from "./identity/TenantSwitcher";
 import { ThemeProvider, useTheme } from "./theme/ThemeProvider";
-import { Button, CommandPalette, ErrorBoundary, Kbd, Spinner, ToastProvider } from "./ui";
+import { Button, CommandPalette, ErrorBoundary, Kbd, ShortcutHelp, Spinner, ToastProvider } from "./ui";
 import { recordRouteVisit } from "./ui/onboarding";
 import { MoonIcon, SearchIcon, SunIcon } from "./ui/icons";
 import { ProductIcon, type ProductIconName } from "./ui/ProductIcon";
@@ -137,5 +137,5 @@ function Workspace() {
 }
 
 export default function App() {
-  return <ThemeProvider><ToastProvider><ErrorBoundary><Workspace /></ErrorBoundary><CommandPalette /></ToastProvider></ThemeProvider>;
+  return <ThemeProvider><ToastProvider><ErrorBoundary><Workspace /></ErrorBoundary><CommandPalette /><ShortcutHelp /></ToastProvider></ThemeProvider>;
 }
