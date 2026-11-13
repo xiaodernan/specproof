@@ -74,6 +74,29 @@ def test_the_prompt_says_what_to_do_when_the_change_is_not_a_guard_change() -> N
     )
 
 
+def test_the_requirements_do_not_force_the_guard_test() -> None:
+    """The CONTEXT was only half the fix.
+
+    The REQUIREMENTS still said "Write ONE test that sends an
+    UNAUTHENTICATED PUT to the endpoint" — so however careful the CONTEXT
+    was, the model was told to write the guard test for every change. The
+    two branches have to be in the REQUIREMENTS as well, because that is
+    the part the model follows when it writes the test.
+    """
+    lowered = _JUNIT_GENERATION_PROMPT.lower()
+    assert "if the change touches an authorization guard" in lowered, (
+        "the requirements must still offer the guard branch"
+    )
+    assert "if the change does something else" in lowered, (
+        "the requirements must offer the other branch too -- otherwise the "
+        "model writes the guard test for a change that removed no guard"
+    )
+    assert "never assert a behaviour the change did not touch" in lowered, (
+        "the requirement must say why: an unrelated assertion fails on Head "
+        "for an unrelated reason, and reads as a regression"
+    )
+
+
 def test_the_changed_symbols_reach_the_prompt() -> None:
     provider = _CapturingProvider()
     original = gen_module._get_provider

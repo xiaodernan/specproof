@@ -154,9 +154,18 @@ REQUIREMENTS:
 2. Import @@test_config_class@@ with @Import
 3. Inject MockMvc and @@user_repo_class@@
 4. In @BeforeEach, clean DB and create a test user
-5. Write ONE test that sends an UNAUTHENTICATED PUT to the endpoint
-6. Use andReturn() and assertAll(): status must be 401/403 AND the DB row
-   must be unchanged afterwards (no short-circuit - both assertions run)
+5. Write ONE test that exercises THE CHANGED behaviour:
+   - if the change touches an authorization guard, send an UNAUTHENTICATED
+     request to the endpoint the guard is on, and assert both that the
+     status is 401/403 and that the DB row is unchanged afterwards;
+   - if the change does something else, assert the behaviour THAT change
+     must have -- for a new endpoint, that it answers with the status the
+     change implies; for a refactor, that the observable behaviour is
+     unchanged. Never assert a behaviour the change did not touch: that
+     assertion fails on Head for a reason unrelated to the change, and the
+     review court cannot tell that apart from a regression.
+6. Use andReturn() and assertAll(): EVERY assertion you make must run (no
+   short-circuit - both assertions run)
 7. Full package: @@java_package@@
 8. Class name: SpecProofGeneratedTest
 
