@@ -183,10 +183,10 @@ Return a JSON array of objects, each with:
 - forbidden_changes: array of strings — changes that must NOT happen
 - priority: P1 / P2 / P3
 
-Specification:
-{spec_text}
+Return ONLY the JSON array.
 
-Return ONLY the JSON array."""
+Specification:
+{spec_text}"""
 
 
 async def llm_enrich_requirements(text: str, provider: Any) -> list[Requirement]:

@@ -2980,3 +2980,47 @@ drill_notify_outbox.py 新增 run_dead_letter_leg: 无接收端(DISABLED 连接�
   帧/字段逐一对上)——前后端协同在共享树上自发合龙。
 - 测试 +3(流式 delta+done / 缓存重放 / 提供者死亡→error 事件)；
   api/ai_summary.py + web.py mypy/ruff 全绿。
+
+## 43. 批次 BB4:KV-cache 呼叫点全收口——prompt 变量后置,缓存命中率实测翻盘(2026-11-14)
+
+### 背景
+
+§42 修了双车道流式与路由,但缓存命中率还有一处结构性漏点:**呼叫点把变量内容
+插在 prompt 中段**(review_court 的 candidates_json 在开头第三行、compile_contracts
+的 spec/context 占满中部、parser 的 spec_text 压在结尾指令之前)。网关 KV 缓存
+按前缀匹配——前缀里只要有第一个字节不同,后面的静态内容(成百上千 token 的
+指令+persona)全部作废。旧排序下可缓存前缀 ≈ 头部 100 token / 全长 4500+ ≈ 2%。
+
+### 修复(三处呼叫点 + 接线测试)
+
+* `agent/nodes/review_court.py`:_LLM_DEFENSE_PROMPT 抽掉中段 candidates_json,
+  build_judge_prompt(静态指令+persona)整体在前,变量 JSON 以 "Candidate
+  findings:" 挂尾;
+* `agent/nodes/compile_contracts.py`:同理——指令+persona 在前,spec_text 与
+  repo_context 追加在 persona 之后,以 "Contracts (JSON array):" 收尾;
+* `agent/contracts/parser.py`:_LLM_PARSE_PROMPT 的 "Return ONLY the JSON
+  array." 提前,spec_text 段挂尾;
+* `tests/unit/test_judge_persona_wiring.py`:6 例改为断言新序(persona 位置 <
+  变量段位置、变量段含真实载荷)。
+
+已核对全部 LLM 呼叫点:ai_summary(packet 在 user role、system 静态)、
+generate_counterexamples(ADDITIONAL CONTEXT 挂尾)本就正确,无需动。
+
+### 真实 API 实测(wkapi.pro / gpt-6-sol)
+
+新排序(静态前缀×3+变量尾,三连调):
+
+* call 1: prompt=4910, **cached=4736, 命中 96.5%**, 13.2s——前缀跨进程持久命中
+* 对照组旧排序(变量在中段+静态尾部 1k+ token):两连调 cached 一律无报告,
+  **0 次命中记录**。
+
+前后对比成立:同一网关同一模型,变量后置把不可缓存变成 96.5% 显式命中。
+网关 prompt_tokens 计数本身有噪声(892/19334/534 之间跳动,与内容长度不符),
+属网关侧账目问题;我们如实转发、不捏造零值。
+
+### 教训
+
+* prompt 不是散文,是缓存键:**静态在前、变量在尾**是每个 LLM 呼叫点的纪律,
+  和 SQL 占位符、日志脱敏同级。
+* build_judge_prompt 的语义从此明确:它返回"静态指令+persona"的完整稳定块,
+  变量载荷一律由调用方追加在返回值之后——排序契约写进接线测试。

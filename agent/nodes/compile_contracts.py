@@ -143,16 +143,7 @@ For each requirement, produce a contract with:
 - requirement: the requirement text (max 200 chars)
 - expected_behavior: concrete, testable description of expected behavior
 
-Return a JSON array of contract objects. No other text.
-
-Requirement specification:
-{spec_text}
-
-Repository context (retrieved symbol chunks relevant to this requirement —
-use it to ground the contracts in real code, NEVER invent symbols):
-{repo_context}
-
-Contracts (JSON array):"""
+Return a JSON array of contract objects. No other text."""
 
 
 def _parse_requirements(text: str) -> list[dict[str, Any]]:
@@ -253,8 +244,10 @@ async def _llm_compile_contracts(
     helper never raises — degradation is reported, never swallowed.
 
     The no-fake-pass judge persona is APPENDED after the base contract
-    validation prompt via build_judge_prompt, keeping the stable base-prompt
-    prefix byte-identical at the front (KV-cache-friendly ordering).
+    validation prompt via build_judge_prompt; the variable spec/context are
+    appended AFTER the persona, keeping the stable base-prompt prefix
+    (instructions + persona) byte-identical at the front — the
+    cache-friendly stable-prefix-first ordering.
     """
     from providers.base import LLMMessage
     from providers.redaction import redact_text
@@ -266,10 +259,18 @@ async def _llm_compile_contracts(
         + (c.get("content") or "")[:600]
         for c in (repo_context or [])[:8]
     ) or "(no repository context retrieved)"
-    base_prompt = _LLM_CONTRACT_PROMPT.format(
-        spec_text=safe_text, repo_context=context_block,
+    # Stable prefix first (KV-cache ordering): static instructions + persona
+    # byte-identical across calls at the front; the variable spec/context
+    # ride LAST so the gateway's KV cache covers the entire instruction block.
+    judge_prompt = build_judge_prompt(_LLM_CONTRACT_PROMPT)
+    judge_prompt = (
+        f"{judge_prompt}\n\n"
+        f"Requirement specification:\n{safe_text}\n\n"
+        "Repository context (retrieved symbol chunks relevant to this requirement —\n"
+        "use it to ground the contracts in real code, NEVER invent symbols):\n"
+        f"{context_block}\n\n"
+        "Contracts (JSON array):"
     )
-    judge_prompt = build_judge_prompt(base_prompt)
 
     try:
         response = await provider.chat(

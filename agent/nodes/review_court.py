@@ -53,9 +53,6 @@ FINDINGS_COURT_WORDS: frozenset[str] = frozenset({"candidates", *COURT_OUTCOMES}
 _LLM_DEFENSE_PROMPT = """You are the DEFENDER in a code review court. Your role is to produce
 defense material for each candidate finding — never the final severity.
 
-Candidate findings:
-{candidates_json}
-
 For each finding, produce a JSON object with:
 - id: the finding's id
 - defense_argument: why this might be a false positive (1-2 sentences, concrete)
@@ -110,8 +107,12 @@ async def _llm_defense_materials(
         [{k: v for k, v in c.items() if k != "source"} for c in candidates],
         indent=2, ensure_ascii=False,
     )
-    base_prompt = _LLM_DEFENSE_PROMPT.format(candidates_json=candidates_json)
-    judge_prompt = build_judge_prompt(base_prompt)
+    # Stable prefix first (KV-cache ordering): static instructions + persona
+    # byte-identical across calls at the front; the variable candidates JSON
+    # rides LAST so the gateway's KV cache covers the entire instruction
+    # block instead of just the first line.
+    judge_prompt = build_judge_prompt(_LLM_DEFENSE_PROMPT)
+    judge_prompt = f"{judge_prompt}\n\nCandidate findings:\n{candidates_json}"
     response = await provider.chat(
         messages=[LLMMessage(
             role="user",

@@ -1,14 +1,17 @@
 """Wiring tests: NO_FAKE_PASS_SYSTEM_PROMPT reaches both LLM judgement paths.
 
 The persona is wired through providers/judge_persona.build_judge_prompt, which
-APPENDS it after the caller's base prompt so the stable base-prompt prefix
-stays byte-identical at the front (KV-cache-friendly ordering). These tests
+APPENDS it after the caller's base prompt; the variable candidates JSON is
+appended AFTER the persona, so the stable prefix (base instructions + persona)
+stays byte-identical at the front and the KV cache covers the whole
+instruction block (cache-friendly ordering). These tests
 inject fake providers and assert:
 
 - the review-court model layer (_llm_defense_materials) appends the persona
   after the base defense prompt when an LLM client is configured;
 - the contract-compile LLM candidate path (_llm_compile_contracts) appends
-  it after the base contract validation prompt likewise;
+  the persona after the base contract validation prompt, with the variable
+  spec/context appended after the persona (stable prefix at the front);
 - the deterministic paths (no LLM client configured) stay byte-unchanged
   and never carry the persona;
 - the persona clauses are present via the stable strings pinned verbatim in
@@ -118,9 +121,12 @@ class TestReviewCourtModelLayerWiring:
         assert len(messages) == 1
         content = str(messages[0].content)
         # The stable base-prompt head stays byte-identical at the front...
-        assert content.startswith(_LLM_DEFENSE_PROMPT.split("{candidates_json}")[0])
-        # ...and the persona rides at the very tail (KV-cache ordering).
-        assert content.endswith(NO_FAKE_PASS_SYSTEM_PROMPT)
+        assert content.startswith(_LLM_DEFENSE_PROMPT)
+        # ...the persona rides BEFORE the variable block, and the candidates
+        # JSON rides at the very tail (KV-cache ordering).
+        assert content.index(NO_FAKE_PASS_SYSTEM_PROMPT) < content.rindex("Candidate findings:")
+        tail = content.rsplit("Candidate findings:", 1)[1]
+        assert '"id": "STATIC-AUTH-01"' in tail
         _assert_stable_clauses(content)
 
     def test_persona_reaches_court_only_when_llm_client_configured(self) -> None:
@@ -131,7 +137,7 @@ class TestReviewCourtModelLayerWiring:
 
         assert len(provider.calls) == 1
         content = str(provider.calls[0][0].content)
-        assert content.endswith(NO_FAKE_PASS_SYSTEM_PROMPT)
+        assert content.index(NO_FAKE_PASS_SYSTEM_PROMPT) < content.rindex("Candidate findings:")
         _assert_stable_clauses(content)
         assert len(result["confirmed_findings"]) == 1
 
@@ -155,8 +161,11 @@ class TestCompileContractLlmWiring:
         assert raw[0]["id"] == "AUTH-01"
         assert len(provider.calls) == 1
         content = str(provider.calls[0][0].content)
-        assert content.startswith(_LLM_CONTRACT_PROMPT.split("{spec_text}")[0])
-        assert content.endswith(NO_FAKE_PASS_SYSTEM_PROMPT)
+        assert content.startswith(_LLM_CONTRACT_PROMPT)
+        # Persona rides BEFORE the variable block; spec/context trail it.
+        persona_at = content.index(NO_FAKE_PASS_SYSTEM_PROMPT)
+        assert persona_at < content.rindex("Requirement specification:")
+        assert "Contracts (JSON array):" in content.rsplit("Requirement specification:", 1)[1]
         _assert_stable_clauses(content)
 
 
