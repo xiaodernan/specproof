@@ -12,6 +12,7 @@ import {
   type Column, type PreflightResult,
 } from "../ui";
 import { SameRepoCraftPanel } from "./SameRepoCraftPanel";
+import { buildMarkdownSummary } from "../ui/copySummary";
 import { recordRecentJob } from "../ui/recentJobs";
 import { describePipelineError, loadFailed, terminalStageNote } from "../ui/errorHints";
 import "../styles/verification.css";
@@ -208,6 +209,7 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
   const [cert, setCert] = useState<CertificateData | null>(null);
   const [certError, setCertError] = useState<string | null>(null);
   const [copyLinkState, setCopyLinkState] = useState<"idle" | "copied">("idle");
+  const [briefCopied, setBriefCopied] = useState(false);
   // The job read itself can fail (network / 404). It is kept apart from
   // artifactError because a failed JOB read means there is nothing to show
   // at all, while a failed artifact read still leaves the job readable.
@@ -489,7 +491,7 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
       <div className="verification-detail-banner" aria-live="polite"><h2>{summary?.coverage_reason ? rowsTotal === 0 ? "覆盖不足，暂不能确认验收通过" : "本次不能确认验收通过" : statusHelp[0]}</h2><p>{summary?.coverage_reason ? rowsTotal === 0 ? "本次没有形成可执行的检查项。请完善验收条件，或接入对应检查器后重新验收。" : rowsTotal === null ? "请查看上方原因，并结合需求覆盖与风险证据判断本次结论。" : "本次已形成 " + rowsTotal + " 项检查，结论仍不能确认为通过。请查看上方原因，并结合需求覆盖与风险证据判断。" : statusHelp[1]}</p>
       {ACTIVE.has(status) ? <Progress value={latest?.percentage ?? latest?.percent ?? 0} label={latest?.summary || latest?.message || "等待执行进度"} showValue /> : null}
       {nextAction ? <div className="next-action" role="group" aria-label="下一步操作"><span>下一步：</span><Button size="sm" variant="primary" onClick={nextAction.run}>{nextAction.label}</Button></div> : null}
-      <div style={{ display: "flex", gap: 12, marginTop: 18 }}><Button size="sm" variant="ghost" onClick={() => setRefresh((value) => value + 1)}>刷新结果</Button><a href="#/matrix">查看需求覆盖 →</a><a href={"#/audit?job=" + encodeURIComponent(jobId)}>查看这个作业的审计轨迹 →</a></div>
+      <div style={{ display: "flex", gap: 12, marginTop: 18, flexWrap: "wrap", alignItems: "center" }}><Button size="sm" variant="ghost" onClick={() => setRefresh((value) => value + 1)}>刷新结果</Button><Button size="sm" variant="ghost" onClick={() => { const md = buildMarkdownSummary({ job: job ?? { id: jobId, base_ref: null, head_ref: null, repo_path: null, spec_path: null, status: null }, summary: summary ? { verdict: summary.verdict ?? null, contracts_total: summary.contracts_total ?? null, matrix_passed: summary.matrix_passed ?? null, matrix_failed: summary.matrix_failed ?? null, matrix_unverified: summary.matrix_unverified ?? null, errors: (summary.errors ?? []) as string[] } : null, findings: findings?.findings ?? [] }); navigator.clipboard.writeText(md).catch(() => {}); setBriefCopied(true); window.setTimeout(() => setBriefCopied(false), 2000); }}>{briefCopied ? "已复制 ✓" : "复制 Markdown 摘要"}</Button><a href="#/matrix">查看需求覆盖 →</a><a href={"#/audit?job=" + encodeURIComponent(jobId)}>查看这个作业的审计轨迹 →</a></div>
       </div>
 
       <div className="tabs" role="tablist" aria-label="验证详情">
@@ -518,15 +520,17 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
               >
                 {aiSummary ? (
                   <>
+                    <div className={"ai-summary-body tone-" + verdictTone(s.verdict)}>
                     <p className="ai-summary-text">{aiSummary.summary}</p>
                     <div className="ai-summary-meta">
                       <span>{aiSummary.cached ? "Redis 缓存命中" : "模型直出" + (aiSummary.model_latency_ms != null ? " · " + (aiSummary.model_latency_ms / 1000).toFixed(1) + "s" : "")}</span>
                       <span>AI 解读 · 不是判决</span>
                       <button type="button" className="ai-summary-copy" onClick={copyAiSummary}>{aiSummaryCopied ? "已复制" : "复制摘要"}</button>
                     </div>
+                    </div>
                   </>
                 ) : aiSummaryState === "loading" ? (
-                  <div className="ai-summary-pending"><Spinner /><span>正在读取证据、编译解读……</span></div>
+                  <div className="ai-summary-shimmer"><div className="shimmer-bar" /><span>正在读取证据、编译解读……</span></div>
                 ) : aiSummaryState === "error" ? (
                   <ErrorBox error={aiSummaryError || "AI 解读不可用"} />
                 ) : (
