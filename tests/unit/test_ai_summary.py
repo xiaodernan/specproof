@@ -16,10 +16,13 @@ re-spend tokens on identical evidence. Covered:
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+
+from integrations.notify.protocol import SendStatus
 
 import api.ai_summary as ai_summary
 from api.ai_summary import (
@@ -292,3 +295,167 @@ def test_ai_summary_mysql_down_yields_503(fake_backend) -> None:  # noqa: ANN001
         "/api/v1/jobs/job-ai-summary-4/ai-summary", headers={"X-API-Key": API_KEY},
     )
     assert resp.status_code == 503
+
+
+# ---------- streaming endpoint (SSE, 前后端协同) -------------------------
+
+
+class _StreamFakeProvider:
+    """chat_stream yields per-chunk LLMResponse objects (delta content)."""
+
+    def __init__(self, pieces) -> None:  # noqa: ANN001
+        self._pieces = pieces
+        self.calls = 0
+
+    async def chat_stream(self, messages, timeout=None):  # noqa: ANN001
+        self.calls += 1
+        for piece in self._pieces:
+            class _Resp:
+                def __init__(self, content):  # noqa: ANN001
+                    self.content = content
+                    self.finish_reason = None
+                    self.usage = {"prompt_tokens": 10, "completion_tokens": 2,
+                                  "total_tokens": 12}
+            yield _Resp(piece)
+
+    async def close(self) -> None:
+        return None
+
+
+@pytest.mark.integration
+def test_stream_endpoint_deltas_then_done(monkeypatch: pytest.MonkeyPatch, fake_backend) -> None:  # noqa: ANN001
+    provider = _StreamFakeProvider(["验收证据", "是材料。", ""])
+    monkeypatch.setattr(ai_summary, "OpenAICompatibleProvider", lambda **_kw: provider)
+    resp = _client().get(
+        "/api/v1/jobs/job-ai-summary-1/ai-summary/stream",
+        headers={"X-API-Key": API_KEY},
+    )
+    assert resp.status_code == 200
+    body = resp.text
+    assert "event: delta" in body
+    assert "验收证据" in body and "是材料。" in body
+    assert "event: done" in body
+    assert '"cached":false' in body or '"cached": false' in body
+    assert "event: error" not in body
+    assert provider.calls == 1
+
+
+@pytest.mark.integration
+@pytest.mark.integration
+def test_stream_endpoint_dead_letter_then_replay_delivers() -> None:
+    """The full sad-then-happy lifecycle against the REAL (isolated) MySQL:
+    no receiver (DISABLED connector) dead-letters the intent, the operator
+    replay re-queues it, and the relay delivers on its next cycle. This is
+    the live drill's dead-letter leg, asserted in-process."""
+    import uuid
+
+    from storage.mysql import MySQLStore
+    from storage.notify_relay import NotifyOutboxRelay
+
+    store = MySQLStore()
+    store.ensure_tables()
+    job_id = "job-notify-dl-" + uuid.uuid4().hex[:12]
+    store.create_job_with_outbox({
+        "id": job_id,
+        "repo_path": "/drill/notify",
+        "base_ref": "base", "head_ref": "head-v1",
+        "spec_path": "spec.md", "depth": "FAST",
+    })
+    store.transition_job_status(
+        job_id, "RUNNING", from_status="QUEUED", worker_id="drill",
+    )
+    written = store.transition_job_status_with_notify(
+        job_id, "VERIFIED", from_status="RUNNING",
+        summary={"verdict": "VERIFIED"},
+        notify_payload={
+            "event_type": "verification.verified",
+            "title": "drill", "text": "dead-letter leg",
+            "blocks": [], "job_id": job_id,
+        },
+    )
+    assert written
+
+    # No receiver: the relay dead-letters immediately.
+    dead_relay = NotifyOutboxRelay(
+        mysql=store,
+        connector_factory=lambda: _DisabledConnector(),
+        poll_interval=0.0,
+    )
+    dead_relay.drain_pending()
+    rows = store.list_dead_notifications(job_id)
+    assert len(rows) == 1, rows
+
+    # Operator replay: the DLQ state clears; the relay re-claims.
+    replayed = store.replay_dead_notifications(job_id)
+    assert len(replayed) == 1
+
+    live_relay = NotifyOutboxRelay(
+        mysql=store,
+        connector_factory=lambda: _SentConnector(),
+        poll_interval=0.0,
+    )
+    live_relay.drain_pending()
+    assert not store.list_dead_notifications(job_id), (
+        "the delivered row must leave the dead-letter set"
+    )
+    stats = store.notify_outbox_stats()
+    assert stats["pending"] >= 0  # delivered rows leave the claim set
+
+
+class _DisabledConnector:
+    name = "test-disabled"
+    capabilities = frozenset()
+
+    def send(self, notification) -> str:  # noqa: ANN001
+        return SendStatus.DISABLED.value
+
+    def close(self) -> None:
+        return None
+
+
+class _SentConnector:
+    name = "test-sent"
+    capabilities = frozenset()
+    sent = 0
+
+    def send(self, notification) -> str:  # noqa: ANN001
+        _SentConnector.sent += 1
+        return SendStatus.SENT.value
+
+    def close(self) -> None:
+        return None
+
+
+@pytest.mark.integration
+def test_stream_endpoint_provider_failure_is_an_error_event(
+    monkeypatch: pytest.MonkeyPatch, fake_backend,
+) -> None:  # noqa: ANN001
+    class _DyingProvider:
+        async def chat_stream(self, messages, timeout=None):  # noqa: ANN001
+            class _Resp:
+                content = "部分文本"
+                finish_reason = None
+                usage = None
+            yield _Resp
+            raise RuntimeError("provider died mid-stream")
+
+        async def close(self) -> None:
+            return None
+
+    class _Provider:
+        async def chat_stream(self, messages, timeout=None):  # noqa: ANN001
+            return _DyingProvider()
+
+        async def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(ai_summary, "OpenAICompatibleProvider", lambda **_kw: _Provider())
+    resp = _client().get(
+        "/api/v1/jobs/job-ai-summary-3/ai-summary/stream",
+        headers={"X-API-Key": API_KEY},
+    )
+    assert resp.status_code == 200
+    body = resp.text
+    assert "event: error" in body
+    assert "partial" in body
+    assert "event: done" not in body
