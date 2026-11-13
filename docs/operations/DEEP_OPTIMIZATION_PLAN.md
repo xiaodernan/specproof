@@ -32507,3 +32507,41 @@ SPECPROOF_PROVIDER_POLICY=1 才启用）。api 与 worker 是两个副本、多�
 - 两次"我差点犯错的瞬间"被门/钩子拦下并留在案：0019 版本化 repo 索引（1072）、
   .env.example 被钩子按文件名判机密（本号用 SKIP_HOOKS=1，理由写在提交信息）；
 - 测量与结果一律落在对应号里，含失败与回退的记录。
+
+## #1653 打印 e2e 腿落地 + worktree 集大成（清点与处置全记录）
+
+**记录基准**：本节只追加；master = 731f13c。Gate v20 仍在跑，摘要随 #1654 入账。
+
+### 一、打印 e2e 腿（#1647 的最后一块拼图）
+
+`tests/e2e/print.spec.ts`（主 e2e config 的 testMatch 已并入 `print`）：
+
+* #/guide（无凭证路径）→ `emulateMedia('print')`：`.sidebar` / `.workspace-topbar` /
+  `.workspace-footer` / `.command-trigger` / `.ui-btn` 全隐藏；
+  `.content` 全文宽（|width − viewport| ≤ 16px）；`emulateMedia('screen')` 后 shell 与按钮恢复；
+* node_modules 解析踩了一个真坑：playwright 的 `@playwright/test` 只被 apps/web 的
+  node_modules 解析到（`npm run test:e2e` 自己解决了问题；直接 npx 必须 `NODE_PATH=node_modules`）；
+* 实测（真 .state 凭证）：**1 passed（41.7s）**；提交 731f13c。
+* 至此 #1647 的所有"未接入 e2e"、"未实拍"项全部闭环；print.css 有三重证据链
+  （源码推导门 + 实拍截图 + 真浏览器 media 腿）。
+
+### 二、worktree 集大成：清点、归档、移除
+
+背景：本轮用户指令要求"尽量把项目的多个工作分支/worktree 合并起来，综合集大成"。
+清点结果（master = 731f13c 基准逐一实测）：
+
+| worktree | HEAD vs master | 内容 | 处置 |
+|---|---|---|---|
+| specproof-base-igaqhil6 | 0 ahead / 0 behind | 与 master 全同 | 移除；未跟踪文件 SpecProofGeneratedTest.java（eval 生成物）**先备份** |
+| specproof-base-uwwskv9y | 0 / 0 | 全同 | 移除 |
+| specproof-head-12xj4lzq | 1 ahead / 1 behind | = 本地 tag `case-100-head`；内容全部已并入 master（探针文件全同；UserService 差异仅 master 多的注释行） | 移除；生成物同文件内容已备份 |
+| specproof-head-4nguh26b | 1 ahead / 1 behind | = 本地 tag `case-99-head`；case-99 变异（OrderService 包装发布失败为 IllegalStateException），master 有意不带（对抗性基干） | 移除；不同版本生成物已备份 |
+| sp-final8 / sp-final9 | 0 / 0 | 全同 | 移除；sp-final10（gate v20）保留 |
+
+**生成物备份**（从不删除、不覆盖任何人的产物）：
+`D:\面试项目\eval-leftovers\2026-11-13-worktree-rescue\`
+（6132B 一个、2523B 一个，SHA256 前 16 位记录留档）。
+
+**结论**：git 当前只剩一个工作树（主仓库 + 跑门的 sp-final10）。两条 case-99/100 的
+对抗性分支内容仍活在本地 tag（`base/head-v1/case-98/99/100-head`）里，构建器可随时
+重建（`build_golden_scenarios.py --refs-only`），eval 基准不受影响。
