@@ -33126,3 +33126,39 @@ push 后 `origin/master` = 本提交；所有提交按 master 单分支汇集。
 `providers/usage_ledger.py`、`tests/conftest.py`、`tests/unit/test_llm_usage_ledger.py`。
 它们是该车道的 token 账本埋点 + `/api/v1/llm/usage/summary` 的实现；本号的
 缓存健康面板（#1670）按其只读契约渲染，**不代该车道做任何质量背书**。
+
+## #1672 SSE `done` 帧静默丢弃——「正在流式生成…」永远不结束（e2e 抓到的前端真缺陷）
+
+**记录基准**：本节只追加；master = 本提交（`fix(web,e2e)`，含 usage.spec 新场景）。
+
+### 一、现象
+
+AI 解读面板在真实 LLM 往返下：正文完整流入、按钮永远停在「正在解读…」(disabled)。
+"流式生成"状态永不结束——用户以为模型卡死。本号自己上一号（#1665）的手工验收
+没能抓到它（只看了流帧到达与 done-frame curl 透传），是 e2e 抓到的。
+
+### 二、根因
+
+`apps/web/src/api.ts::openEventStream` 的 `consumeLine` 把 `event: done`
+特例化：`stopped=true; controller.abort(); onStatus("closed"); onDone?.()`——
+**done 帧的 `data` 从未被 JSON.parse、也从未转发给 `onEvent`**。
+`streamAiSummary` 依赖 `onEvent("done", ...)` 拿到完整结果并把按钮切到「重新解读」；
+它传给 openEventStream 的 onDone 实参是 `() => {}`，done 数据蒸发，
+`aiSummaryState` 永远停在 "loading"。
+
+### 三、修法与验迹
+
+* done 帧带 data 时按 named frame 一样 `onEvent("done", data)`（parse 失败则丢弃 data，
+  不影响连接关闭语义）；进度条消费端无感（只认 message/progress）；
+* `tests/e2e/ai-summary.spec.ts`：按钮断言改为空闲标签（重新解读 | AI 解读本次验收）90s；
+  注释写明 streaming 后 `.ai-summary-text` 从加载开始即存在，不能再用作"完成"信号；
+* 新增 `tests/e2e/usage.spec.ts`（缓存健康页：侧栏入口 + 如实渲染二选一）并登记 testMatch；
+* typecheck 干净；JobDetail 31/31 + Usage 6/6 绿；构建绿；
+* **e2e 主套件 16/16 绿**（ai-summary 40.5s 真实往返）；degradation **4/4 绿**。
+
+### 四、教训
+
+"单元测试绿、手工走查绿"挡不住跨层契约缺陷——`openEventStream` 的既有行为
+（done 只当关闭信号）与 #1665 的依赖顺序（done 还要当数据帧）是各自都"对"的组合，
+难点在**两边一起定义时谁的语义赢**。判据只能是真实往返：本号以后对"事件流契约"
+的改动一律补 e2e 腿。
