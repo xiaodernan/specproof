@@ -32133,3 +32133,60 @@ run; source-diff evidence recorded separately`。
   H2 文件落在哪儿？这一轮的记录开始带**两侧的输出**（提交 72375b0），下一轮评测就能把这三问
   读成事实而不是猜测。
 - 差分的**归因**升为判据之后的一轮评测读数。
+
+## #1644 全部 LLM 调用改走流式："非流"是仪表盘标签，更是**缓存证据的丢失**
+
+**记录基准**：本节只追加；落地于附带提交（master 链 e59be0c → … → 72375b0 → aecd975 →
+本节提交）。
+
+### 一、用户现场反馈与实测定位
+
+用户：网关仪表盘一直显示"非流"，而流式调用显示的缓存命中率明显更好——怀疑调用方法出了问题。
+
+实测（真实端点 wkapi.pro / `gpt-6-sol`，一段约 7000 token 的稳定前缀，`provider.chat()` 直调）：
+
+| 调用 | 耗时 | usage |
+|---|---|---|
+| 第 1 次 | 17.3s | 5811 tokens，无缓存记录 |
+| 第 2 次 | 2.8s | 5545 tokens，5376 **缓存命中** |
+| 第 4 次 | 6.0s | `prompt_cache_hit_tokens: 5376` ✔ 进了账本 |
+
+**缓存一直开着。** 问题不是"没有流"，而是：
+
+1. 整个管线都用非流式 `chat()` 调用 ⇒ 网关仪表盘一直显示"非流"；
+2. `_parse_usage` 只认 DeepSeek 风格的 `prompt_cache_hit_tokens`，而 wkapi.pro（与
+   OpenAI 相同）把缓存用量藏在 `prompt_tokens_details.cached_tokens` ⇒ 计费层
+   **看得见请求、看不见一次缓存命中**——缓存命中被按全价记了账。
+
+这不是"改 GATEWAY 配置"能解决的问题，是客户端两个缺口。
+
+### 二、处置（只动 provider 层，调用点零改动）
+
+* 遗留路径（全部管线调用）现在**总是以 stream=True 请求**，并用
+  `include_usage` 让网关在最后一个 chunk 带上完整用量，再把流**聚合**回
+  调用方期待的单次响应契约（content / reasoning_content / tool_calls
+  按 index 累积 / finish_reason / model / usage）。传输层若按非流方式回包
+  （测试替身、忽略 stream 的代理）则自动降回普通完整响应，语义不变。
+* 策略路径（`SPECPROOF_PROVIDER_POLICY=1` 的路由+缓存层）**故意不流式**：
+  它的语义缓存存的是完整 SDK 响应对象，流是一次性迭代器，存不进去、重放不了。
+* `_parse_usage` 现在也读 OpenAI 风格的 `prompt_tokens_details.cached_tokens` ⇒
+  `prompt_cache_hit_tokens`（若网关已给出 DeepSeek 原生字段则它优先，不覆盖）。
+* 计费层早有 `prompt_cache_hit_tokens` ⇒ 缓存命中按 0.1× 成本记账
+  （`DEFAULT_COST_WEIGHTS.cache_hit=0.1`）——现在它终于生效了。
+
+### 三、诚实边界
+
+- 本节说的是"**能看见**缓存、**能按缓存计费**"——**没有**证明整条管线每次调用都
+  命中缓存：各 case 的 system prompt 稳定，但用户/助手消息不同 ⇒ 命中只发生在
+  **前缀**部分；命中率取决于每次调用里真正稳定的前缀有多大；
+- 本次调用序有一次 37s 的异常延迟——缓存只节省前缀处理，服务端排队照旧存在；
+- 计费策略是网关侧行为，本改动未依赖任何未经文档化的网关特性
+  （`stream_options={"include_usage": True}` 是公开标准参数）。
+
+### 四、下一号队列
+
+- 全量门 v18 的读数（快照 `60068b2`）。
+- 整池正例在新提示词下的召回读数（仍欠）。
+- **DB 证据为什么缺席**：「No H2 dump available」——生成测试跑起来了吗？上下文起来了吗？
+  H2 文件落在哪儿？这轮开始记录两侧输出，下一轮评测就能读成事实。
+- 差分**归因**升为判据之后的一轮评测读数。
