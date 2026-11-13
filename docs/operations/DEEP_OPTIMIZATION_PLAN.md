@@ -33034,3 +33034,95 @@ Markdown digest（verdict + 矩阵计数 + 风险发现 + capsules + 链接 + �
   网关仪表盘不再看到非流）；②重排保留（零代价、前缀缓存网关受益）；
   ③对本网关今日行为，提升命中率的**可靠**杠杆是应用层语义缓存（Redis，#1659 系列）——
   那是本产品可控的节省，不是网关的恩赐。
+
+## #1670 「缓存健康」前端门面落地——并轨车道账本后端的协同合龙
+
+**记录基准**：本节只追加；master = 3be72ad（本提交）。
+
+### 一、缘由与边界
+
+并轨车道（并行会话）在本机原地开发了一套 token 级 LLM 用量账本后端（未提交，
+本号全程未触碰其六个文件：`api/server.py`、`api/routes/llm_usage.py`、
+`providers/openai_compatible.py`、`providers/usage_ledger.py`、`tests/conftest.py`、
+`tests/unit/test_llm_usage_ledger.py`）：provider 边界逐调用追加 JSONL
+（模型/kind/车道/流式标志/token 数/耗时/错误标志；**不含 prompt 内容、租户标识、业务数据**），
+只读聚合端点 `GET /api/v1/llm/usage/summary`（`window_hours` 查询参数，上限 30 天）。
+本号按"前后端协同"把这块后端的前端门面补齐。
+
+### 二、落地形态
+
+- 新页 `apps/web/src/pages/Usage.tsx`「缓存健康 / Cache Health」：路由 `#/usage`，
+  管理组导航（chart 图标，未设角色门——与 Health 同族的开放遥测页）；
+- 命中率只按网关**上报 cached_tokens 的调用子集**计（`hit_basis_calls` 分母明示）；
+  未上报的调用计入 calls 不计入命中率；网关未上报 → 命中率显示「—」绝不补零；
+- 流式占比（stream=true 是网关回报缓存用量的前提）计量条；延迟 P50/P95（tone 分级）；
+  按 kind 拆分表（kind/calls/prompt/cached/hit_rate，null→「—」，表头可排序）；
+- 每小时趋势（bars=调用次数、折线=命中率；**null 命中点折线断档、不画假点**）；
+- 窗口 1h/24h/7d/30d（默认 24h）、`generated_at` 右对齐；
+- 诚实边界：空账本显式说"还没有记录"；端点不可用 → `Degraded` 面板（不伪造任何一格）；
+- 页面级样式沿用仓内既有模式：`Usage.tsx` 直接 `import "../styles/verification.css"`。
+
+### 三、本号抓到并修复的一个真缺陷
+
+**Usage 页的图表一开始是黑色的**——抓帧发现 `.usage-trend-bar` / `.usage-chip` /
+`.usage-meter-fill` 全部未生效：`verification.css` 是**页级样式表**，只在
+`import` 它的页面装载（JobDetail / Jobs / NewVerification 各自 import），而新页没有 import。
+修法：Usage.tsx 顶部 `import "../styles/verification.css";`。
+施工记录：截图先于修复保留现场（黑条、无样式芯片），修复后复图确认翡翠渐变条、
+高亮命中率折线与窗口芯片正常工作。
+
+### 四、验迹
+
+- 单测 `Usage.test.tsx` 6 腿（健康窗口六宫格 / 窗口切换 window_hours 实参 /
+  by_kind 表含 unreported 行渲染「—」/ 趋势条数与折线断档计数 / 空账本不编造 /
+  端点不可用 → Degraded 区无伪造统计）全绿；
+- 全量 web vitest **458/458**（55 文件；此前 446/446 + 本号 6 腿 + artifactHint 6 腿）；
+- `tsc --noEmit` 干净；`npm run build` 绿；
+- 真实渲染目检：uvicorn light（127.0.0.1:8012，SPECPROOF_LLM_USAGE_LEDGER 指向
+  明确自标 `demo-model`/`demo_*` 的合成示例账本——真实账本 `.local/llm_usage.jsonl`
+  未被写入/读篡改）+ vite dev（临时把 `vite.config.ts` 的 `/api` 代理改到 8012，
+  截图后**已 git checkout 恢复**，未提交该配置变更）；
+  截图：`shots/usage-page.png`、`shots/usage-page-7d.png`（本机会话产物，非 CI 合同）。
+
+### 五、诚实边界
+
+- 面板展示的"命中率"是**演示账本**的数字，不是 wkapi.pro 的真实调用——
+  真实账本在并行车道的 provider 埋点落盘之前是空的（空账本态已如实设计并测试）；
+- `hit_rate=0.587` 的示例值来自本号合成数据里故意掺入的"网关静默（无 cached_tokens）"行，
+  目的是让诚实口径可见；
+- 并行车道的后端埋点/重试语义/seen-ness（如 anthropic-style 字段缺失是否重试）本号不代管；
+- `UiKit.smoke.test.tsx` 曾在前一次全量 vitest 中两例失败——当时后台 pytest 全量套件
+  满载并发、机器过载；隔离单跑 2/2 过、本次全量回跑 458/458 绿。记录为负载相关，非代码回归。
+
+## #1671 push 记录：推三个提交（#1668/#1669 之后的链）+ 全量 pytest 门的如实处境
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、待推提交（按序）
+
+| 提交 | 内容 | 自验证 |
+|---|---|---|
+| 240020d | docs(ledger) #1668 —— KV-cache 变量后置两车道合流 5c2f708；本车道独立复核与今日 A/B 实测 | ledger 门四件套 45/45 |
+| aa32c06 | feat(web) artifactHint 产物白话悬浮 + §3.1 闭环 | tsc 干净；vitest JobDetail 31/31 + artifactHint 6/6 |
+| 3be72ad | feat(web) #1670「缓存健康」前端面板 —— 与并轨车道 /api/v1/llm/usage/summary 合龙 | tsc 干净；vitest 全量 **458/458**；vite build 绿；锁存实渲染目检 |
+| 本提交 | docs(ledger) #1670/#1671（本号书签） | ledger 门四件套 |
+
+push 后 `origin/master` = 本提交；所有提交按 master 单分支汇集。
+
+### 二、全量 `pytest tests/unit` 的如实处境（不声称绿）
+
+- 自 2026-11-14 03:15 起两次尝试：第一次在满载环境爬到 11%（45 分钟+）被终止；
+  第二次（本提交前约 10 分钟启动）爬到 4% 被终止——当前环境吞吐量远低于路线图
+  记录的"约 16 分钟"基线，环境因素（并行车道 backend 埋点改动 + 机器负载）明显；
+- **本批推送不含任何 Python/后端字节**（两个 `feat(web)` 都动 `apps/web/`，两个 docs 都动 `docs/`）；
+  Python 树 = origin/master 5c2f708（并行车道已推）语义不变；
+- **本号不声称全量 pytest 在本环境通过**。上一次 full-suite 绿是 #1664 前后的本机实测（见 #1661/#1662 同批记录）；
+- 需要一条干净的全量门 verdict：请在环境空闲时裸跑 `pytest tests/unit`（约 16 分钟基线）；
+  若某文件失败，先看是否是并行车道的 usage_ledger 系列（未被本号背书），再定责。
+
+### 三、并行车道仍在本 working tree 里未提交的文件（本号未触碰、未背书）
+
+`api/server.py`、`api/routes/llm_usage.py`、`providers/openai_compatible.py`、
+`providers/usage_ledger.py`、`tests/conftest.py`、`tests/unit/test_llm_usage_ledger.py`。
+它们是该车道的 token 账本埋点 + `/api/v1/llm/usage/summary` 的实现；本号的
+缓存健康面板（#1670）按其只读契约渲染，**不代该车道做任何质量背书**。
