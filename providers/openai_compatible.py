@@ -519,10 +519,16 @@ class OpenAICompatibleProvider(ModelProvider):
         supplies the client factory and the raw SDK call so the policy never
         touches SDK construction, response parsing or client lifecycle.
         """
+        async def create_and_aggregate(
+            client: Any, call_kwargs: dict[str, Any],
+        ) -> Any:
+            stream = await self._raw_create(client, call_kwargs)
+            return await self._collect_chat_stream(stream)
+
         return await policy.execute(
             kind,
             kwargs,
-            create=self._raw_create,
+            create=create_and_aggregate,
             make_client=self._client_for_base_url,
         )
 
@@ -608,15 +614,19 @@ class OpenAICompatibleProvider(ModelProvider):
             kwargs["extra_body"] = extra_body
 
         policy = self._policy
+        # Both lanes stream (the gateway's dashboard reports mode per call,
+        # and 非流 calls showed poor prefix-cache hits on this API). The
+        # policy path aggregates the stream back into the one-response
+        # contract; its semantic cache stores the AGGREGATED response via
+        # _encode_sdk_response's aggregated-shape support.
+        kwargs["stream"] = True
+        kwargs["stream_options"] = {"include_usage": True}
         async with self._metered():
             if policy is not None and kind is not None:
                 # W44/W60: policy-governed call (route + classify_retry matrix +
                 # semantic cache). Only kind-tagged calls under an enabled policy
-                # leave the legacy path; everything else stays byte-identical.
-                # The policy path deliberately does NOT stream: its semantic
-                # cache stores the raw SDK response object, which is a whole
-                # response -- a stream is a one-shot iterator and cannot be
-                # stored or replayed.
+                # leave the legacy path; everything else stays byte-identical
+                # apart from the stream flag every lane now carries.
                 response = await self._policy_chat(policy, kind, kwargs)
             else:
                 # The gateway dashboard reports mode per call, and this API
@@ -626,8 +636,6 @@ class OpenAICompatibleProvider(ModelProvider):
                 # usage (including cached tokens) and its cache-friendly
                 # surface. Request a stream, then aggregate it back into the
                 # one-response contract every caller already expects.
-                kwargs["stream"] = True
-                kwargs["stream_options"] = {"include_usage": True}
                 response = await self._create_chat_completion(kwargs)
                 response = await self._collect_chat_stream(response)
         return self._to_llm_response(response)

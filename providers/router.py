@@ -107,24 +107,23 @@ class ModelRouter:
 
         strong_base = _read(source, ENV_STRONG_BASE_URL, _read(source, ENV_LLM_BASE_URL))
         strong_model = _read(source, ENV_STRONG_MODEL, _read(source, ENV_LLM_MODEL))
-        if not strong_base or not strong_model:
-            # The 模型连接 page writes the private config FILE, not env vars —
-            # a deployment that configured its model there must not have the
-            # policy path silently route to DEFAULT_STRONG_MODEL (verified
-            # live: kind-tagged calls went to deepseek-v4-pro on a gateway
-            # that only has the file-configured model → 503 model_not_found).
-            # The file fallback applies only when the source is the REAL
-            # environment — injected test mappings stay byte-identical.
-            if source is os.environ:
-                try:
-                    cfg = load_model_config()
-                except Exception:  # noqa: BLE001 — broken file → defaults
-                    cfg = {}
-                else:
-                    if not strong_base:
-                        strong_base = cfg.get("base_url", "")
-                    if not strong_model:
-                        strong_model = cfg.get("model", "")
+        # The 模型连接 page writes the private config FILE, not env vars —
+        # a deployment that configured its model there must not have the
+        # policy path silently route to DEFAULT_STRONG_MODEL (verified
+        # live: kind-tagged calls went to deepseek-v4-pro on a gateway
+        # that only has the file-configured model → 503 model_not_found).
+        # The file fallback applies only when the source is the REAL
+        # environment — injected test mappings stay byte-identical.
+        if (not strong_base or not strong_model) and source is os.environ:
+            try:
+                cfg = load_model_config()
+            except Exception:  # noqa: BLE001 — broken file → defaults
+                cfg = {}
+            else:
+                if not strong_base:
+                    strong_base = cfg.get("base_url", "")
+                if not strong_model:
+                    strong_model = cfg.get("model", "")
         if not strong_model:
             strong_model = DEFAULT_STRONG_MODEL
 

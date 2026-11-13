@@ -71,12 +71,69 @@ def _sha256_digest(value: str) -> str:
 
 
 def _encode_sdk_response(response: Any) -> str:
-    """Serialize one raw SDK response for the shared store (JSON text)."""
-    dump = (
-        response.model_dump(mode="json")
-        if hasattr(response, "model_dump")
-        else response
-    )
+    """Serialize one raw SDK response for the shared store (JSON text).
+
+    Handles BOTH shapes the policy path can produce: a real SDK response
+    (model_dump) and the aggregated stream response from
+    ``_collect_chat_stream`` (a SimpleNamespace whose essential fields are
+    re-assembled into the ChatCompletion-compatible dict
+    ``_decode_sdk_response`` validates back).
+    """
+    if hasattr(response, "model_dump"):
+        dump = response.model_dump(mode="json")
+    elif hasattr(response, "choices") and hasattr(response, "usage"):
+        choices = []
+        for choice in getattr(response, "choices", None) or ():
+            message = getattr(choice, "message", None)
+            msg: dict[str, Any] = {"role": "assistant"}
+            if message is not None:
+                if getattr(message, "content", None) is not None:
+                    msg["content"] = message.content
+                reasoning = getattr(message, "reasoning_content", None)
+                if reasoning:
+                    msg["reasoning_content"] = reasoning
+                raw_calls = getattr(message, "tool_calls", None)
+                if raw_calls:
+                    msg["tool_calls"] = [
+                        {
+                            "id": call.id,
+                            "type": getattr(call, "type", "function"),
+                            "function": {
+                                "name": call.function.name,
+                                "arguments": call.function.arguments,
+                            },
+                        }
+                        for call in raw_calls
+                    ]
+            choices.append({
+                "index": 0,
+                "finish_reason": getattr(choice, "finish_reason", "stop"),
+                "message": msg,
+            })
+        usage = getattr(response, "usage", None)
+        dump = {
+            "id": "aggregated",
+            "created": 0,
+            "object": "chat.completion",
+            "model": str(getattr(response, "model", "")),
+            "choices": choices,
+            "usage": (
+                {
+                    "prompt_tokens": getattr(usage, "prompt_tokens", 0),
+                    "completion_tokens": getattr(usage, "completion_tokens", 0),
+                    "total_tokens": getattr(usage, "total_tokens", 0),
+                    "prompt_tokens_details": {
+                        "cached_tokens": getattr(
+                            getattr(usage, "prompt_tokens_details", None),
+                            "cached_tokens", 0,
+                        ),
+                    },
+                }
+                if usage is not None else None
+            ),
+        }
+    else:
+        dump = response
     return json.dumps(dump, ensure_ascii=False, default=str)
 
 
@@ -171,10 +228,12 @@ class ClientPolicy:
         The callable pair is injected by the provider: make_client resolves
         the routed base_url to an SDK client (the provider's own client when
         the route carries no base_url or resolves to the provider's own
-        endpoint) and create performs one raw completion call on it. The
-        returned value is the raw SDK response; the provider parses it,
-        exactly as on the legacy path. kwargs["model"] is updated in place
-        when the route names a model.
+        endpoint) and create performs one streamed completion call on it —
+        the provider wraps it with the stream aggregator, so the returned
+        value is the AGGREGATED response (the stream folded back into the
+        one-response shape). The provider parses it exactly as on the
+        legacy path. kwargs["model"] is updated in place when the route
+        names a model.
         """
         route = self.route(kind)
         if route.model:
