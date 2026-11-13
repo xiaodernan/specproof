@@ -32651,3 +32651,26 @@ stderr（vite proxy 错误刷屏）触发外层 wrapper 的 CLIXML 解析崩溃�
 自本轮起前端所有"未交付"项全部 closed：打印输出（门 + 实拍 + e2e 腿）、键盘地图
 （locale 双语种 + 434 → 438 腿全绿）、ui-kit 键盘表、视图过渡（#1655）、aurora 双主题
 （theme-baseline 双主题绿）。
+
+## #1657 控制面 /actuator/prometheus 从"名字"到"存在"：Boot 3 默认不导出，yml 里的只是清单
+
+**记录基准**：本节只追加；master = d5a2837。
+
+### 一、一个新 wiring 腿抓住的静默失败
+
+写 ControlPlanePrometheusEndpointTests 时，期望 /actuator/prometheus 200——实测 **404**：
+
+* application.yml 的 exposure include 里有 prometheus（#1646 起），但 **Boot 3.x 默认不
+  创建 PrometheusMeterRegistry bean**；端点根本不存在，include 只是白名单不是注册；
+* 边缘落地（#1582）时踩过同一个坑，其 yml 自带 `management.prometheus.metrics.export.enabled: true`；
+  控制面没跟上；
+* 补齐同款 wiring 后：200 ✓，body 含 `specproof_cp_config_refresh_events_total`
+  （见证人 counter 构造时注册，系列在 refresh 之前就存在）与 `jvm_*`（真实 registry）；
+* 控制面离线全量回归：**51/51 绿**（含 ControlPlaneApplicationTests / ControlPlaneOfflineResilienceTests）。
+
+### 二、诚实边界与不越界
+
+- **scrape job 不是本号该加的**：control-plane 没有 compose 服务定义（不在默认部署里），
+  添一个 scrape 目标等于造一个永远 down 的目标——invoice-cron 的 "optional target" 是
+  有 compose service 兜底的，控制面连那个都没有；RUNBOOK 已如实记着这是 operator 的 call；
+- 本号只让端点真实存在，且从此由 registry 自己回答 "它是"。
