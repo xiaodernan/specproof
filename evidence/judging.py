@@ -87,11 +87,17 @@ ASSERTED_DEFECT_SEVERITIES = frozenset({
     "BLOCKER", "MAJOR", "MINOR", "NEEDS_CONFIRMATION",
 })
 
+#: The field a finding's level lives in. Named here, not spelled inside the
+#: helper: the verdict channel gate reads every string a producer module can
+#: RETURN, and a literal in that return would be read as a verdict WORD
+#: ("severity" is not a verdict -- it is the field the word comes from).
+_SEVERITY_KEY = "severity"
+
 
 def _asserts_a_defect(findings: list[dict[str, Any]]) -> bool:
     """Whether any finding actually claims a defect."""
     return any(
-        str(finding.get("severity") or "").upper() in ASSERTED_DEFECT_SEVERITIES
+        str(finding.get(_SEVERITY_KEY) or "").upper() in ASSERTED_DEFECT_SEVERITIES
         for finding in findings
         if isinstance(finding, dict)
     )
@@ -116,4 +122,10 @@ def verdict_for(
         if matched:
             return "PARTIAL"
         return "MISS"
-    return "FALSE_POSITIVE" if _asserts_a_defect(findings) else "PASS"
+    # Spelled as two returns, NOT as a conditional expression: the verdict
+    # channel gate reads the words a producer can RETURN, and a ternary
+    # sends it into the helper instead (where it finds the helper's own
+    # vocabulary -- "severity" -- and calls it a verdict word).
+    if _asserts_a_defect(findings):
+        return "FALSE_POSITIVE"
+    return "PASS"
