@@ -229,6 +229,11 @@ jobs:
         # (keyset-cursor paging and the bounded connection pool) — their
         # real-MySQL legs skip without a database and run here with one;
         # the gate would otherwise report them as "runs nowhere".
+        # #1640: the front-back job-list gate joins the list -- it drives
+        # the ROUTE (the request shapes the frontend really sends) against
+        # a live schema, so it skips without a database and must run where
+        # there is one; the gate derives this list and reds on a file that
+        # skips here-absent and runs nowhere.
         # 2026-11-08: the four files #600 disclosed as "runs nowhere"
         # (test_agent_jobs_migration_parity, test_audit_action_parity,
         # test_data_dictionary_covers_migrations, test_feedback_store_read)
@@ -241,7 +246,7 @@ jobs:
         # on every push. The marker name is bound to the test's own marker by
         # tests/unit/test_ci_materializes_the_golden_refs.py — renaming one
         # without the other reds that gate instead of silently re-running it.
-        run: python -m pytest tests/integration tests/unit/test_job_state_machine.py tests/unit/test_outbox.py tests/unit/test_migrations.py tests/unit/test_contract_compiler.py tests/unit/test_the_aggregate_plane_answers_the_demo_question.py tests/unit/test_agent_jobs_migration_parity.py tests/unit/test_audit_action_parity.py tests/unit/test_data_dictionary_covers_migrations.py tests/unit/test_feedback_store_read.py tests/unit/test_job_list_cursor_paging.py tests/unit/test_mysql_connection_pool_is_bounded_and_reused.py -q -m "not slow_eval"
+        run: python -m pytest tests/integration tests/unit/test_job_state_machine.py tests/unit/test_outbox.py tests/unit/test_migrations.py tests/unit/test_contract_compiler.py tests/unit/test_the_aggregate_plane_answers_the_demo_question.py tests/unit/test_agent_jobs_migration_parity.py tests/unit/test_audit_action_parity.py tests/unit/test_data_dictionary_covers_migrations.py tests/unit/test_feedback_store_read.py tests/unit/test_job_list_cursor_paging.py tests/unit/test_mysql_connection_pool_is_bounded_and_reused.py tests/unit/test_the_job_list_the_frontend_asks_for_actually_answers.py -q -m "not slow_eval"
       - name: Stop infrastructure
         if: always()
         run: docker compose -f compose.phase0.yml down -v

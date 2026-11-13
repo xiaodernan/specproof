@@ -84,6 +84,10 @@ EMIT_DIRS = (
 JAVA_EMIT_DIRS = (
     "services/gateway/src/main/java/dev/specproof/gateway/filter",
     "services/gateway/src/main/java/dev/specproof/gateway/mq",
+    # The edge's distributed token bucket (#1634) emits its own meters from
+    # this tree -- the bucket's allow/deny counters live next to the bucket,
+    # not next to the filter that calls it.
+    "services/gateway/src/main/java/dev/specproof/gateway/ratelimit",
     "services/control-plane/src/main/java/dev/specproof/controlplane/cache",
 )
 

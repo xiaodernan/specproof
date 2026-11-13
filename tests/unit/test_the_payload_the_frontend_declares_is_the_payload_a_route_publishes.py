@@ -753,7 +753,7 @@ CONSUMER_BINDING_ROSTER: dict[str, tuple[tuple[str, int], ...]] = {
         ("apps/web/src/agent/pages/AgentSettings.tsx", 73),
         ("apps/web/src/api.ts", 1228),
         ("apps/web/src/api.ts", 1240),
-        ("apps/web/src/pages/Jobs.tsx", 58),
+        ("apps/web/src/pages/Jobs.tsx", 62),
     ),
     "hook": (
         ("apps/web/src/pages/Contracts.tsx", 17),
@@ -806,7 +806,7 @@ CONSUMER_BINDING_STATEMENT_READS: dict[
 CONSUMER_BINDING_BLOCK_GUARDS: dict[tuple[str, int], tuple[str, ...]] = {
     ("apps/web/src/pages/Contracts.tsx", 17): ("contracts:nullish", "contracts:optchain"),
     ("apps/web/src/pages/JobDetail.tsx", 222): ("summary:logical-or",),
-    ("apps/web/src/pages/Jobs.tsx", 58): ("jobs:logical-or", "next_cursor:nullish"),
+    ("apps/web/src/pages/Jobs.tsx", 62): ("jobs:logical-or", "next_cursor:nullish"),
     ("apps/web/src/pages/Matrix.tsx", 21): ("jobs:nullish", "jobs:optchain"),
     ("apps/web/src/pages/Matrix.tsx", 22): (
         "degraded_reason:logical-or",
@@ -827,7 +827,7 @@ CONSUMER_BINDING_BLOCK_TOTALS = (5, 10, 8)
 #: turns a missing key into an empty list and is what keeps a live guard in ``vitest``.
 CONSUMER_BINDING_LOGICAL_OR: tuple[tuple[str, int, str], ...] = (
     ("apps/web/src/pages/JobDetail.tsx", 222, "summary"),
-    ("apps/web/src/pages/Jobs.tsx", 58, "jobs"),
+    ("apps/web/src/pages/Jobs.tsx", 62, "jobs"),
     ("apps/web/src/pages/Matrix.tsx", 22, "degraded_reason"),
 )
 
