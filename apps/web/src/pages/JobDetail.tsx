@@ -207,6 +207,7 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
   };
   const [cert, setCert] = useState<CertificateData | null>(null);
   const [certError, setCertError] = useState<string | null>(null);
+  const [copyLinkState, setCopyLinkState] = useState<"idle" | "copied">("idle");
   // The job read itself can fail (network / 404). It is kept apart from
   // artifactError because a failed JOB read means there is nothing to show
   // at all, while a failed artifact read still leaves the job readable.
@@ -713,12 +714,31 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
       ) : null}
 
       {tab === "capsule" ? (
-        <Panel title={<Term id="capsule">复现包下载</Term>}>
-          {caps.map((c) => (
-            <Button key={c} variant="ghost" size="sm" style={{ marginRight: 8 }} onClick={() => downloadCapsule(jobId, c.split("/").pop())}>
-              ↓ {c.split("/").pop()}
+        <Panel title={<Term id="capsule">复现包下载 · 评审链接</Term>}>
+          <div>
+            {caps.map((c) => (
+              <Button key={c} variant="ghost" size="sm" style={{ marginRight: 8, marginBottom: 8 }} onClick={() => downloadCapsule(jobId, c.split("/").pop())}>
+                ↓ {c.split("/").pop()}
+              </Button>
+            ))}
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                const link = `${window.location.origin}${window.location.pathname}#/jobs/${encodeURIComponent(jobId)}`;
+                navigator.clipboard.writeText(link).catch(() => {
+                  /* clipboard may be denied; nothing to fall back to */
+                });
+                setCopyLinkState("copied");
+                window.setTimeout(() => setCopyLinkState("idle"), 2000);
+              }}
+            >
+              {copyLinkState === "copied" ? "已复制 ✓" : "复制评审链接"}
             </Button>
-          ))}
+            <p className="muted" style={{ fontSize: "var(--text-xs)", marginTop: "var(--sp-2)" }}>
+              链接指向同一个租户的同一份证据：复制给有权限的同事，他打开就能看到本次验收的结论、契约与证据。资格审查仍走租户权限。
+            </p>
+          </div>
         </Panel>
       ) : null}
     </div>
