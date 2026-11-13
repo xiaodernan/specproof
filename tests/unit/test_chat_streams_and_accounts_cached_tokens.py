@@ -36,7 +36,7 @@ import pytest
 from providers import openai_compatible as mod
 from providers.base import LLMMessage, LLMResponse
 
-_API_KEY = "sk-" + "test-" + "key"
+_API_KEY = "not-a-real-key"
 
 
 class _ChunkStream:
