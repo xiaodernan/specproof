@@ -360,6 +360,23 @@ function openEventStream(
   };
 }
 
+export interface AiSummary {
+  job_id: string;
+  summary: string;
+  model_latency_ms: number;
+  evidence_packet_chars?: number;
+  usage?: Record<string, unknown> | null;
+  cached: boolean;
+}
+
+/** Ask the server to compile an AI reading of this verification — never a verdict of its own. */
+export function requestAiSummary(jobId: string): Promise<AiSummary> {
+  return apiPost<AiSummary>(
+    "/api/v1/jobs/" + encodeURIComponent(jobId) + "/ai-summary",
+    {}
+  );
+}
+
 export async function downloadCapsule(jobId: string, name?: string): Promise<void> {
   let path = "/api/v1/jobs/" + encodeURIComponent(jobId) + "/capsule";
   if (name) path += "?name=" + encodeURIComponent(name);

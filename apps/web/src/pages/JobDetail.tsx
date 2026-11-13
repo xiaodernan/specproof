@@ -4,6 +4,7 @@ import {
   ProgressEvent, StagesData,
   // #245: invoice status transition
   getInvoiceByPeriod, transitionInvoiceStatus,
+  requestAiSummary, type AiSummary,
 } from "../api";
 import {
   Breadcrumbs, Button, Degraded, Empty, ErrorBox, Panel, PreflightCard, Progress, Spinner, StatCard, StatusPill, Table, Term,
@@ -177,6 +178,33 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [stages, setStages] = useState<StagesData | null>(null);
   const [findings, setFindings] = useState<FindingsData | null>(null);
+  const [aiSummary, setAiSummary] = useState<AiSummary | null>(null);
+  const [aiSummaryState, setAiSummaryState] = useState<"idle" | "loading" | "error">("idle");
+  const [aiSummaryError, setAiSummaryError] = useState<string | null>(null);
+  const [aiSummaryCopied, setAiSummaryCopied] = useState(false);
+  const loadAiSummary = async (): Promise<void> => {
+    if (aiSummaryState === "loading") return;
+    setAiSummaryState("loading");
+    setAiSummaryError(null);
+    try {
+      const result = await requestAiSummary(jobId);
+      setAiSummary(result);
+      setAiSummaryState("idle");
+    } catch (err) {
+      setAiSummaryState("error");
+      setAiSummaryError(err instanceof Error ? err.message : String(err));
+    }
+  };
+  const copyAiSummary = async (): Promise<void> => {
+    if (!aiSummary) return;
+    try {
+      await navigator.clipboard.writeText(aiSummary.summary);
+      setAiSummaryCopied(true);
+      window.setTimeout(() => setAiSummaryCopied(false), 2000);
+    } catch {
+      setAiSummaryError("无法写入剪贴板（浏览器拒绝了权限）。");
+    }
+  };
   const [cert, setCert] = useState<CertificateData | null>(null);
   const [certError, setCertError] = useState<string | null>(null);
   // The job read itself can fail (network / 404). It is kept apart from
@@ -483,6 +511,27 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
                 <StatCard label="未通过" value={s.matrix_failed ?? "—"} tone="bad" />
                 <StatCard label="尚未验证" value={s.matrix_unverified ?? "—"} tone="warn" />
               </div>
+              <Panel
+                title="AI 解读"
+                right={<Button size="sm" variant="ghost" onClick={loadAiSummary} disabled={aiSummaryState === "loading"}>{aiSummaryState === "loading" ? "正在解读…" : aiSummary ? "重新解读" : "AI 解读本次验收"}</Button>}
+              >
+                {aiSummary ? (
+                  <>
+                    <p className="ai-summary-text">{aiSummary.summary}</p>
+                    <div className="ai-summary-meta">
+                      <span>{aiSummary.cached ? "Redis 缓存命中" : "模型直出" + (aiSummary.model_latency_ms != null ? " · " + (aiSummary.model_latency_ms / 1000).toFixed(1) + "s" : "")}</span>
+                      <span>AI 解读 · 不是判决</span>
+                      <button type="button" className="ai-summary-copy" onClick={copyAiSummary}>{aiSummaryCopied ? "已复制" : "复制摘要"}</button>
+                    </div>
+                  </>
+                ) : aiSummaryState === "loading" ? (
+                  <div className="ai-summary-pending"><Spinner /><span>正在读取证据、编译解读……</span></div>
+                ) : aiSummaryState === "error" ? (
+                  <ErrorBox error={aiSummaryError || "AI 解读不可用"} />
+                ) : (
+                  <p className="muted">点一下「AI 解读本次验收」，把结论编译成评审者能直接读的一段话。判决仍沿用上方的确定性证据，AI 不做判决。</p>
+                )}
+              </Panel>
               <div>
                 <PreflightCard preflight={s.preflight} />
                 <Panel title="证据与产物">

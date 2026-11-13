@@ -54,6 +54,20 @@ from storage.redis import RedisStore
 
 logger = logging.getLogger(__name__)
 
+# ── AI 解读的 Redis 缓存门（fail-open：缓存不可达就只是"这次不缓存"） ──
+_ai_summary_redis: RedisStore | None = None
+
+
+def ai_summary_redis() -> RedisStore | None:
+    global _ai_summary_redis
+    if _ai_summary_redis is None:
+        try:
+            _ai_summary_redis = RedisStore()
+        except Exception:  # noqa: BLE001 - cache is an accelerator, not a dependency
+            return None
+    return _ai_summary_redis
+
+
 router = APIRouter(
     prefix="/api/v1",
     tags=["web"],
@@ -925,3 +939,90 @@ async def api_health() -> dict[str, Any]:
         "degraded": not all_ok,
         "checks": results,
     }
+
+# ── AI 解读：把持久化的验收证据编译成评审者能直接读的中文解读 ──
+
+
+@router.post("/jobs/{job_id}/ai-summary", status_code=200)
+async def ai_summary(job_id: str) -> dict[str, Any]:
+    """AI 解读：只读已经持久化的证据；判决仍然沿用确定性证据路径。
+
+    * 证据包不含路径/凭证/业务数据，只含本次验收已经公开给评审者的信息；
+    * 同一份证据（verdict/矩阵/findings 计数）只生成一次 —— fingerprint 进
+      Redis key，证据变了 fingerprint 变了才再次消耗 token；
+    * Redis 不可达时按"未命中"继续（fail-open），绝不因为缓存问题把功能关掉；
+    * 模型不可用/返回空时如实报错，绝不补一段假摘要。
+    """
+    from api.ai_summary import AiSummaryUnavailable, fingerprint, generate_ai_summary
+    from api.services.verification_service import VerificationApplicationService
+
+    service = VerificationApplicationService()
+    try:
+        payload = service.get_job_summary(job_id)
+    except ApiError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - degraded store is an honest 503
+        raise ApiError(
+            status_code=503,
+            code=PROVIDER_UNAVAILABLE,
+            detail=f"MySQL unavailable: {exc}",
+        ) from exc
+
+    summary = payload.get("summary") or {}
+    findings: list[dict[str, Any]] = []
+    try:
+        with MySQLStore().connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT contract_id, severity, confidence, evidence_type "
+                "FROM findings WHERE job_id = %s ORDER BY created_at, id LIMIT 8",
+                (job_id,),
+            )
+            findings = [dict(row) for row in cur.fetchall()]
+    except Exception:  # noqa: BLE001 - findings power only the prompt
+        findings = []
+
+    fp = fingerprint(summary, findings)
+    cache_key = f"ai-summary:{job_id}:{fp[:16]}"
+    cached: dict[str, Any] | None = None
+    redis = ai_summary_redis()
+    if redis is not None:
+        try:
+            cached = redis.get_cached_llm_response(cache_key)
+        except Exception:  # noqa: BLE001
+            cached = None
+    if cached is not None:
+        cached = dict(cached)
+        cached["cached"] = True
+        return cached
+
+    try:
+        result = await generate_ai_summary(summary, findings)
+    except AiSummaryUnavailable as exc:
+        raise ApiError(
+            status_code=503,
+            code=PROVIDER_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+
+    body: dict[str, Any] = {
+        "job_id": job_id,
+        "summary": result["summary"],
+        "model_latency_ms": result["model_latency_ms"],
+        "evidence_packet_chars": result["evidence_packet_chars"],
+        "usage": result.get("usage"),
+        "cached": False,
+    }
+    if redis is not None:
+        try:
+            from storage.env_config import int_env
+            redis.cache_llm_response(
+                cache_key, body, ttl=int_env("AI_SUMMARY_TTL_SECONDS", 86_400)
+            )
+        except Exception as exc:  # noqa: BLE001 - persistence is best-effort
+            logger.info(
+                "ai-summary cache write failed (continuing uncached): %s: %s",
+                type(exc).__name__,
+                exc,
+            )
+    return body

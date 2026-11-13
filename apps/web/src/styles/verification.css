@@ -63,3 +63,11 @@
 .verification-page .tab { white-space: nowrap; flex-shrink: 0; }
 @media (max-width: 1000px) { .verification-layout { grid-template-columns: 1fr; } .verification-guide { padding: 8px; } }
 @media (max-width: 640px) { .verification-heading { flex-direction: column; } .verification-form { padding: 24px 16px; } .verification-ref-grid { grid-template-columns: 1fr; gap: 0; } .verification-submit { flex-direction: column; align-items: stretch; } .verification-summary { gap: 16px; } .verification-toolbar { width: 100%; } .verification-pagination { flex-wrap: wrap; } }
+
+/* ── AI 解读面板（非判决面板） ── */
+.ai-summary-text { white-space: pre-line; font-size: var(--text-md); line-height: 1.7; color: var(--color-text); margin: 0 0 var(--sp-2); }
+.ai-summary-meta { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; font-size: var(--text-xs); color: var(--color-text-3); }
+.ai-summary-copy { font: inherit; color: var(--accent-text); background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.ai-summary-copy:hover { color: var(--accent-600); }
+.ai-summary-copy:focus-visible { outline: 2px solid var(--accent-500); outline-offset: 2px; border-radius: 3px; }
+.ai-summary-pending { display: flex; align-items: center; gap: var(--sp-2); color: var(--color-text-2); font-size: var(--text-sm); }
