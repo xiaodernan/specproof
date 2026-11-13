@@ -57,6 +57,7 @@ from api.routes.billing import router as billing_router  # noqa: E402
 from api.routes.demo import router as demo_router  # noqa: E402
 from api.routes.feedback import router as feedback_router  # noqa: E402
 from api.routes.jobs import router as jobs_router  # noqa: E402
+from api.routes.llm_usage import router as llm_usage_router  # noqa: E402
 from api.routes.model_settings import router as model_settings_router  # noqa: E402
 from api.routes.web import router as web_router  # noqa: E402
 from api.routes.webhooks import router as webhooks_router  # noqa: E402
@@ -84,6 +85,9 @@ app.add_middleware(
 
 app.include_router(jobs_router)
 app.include_router(model_settings_router)
+# Token-level LLM usage & cache-health panel (#BB5): read-only aggregate
+# over the provider-boundary JSONL ledger; require_api_key + rate limited.
+app.include_router(llm_usage_router)
 app.include_router(webhooks_router)
 app.include_router(web_router)
 app.include_router(agent_console_router)

@@ -62,6 +62,7 @@ from tenacity import (
 
 from contracts.retry_after import wait_retry_after_or_exponential
 from observability.metrics import incr, observe_duration
+from .usage_ledger import record_llm_call
 
 from .base import LLMMessage, LLMResponse, ModelProvider
 from .capability_probe import CapabilityProbe
@@ -571,6 +572,51 @@ class OpenAICompatibleProvider(ModelProvider):
         timeout: float = 180.0,
         kind: str | None = None,
     ) -> LLMResponse:
+        """One logical LLM call, recorded in the token-level usage ledger.
+
+        The dispatch itself is unchanged (responses protocol or the streamed
+        chat-completions lanes); the wrapper only adds the #BB5 ledger line
+        in ``finally`` — success carries the parsed usage verbatim, failures
+        and cancellations carry no tokens rather than fabricated zeros. The
+        ledger is best-effort by construction (``record_llm_call`` never
+        raises), so observability cannot fail an inference call.
+        """
+        started = time.perf_counter()
+        result: LLMResponse | None = None
+        try:
+            result = await self._chat_dispatch(
+                messages,
+                tools=tools,
+                tool_choice=tool_choice,
+                response_format=response_format,
+                thinking=thinking,
+                opts=opts,
+                timeout=timeout,
+                kind=kind,
+            )
+            return result
+        finally:
+            record_llm_call(
+                model=self.model,
+                kind=kind,
+                lane="policy" if (self._policy is not None and kind is not None) else "direct",
+                streamed=True,
+                usage=result.usage if result is not None else {},
+                duration_ms=round((time.perf_counter() - started) * 1000),
+                error=result is None,
+            )
+
+    async def _chat_dispatch(
+        self,
+        messages: list[LLMMessage],
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | None = None,
+        response_format: dict[str, Any] | None = None,
+        thinking: bool | dict[str, Any] = False,
+        opts: dict[str, Any] | None = None,
+        timeout: float = 180.0,
+        kind: str | None = None,
+    ) -> LLMResponse:
         if self.protocol == "responses":
             kwargs: dict[str, Any] = request_kwargs(
                 self.model, messages, effort=self.reasoning_effort, tools=tools,
@@ -732,56 +778,92 @@ class OpenAICompatibleProvider(ModelProvider):
                 async for result in self._responses_stream(messages, tools, opts, timeout):
                     yield result
             return
-        probe = await self._ensure_probed()
-        caps = probe.capabilities
+        started = time.perf_counter()
+        usage: dict[str, Any] = {}
+        failed = False
+        try:
+            probe = await self._ensure_probed()
+            caps = probe.capabilities
 
-        oai_messages = self._to_openai_messages(messages)
-        kwargs: dict[str, Any] = {
-            "model": self.model,
-            "messages": oai_messages,
-            "stream": True,
-            "timeout": timeout,
-        }
-        if tools and caps.get("tool_calls", False):
-            kwargs["tools"] = tools
-        elif tools:
-            kwargs["messages"] = self._inject_tool_prompt(oai_messages, tools)
+            oai_messages = self._to_openai_messages(messages)
+            kwargs: dict[str, Any] = {
+                "model": self.model,
+                "messages": oai_messages,
+                "stream": True,
+                "timeout": timeout,
+            }
+            if tools and caps.get("tool_calls", False):
+                kwargs["tools"] = tools
+            elif tools:
+                kwargs["messages"] = self._inject_tool_prompt(oai_messages, tools)
 
-        extra_body: dict[str, Any] = {}
-        if caps.get("thinking", False):
-            if thinking is True:
-                extra_body["thinking"] = {"type": "enabled"}
-            elif thinking:
-                extra_body["thinking"] = dict(thinking)
-        if opts:
-            extra_body.update(opts)
-        if extra_body:
-            kwargs["extra_body"] = extra_body
+            extra_body: dict[str, Any] = {}
+            if caps.get("thinking", False):
+                if thinking is True:
+                    extra_body["thinking"] = {"type": "enabled"}
+                elif thinking:
+                    extra_body["thinking"] = dict(thinking)
+            if opts:
+                extra_body.update(opts)
+            if extra_body:
+                kwargs["extra_body"] = extra_body
 
-        async with self._metered():
-            stream = await self._create_chat_completion(kwargs)
-            async for chunk in stream:
-                if chunk.choices and chunk.choices[0].delta:
-                    delta = chunk.choices[0].delta
+            async with self._metered():
+                stream = await self._create_chat_completion(kwargs)
+                async for chunk in stream:
+                    # The include_usage trailer (and any gateway that attaches
+                    # usage to a delta chunk) is captured here — previously the
+                    # stream loop dropped usage entirely, which starved both
+                    # the ledger and consumers like the AI-summary streamer.
+                    chunk_usage = getattr(chunk, "usage", None)
+                    if chunk_usage is not None:
+                        usage = _parse_usage(chunk_usage)
+                    if chunk.choices and chunk.choices[0].delta:
+                        delta = chunk.choices[0].delta
+                        yield LLMResponse(
+                            content=delta.content,
+                            tool_calls=(
+                                [
+                                    {
+                                        "id": tc.id,
+                                        "function": {
+                                            "name": tc.function.name if tc.function else "",
+                                            "arguments": tc.function.arguments if tc.function else "",
+                                        },
+                                    }
+                                    for tc in delta.tool_calls
+                                ]
+                                if delta.tool_calls
+                                else []
+                            ),
+                            model=chunk.model or self.model or "",
+                            finish_reason=chunk.choices[0].finish_reason or "",
+                        )
+                if usage:
+                    # The usage trailer arrives AFTER the last delta; emit it
+                    # as a content-free final response so consumers that read
+                    # ``response.usage`` (ai-summary streaming) see real token
+                    # counts instead of silently-missing usage.
                     yield LLMResponse(
-                        content=delta.content,
-                        tool_calls=(
-                            [
-                                {
-                                    "id": tc.id,
-                                    "function": {
-                                        "name": tc.function.name if tc.function else "",
-                                        "arguments": tc.function.arguments if tc.function else "",
-                                    },
-                                }
-                                for tc in delta.tool_calls
-                            ]
-                            if delta.tool_calls
-                            else []
-                        ),
-                        model=chunk.model or self.model or "",
-                        finish_reason=chunk.choices[0].finish_reason or "",
+                        content=None, usage=usage, finish_reason="",
+                        model=self.model,
                     )
+        except GeneratorExit:
+            failed = True  # consumer abandoned the stream — still one honest line
+            raise
+        except Exception:
+            failed = True
+            raise
+        finally:
+            record_llm_call(
+                model=self.model,
+                kind=None,
+                lane="direct",
+                streamed=True,
+                usage=usage,
+                duration_ms=round((time.perf_counter() - started) * 1000),
+                error=failed,
+            )
 
     # ── Private helpers ────────────────────────────────────────────
 

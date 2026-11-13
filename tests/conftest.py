@@ -496,6 +496,11 @@ def clean_env(tmp_path: Path) -> Generator[None, None, None]:
         "SPECPROOF_OBJECT_METADATA_BACKEND", None
     )
     os.environ["SPECPROOF_OBJECT_METADATA_BACKEND"] = "memory"
+    # Token-level LLM usage ledger (#BB5): provider calls inside tests must
+    # never append to the developer's real ledger — every test writes to a
+    # hermetic per-test file instead (or nowhere, if the test never calls).
+    saved["SPECPROOF_LLM_USAGE_LEDGER"] = os.environ.get("SPECPROOF_LLM_USAGE_LEDGER")
+    os.environ["SPECPROOF_LLM_USAGE_LEDGER"] = str(tmp_path / "llm_usage.jsonl")
     # The worker announces terminal verdicts over the webhook connector (#65),
     # which is built from these three variables. A developer machine that has
     # them configured must not turn a unit run into real outbound posts.
