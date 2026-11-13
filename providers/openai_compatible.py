@@ -41,8 +41,9 @@ import hashlib
 import json
 import os
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterable, AsyncIterator
 from contextlib import asynccontextmanager
+from types import SimpleNamespace
 from typing import Any
 
 from openai import (
@@ -148,6 +149,18 @@ def _parse_usage(usage: Any) -> dict[str, Any]:
         reasoning = _read_field(usage, "reasoning_tokens")
     if reasoning is not None:
         parsed["reasoning_tokens"] = reasoning
+    # OpenAI-style cache reporting (wkapi.pro & OpenAI both nest the count
+    # under prompt_tokens_details). Without this the DeepSeek-native
+    # prompt_cache_hit_tokens is the only signal, and gateways that report
+    # the cached share this way would bill every call at full price in the
+    # ledger -- the cache hits would be invisible to cost accounting.
+    # A gateway that reports its own DeepSeek-style field wins: never
+    # overwrite a value the gateway explicitly returned.
+    if "prompt_cache_hit_tokens" not in parsed:
+        prompt_details = _read_field(usage, "prompt_tokens_details")
+        cached = _read_field(prompt_details, "cached_tokens") if prompt_details else None
+        if cached is not None:
+            parsed["prompt_cache_hit_tokens"] = cached
     return parsed
 
 
@@ -600,10 +613,103 @@ class OpenAICompatibleProvider(ModelProvider):
                 # W44/W60: policy-governed call (route + classify_retry matrix +
                 # semantic cache). Only kind-tagged calls under an enabled policy
                 # leave the legacy path; everything else stays byte-identical.
+                # The policy path deliberately does NOT stream: its semantic
+                # cache stores the raw SDK response object, which is a whole
+                # response -- a stream is a one-shot iterator and cannot be
+                # stored or replayed.
                 response = await self._policy_chat(policy, kind, kwargs)
             else:
+                # The gateway dashboard reports mode per call, and this API
+                # shows "非流" for every request the product makes because the
+                # whole pipeline rides non-stream calls. The pipeline gains
+                # nothing from that: streaming is how the gateway reports
+                # usage (including cached tokens) and its cache-friendly
+                # surface. Request a stream, then aggregate it back into the
+                # one-response contract every caller already expects.
+                kwargs["stream"] = True
+                kwargs["stream_options"] = {"include_usage": True}
                 response = await self._create_chat_completion(kwargs)
+                response = await self._collect_chat_stream(response)
         return self._to_llm_response(response)
+
+    @staticmethod
+    async def _collect_chat_stream(stream: Any) -> Any:
+        """Aggregate a chat-completions stream into one response object.
+
+        Every chunk's ``delta`` is folded in: content and reasoning_content
+        are concatenated, tool calls are accumulated per ``index`` (the id
+        and function name arrive in the first chunk, arguments stream in
+        pieces), and the final ``usage`` chunk (requested with
+        ``include_usage``) is kept for the ledger. A transport that hands
+        back a completed response instead of an iterator (some fakes, and
+        any proxy that ignores ``stream=True``) is accepted unchanged.
+        """
+        if not isinstance(stream, AsyncIterable):
+            return stream
+        content: list[str] = []
+        reasoning: list[str] = []
+        calls: dict[int, dict[str, Any]] = {}
+        finish_reason = ""
+        usage = None
+        model = ""
+        async for chunk in stream:
+            usage_chunk = getattr(chunk, "usage", None)
+            if usage_chunk is not None:
+                usage = usage_chunk
+            for choice in getattr(chunk, "choices", None) or ():
+                if getattr(choice, "finish_reason", None):
+                    finish_reason = choice.finish_reason
+                delta = choice.delta
+                model = getattr(chunk, "model", None) or model
+                for piece in (
+                    getattr(delta, "content", None),
+                ):
+                    if piece:
+                        content.append(piece)
+                effort = getattr(delta, "reasoning_content", None)
+                if effort:
+                    reasoning.append(effort)
+                raw_calls = getattr(delta, "tool_calls", None)
+                if raw_calls:
+                    for piece_call in raw_calls:
+                        entry = calls.setdefault(
+                            piece_call.index,
+                            {
+                                "id": "",
+                                "name": "",
+                                "arguments": "",
+                            },
+                        )
+                        if getattr(piece_call, "id", None):
+                            entry["id"] = piece_call.id
+                        if getattr(piece_call, "type", None) and not entry.get("type"):
+                            entry["type"] = piece_call.type
+                        function = getattr(piece_call, "function", None)
+                        if function is not None:
+                            if getattr(function, "name", None):
+                                entry["name"] = function.name
+                            if getattr(function, "arguments", None):
+                                entry["arguments"] += function.arguments
+        tool_calls = [
+            SimpleNamespace(
+                id=entry["id"],
+                function=SimpleNamespace(
+                    name=entry["name"],
+                    arguments=entry["arguments"],
+                ),
+            )
+            for entry in (calls[index] for index in sorted(calls))
+        ]
+        message = SimpleNamespace(
+            content="".join(content) or None,
+            reasoning_content="".join(reasoning) or None,
+            tool_calls=tool_calls or None,
+        )
+        return SimpleNamespace(
+            choices=[SimpleNamespace(finish_reason=finish_reason or "stop", message=message)],
+            usage=usage,
+            model=model,
+        )
 
     async def chat_stream(  # type: ignore[override, misc]
         self,
