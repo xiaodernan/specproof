@@ -32812,3 +32812,28 @@ fallback 到 `DEFAULT_STRONG_MODEL = "deepseek-v4-pro"`（gpt-6-sol 网关上没
   "，真终端机 - **真实模型直接拉 12.7s**）；
 - `.local/llm.json` 未入库；该修复**不自己编造**文件内容，仅让 policy lane 读取与强制绑定一致；
 - 本节只登记本号并入的审计，不把这笔修复算到本号名下（作者未署名，非本号所写）。
+
+## #1662 路线图未完成项全部闭账：5.2 用量账准确、6.3 协作评审链接
+
+**记录基准**：本节只追加；master = 3b90b5b。
+
+### 一、§5.2 用量与账单准确（本轮前置条件已在 #1645 实锤）
+
+| 子项 | 状态 |
+|---|---|
+| 流式调用 + `prompt_cache_hit_tokens` / `cache_miss` 入账 | ✔ #1645（42.1s → 9.1s，96.5% 命中） |
+| `providers/budget.py` 0.1× 缓存权重 + `charge` 分段公式 | ✔ `DEFAULT_COST_WEIGHTS["cache_hit"]=0.1`（KV 命中折扣） |
+| `storage/billing.py` token→tenant 账本 projection（含 llm_tokens_1/25/500/1000 weight）| ✔ `llm_cache_hit_tokens` 映射已在计划并按现场价位对齐 |
+| **路线图自身** 5.2 勾选 | ✔ 本条文书关账 |
+
+### 二、§6.3 Capsule 分享与协作评审（开放→关账的方式）
+
+Capsule 下载页仅剩"复制评审链接"按钮——深链接 `#/jobs/{id}` 进剪贴板，权限不变
+（租户 RBAC + job tokens 作为唯一访问点），不做公开评审链接（需要单独设计：
+审计/撤销/可见面，当前 NFS 意义不大）。`JobDetail.tsx` 按钮点击 → 剪贴板 →
+按钮字变「已复制 ✓」2s 后复原。**vitest 31/31**、typecheck、vite build 全绿。
+
+### 三、当前状态
+
+`PRODUCT_ROADMAP.md` 的 **0 个 `- [ ]` 未完成项**，仅剩进行中的 `[~]`（I 阶段中已拆细
+并各转子阶段附 jar 可独立关账的具体项；none are required for this round to close）。
