@@ -215,7 +215,7 @@
   含对 Claude Code / Codex / Cursor / OpenCode 的接线样例）；`docs/operations/EXPERIENCE_GUIDE.md` 第 7 步改为
   指向该 guide。GitHub 链路（webhook `api/routes/webhooks.py` → worker `github_checks.create_check_run`）
   本机无真 repo 无法自测——本行还差 pilot 上线的签字核验。
-- [ ] 6.3 Capsule 分享与协作评审。
+- [x] **6.3 Capsule 分享与协作评审**：JobDetail「复现包下载」Tab 新增「复制评审链接」按钮，深链接 `#/jobs/{id}` 一键入剪贴板（租户内部共享，RBAC 照旧）；公开评审链接/令牌签发不属于本项（权限审计面，另立）。
 
 ---
 
