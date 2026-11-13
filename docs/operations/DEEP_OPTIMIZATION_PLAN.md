@@ -32545,3 +32545,40 @@ SPECPROOF_PROVIDER_POLICY=1 才启用）。api 与 worker 是两个副本、多�
 **结论**：git 当前只剩一个工作树（主仓库 + 跑门的 sp-final10）。两条 case-99/100 的
 对抗性分支内容仍活在本地 tag（`base/head-v1/case-98/99/100-head`）里，构建器可随时
 重建（`build_golden_scenarios.py --refs-only`），eval 基准不受影响。
+
+## #1654 全量门 v20 以"切片装配"重跑：8 处红，5 个自己写出来的，全部闭账
+
+**记录基准**：本节只追加；本号覆盖切片 1–7（unit ×6 + security/fault）；master = a36229e。
+
+### 一、为什么切片、为什么不是"再等一次完整跑"
+
+v19 在 59%、0 FAILED 时被服务器重启杀死（不作数）；v20 跑到 87%、0 FAILED 又被杀
+（exit=-1）。整机多次重启之间，2 小时以上的单进程门注定活不过 turn 边界——
+于是把同一条门命令（`pytest tests/unit tests/security tests/fault -q -p no:cacheprovider`）
+按文件名字母序切成 6 片 + security/fault 一片，逐一前台跑完并留日志。
+
+### 二、切片结果（逐项真实数字）
+
+| 片 | 结果 | 失败 → 根因 → 验证 |
+|---|---|---|
+| 1 | **1091 passed, 3 skipped** | 绿 |
+| 2 | **1023 passed** | 绿 |
+| 3 | 940 passed, 2 failed | 假清单钉死（我在 #1645/#1648 新增的两个替身，PIN 未随之移）→ 重钉 027a877（22/43/224）→ 11/11 绿 |
+| 4 | 1131 passed, 1 failed | `providers/semantic_cache_redis.py` 手写 env→int（绕过守卫层）→ 并入 `int_env`（e687d9b）→ 20/20 绿 |
+| 5 | 1223 passed, 1 failed | RUNBOOK §2 仍写 0001-0018，最新是 0019 → 抬至 0019（a36229e）→ 3/3 绿 |
+| 6 | 1182 passed, 3 failed | print.css 10 处字面颜色 + 4px 圆角 + 10.5pt/8pt 字号 触发三条设计系统门 → tokens.css@media print 纸墨 token 化、print.css 全引用（02e84f2）→ 18/18 绿 |
+| 7 (sec+fault) | 210 passed, 1 failed | `test_chat_streams_and_accounts_cached_tokens.py` 的 `_API_KEY = "sk-"…` 命中密钥形状门 → "not-a-real-key"（d91e781）→ 17/17 绿 |
+
+**合计 ≈ 68xx 腿；8 处红，全部当场闭账并逐一重新验证。** 0 腿因本人原因被改成
+"更宽松"（print.css 修法是加 token 不删断言；清单重钉由 `--explain-drift` 实测归因）。
+commit 链：e687d9b / 02e84f2 / d91e781 / e210435 / a36229e（+ 本节记账）。
+
+### 三、诚实边界
+
+- 切片逐片各自独立跑完，不是一次进程里"同一环境"的全绿截图——但每片都是与门同一条
+  命令、同 file 列表、同 no:cacheprovider 口径；**跨片环境差异理论上存在**（每片各自
+  的 collection 与 isolation 报告均在各片日志）；
+- v20 本身（87%/0 FAILED）仍不作数；若后续出现一个不被重启的窗口，运行一次单进程门
+  作为终验，结论记账并覆盖此条；
+- 8 处红里没有一处是"别人的账"——全是本号/本轮自己写的监测点，被门当场抓住，
+  这正是这些门存在的理由。
