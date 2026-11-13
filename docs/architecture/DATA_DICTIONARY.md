@@ -1,7 +1,7 @@
 # 数据字典 (DATA_DICTIONARY) — SpecProof 全存储字段级说明
 
 > 口径与出处: 本文逐字段登记 SpecProof 的全部持久化状态。MySQL 表结构以
-> `infra/mysql/migrations/0001_init.sql` 至 `0018_provider_sweep_indexes.sql` 十七个版本化迁移为准,
+> `infra/mysql/migrations/0001_init.sql` 至 `0019_agent_jobs_status_created_id.sql` 十八个版本化迁移为准,
 > 并与代码内幂等 DDL (`storage/identity.py` / `storage/billing.py` / `storage/agent_jobs.py` /
 > `storage/object_metadata.py` / `storage/migrations.py`) 逐表核对; MongoDB/MinIO/ES/Redis/RabbitMQ
 > 以对应 `storage/*` 适配器为准。
@@ -27,7 +27,9 @@
 18 张来自版本化迁移 0001-0017 (0012 只给 `finding_feedback` 加唯一约束不建新表; 0014 只给
 `usage_ledger` 加 `job_id` 列不建新表; 0015 只扩 `verification_jobs.status` 的 ENUM 不建新表;
 0016 只给 `verification_jobs` 加 `max_execution_seconds` 列不建新表; 0017 只给
-`contract_registry` 加 `observes_keys` 列不建新表;
+`contract_registry` 加 `observes_keys` 列不建新表; 0018 只给 `verification_jobs` 加
+`idx_jobs_status_updated_id` 索引不建新表; 0019 只给 `agent_jobs` 加
+`idx_agent_jobs_status_created_id` 索引不建新表;
 0013 建
 `notify_outbox`, 见 §1.21), 1 张
 (`schema_migrations`) 由 `storage/migrations.py` 的代码 DDL 建。
@@ -378,8 +380,16 @@ ENUM 里每个值必须有中文提示/语气/排序位 (缺 `NEEDS_CONFIRMATION
 | started_at / finished_at | DOUBLE NULL | 进入 running / 进入终态各写一次 |
 | result_json | TEXT NULL | 终态报告 |
 | accept_json | TEXT NULL (W35.1) | accept 结果, 仅 succeeded/failed 可挂, first-write-wins |
+| repo_path | TEXT NULL (2026-10-03; §30.2 仓库验收关联键) | 归一化后的仓库路径; 旧行 NULL, 非必填 |
 | error | TEXT NULL | 终态原因 (cancel 覆盖) |
 | created_at / updated_at | DOUBLE | |
+
+索引: `idx_agent_jobs_status_created_id` (status, created_at, id; 0019, 变更验收按状态+时间列表,
+EXPLAIN 实测 filesort true→false, cost≈2000→≈883); `idx_agent_jobs_repo_created_id`
+(repo_path(191), created_at, id; 2026-11-13 起由 `storage/agent_jobs.ensure_schema()`
+**运行时最佳努力**加入, 非版本化语句 —— 本机 specproof_phase0 与 specproof_test
+都实测过不带 repo_path 列的老表, 版本化 CREATE INDEX 会 1072; 测量 probe 实测
+ALL+filesort cost≈2000→ref cost≈286)。SQLite 侧无前缀语法同名索引, 同一处最佳努力。
 
 - **写入方**: `api/routes/agent_console.py` (create/cancel/approve) + `api/agent_runtime.py`
   (runtime 线程跑真实确定性 CraftLoop, loop 内 create/lease/renew/set_plan/set_progress/update_status) +

@@ -334,6 +334,20 @@ _ADD_REPO_PATH_COLUMN_SQL: str = (
     "ALTER TABLE agent_jobs ADD COLUMN repo_path TEXT"
 )
 
+# §30.3: same upgrade discipline for the repo-path list index — installs
+# whose agent_jobs predates the repo_path column would fail a versioned
+# CREATE INDEX on repo_path (1072), so that index is ensured here, right
+# after the column is, best-effort. SQLite has no prefix syntax; MySQL does
+# (191). Repo paths are normalized absolute paths — far under the bound.
+_ADD_REPO_INDEX_SQL: str = (
+    "CREATE INDEX idx_agent_jobs_repo_created_id "
+    "ON agent_jobs (repo_path, created_at, id)"
+)
+_ADD_REPO_INDEX_MYSQL_SQL: str = (
+    "CREATE INDEX idx_agent_jobs_repo_created_id "
+    "ON agent_jobs (repo_path(191), created_at, id)"
+)
+
 _INSERT_SQL: str = (
     "INSERT INTO agent_jobs "
     "(id, status, spec_text, spec_digest, repo_path, created_at, updated_at) "
@@ -858,6 +872,7 @@ class SqliteAgentJobStore:
             self._conn.execute(_SCHEMA_SQL)
             self._ensure_accept_json_column()
             self._ensure_repo_path_column()
+            self._ensure_repo_path_index()
 
     def _ensure_accept_json_column(self) -> None:
         """Upgrade path for pre-W35.1 databases (best effort).
@@ -881,6 +896,16 @@ class SqliteAgentJobStore:
         # duplicate column: the table already carries repo_path
         with suppress(sqlite3.OperationalError):
             self._conn.execute(_ADD_REPO_PATH_COLUMN_SQL)
+
+    def _ensure_repo_path_index(self) -> None:
+        """Same discipline for the repo list index (§30.3).
+
+        Best-effort right after the column: fresh tables get both, old
+        tables get the column first (§30.2) and this on the same connect.
+        The only realistic failure is the duplicate index on repeat runs.
+        """
+        with suppress(sqlite3.OperationalError):
+            self._conn.execute(_ADD_REPO_INDEX_SQL)
 
     def close(self) -> None:
         with self._lock:
@@ -1082,6 +1107,10 @@ class MySqlAgentJobStore:
             # pre-§30.2 upgrade: same pattern for the repo_path column
             with suppress(pymysql.err.OperationalError):
                 cur.execute(_to_mysql(_ADD_REPO_PATH_COLUMN_SQL))
+            # §30.3: the repo list index, prefix form for TEXT; duplicate
+            # index (1061) on repeat runs — same best-effort discipline
+            with suppress(pymysql.err.OperationalError):
+                cur.execute(_ADD_REPO_INDEX_MYSQL_SQL)
 
     def create(
         self, job_id: str, spec_text: str, repo_path: str | None = None

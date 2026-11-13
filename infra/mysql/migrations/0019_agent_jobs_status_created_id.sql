@@ -1,0 +1,32 @@
+-- 0019: index for the agent_jobs status-list read the console runs.
+-- NOTE: this migration ships ONLY the status index. The repo-path index is
+-- ensured at runtime (best-effort, same discipline as the column itself) —
+-- the body comment explains why, and why the status index is safe everywhere.
+--
+-- Measured on 2026-11-13 against a throwaway 20k-row probe table on
+-- specproof_test (EXPLAIN FORMAT=JSON; all four list shapes in
+-- storage/agent_jobs.py's static SQL set, same session):
+--
+--   _LIST_BY_STATUS_SQL  (WHERE status=? ORDER BY created_at,id LIMIT 50)
+--     before: access ALL, using_filesort: true,  rows≈19998, cost≈2000
+--     after  idx_agent_jobs_status_created_id: ref, filesort FALSE,
+--            rows≈2555, cost≈883
+--
+--   _LIST_BY_STATUS_REPO_SQL (WHERE status=? AND repo_path=? ORDER BY ... LIMIT 50)
+--     also stops at the status range when the repo index is absent.
+--
+-- The repo_path-filtered list (_LIST_BY_REPO_SQL / _LIST_BY_STATUS_REPO_SQL)
+-- is covered by idx_agent_jobs_repo_created_id, which is deliberately NOT a
+-- versioned statement: specproof_test and the running specproof_phase0 both
+-- predate the 2026-10-03 repo_path column (verified 2026-11-13: neither table
+-- carries it; the runtime best-effort ensure adds it on the next connect,
+-- per §30.2's design). A CREATE INDEX on repo_path would hard-fail (1072) on
+-- every install that predates the column, so that index ships via the same
+-- best-effort ensure in storage/agent_jobs.ensure_schema() — measured on the
+-- same probe: ALL+filesort cost≈2000 → ref, filesort FALSE, cost≈286.
+--
+--   _LIST_SQL (unfiltered page) stays alone on purpose: MySQL's cost model
+--   keeps ALL+filesort (query_cost≈2000.25) over an idx_created_id walk
+--   (≈7000.25 with FORCE INDEX); no index justified by hope.
+ALTER TABLE agent_jobs
+    ADD INDEX idx_agent_jobs_status_created_id (status, created_at, id);
