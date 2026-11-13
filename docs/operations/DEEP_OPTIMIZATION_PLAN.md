@@ -32377,3 +32377,38 @@ SPECPROOF_PROVIDER_POLICY=1 才启用）。api 与 worker 是两个副本、多�
   本提交用 `SKIP_HOOKS=1`（hook 原文授权的"intentionally bypassing"），
   提交信息里写明了原因；
 - 跨*跨机器*的 fleet 刷出（FLUSHALL 类）仍是运维动作，本号不提供一键刷键入口。
+
+## #1649 agent_jobs 读路径索引：MySQL 实测 filesort 消亡；一次被隔离门救下的迁移
+
+**记录基准**：本节只追加；落在 63f5b98；master = 63f5b98。
+
+### 一、动手前实测（20k 行 throwaway probe @ specproof_test，EXPLAIN FORMAT=JSON）
+
+| 查询（storage/agent_jobs.py 静态 SQL） | before | after |
+|---|---|---|
+| `_LIST_BY_STATUS_SQL` | ALL + filesort，rows≈19998，cost≈2000 | ref on idx_agent_jobs_status_created_id，filesort FALSE，rows≈2555，cost≈883 |
+| `_LIST_BY_REPO_SQL` | ALL + filesort，cost≈2000 | ref on idx_agent_jobs_repo_created_id，filesort FALSE，rows≈2857，cost≈286 |
+| `_LIST_BY_STATUS_REPO_SQL` | ALL + filesort，cost≈2000 | ref on repo index，filesort FALSE，cost≈286 |
+| `_LIST_SQL`（无过滤首页） | ALL + filesort，cost≈2000 | **不加**：MySQL 成本模型此表规模继续选 ALL+filesort（≈2000.25），idx_created_id 强制走 ≈7000.25 —— 没有凭希望建的索引 |
+
+### 二、一次被 MySQL 隔离门救下的迁移（不是剧本，是事故收口）
+
+1. 初版 0019 把 repo 索引放进版本化迁移 → specproof_test 与 specproof_phase0 **都没有
+   repo_path 列**（2026-10-03 自愈路径在这两个库从未触发）→ `CREATE INDEX` 直接 1072，
+   隔离门把命令挡下；
+2. 改法：**0019 只交付 status 索引**（列恒在，0011 起）；repo 索引改由
+   `storage/agent_jobs.ensure_schema()` 运行时 best-effort 加入 —— SQLite/MySQL 各一条
+   静态语句，MySQL 用 (191) 前缀，与 repo_path 列的 §30.2 自愈同套纪律；
+3. 在 specproof_test 实测 ensure_schema()×2 → repo_path 出现、repo index 出现、
+   rows 仍为 0、幂等（第二遍吞 duplicate）；
+4. DATA_DICTIONARY.md 补 repo_path 行（2026-10-03 起漏登）+ 两条索引登记；
+   range 至 0019、0001-0019 计数链同步；
+5. down 只删 0019 加的 status 索引（pairing 门红 → 0023 无凭空删除）。
+
+### 三、诚实边界
+
+- specproof_phase0 尚未自愈（缺 repo_path 与两个 index）；**不自行改产品库** —— 下次
+  app 启动 ensure_schema 自然落位；
+- `_LIST_SQL` 未建索引是本号测量决定，非遗忘；
+- 索引只加不删数据、不改变查询语义；EXPLAIN 成本数字来自本机 probe，未在别的规模/
+   并发模型上重复。
