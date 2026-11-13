@@ -117,3 +117,9 @@
 .guide-step-kind { font-size: var(--text-2xs); color: var(--color-text-3); }
 .guide-steps .guide-step-basis { font-size: var(--text-xs); color: var(--color-text-3); margin-top: 8px; }
 @media (max-width: 680px) { .guide-step-head { gap: 8px; } .guide-checklist-head { flex-wrap: wrap; } }
+
+/* ── 键盘与打印 callout（Guide 收尾） ── */
+.guide-shortcuts { border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); padding: var(--sp-4) var(--sp-5); margin-bottom: var(--sp-5); box-shadow: var(--elev-1); }
+.guide-shortcuts h2 { font-size: var(--text-lg); font-weight: var(--fw-700); margin: 0 0 var(--sp-2); color: var(--color-text); letter-spacing: var(--tracking-tight); }
+.guide-shortcuts p { margin: 0; color: var(--color-text-2); font-size: var(--text-md); line-height: 1.7; }
+.guide-shortcuts .ui-kbd { margin: 0 2px; }

@@ -3,7 +3,7 @@ import { useNavigate } from "../hooks/navigate";
 import { DEMO_AGENT, DEMO_VERIFY, DEMO_VERIFY_ABS_PATH_NOTE } from "../demo";
 import { EMPTY_WIZARD_DRAFT, saveWizardDraft } from "../agent/util";
 import { apiGet, getApiKey, getBearerToken, type JobsPage } from "../api";
-import { Button, GLOSSARY } from "../ui";
+import { Button, GLOSSARY, Kbd } from "../ui";
 import {
   EMPTY_PROGRESS,
   ONBOARDING_STEPS,
@@ -236,6 +236,15 @@ export default function Guide() {
       <section className="guide-section" aria-labelledby="guide-glossary">
         <div className="guide-section-head"><span className="guide-section-number">04</span><div><h2 id="guide-glossary">不用记住术语，也能读懂结果</h2></div></div>
         <dl className="guide-glossary">{GLOSSARY.map((entry) => <div key={entry.id}><dt>{entry.label}</dt><dd>{entry.definition}</dd></div>)}</dl>
+      </section>
+
+      <section className="guide-shortcuts" aria-labelledby="guide-keyboard">
+        <h2 id="guide-keyboard">键盘与打印</h2>
+        <p>
+          嫌鼠标慢？按 <Kbd>?</Kbd> 打开快捷键总表 — 命令面板（<Kbd>Ctrl</Kbd> <Kbd>K</Kbd>）、页签切换、表格行、浮层收起，一张卡讲完；
+          任何时候 <Kbd>Esc</Kbd> 收起当前浮层。想把证据带去评审？直接 <Kbd>Ctrl</Kbd> <Kbd>P</Kbd> ——
+          打印件只有论证本身：没有导航、没有按钮、没有提示，纸——就是证据。
+        </p>
       </section>
 
       <section className="guide-startup" aria-labelledby="guide-local"><div><h2 id="guide-local">在自己的电脑上体验</h2><p>先安装 Python 3.12、Node.js 18+、Docker Desktop，并在项目根目录安装 Python 依赖。完整步骤见项目文档 <code>docs/operations/LOCAL_EXPERIENCE.md</code>。</p><code className="guide-command">python -m pip install -e ".[dev]"<br />{START_COMMAND}</code><span role="status" className="guide-copy-status">{copyState}</span></div><Button onClick={() => { void copyCommand(); }}>复制启动命令</Button></section>
