@@ -33,6 +33,28 @@ export function shortId(id: string | undefined): string {
   return (id || "").slice(0, 8);
 }
 
+// Artifact references arrive from the SSE stream with a machine-prefix
+// the viewer does not yet know. Turn each reference into one honest,
+// plain-language sentence a reviewer can act on — never dress an
+// unknown reference up as something it is not.
+export function artifactHint(ref: string): string {
+  const r = (ref || "").trim();
+  if (!r) return "空的产物引用（未知来源）";
+  if (r.startsWith("capsule:file=")) {
+    return "复现包（capsule）—— base/head 双侧工作树与执行日志，供评审者本地复现本次验收。";
+  }
+  if (r.startsWith("counterexample_test:")) {
+    return "反例测试（针对性回归）—— 该用例在 head 上失败、在 base 上通过，是本次变更最直接的可复现证据。";
+  }
+  if (r.startsWith("report:")) {
+    return "验收报告—— 证据级 HTML 报告，含契约矩阵、findings 与 verdict；点开可交付评审。";
+  }
+  if (r.startsWith("s3://") || r.startsWith("oss://") || r.startsWith("http://") || r.startsWith("https://")) {
+    return "复现包（capsule）—— 对象存储地址，下载即得可复现的 base/head 环境。";
+  }
+  return "产物引用（来源未知）—— 原样展示了 SSE 帧里的字符串，未做任何猜测。";
+}
+
 export type StatTone = "ok" | "bad" | "warn" | "mute";
 
 export function verdictTone(v: string | undefined): StatTone {

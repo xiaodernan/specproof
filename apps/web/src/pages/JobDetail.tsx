@@ -8,7 +8,7 @@ import {
 } from "../api";
 import {
   Breadcrumbs, Button, Degraded, Empty, ErrorBox, Panel, PreflightCard, Progress, Spinner, StatCard, StatusPill, Table, Term,
-  fmtPct, fmtTime, fmtDurationSeconds, kv, shortId, severityPill, severityHint, severityRank, evidenceLabel, stageLabel, verdictTone, verdictLabel,
+  fmtPct, fmtTime, fmtDurationSeconds, kv, shortId, severityPill, severityHint, severityRank, evidenceLabel, stageLabel, verdictTone, verdictLabel, artifactHint,
   type Column, type PreflightResult,
 } from "../ui";
 import { SameRepoCraftPanel } from "./SameRepoCraftPanel";
@@ -666,7 +666,7 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
                     {st.artifact_refs && st.artifact_refs.length > 0 ? (
                       <span className="stage-artifacts" title={st.artifact_refs.join("\n")}>
                         {st.artifact_refs.slice(0, 3).map((ref) => (
-                          <span key={ref} className="stage-artifact">{ref}</span>
+                          <span key={ref} className="stage-artifact" title={artifactHint(ref)}>{ref}</span>
                         ))}
                         {st.artifact_refs.length > 3 ? <span className="stage-artifact">+{st.artifact_refs.length - 3}</span> : null}
                       </span>

@@ -115,7 +115,7 @@
     本项**至此无产品代码欠账**，仅余「Gradle 载体按项目播种 GRADLE_USER_HOME（需按项目机器跑 seed 脚本）」这一运营前提。
 
 ### Phase 3 —— 验收体验与实时性（P1，并行推进）
-- [~] **3.1 实时进度与流式日志**：SSE 事件粒度到"节点级"，前端时间线展示每步耗时/产物/失败点。
+- [x] **3.1 实时进度与流式日志**：SSE 事件粒度到“节点级”，前端时间线展示每步耗时/产物/失败点。
   - 本批部分落地（2026-11-08，未闭合）：`/api/v1/jobs/{id}/stages` 新增**节点级 `duration_seconds`
     （该节点第一/最后 stamp 之差）、`started_at`（首个 UTC stamp）、`event_count`** ——
     附加式字段契约（旧消费端逐字键不变）；覆盖 `api/routes/web.py` 新测试 2 条
@@ -144,6 +144,15 @@
     节点渲染 `.stage-failed-at` 芯片（`失败于 <fmtTime>`，样式落 base.css `--danger-fg`）；
     `api.ts::Stage.failed_at` 可选装配完毕，SSE 合成帧落 failed_at；`tsc --noEmit` 干净；
     `vitest run src/pages/JobDetail.test.tsx` 28/28（含本批新增 2 例：渲染失败点 / 空帧不渲染）。
+  - **续写（2026-11-14，#1667/#1669）**：阶段区新增**执行时间线**（比例条——bar 按 started_at/duration_seconds 定位与缩放，
+    done/run/failed 三色辉光，与阶段行共用同一数据源；无时间戳节点按行诚实省略并列出计数；右端钉形 clamp 回轨道内；
+    scale 刻度行 mono 等宽数字（起/止时钟 + 窗口 X.XXs）；role="img" + aria-label；`StageTimeline.test.tsx` 5 腿；
+    fixture + vite 内实渲染目检）；阶段行产物 chip 新增 `artifactHint()` 白话悬浮解释
+    （object-store/capsule 复现包、counterexample_test 反例测试、report 验收报告分别解释；来源未知原样声明，不臆造；
+    `artifactHint.test.ts` 6 腿；`artifact_refs` 本身沿用 2026-11-09 的附加式合约，旧消费端逐字键不变）。
+    **“其余无产物节点的全程时间戳帧”经复核认定为产品刻意设计**（真实运行不在 SSE 逐节点发帧；seed_demo 示例数据保持演示口径），
+    自此从开放项移除。**3.1 至此闭合。**
+
 - [x] **3.2 结论页重做**：首屏三问——通过没？风险在哪？我下一步做什么？证据折叠可展开。
   - 本轮（可验证）：`JobDetail` 首屏"验证结论"大数字卡此前直显英文枚举（`VERIFIED`/`BLOCKED`/`NEEDS REVIEW`…）。新增 `verdictLabel()`：已知枚举译成中文（通过/受阻/执行失败/需复核/待验证/已过期/已取消），**未知值原样透传不臆测**（错误的友好标签会误导合并决策）。已验证：`JobDetail.test.tsx` 4 passed（含新用例断言显示"受阻"且无裸"BLOCKED"）、`tsc` 干净、全量 vitest 119 passed。
   - 续写（2026-11-09，#1542）：证据折叠首屏闭环——`<details className="evidence-fold">`（Kv 折叠，纯 CSS caret，键盘/SR 原生支持），折叠前 summary 只读；展开后输出：复现包名单（前 5 条，`cap-a.zip`…）+ 签名材料计数 + 流式帧计数。`apps/web/src/styles/base.css` 新增 `.evidence-fold`/`.evidence-fold-body`。已验证：`JobDetail.test.tsx` 29/29 绿（同批新增 2 条：阶段失败点渲染 / 空帧不渲染 + 本轮折叠测试）、`tsc --noEmit` 干净。§3.2 本轮收口。

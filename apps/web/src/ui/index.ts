@@ -17,7 +17,7 @@ export {
 export { Spinner } from "./Spinner";
 export { StatCard, type StatTone } from "./StatCard";
 export { StatusPill, statusLabel, STATUS_LABELS, JOB_STATUSES } from "./StatusPill";
-export { fmtPct, fmtTime, fmtDurationSeconds, kv, shortId, verdictTone, verdictLabel } from "./util";
+export { fmtPct, fmtTime, fmtDurationSeconds, kv, shortId, verdictTone, verdictLabel, artifactHint } from "./util";
 export {
   attributionLabel, checkerLabel, contractStatusLabel, CONTRACT_STATUS_CN,
   dependencyInstallLabel, evalVerdictLabel, evidenceLabel, executionSurfaceLabel, executionSurfaceTone,
