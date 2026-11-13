@@ -2972,3 +2972,13 @@ drill_notify_outbox.py 新增 run_dead_letter_leg: 无接收端(DISABLED 连接�
   前缀缓存命中。
 - provider 全套(router/client_policy/semantic_cache/notify)143+67
   passed;ruff/mypy 全绿。
+
+### 41.5 SSE 流式端点落地——前后端协同合龙(07b5f3e)
+
+- GET /jobs/{id}/ai-summary/stream：缓存命中重放全文(cached=true)；
+  未命中逐段转发模型流，完成写缓存(best-effort)，错误转诚实 error 事件
+  (保留已到文本)。
+- 并行会话的 streamAiSummary FE 读者与本路由**契约完全匹配**(路径/事件
+  帧/字段逐一对上)——前后端协同在共享树上自发合龙。
+- 测试 +3(流式 delta+done / 缓存重放 / 提供者死亡→error 事件)；
+  api/ai_summary.py + web.py mypy/ruff 全绿。
