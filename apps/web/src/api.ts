@@ -306,6 +306,21 @@ function openEventStream(
           if (frameId !== undefined) lastId = frameId;
           frameId = undefined;
           if (eventType === "done") {
+            // The done frame carries the final payload (full text + usage +
+            // cache stats). Forward it through onEvent like every other
+            // named frame — consumers that care about it (e.g. the AI 解读
+            // stream) need it; consumers that don't (progress) simply ignore
+            // the extra event. Dropping it silently would wedge any consumer
+            // waiting on the payload forever.
+            if (dataLines.length) {
+              let data: unknown;
+              try {
+                data = JSON.parse(dataLines.join("\n"));
+              } catch {
+                data = undefined;
+              }
+              if (data !== undefined) onEvent("done", data);
+            }
             stopped = true;
             controller.abort();
             onStatus("closed");

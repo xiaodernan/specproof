@@ -30,13 +30,21 @@ test.describe("AI 解读 — the button answers, or degrades honestly", () => {
 
     // Either the summary lands, or the failure box renders — both are the
     // honest contract. Wait for whichever wins this run.
+    // NOTE: since the streamed panel landed (#1665), .ai-summary-text exists
+    // the moment loading starts (it renders the caret and partial text), so
+    // it can no longer be the "finished" signal. The button is: it leaves
+    // "正在解读…" only when the stream completes (success) or errors out.
     const summary = page.locator(".ai-summary-text");
     const failure = page.locator(".errorbox, [role=alert]");
     await expect(
       summary.or(failure).first()
     ).toBeVisible({ timeout: 45_000 });
 
-    // The button must still be present and labelled — not silently vanished.
-    await expect(page.getByRole("button", { name: "重新解读" })).toBeVisible();
+    // The button must still be present and correctly labelled — never wedged
+    // in the loading state. After a success the label becomes "重新解读"; after a
+    // failed stream it returns to "AI 解读本次验收" (ready to retry) — both are
+    // the honest contract. A frozen "正在解读…" forever would not be.
+    const idleButton = page.getByRole("button", { name: /^(重新解读|AI 解读本次验收)$/ });
+    await expect(idleButton).toBeVisible({ timeout: 90_000 });
   });
 });
