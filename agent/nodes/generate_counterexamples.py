@@ -132,9 +132,22 @@ _JUNIT_GENERATION_PROMPT = """You are a Java security test engineer. Generate a 
 for a Spring Boot application that verifies a security regression.
 
 CONTEXT:
-A PR removed an authorization guard (e.g. @PreAuthorize) from a mutating
-endpoint. Unauthenticated requests must be rejected with 401 and must not
-modify database state.
+The change under review is described in ADDITIONAL CONTEXT below: the symbols
+that changed, the findings the static tier reported, and the contracts the
+requirement compiles to. Write the counterexample test for THAT change:
+
+* if the change removed, weakened or moved an authorization guard, assert
+  that an unauthenticated request is rejected (401/403) AND that the
+  database row is unchanged afterwards;
+* if the change did something else (a new endpoint, a refactor, a comment,
+  a configuration change), assert the behaviour THAT change must have --
+  never a behaviour the change was not supposed to touch.
+
+Why this matters: a test that asserts behaviour the change did not touch
+fails on Head for a reason that has nothing to do with the change. That is
+not a regression, it is a false alarm, and the review court cannot tell the
+two apart from the exit codes alone (measured: it was the one false
+positive in six negative cases, #1638).
 
 REQUIREMENTS:
 1. Use @SpringBootTest + @AutoConfigureMockMvc + @ActiveProfiles("test")
@@ -240,6 +253,7 @@ async def _llm_generate_junit(
     findings: list[dict[str, Any]],
     contracts: list[dict[str, Any]],
     requirement_text: str = "",
+    changed_symbols: list[str] | None = None,
 ) -> str:
     """Call LLM with non-thinking mode to generate JUnit test code."""
     from providers.base import LLMMessage
@@ -258,7 +272,15 @@ async def _llm_generate_junit(
         for c in contracts[:10]
     ) if contracts else "No contracts available"
 
+    symbols_desc = "\n".join(f"- {s}" for s in (changed_symbols or [])[:20])
     full_prompt = _JUNIT_GENERATION_PROMPT + "\n\nADDITIONAL CONTEXT:\n"
+    if symbols_desc:
+        # WHAT changed, in the model's own terms. Without it the prompt only
+        # carried a fixed story about a removed guard, and the model wrote
+        # that story's test for EVERY change -- which is how a harmless
+        # "add an endpoint" PR produced a failing test and a false
+        # regression (#1638).
+        full_prompt += f"Changed symbols:\n{symbols_desc}\n\n"
     full_prompt += f"Requirement: {requirement_text[:500]}\n\n" if requirement_text else ""
     full_prompt += f"Findings:\n{findings_desc}\n\n"
     full_prompt += f"Contracts:\n{contracts_desc}\n"
@@ -444,6 +466,7 @@ async def _generate_with_compile_loop(
     contracts: list[dict[str, Any]],
     requirement_text: str,
     job_id: str | None = None,
+    changed_symbols: list[str] | None = None,
 ) -> GenerationResult:
     """LLM generate → validate schema → compile, retry up to 3 times.
 
@@ -567,6 +590,11 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
     confirmed_findings = state.get("confirmed_findings", [])
     contracts = state.get("contracts", [])
     requirement_text = state.get("requirement_text", "")
+    # WHAT changed — the prompt needs it, or the model writes a test for the
+    # story the prompt used to tell instead of the change under review
+    # (#1638: that story's test was the one false positive in six negative
+    # cases).
+    changed_symbols = list(state.get("changed_symbols") or [])
     head_workspace = state.get("head_workspace", "")
     app_dir = state.get("app_dir", "")
     job_id = state.get("job_id")
@@ -638,6 +666,7 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
                         _generate_with_compile_loop(
                             app_workspace, all_findings or static_findings,
                             contracts, requirement_text, job_id=job_id,
+                            changed_symbols=changed_symbols,
                         ),
                     )
                     gen_result = future.result(timeout=300)
@@ -646,6 +675,7 @@ def generate_counterexamples_node(state: Phase0State) -> dict[str, Any]:
                     _generate_with_compile_loop(
                         app_workspace, all_findings or static_findings,
                         contracts, requirement_text, job_id=job_id,
+                        changed_symbols=changed_symbols,
                     )
                 )
         except JobCancelledError:
