@@ -32331,3 +32331,49 @@ master = 7bbf274。
   新日志 gate_v20.log 全量重跑；本号前端提交（3c4ec00/7bbf274）在其快照之后，
   但 python 门与前端改动无交集（门扫 .py/.yml/.sql/.md，前端为 .tsx/.css）；
   v20 完成后其摘要随 #1648 入账。
+
+## #1648 语义缓存 Redis 化：跨副本命中，证据链零妥协
+
+**记录基准**：本节只追加；落在 0c7a5e9；master = 0c7a5e9。
+
+### 一、问题：缓存只有"一个进程的记忆"
+
+W44/W60 的 semantic cache 只在单进程 LRU 里存（draft|diagnose，默认 off，由
+SPECPROOF_PROVIDER_POLICY=1 才启用）。api 与 worker 是两个副本、多次重启、
+多次种子/demo 重跑：同一机械 prompt 在后到的副本手里被全价重算。
+
+### 二、方案：同一套 kind 护栏，可选共享 store
+
+* `SemanticCache` 新增可选分布式边界：`store=`（`SemanticCacheStore` 协议，
+  只 `get/set`）+ `encode/decode` 两个函数参数；
+* 新模块 `providers/semantic_cache_redis.py`：SemanticCacheRedisStore ——
+  sha256 键 + `specproof:semcache:` 前缀，`ex=TTL`（默认 300），socket 双超时
+  各 **50ms**，`decode_responses=True`；
+* `client_policy._default_cache()` 按 `SPECPROOF_SEMANTIC_CACHE_BACKEND`
+  选择 backend：默认 `memory`（历史字节一致），`redis` 构建失败回退
+  in-memory（fail-open，log.warning）；
+* **证据类 kind 在分布式边界硬拒绝**：court|counterexample|accept_judge|
+  contract_compile —— 腿锁定（store.data 保持 {}）；
+* fail-open：`store_errors` 计数；`get`/`set` 任何异常 → miss/False，不抛；
+* stats() 新增 `backend` 与 `store_errors`；
+
+### 三、交付闭环与验证（每一腿都是现场跑）
+
+| 腿 | 结果 |
+|---|---|
+| 新增 test_semantic_cache_redis（6 腿） | 6/6 绿 |
+| 既有 semantic_cache + client_policy | 51 腿全绿（无回归） |
+| 交付门：env_knobs(8) + compose_required(9) + env_template(15) | 32/32 绿 |
+| 导入图门 + kind_threading + provider_accounting + metrics_observable | 66 绿 |
+| **实测（db 14，用后 flushdb）** | 实例 A `put` 成功，共享键 `TTL=300`；实例 B（新客户端）`hits=1`，`store_errors=0` |
+
+### 四、诚实边界
+
+- **缓存命中率与 token 节省量未测**——本号证明的是"跨副本能看见命中"与 fail-open，
+  不声称命中率数字；要测必须先在真实流量里打开策略层 + redis backend，另开一号做；
+- 不启用策略层（`SPECPROOF_PROVIDER_POLICY` 未置）= 历史路径，逐字节不变；
+- `.env.example` 被预提交钩子按文件名判为"疑似机密"。事实：该文件已跟踪，新增行
+  只是 `SPECPROOF_SEMANTIC_CACHE_BACKEND=memory` + 说明注释，无凭证；
+  本提交用 `SKIP_HOOKS=1`（hook 原文授权的"intentionally bypassing"），
+  提交信息里写明了原因；
+- 跨*跨机器*的 fleet 刷出（FLUSHALL 类）仍是运维动作，本号不提供一键刷键入口。
