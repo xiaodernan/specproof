@@ -7,6 +7,7 @@ import TenantSwitcher from "./identity/TenantSwitcher";
 import { ThemeProvider, useTheme } from "./theme/ThemeProvider";
 import { Button, CommandPalette, ErrorBoundary, Kbd, ShortcutHelp, Spinner, ToastProvider } from "./ui";
 import { recordRouteVisit } from "./ui/onboarding";
+import { withViewTransition } from "./ui/viewTransition";
 import { MoonIcon, SearchIcon, SunIcon } from "./ui/icons";
 import { ProductIcon, type ProductIconName } from "./ui/ProductIcon";
 import { AUDIT_ROLES, BILLING_ROLES, IDENTITY_ROLES, roleSetAllows } from "./ui/accessRoles";
@@ -83,7 +84,7 @@ function Workspace() {
     const onChange = () => {
       const hash = window.location.hash || "#/dashboard";
       recordRouteVisit(hash);
-      setRoute(hash);
+      withViewTransition(() => setRoute(hash));
       setMenuOpen(false);
     };
     window.addEventListener("hashchange", onChange);

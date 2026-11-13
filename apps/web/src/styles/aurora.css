@@ -354,3 +354,12 @@
   .ui-shortcuts-grid { grid-template-columns: 1fr; }
   .ui-shortcuts-panel { margin-top: 6vh; max-height: 80vh; }
 }
+
+/* ── View Transitions (Chromium): route changes crossfade on aurora's curve ── */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: var(--dur-slow);
+    animation-timing-function: var(--ease-out);
+  }
+}
