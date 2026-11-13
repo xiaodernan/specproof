@@ -32674,3 +32674,30 @@ stderr（vite proxy 错误刷屏）触发外层 wrapper 的 CLIXML 解析崩溃�
   添一个 scrape 目标等于造一个永远 down 的目标——invoice-cron 的 "optional target" 是
   有 compose service 兜底的，控制面连那个都没有；RUNBOOK 已如实记着这是 operator 的 call；
 - 本号只让端点真实存在，且从此由 registry 自己回答 "它是"。
+
+## #1658 真实 LLM 与校验器族零样本对齐：同一六族、同一 checker 类型，读侧实测
+
+**记录基准**：本节只追加；master = 2846c1c（本号无代码改动——观测条目实录）。
+
+### 一、#1655 的 6 份契约 vs 本仓的确定性校验器族（只读比对，零 API 成本）
+
+| LLM 抽取 | checker_type | 仓库登记族 | 对齐 |
+|---|---|---|---|
+| auth-01 | http | AUTH-01 | ✓ |
+| unique-01 | sql | UNIQUE-01 | ✓ |
+| token-invalidation-01 | redis | TOKEN-INVALIDATION-01（java_source/registry 有族） | ✓ |
+| backward-compatibility-01 | openapi | BACKWARD_COMPATIBLE-01 | ✓ |
+| email-event-01 | rabbitmq | EMAIL-EVENT 族（rabbitmq checker 类型存在） | ✓ |
+| transactional-integrity-01 | redis | TRANSACTIONAL_INTEGRITY 族（有双平面一致性登记） | ✓ |
+
+**零样本**：没有 few-shot、没有族名提示（仅要求输出 kebab-case + 那些 checker_type 值），
+真实 gpt-6-sol 复现了与本仓确定性契约编译器 **同一套** 六族语义和 checker_type 映射。
+用途：后续"LLM 抽取 → 确定性编译校验"的落地编排少打一层——族对得上，才谈得上
+"LLM 提案、机器裁决"分工；本号不声称对齐=正确性（两侧可能共享同样的盲区）。
+
+### 二、工作树观察（留档，不替任何人改）
+
+demo/spring-backend 的嵌套脚手架中：HEAD = 3194fb6（tag `base`），工作树未提交承载
+case-100 变异（pom byte-buddy 1.17.8 + mockito 5.17.0、UserService.setTimestamp(null)、
+未跟踪的 probe/ 脚手架）。外层仓库 HEAD 与工作树一致（outer repo 干净）——**本轮不在此
+目录做任何恢复**：对抗性内容是 eval 资产，归属其重建流水线，删除/还原属于别人的决定。
