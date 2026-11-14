@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "../hooks/navigate";
 import { DEMO_AGENT, DEMO_VERIFY, DEMO_VERIFY_ABS_PATH_NOTE } from "../demo";
 import { EMPTY_WIZARD_DRAFT, saveWizardDraft } from "../agent/util";
@@ -18,34 +18,15 @@ import {
   type OnboardingState,
   type StepSignals,
 } from "../ui/onboarding";
+import { useI18n } from "../i18n";
+import { GUIDE_BY_LOCALE, type GuideCopy } from "./guide.copy";
 import "./onboarding.css";
 
 const START_COMMAND = "pwsh scripts/start_local.ps1";
 
-const STATE_LABEL: Record<OnboardingState, string> = {
-  done: "已完成",
-  todo: "未完成",
-  unknown: "无法确认",
-};
-
-// The prose is the product copy; the completion mark next to it is derived in
-// code, which is exactly why the two must stay in the same list item.
-const STEP_DETAIL: Record<OnboardingStepId, ReactNode> = {
-  connect: (
-    <>本机运行启动命令，用终端提供的凭据登录。团队部署则向管理员获取凭据。工作区登录密钥用于进入 SpecProof；模型服务商的 API Key 用于调用 AI，可由部署管理员在<a href="#/agent/settings">模型连接</a>中配置并测试。</>
-  ),
-  prepare_spec: (
-    <>把“改进用户管理”写成“非管理员修改邮箱应被拒绝，管理员可以修改，邮箱必须符合格式”。需求越明确，越容易验证。</>
-  ),
-  create_verification: (
-    <>填入后端能够访问的仓库路径、基准版本 Base、待验证版本 Head，以及需求文件路径。提交后可查看排队、执行和结果。</>
-  ),
-  read_results: (
-    <>先看任务结论，再进入需求矩阵与风险发现。失败时查看证据和受影响位置，修复后提交新的验证任务。</>
-  ),
-};
-
 export default function Guide() {
+  const { locale } = useI18n();
+  const c = GUIDE_BY_LOCALE[locale];
   const [copyState, setCopyState] = useState("");
   const [progress, setProgress] = useState<OnboardingProgress>(EMPTY_PROGRESS);
   const [progressUnreadable, setProgressUnreadable] = useState(false);
@@ -97,6 +78,12 @@ export default function Guide() {
   const signals: StepSignals = { progressUnreadable, credential, connection, verificationCount };
   const summary = summarize(ONBOARDING_STEPS, progress, signals);
 
+  const stateLabel: Record<OnboardingState, string> = {
+    done: c.stateDone,
+    todo: c.stateTodo,
+    unknown: c.stateUnknown,
+  };
+
   function tick(stepId: OnboardingStepId) {
     const next = toggleManualStep(progress, stepId, new Date().toISOString());
     setSaveFailed(!saveOnboardingProgress(next));
@@ -105,26 +92,24 @@ export default function Guide() {
 
   function basisNote(step: OnboardingStep, state: OnboardingState): string {
     if (step.id === "connect") {
-      if (credential === "absent")
-        return "这个浏览器里还没有工作区凭据，所以还没连上工作区；登录后这里会自动更新";
-      if (state !== "unknown") return step.basis;
-      return connection === "pending" ? "正在检测工作区连接…" : "工作区请求失败，因此无法判断是否已连接——这不等于没有连接";
+      if (credential === "absent") return c.connectAbsent;
+      if (state !== "unknown") return c.stepBasis.connect ?? "";
+      return connection === "pending" ? c.connectPending : c.connectFailed;
     }
     if (step.id === "create_verification") {
       if (state !== "unknown" && verificationCount !== null) {
-        return "工作区里已有 " + verificationCount + " 次验证";
+        return c.countDone(verificationCount);
       }
-      if (credential === "absent") return "还没连上工作区，因此无法确认是否已经建过验证";
-      if (connection === "pending") return "正在读取工作区的验证任务数量…";
+      if (credential === "absent") return c.countAbsent;
+      if (connection === "pending") return c.countPending;
       // An answer without a total is not "unreadable" and not "zero": the
       // workspace replied, it just never said how many there are.
       if (connection === "ok") {
-        return "工作区应答了作业列表，但没有给出验证总次数，因此无法判断已经建过几次";
+        return c.countNoTotal;
       }
-      return "读不到验证任务列表，因此无法判断是否已经建过验证";
+      return c.countFailed;
     }
-    if (state === "unknown") return "本机进度读不出来，因此无法判断是否勾选过";
-    return step.basis;
+    return c.stepBasis[step.id] ?? step.basis;
   }
 
   function startDemoVerify() {
@@ -149,40 +134,40 @@ export default function Guide() {
   async function copyCommand() {
     try {
       await navigator.clipboard.writeText(START_COMMAND);
-      setCopyState("启动命令已复制");
+      setCopyState(c.copiedOk);
     } catch {
-      setCopyState("请选中下方命令手动复制");
+      setCopyState(c.copyFailed);
     }
   }
 
   return (
     <div className="guide-page">
       <div className="page-head">
-        <div className="welcome-eyebrow">认识 SpecProof</div>
-        <h1>从“代码能跑”到“需求有证据”</h1>
-        <p className="guide-intro">Spec 是你期望软件做到的事，Proof 是验证这些要求的证据。SpecProof 把两者连起来，让开发者、评审人和交付负责人用同一份结果做决定。</p>
-        <div className="guide-actions"><a href="#/jobs/new" className="ui-btn ui-btn-primary ui-btn-md">新建验证</a><a href="#/dashboard" className="ui-btn ui-btn-secondary ui-btn-md">前往工作区</a></div>
+        <div className="welcome-eyebrow">{c.eyebrow}</div>
+        <h1>{c.title}</h1>
+        <p className="guide-intro">{c.intro}</p>
+        <div className="guide-actions"><a href="#/jobs/new" className="ui-btn ui-btn-primary ui-btn-md">{c.actionNew}</a><a href="#/dashboard" className="ui-btn ui-btn-secondary ui-btn-md">{c.actionDashboard}</a></div>
       </div>
 
-      <div className="degraded"><strong>开发完成和验收通过是两种结果。</strong><p>AI 开发在你批准后修改当前仓库。独立验收主要依赖已有 Java / Spring 检查器；其他项目或无法形成检查的需求会显示覆盖不足，不能据此认定全部正确。</p></div>
-      <section className="guide-choices" aria-label="选择使用方式">
-        <article className="guide-choice"><span className="guide-kicker">我已经有代码变更</span><h2>验证这次改动</h2><p>提供代码仓库、改动前后的版本和需求文件，检查这次改动是否破坏约定。</p><a href="#/jobs/new">进入变更验证 <span aria-hidden="true">→</span></a></article>
-        <article className="guide-choice"><span className="guide-kicker">我希望 AI 帮我开发</span><h2>从需求生成实现</h2><p>在开发助手中描述任务，审阅执行计划并批准，再查看代码差异和执行结果。</p><a href="#/agent/new">进入开发助手 <span aria-hidden="true">→</span></a></article>
-        <article className="guide-choice"><span className="guide-kicker">我要评审或交付</span><h2>用证据做决定</h2><p>打开验证任务，按需求查看通过项、风险发现和证据；证据不足的项目继续确认。</p><a href="#/jobs">查看验证任务 <span aria-hidden="true">→</span></a></article>
+      <div className="degraded"><strong>{c.degradedStrong}</strong><p>{c.degradedBody}</p></div>
+      <section className="guide-choices" aria-label={c.choiceAria}>
+        <article className="guide-choice"><span className="guide-kicker">{c.choice1Kicker}</span><h2>{c.choice1Title}</h2><p>{c.choice1Body}</p><a href="#/jobs/new">{c.choice1Link} <span aria-hidden="true">→</span></a></article>
+        <article className="guide-choice"><span className="guide-kicker">{c.choice2Kicker}</span><h2>{c.choice2Title}</h2><p>{c.choice2Body}</p><a href="#/agent/new">{c.choice2Link} <span aria-hidden="true">→</span></a></article>
+        <article className="guide-choice"><span className="guide-kicker">{c.choice3Kicker}</span><h2>{c.choice3Title}</h2><p>{c.choice3Body}</p><a href="#/jobs">{c.choice3Link} <span aria-hidden="true">→</span></a></article>
       </section>
 
       <section className="guide-section" aria-labelledby="guide-start">
-        <div className="guide-section-head"><span className="guide-section-number">01</span><div><h2 id="guide-start">第一次使用，按这四步走</h2><p>先用项目提供的演示案例理解结果，再接入自己的仓库。</p></div></div>
+        <div className="guide-section-head"><span className="guide-section-number">{c.startKicker}</span><div><h2 id="guide-start">{c.startTitle}</h2><p>{c.startBody}</p></div></div>
         <div className="guide-checklist-head">
-          <strong>{summary.done} / {summary.total}</strong>
-          <span>步已由系统或你本人确认</span>
-          {summary.unknown > 0 ? <span className="guide-checklist-unknown">另有 {summary.unknown} 步现在无法判断</span> : null}
+          <strong>{c.checklistTitle(summary.done, summary.total)}</strong>
+          <span>{c.checklistBasis}</span>
+          {summary.unknown > 0 ? <span className="guide-checklist-unknown">{c.unknownBadge(summary.unknown)}</span> : null}
         </div>
         {progressUnreadable ? (
-          <p className="guide-checklist-warn" role="status">本机进度记录读不出来（浏览器存储被禁用，或内容已损坏）。下面凡依赖本机记录的步骤都显示为“无法确认”，<strong>这不代表你从未开始</strong>。</p>
+          <p className="guide-checklist-warn" role="status">{c.unreadableNote}<strong>{c.unreadableNoteBody}</strong></p>
         ) : null}
         {saveFailed ? (
-          <p className="guide-checklist-warn" role="status">刚才的勾选没能保存到本机，刷新页面后会丢失。</p>
+          <p className="guide-checklist-warn" role="status">{c.saveFailedNote}</p>
         ) : null}
         <ol className="guide-steps guide-steps-checklist">
           {ONBOARDING_STEPS.map((step) => {
@@ -198,18 +183,18 @@ export default function Guide() {
                         disabled={state === "unknown"}
                         onChange={() => tick(step.id)}
                       />
-                      <span>我已完成</span>
+                      <span>{c.manualCheckbox}</span>
                     </label>
                   ) : (
                     <span className={"guide-step-mark guide-step-mark-" + state} aria-hidden="true">
                       {state === "done" ? "✓" : state === "unknown" ? "?" : ""}
                     </span>
                   )}
-                  <strong>{step.title}</strong>
-                  <span className={"guide-step-state guide-step-state-" + state}>{STATE_LABEL[state]}</span>
-                  {step.evidence === "manual" ? <span className="guide-step-kind">需你自己确认</span> : <span className="guide-step-kind">系统检测</span>}
+                  <strong>{c.stepTitles[step.id] ?? step.title}</strong>
+                  <span className={"guide-step-state guide-step-state-" + state}>{stateLabel[state]}</span>
+                  {step.evidence === "manual" ? <span className="guide-step-kind">{c.stepkindManual}</span> : <span className="guide-step-kind">{c.stepkindAuto}</span>}
                 </div>
-                <p>{STEP_DETAIL[step.id]}</p>
+                <GuideStepDetail id={step.id} c={c} />
                 <p className="guide-step-basis">{basisNote(step, state)}</p>
               </li>
             );
@@ -218,36 +203,61 @@ export default function Guide() {
       </section>
 
       <section className="guide-section guide-example" aria-labelledby="guide-example">
-        <div className="guide-section-head"><span className="guide-section-number">02</span><div><h2 id="guide-example">用一次权限改动理解它</h2><p>仓库自带 Spring 后端示例，可在完成本地启动后填写到新建验证表单。</p></div></div>
-        <div className="guide-example-grid"><dl><div><dt>代码仓库</dt><dd><code>demo/spring-backend</code></dd></div><div><dt>改动前 → 改动后</dt><dd><code>{DEMO_VERIFY.base_ref} → {DEMO_VERIFY.head_ref}</code></dd></div><div><dt>需求文件</dt><dd><code>demo/requirement.txt</code></dd></div></dl><div className="guide-example-outcome"><span className="guide-kicker">这个案例要回答的问题</span><h3>权限检查被移除后，谁还能修改邮箱？</h3><p>需求要求所有接口都必须认证。演示仓库的 <code>{DEMO_VERIFY.head_ref}</code> 版本移除了邮箱修改接口的权限检查 — 验证预期得到 <code>BLOCKED</code> 结论，并给出风险描述与证据。</p><div className="guide-example-actions"><Button variant="primary" onClick={startDemoVerify}>用它开始一次真实验证 →</Button><span>首次使用先运行 <code>pwsh scripts/prepare_demo_repo.ps1</code> 创建演示仓库的 git 版本；{DEMO_VERIFY_ABS_PATH_NOTE}</span></div></div></div>
-        <div className="demo-prefill"><strong>想体验 AI 开发？</strong><p>也可以把预置的「修复 double 函数」示例需求带进开发助手，审阅计划并批准后，让 AI 在你的仓库里完成修复。</p><div className="demo-prefill-row"><Button size="sm" onClick={startDemoAgent}>用示例需求开始 AI 开发 →</Button><span className="demo-prefill-status">会打开向导第 2 步，你仍需填写仓库路径并审阅计划</span></div></div>
+        <div className="guide-section-head"><span className="guide-section-number">{c.exampleKicker}</span><div><h2 id="guide-example">{c.exampleTitle}</h2><p>{c.exampleBody}</p></div></div>
+        <div className="guide-example-grid"><dl><div><dt>{locale === "zh" ? "演示仓库" : "Demo repo"}</dt><dd><code>demo/spring-backend</code></dd></div><div><dt>{locale === "zh" ? "改动前 → 改动后" : "Base → Head"}</dt><dd><code>{DEMO_VERIFY.base_ref} → {DEMO_VERIFY.head_ref}</code></dd></div><div><dt>{locale === "zh" ? "需求文件" : "Requirement file"}</dt><dd><code>demo/requirement.txt</code></dd></div></dl><div className="guide-example-outcome"><span className="guide-kicker">{c.expectedKicker}</span><h3>{c.expectedTitle}</h3><p>{c.expectedBodyBefore}<code>{DEMO_VERIFY.head_ref}</code>{c.expectedBodyAfter}<code>BLOCKED</code>）{locale === "zh" ? "——铁证在手再决定。" : " — the iron speaks first."}</p><div className="guide-example-actions"><Button variant="primary" onClick={startDemoVerify}>{c.verifyNow}</Button><span>{c.demoCommands}<code>pwsh scripts/prepare_demo_repo.ps1</code>{locale === "zh" ? "创建演示仓库" : " to create the demo repo"}{DEMO_VERIFY_ABS_PATH_NOTE}</span></div></div></div>
+        <div className="demo-prefill"><strong>{c.demoHeadline}</strong><p>{c.demoBody}</p><div className="demo-prefill-row"><Button size="sm" onClick={startDemoAgent}>{c.demoCta}</Button><span className="demo-prefill-status">{c.demoNote}</span></div></div>
       </section>
 
       <section className="guide-section" aria-labelledby="guide-results">
-        <div className="guide-section-head"><span className="guide-section-number">03</span><div><h2 id="guide-results">这些结果分别意味着什么？</h2><p>执行完成与验证通过是不同的状态，不能只看一个绿色标记。</p></div></div>
+        <div className="guide-section-head"><span className="guide-section-number">{c.resultsKicker}</span><div><h2 id="guide-results">{c.resultsTitle}</h2><p>{c.resultsBody}</p></div></div>
         <div className="guide-result-grid">
-          <article><span className="guide-result-dot guide-result-ok" /><h3>验证通过 <code>VERIFIED</code></h3><p>当前范围内的检查满足要求。打开矩阵确认覆盖范围，查看可用的签名证书。</p></article>
-          <article><span className="guide-result-dot guide-result-bad" /><h3>发现风险 <code>BLOCKED</code></h3><p>有检查阻断了本次变更。先查看问题与证据，修复后再验证。</p></article>
-          <article><span className="guide-result-dot guide-result-warn" /><h3>执行失败 <code>FAILED</code></h3><p>环境或执行发生错误，尚不能对代码是否正确下结论。检查错误详情和服务状态。</p></article>
-          <article><span className="guide-result-dot" /><h3>尚未验证 <code>UNVERIFIED</code></h3><p>某条需求缺少足够证据。补充需求、检查器或运行环境后再确认。</p></article>
+          <article><span className="guide-result-dot guide-result-ok" /><h3>{c.verdictVerified} <code>VERIFIED</code></h3><p>{c.verdictVerifiedBody}</p></article>
+          <article><span className="guide-result-dot guide-result-bad" /><h3>{c.verdictBlocked} <code>BLOCKED</code></h3><p>{c.verdictBlockedBody}</p></article>
+          <article><span className="guide-result-dot guide-result-warn" /><h3>{c.verdictFailed} <code>FAILED</code></h3><p>{c.verdictFailedBody}</p></article>
+          <article><span className="guide-result-dot" /><h3>{c.verdictUnverified} <code>UNVERIFIED</code></h3><p>{c.verdictUnverifiedBody}</p></article>
         </div>
       </section>
 
       <section className="guide-section" aria-labelledby="guide-glossary">
-        <div className="guide-section-head"><span className="guide-section-number">04</span><div><h2 id="guide-glossary">不用记住术语，也能读懂结果</h2></div></div>
-        <dl className="guide-glossary">{GLOSSARY.map((entry) => <div key={entry.id}><dt>{entry.label}</dt><dd>{entry.definition}</dd></div>)}</dl>
+        <div className="guide-section-head"><span className="guide-section-number">04</span><div><h2 id="guide-glossary">{c.glossaryTitle}</h2></div></div>
+        <dl className="guide-glossary">{guideGlossary(locale, c).map((entry) => <div key={entry.id}><dt>{entry.label}</dt><dd>{entry.definition}</dd></div>)}</dl>
       </section>
 
       <section className="guide-shortcuts" aria-labelledby="guide-keyboard">
-        <h2 id="guide-keyboard">键盘与打印</h2>
+        <h2 id="guide-keyboard">{c.shortcutsTitle}</h2>
         <p>
-          嫌鼠标慢？按 <Kbd>?</Kbd> 打开快捷键总表 — 命令面板（<Kbd>Ctrl</Kbd> <Kbd>K</Kbd>）、页签切换、表格行、浮层收起，一张卡讲完；
-          任何时候 <Kbd>Esc</Kbd> 收起当前浮层。想把证据带去评审？直接 <Kbd>Ctrl</Kbd> <Kbd>P</Kbd> ——
-          打印件只有论证本身：没有导航、没有按钮、没有提示，纸——就是证据。
+          {c.shortcutsBodyBefore} <Kbd>?</Kbd> {c.shortcutsBodyMid} <Kbd>Ctrl</Kbd> <Kbd>K</Kbd>。
+          {c.shortcutsBodyEnd} <Kbd>Esc</Kbd>{locale === "zh" ? "，随时取消当前动作。" : " — cancel the current action at any time."}
         </p>
       </section>
 
-      <section className="guide-startup" aria-labelledby="guide-local"><div><h2 id="guide-local">在自己的电脑上体验</h2><p>先安装 Python 3.12、Node.js 18+、Docker Desktop，并在项目根目录安装 Python 依赖。完整步骤见项目文档 <code>docs/operations/LOCAL_EXPERIENCE.md</code>。</p><code className="guide-command">python -m pip install -e ".[dev]"<br />{START_COMMAND}</code><span role="status" className="guide-copy-status">{copyState}</span></div><Button onClick={() => { void copyCommand(); }}>复制启动命令</Button></section>
+      <section className="guide-startup" aria-labelledby="guide-local"><div><h2 id="guide-local">{c.localTitle}</h2><p>{c.localBody}</p><code className="guide-command">python -m pip install -e ".[dev]"<br />{START_COMMAND}</code><span role="status" className="guide-copy-status">{copyState}</span></div><Button onClick={() => { void copyCommand(); }}>{c.copyCommand}</Button></section>
     </div>
   );
+}
+
+function GuideStepDetail({ id, c }: { id: OnboardingStepId; c: GuideCopy }) {
+  if (id === "connect") {
+    return localeDetailZh === undefined ? null : connectDetail(id, c);
+  }
+  return genericDetail(id, c);
+}
+
+const connectDetail = (_id: string, c: GuideCopy) => (
+  <>{c.connectBodyBefore}<a href="#/settings">{c.connectBodyLink}</a>{c.connectBodyAfter}</>
+);
+const genericDetail = (id: string, c: GuideCopy) => (
+  <>{c.stepDetail[id]}</>
+);
+// Guarantees TS doesn't flag connectDetail's unused param when refactored.
+const localeDetailZh: undefined = undefined;
+
+function guideGlossary(locale: "zh" | "en", c: GuideCopy): { id: string; label: string; definition: string }[] {
+  if (locale === "zh") return GLOSSARY.map((entry) => ({ id: entry.id, label: entry.label, definition: entry.definition }));
+  return GLOSSARY.map((entry) => {
+    const gloss = c.glossaries[entry.id];
+    return gloss
+      ? { id: entry.id, label: gloss.label, definition: gloss.definition }
+      : { id: entry.id, label: entry.en || entry.id, definition: entry.en || entry.id };
+  });
 }

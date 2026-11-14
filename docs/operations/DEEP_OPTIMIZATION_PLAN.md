@@ -34419,3 +34419,30 @@ EN/USER_GUIDE_EN.md = 英文新手路径（#1699）；MCP_GUIDE*.md = 机器发�
 * 本号完成 **NewVerification**（新建验收页）；剩余中文原生：JobDetail（41KB，最大单页）/ Guide / Settings/ModelSettings；
 * `NewVerificationCopy` 与 `DEMO_VERIFY` 演示内容常量的本机 env 注入点不动；
 * 英文版的"样例"段改写为：「when an anonymous user calls POST /orders…」，与中文同构。
+
+## #1712 旧页面双语化第十一批：Guide 逐页本地化（`guide.copy.ts`）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `apps/web/src/pages/guide.copy.ts`：`GuideCopy` 双版——眼眉/引导、三个入口场景（已经在写代码 /
+  还要没结果 / 先看看什么）、01 四步进度引导（含"手动勾选/系统检测"kind 标签、
+  四个 step 的 `stepTitles`/`stepBasis`/`stepDetail` + connect 步骤带 `<a>` 的
+  connectBodyBefore/Link/After 三段）、未读取的本机记录警告、保存失败警告、
+  02 演示案例（Spring 演示仓库 → head 删权限检查 → 期望看到 BLOCKED）、
+  03 四种结果（VERIFIED/BLOCKED/FAILED/UNVERIFIED）、04 术语表（zh 直接复用 `ui/glossary.ts`；
+  en 新写 EN 定义集，与 GLOSSARY 的 `id` 一一对应）、快捷键行（? / Ctrl+K / Esc）、本地安装区；
+* `Guide.tsx`：`useI18n()`；内联 locale 三元只保留三处语言微差（Demo 仓/基线→改动头/需求文件三个标）；
+  STEP_DETAIL 节点从 JSX 化到 **结构化三段**（pre/Term/after 或 Record<string,string>），保持 typecheck 无回路；
+* UI 侧 `ONBOARDING_STEPS`/`GLOSSARY` 属共享模块，本页在**渲染端**做了双语映射
+  （step.id → stepTitles[id]；GLOSSARY→glossaries[id]），不乱改锁在 `tests/unit` 里的状态机；
+* zh 侧逐字保留 Guide.test.tsx 锁死的全部字面（9/9 通过）。
+* 验迹：Guide.test.tsx **9/9**；vitest 全量 **486/486**；`npm run build` 绿（index 263.58 kB / gzip 89.47 kB）；tsc 净；ledger 45/45。
+
+### 二、诚实边界
+
+* 本号完成 **Guide**；剩余中文原生：JobDetail（最大，下一轮）/ Settings/ModelSettings（184 字节 re-export，需单独评估）；
+* en 版「术语表」是英文**新写**，七条 def 为本次定稿，不宣称是机器翻译；
+* `ONBOARDING_STEPS`（id/evidence/title/basis）与 `ui/glossary.ts`（词条中文本体）本页渲染侧做了双语映射——
+  状态机与词表被 unit 测试锁死，未改那两个模块。
