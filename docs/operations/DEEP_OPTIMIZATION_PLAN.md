@@ -35570,3 +35570,52 @@ CJK 残留全面清查：详情页无面向用户的原生中文字面量（注�
 * CommandPalette 约 30 个 `loc("中文", "English")` 双语标签**保留**——那是本应用的双语呈现模式（中文标签 + 英文副行），非语言切换缺陷，列入「待评审」而不是「已翻」；
 * Agent 控制台 240 行级 CJK、ui-kit 剩余内部快捷键也已列入 sweep，本提交只收工 `ui/shortcuts.ts + ShortcutHelp.tsx + ui-kit 快捷键消费面`；
 * 全量 `pytest tests/unit` 未跑完。 E2E 未跑。
+
+## #1751 滚轮方向 + 压力测试双授权 —— "往下滑就往下看" 落地（opt-in 反转）；stress_smoke 已实测；一锤钢板掉在了静态服务上
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、诚实前置
+
+**这不是一个应用 bug**：本仓库全量检索——无任何 `onWheel` / `deltaY` / `mousemove`-scroll handler；无 `direction: rtl`；无 `scaleY(-1)`；
+`/apps/web` 的滚动链完全是浏览器原生行为（页面 SELF-乘 `.content { overflow-y: auto }`）：默认「往下滑 = 往下看」本就成立。
+用户感知到的反转**极可能发生在其输入栈（系统/驱动/触控板）**——此时应用侧唯一合理的对策是给用户一个开关，
+而不是把所有人的浏览器行为再反向一遍。决定：**opt-in 反转开关，默认关闭**。
+
+### 二、交付
+
+**A. 反转滚轮方向（App 外壳图标钮）**
+* `ui/ProductIcon.tsx`：新增 `invert` 图标（上下-双向箭头 glyph）；
+* `App.tsx`：`invertScroll` state（`specproof_invert_scroll`，默认 OFF）；
+  content 容器加 `wheel` 监听——**opt-in** 打开时，`deltaY * (pixel|line|page 归一化)` 反向叠加 `scrollTop`；
+  aria-pressed/label 双语 keys（`topbar.invertScroll` / `topbar.invertScrollOn` ×2 locale）；
+  侧栏/按钮均无其他 wheel 行为干扰（`.content` 只是主滚动列，不影响任何嵌套区域）；
+* **默认行为不变**——「往下滑就往下看」（本来就是 App 的当前行为）；不舒服时按一下顶栏 ⇅ 就反转。
+
+**B. `scripts/stress_smoke.py` —— 前端大门压力探针**
+* A 车道：Serve `apps/web/dist` over loopback，72 并发 × 2/线程 × 4 轮，抓取 `/` 与两个最大 JS；
+* B 车道（`--target URL`）：对指定 scratch URL 打同一压测配置（不默认指向任何部署）；
+* 报告写入 `artifacts/stress-smoke-2026-11-15.json`（gitignored）。
+
+### 三、实测（2026-11-15 本机）
+
+```text
+round 1/4: total=144 ok=76 err=47.22% p50=3460.1ms p95=10343.4ms p99=10870.0ms max=10873.1ms
+round 2/4: total=144 ok=144 err=0.00% p50=127.9ms p95=534.3ms  p99=1026.5ms max=1029.0ms
+round 3/4: total=144 ok=144 err=0.00% p50=37.2ms  p95=1025.1ms p99=1046.9ms max=1048.7ms
+round 4/4: total=144 ok=144 err=0.00% p50=39.7ms  p95=530.0ms  p99=1018.6ms max=1020.3ms
+verdict: BUDGET-BLOWN (worst err=47.22%, worst p99=10870ms)
+```
+
+**如实解读：**
+1. round 1 是**冷启动冲击**：素面 `SimpleHTTPRequestHandler`（一个同步-HTTP/threading 实现）在"72 并发同读 ~10MB 大 JS"里当场溺水——这不是应用的水平，这是 dev 探针的水平；
+2. rounds 2-4 全部 100% 2xx，p50 为 128ms→37ms→40ms，p99 均 < 1.1s——warmup 后素面服务吞吐稳定；
+3. **生产环境不在此 README/本探针里被测量**：生产经 FastAPI/uvicorn 直接静态托管 dist（`api/server.py`），
+   连接队列与能力模型完全不同；本号不生成"生产型 SLA"——只生成"本机素面的前门吞吐曲线"；
+4. 不声称可上生产——本探针 SHARK 未测出 slaw/throttling/Slowloris；它只回答"冷启动单击冲击+warm稳态"。
+
+### 四、诚实边界
+
+* 反转开关**默认关闭**——用户的 OS 侧自然滚动若是罪魁，应用不背书关掉它；
+* 反转 handler 无单测背书（jsdom 目前没有真实 layout/scrollTop 反馈），属 reviewed-not-asserted，列入待补测；
+* 全量 `pytest tests/unit` 未跑完；本号 wheel 改动走 vitest 497/497 + build + tsc + 四件套。
