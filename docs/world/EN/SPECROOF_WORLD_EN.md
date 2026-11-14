@@ -769,4 +769,50 @@ the append-only line. Evidence before people, before models, before CI runbooks 
 urge to merge a little sooner.
 
 ---
+---
+
+## Volume XVIII · The Forge and the River (卷十八 · 铁匠炉火)
+
+> Volume XVI said a tongue carries two colours; evidence carries one. Volume XVII said
+> speak to the model in two languages; it answers back in the same word.
+> This volume covers three things: **what is actually inside the forge (the IDE)**,
+> **what you actually see on the river (the graph)**, and **why a page on a screen
+> is never a substitute for the one thing that can run: your machine.**
+
+### 18.1 The forge holds no magic
+
+`#/ide` gives you three things only: an anchor rail, a copy-board, and a forge journal.
+The anchors are real files; the commands are real commands; the journal never leaves
+your browser (localStorage only, `specproof_ide_notes_v1`). There is no "cloud IDE" —
+the forge *is* the cloud IDE: one SPA, the same `apps/web/dist` FastAPI serves statically.
+Anyone promising "a SpecProof cloud IDE product" is selling smoke. Your local compiler
+is the only thing that runs your code — not a page.
+
+### 18.2 The copy-board commands are not suggestions
+
+The five spells on the copy-board — `demo_doctor.py`, `specproof verify … --no-llm`,
+the ledger four gates, `provider_smoke.py`, `cache-probe` — are byte-identical to the
+commands that run in this repo. If a future page, doc, or quickstart line on this product
+shows "specproof verify" differently, that's documentation drift — and the drift itself
+is a lie about the product. The drift is caught by `test_guide_route_catalog.py`, guarded
+by #1728's demo doctor, and it cannot slip through.
+
+### 18.3 The river is not fantasy
+
+`#/graph` draws `agent/graph.py::build_phase0_graph()` — eighteen real nodes, two real
+conditional edges (`_abort_on_preflight`, `_abort_on_errors`), one `StateGraph(Phase0State)`.
+Those two guards are extracted from `agent/nodes/`'s real callables; they will not multiply
+into a nineteenth node just because a page looks elegant.
+
+### 18.4 This volume's vow
+
+**There is no cloud IDE. There is only this server, serving this page.**
+
+The cloud IDE is the moment FastAPI mounts `apps/web/dist` — not another product, not
+another repo, not another daemon. The forge, the river, Volume XVII's probe: their only
+virtue is putting, on one screen, commands that used to be scattered across the repo.
+The forge's privacy boundary: the journal lives in `localStorage`, the chimney is your
+keyboard, the coals are your own requirement — nobody collects your data.
+
+---
 

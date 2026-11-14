@@ -1,7 +1,7 @@
 import type { Locale } from "../i18n/strings";
 
 /**
- * The English edition of the Epic page's nine scrolls.
+ * The English edition of the Epic page's ten scrolls.
  *
  * The Chinese edition lives inline in `Epic.tsx` (it is the original text of
  * the book); the English edition is kept beside it so both languages can be
@@ -188,6 +188,23 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "缓存的活案底", value: "同一轮探针 zh cached=3981 vs en cached=null——#1723 的按语仍然成立：命中率是表，不是契约" },
     ],
   },
+  {
+    num: "卷九",
+    title: "炉火与河流",
+    en: "The Forge and the River",
+    era: "2026-11 · 至今",
+    verses: [
+      "炉火不会替你干活，它只能保证你从它身边走过时，手里接到的全是真铁。",
+      "一张屏幕没法替代一台机器——它唯一的用处是把五样东西放在同一张桌上：光、铁、火、故障与真相。",
+      "河的真名叫状态机：每一滴水进来就是一个 state，出去就是一份证据。",
+    ],
+    details: [
+      { label: "铁匠工坊 #/ide（#1757）", value: "锚点 Rail 六件实物 + 抄板五条真命令 + 便笺 localStorage 落盘；云 IDE 不存在——FastAPI 静态托管同一份 SPA 而已" },
+      { label: "河流 #/graph（#1758）", value: "agent/graph.py::build_phase0_graph() 的 18 节点状态机，两条条件边如实显示；浏览器永不运行 Python" },
+      { label: "真验证过的 RAG（#1757）", value: "scripts/repo_rag.py：纯 Python TF-IDF，142 篇 markdown 检索到 top-5 → wkapi/gpt-6-sol；实测答对缓存命中率论题并 cite POCKET_CARD" },
+      { label: "/health 59 秒变一半（#1755）", value: "MySQL+Redis 探针原串行：DEAD 后 29s，并行后 27s——收益有限，诚实记录，收据里没吹牛" },
+    ],
+  },
 ];
 
 export const CLOSING_ZH = [
@@ -344,6 +361,23 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "The probe is not a gate", value: "divergence would only land in the ledger as DIVERGENT — observation, never verdict (#1723's discipline)" },
       { label: "CI guards the manual's promises", value: "#1740: .github/workflows/demo-doctor.yml; master push/PR; fetch-depth:0 keeps base/head-v1 tags — a shallow clone would hollow this gate into an alarm" },
       { label: "A living exhibit of the cache", value: "same probe run, zh cached=3981 vs en cached=null — #1723 holds: the hit rate is a surface, never a contract" },
+    ],
+  },
+  {
+    num: "Scroll 9",
+    title: "The Forge and the River",
+    en: "卷九 · 炉火与河流",
+    era: "2026-11 · today",
+    verses: [
+      "A forge does not do the work for you — it only guarantees that everything you carry away from it is real iron.",
+      "A screen cannot replace a machine; its only virtue is putting five things on the same table: light, iron, fire, failure and truth.",
+      "The river's true name is the state machine — every drop in is a state, every drop out is evidence.",
+    ],
+    details: [
+      { label: "The forge #/ide (#1757)", value: "six real anchors + five runnable spells + a forge journal (localStorage); there is no cloud IDE — FastAPI serves the SPA and calls it a day" },
+      { label: "The river #/graph (#1758)", value: "agent/graph.py::build_phase0_graph(), eighteen nodes and two guard rails, drawn verbatim — the browser never runs Python" },
+      { label: "RAG that was really run (#1757)", value: "scripts/repo_rag.py — pure-Python TF-IDF, 142 markdown files, top-5 fed to wkapi/gpt-6-sol; ask caching is not contract and get cited back to POCKET_CARD" },
+      { label: "/health 59 seconds, halved (#1755)", value: "MySQL + Redis probes ran serially: 29.18 s on dead backend; parallelized: ~27 s — marginal, honest, not sellable" },
     ],
   },
 ];

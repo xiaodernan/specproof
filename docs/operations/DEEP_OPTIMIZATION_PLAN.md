@@ -35801,3 +35801,26 @@ LangGraph 是本产品的发动机，而发动机的形状一直不是产品的�
 * 浏览器里没有真的 LangGraph 运行时——Python 状态机在服务端（`agent/graph.py`），本页只展示忠于源码的图；
 * 内容与 JSON 数据 1:1 不同步 `agent/graph.py` 的实际函数 id——不同步会重新审，不再静默偏离；
 * 全量 `pytest tests/unit` 仍未跑完；`#/graph` 未浏览器目验。
+
+## #1759 世界书卷十八《炉火与河流》+ /epic 第十卷 ——「铁匠工坊不是新产品，是同一座火炉」
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+`docs/world/SPECROOF_WORLD.md` + `docs/world/EN/SPECROOF_WORLD_EN.md`：
+卷十八《炉火与河流 (The Forge and the River)》——讲三件事：
+* 18.1 铁匠工坊里没有魔法：`#/ide` 只是三列——锚点、抄板、便笺——云 IDE 不存在，铁匠工坊 = 云 IDE（同一 SPA，静态托管）
+* 18.2 抄板里的命令不是示意：`test_guide_route_catalog.py` 盯着 copy-board 与手册不漂移
+* 18.3 河流不是玄幻：`#/graph` 画的就是 `agent/graph.py` 的真形——浏览器不运行 state 机
+* 18.4 本卷的誓言：云 IDE 没有存在，存在的是 serving 的那一刻的本服务器
+
+`apps/web/src/pages/epic.copy.ts`：`SCROLLS_ZH/SCROLLS_EN` 双增 `卷九 · 炉火与河流` / `Scroll 9 · The Forge and the River`
+（2026-11 · 至今；锚点为 #1757 #1758 以及 #1753 #1755 中记录的实测数字）；
+两本手册 §2.5/模块表：九卷 → 十卷；中文版体积 52.7KB（截至 #1758）。
+
+### 二、诚实边界
+
+* 本卷没有引入任何新的"假 cloud IDE"表述——任何将来的营销吹嘘云 IDE 者都将失败卷十八的第一条教义；
+* `/epic` 第十卷内容为 epic 所发生事件的抄写总结——不是运行时的快照；
+* 全量 `pytest tests/unit` 仍未跑完；UiKit.smoke 首次全套中有一次瞬时抖动（隔离单跑全绿），不是人为修改结果。E2E 未运行。
