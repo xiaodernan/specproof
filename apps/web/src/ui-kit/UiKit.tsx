@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useTheme, type ThemePreference } from "../theme/useTheme";
+import { useI18n } from "../i18n";
 import {
   Badge,
   Breadcrumbs,
@@ -37,19 +38,23 @@ const SHORTCUT_ROWS: ShortcutRow[] = SHORTCUT_GROUPS.flatMap((group) =>
   group.items.map((item) => ({ group: group.title, label: item.label, keys: item.keys }))
 );
 
-const SHORTCUT_COLUMNS: Column<ShortcutRow>[] = [
-  { key: "group", header: "分组" },
-  { key: "label", header: "功能" },
+function makeShortcutColumns(locale: "zh" | "en"): Column<ShortcutRow>[] {
+  const loc = (zh: string, en: string): string => (locale === "zh" ? zh : en);
+  return [
+
+  { key: "group", header: loc("分组", "Group") },
+  { key: "label", header: loc("功能", "Function") },
   {
     key: "keys",
-    header: "按键",
+    header: loc("按键", "Keys"),
     render: (row) => (
       <span style={{ display: "inline-flex", gap: "4px", alignItems: "center" }}>
         {row.keys.map((key) => <Kbd key={key}>{key}</Kbd>)}
       </span>
     ),
   },
-];
+  ];
+}
 
 /* ── demo data ────────────────────────────────────────────── */
 
@@ -59,24 +64,28 @@ interface FruitRow {
   price: number;
 }
 
-const FRUIT_COLUMNS: Column<FruitRow>[] = [
-  { key: "name", header: "名称" },
+function makeFruitColumns(locale: "zh" | "en"): Column<FruitRow>[] {
+  const loc = (zh: string, en: string): string => (locale === "zh" ? zh : en);
+  return [
+
+  { key: "name", header: loc("名称", "Name") },
   {
     key: "qty",
-    header: "库存",
+    header: loc("库存", "Stock"),
     align: "right",
     sortable: true,
     render: (row) => <span className="ui-kit-num">{row.qty}</span>,
   },
   {
     key: "price",
-    header: "单价 ¥",
+    header: loc("单价 ¥", "Unit ¥"),
     align: "right",
     sortable: true,
     sortValue: (row) => row.price,
     render: (row) => <span className="ui-kit-num">{row.price.toFixed(2)}</span>,
   },
-];
+  ];
+}
 
 const FRUIT_ROWS: FruitRow[] = [
   { name: "荔枝 Lychee", qty: 128, price: 12.5 },
@@ -87,11 +96,11 @@ const FRUIT_ROWS: FruitRow[] = [
 ];
 
 const JOB_TIMELINE: TimelineEvent[] = [
-  { id: "t1", title: "intake — 需求接收", description: "规格 spec-v1.2 解析完成", time: "09:41:02", status: "success" },
-  { id: "t2", title: "compile — 契约编译", description: "6 契约 · 2 高优先级", time: "09:41:18", status: "success" },
-  { id: "t3", title: "differential — 差分执行", description: "base→head-v1 JUnit 运行中", time: "09:42:05", status: "running" },
-  { id: "t4", title: "review — 审查庭复核", description: "等待证据汇总", time: "—", status: "idle" },
-  { id: "t5", title: "publish — 报告发布", description: "矩阵 + 证书", time: "—", status: "idle" },
+  { id: "t1", title: "intake — requirement received", description: "spec-v1.2 parsed", time: "09:41:02", status: "success" },
+  { id: "t2", title: "compile — contracts compiled", description: "6 contracts · 2 high priority", time: "09:41:18", status: "success" },
+  { id: "t3", title: "differential — running", description: "base→head-v1 JUnit running", time: "09:42:05", status: "running" },
+  { id: "t4", title: "review — review court", description: "awaiting evidence roll-up", time: "—", status: "idle" },
+  { id: "t5", title: "publish — report", description: "matrix + certificate", time: "—", status: "idle" },
 ];
 
 interface Swatch {
@@ -142,11 +151,12 @@ const SEMANTIC_SWATCHES: Swatch[] = [
 
 /* ── small layout helpers ─────────────────────────────────── */
 
-function Section(props: { id: string; title: string; en: string; children: ReactNode }): JSX.Element {
+function Section(props: { id: string; zh: string; en: string; children: ReactNode }): JSX.Element {
+  const { locale } = useI18n();
   return (
     <section className="ui-kit-section" id={props.id}>
       <h2 className="ui-kit-h2">
-        {props.title} <span className="ui-kit-h2-id">{props.en}</span>
+        {locale === "zh" ? props.zh : props.en} <span className="ui-kit-h2-id">{locale === "zh" ? props.en : props.zh}</span>
       </h2>
       {props.children}
     </section>
@@ -185,10 +195,13 @@ export default function UiKit(): JSX.Element {
   const [textValue, setTextValue] = useState("");
   const [selectValue, setSelectValue] = useState("aurora");
 
+  const { locale } = useI18n();
+  const loc = (zh: string, en: string): string => (locale === "zh" ? zh : en);
+
   const themePrefs: Array<{ id: ThemePreference; label: string; icon: ReactNode }> = [
-    { id: "system", label: "跟随系统", icon: null },
-    { id: "dark", label: "深色", icon: <MoonIcon size={12} /> },
-    { id: "light", label: "浅色", icon: <SunIcon size={12} /> },
+    { id: "system", label: loc("跟随系统", "System"), icon: null },
+    { id: "dark", label: loc("深色", "Dark"), icon: <MoonIcon size={12} /> },
+    { id: "light", label: loc("浅色", "Light"), icon: <SunIcon size={12} /> },
   ];
 
   return (
@@ -200,7 +213,7 @@ export default function UiKit(): JSX.Element {
         <span className="ui-kit-brand">SpecProof UI Kit</span>
         <span className="ui-kit-brand-sub">DESIGN SYSTEM · PHASE 1</span>
         <span className="ui-kit-spacer" />
-        <div className="ui-kit-seg" role="group" aria-label="主题 Theme">
+        <div className="ui-kit-seg" role="group" aria-label={loc("主题 Theme", "Theme")}>
           {themePrefs.map((pref) => (
             <button
               key={pref.id}
@@ -218,18 +231,18 @@ export default function UiKit(): JSX.Element {
         </div>
         <span className="ui-kit-brand-sub">resolved: {resolved}</span>
         <a className="ui-kit-brand-sub" href="#/dashboard" style={{ textDecoration: "none" }}>
-          ← 控制台
+          {loc("← 控制台", "← Console")}
         </a>
       </div>
 
       <main className="ui-kit-main">
         <div className="ui-anim-fade-in">
           <h1 className="ui-kit-h1">
-            SpecProof 设计系统 · <span className="ui-text-gradient">Aurora</span>
+            SpecProof {loc("设计系统", "Design System")} · <span className="ui-text-gradient">Aurora</span>
           </h1>
           <p className="ui-kit-lead">
-            深色优先 + 浅色主题 · 发丝边框 · 分层海拔 · 紧凑排版 · 克制动效 · 键盘优先。
-            按 <Kbd>Ctrl</Kbd> <Kbd>K</Kbd> 打开命令面板体验全局导航。
+            {loc("深色优先 + 浅色主题 · 发丝边框 · 分层海拔 · 紧凑排版 · 克制动效 · 键盘优先。", "Dark-first + light theme · hairline borders · layered elevation · compact type · restrained motion · keyboard-first.")}
+            {loc("按 ", "Press ")}<Kbd>Ctrl</Kbd> <Kbd>K</Kbd> {loc("打开命令面板体验全局导航。", "to open the command palette.")}
           </p>
         </div>
 
@@ -237,30 +250,30 @@ export default function UiKit(): JSX.Element {
           <ControlRoomPreview />
         </div>
 
-        <Section id="colors" title="色彩 Colors" en="tokens.css">
+        <Section id="colors" zh="色彩" en="Colors">
           <p className="ui-kit-lead">
-            品牌主色为自研「极光 Aurora」对 —— 电光紫 <span className="ui-kit-chip">#7C5CFF</span> 与极光青{" "}
-            <span className="ui-kit-chip">#22D3EE</span>，中性色基于 zinc 灰阶，状态色全部通过 WCAG AA 对比度。
+            {loc("品牌主色为自研「极光 Aurora」对 —— 电光紫", "The brand pair is our own Aurora — electric violet")} <span className="ui-kit-chip">#7C5CFF</span> {loc("与极光青", "and aurora cyan")}{" "}
+            <span className="ui-kit-chip">#22D3EE</span>{loc("，中性色基于 zinc 灰阶，状态色全部通过 WCAG AA 对比度。", "Neutrals are zinc shades; status colors all pass WCAG AA contrast.")}
           </p>
-          <DemoTitle>品牌 Brand</DemoTitle>
+          <DemoTitle>{loc("品牌", "Brand")}</DemoTitle>
           <div className="ui-kit-grid-4">
             {ACCENT_SWATCHES.map((s) => (
               <SwatchBlock key={s.token} swatch={s} />
             ))}
           </div>
-          <DemoTitle>中性 Zinc neutrals</DemoTitle>
+          <DemoTitle>{loc("中性 Zinc neutrals", "Zinc neutrals")}</DemoTitle>
           <div className="ui-kit-grid-4">
             {NEUTRAL_SWATCHES.map((s) => (
               <SwatchBlock key={s.token} swatch={s} />
             ))}
           </div>
-          <DemoTitle>语义状态 Semantic（随主题切换）</DemoTitle>
+          <DemoTitle>{loc("语义状态 Semantic（随主题切换）", "Semantics (switch with the theme)")}</DemoTitle>
           <div className="ui-kit-grid-2">
             {SEMANTIC_SWATCHES.map((s) => (
               <SwatchBlock key={s.token} swatch={s} />
             ))}
           </div>
-          <DemoTitle>海拔 Elevation</DemoTitle>
+          <DemoTitle>{loc("海拔 Elevation", "Elevation")}</DemoTitle>
           <div className="ui-kit-grid-4">
             <div className="ui-elev-demo" style={{ boxShadow: "var(--elev-1)" }}>elev-1</div>
             <div className="ui-elev-demo" style={{ boxShadow: "var(--elev-2)" }}>elev-2</div>
@@ -269,17 +282,17 @@ export default function UiKit(): JSX.Element {
           </div>
         </Section>
 
-        <Section id="typography" title="排版 Typography" en="system-ui / Inter stack">
+        <Section id="typography" zh="排版" en="Typography">
           <p className="ui-kit-lead">
-            系统字体栈（Inter 优先），正文 13px 起步，表格与指标一律 tabular-nums，行高 1.25 / 1.55。
+            {loc("系统字体栈（Inter 优先），正文 13px 起步，表格与指标一律 tabular-nums，行高 1.25 / 1.55。", "System font stack (Inter first), body from 13px; tables and metrics are tabular-nums; line-height 1.25 / 1.55.")}
           </p>
           {[
-            { size: "var(--text-4xl)", name: "fs-30", sample: "验证防火墙 Verification Firewall" },
-            { size: "var(--text-3xl)", name: "fs-24", sample: "差分验证 · AUTH-01" },
-            { size: "var(--text-2xl)", name: "fs-20", sample: "契约中心 Contract Registry" },
-            { size: "var(--text-xl)", name: "fs-16", sample: "合并证书 Merge Certificate" },
-            { size: "var(--text-lg)", name: "fs-14", sample: "证据矩阵 Evidence Matrix — 静态 + 运行时双重证据" },
-            { size: "var(--text-sm)", name: "fs-12", sample: "辅助信息 Muted caption · 12px" },
+            { size: "var(--text-4xl)", name: "fs-30", sample: loc("验证防火墙 Verification Firewall", "Verification Firewall")},
+            { size: "var(--text-3xl)", name: "fs-24", sample: loc("差分验证 · AUTH-01", "Differential verification · AUTH-01")},
+            { size: "var(--text-2xl)", name: "fs-20", sample: loc("契约中心 Contract Registry", "Contract Registry")},
+            { size: "var(--text-xl)", name: "fs-16", sample: loc("合并证书 Merge Certificate", "Merge Certificate")},
+            { size: "var(--text-lg)", name: "fs-14", sample: loc("证据矩阵 Evidence Matrix — 静态 + 运行时双重证据", "Evidence Matrix — static + runtime evidence")},
+            { size: "var(--text-sm)", name: "fs-12", sample: loc("辅助信息 Muted caption · 12px", "Muted caption · 12px")},
             { size: "var(--text-xs)", name: "fs-11", sample: "UPPERCASE LABEL · LETTER-SPACING" },
           ].map((row) => (
             <div className="ui-kit-type-row" key={row.name}>
@@ -295,85 +308,85 @@ export default function UiKit(): JSX.Element {
           </div>
         </Section>
 
-        <Section id="buttons" title="按钮 Buttons" en="primary / secondary / ghost / danger">
-          <DemoTitle>变体 Variants</DemoTitle>
+        <Section id="buttons" zh="按钮" en="Buttons">
+          <DemoTitle>{loc("变体 Variants", "Variants")}</DemoTitle>
           <Demo>
-            <Button variant="primary">主要操作</Button>
-            <Button variant="secondary">次要操作</Button>
-            <Button variant="ghost">幽灵操作</Button>
-            <Button variant="danger">危险操作</Button>
+            <Button variant="primary">{loc("主要操作", "Primary")}</Button>
+            <Button variant="secondary">{loc("次要操作", "Secondary")}</Button>
+            <Button variant="ghost">{loc("幽灵操作", "Ghost")}</Button>
+            <Button variant="danger">{loc("危险操作", "Danger")}</Button>
           </Demo>
-          <DemoTitle>尺寸 Sizes</DemoTitle>
+          <DemoTitle>{loc("尺寸 Sizes", "Sizes")}</DemoTitle>
           <Demo>
-            <Button variant="primary" size="sm">小 sm</Button>
-            <Button variant="primary" size="md">中 md</Button>
-            <Button variant="primary" size="lg">大 lg</Button>
-            <Button variant="secondary" size="sm">小 sm</Button>
-            <Button variant="secondary" size="md">中 md</Button>
-            <Button variant="secondary" size="lg">大 lg</Button>
+            <Button variant="primary" size="sm">{loc("小 sm", "sm")}</Button>
+            <Button variant="primary" size="md">{loc("中 md", "md")}</Button>
+            <Button variant="primary" size="lg">{loc("大 lg", "lg")}</Button>
+            <Button variant="secondary" size="sm">{loc("小 sm", "sm")}</Button>
+            <Button variant="secondary" size="md">{loc("中 md", "md")}</Button>
+            <Button variant="secondary" size="lg">{loc("大 lg", "lg")}</Button>
           </Demo>
-          <DemoTitle>状态 States</DemoTitle>
+          <DemoTitle>{loc("状态 States", "States")}</DemoTitle>
           <Demo>
-            <Button variant="primary" loading>提交中</Button>
-            <Button variant="secondary" loading>同步中</Button>
-            <Button variant="primary" disabled>禁用</Button>
-            <Button variant="danger" disabled>禁用</Button>
+            <Button variant="primary" loading>{loc("提交中", "Submitting…")}</Button>
+            <Button variant="secondary" loading>{loc("同步中", "Syncing…")}</Button>
+            <Button variant="primary" disabled>{loc("禁用", "Disabled")}</Button>
+            <Button variant="danger" disabled>{loc("禁用", "Disabled")}</Button>
             <Button variant="secondary" fullWidth style={{ maxWidth: 240 }}>
-              全宽按钮
+              {loc("全宽按钮", "Full width")}
             </Button>
           </Demo>
         </Section>
 
-        <Section id="forms" title="表单 Form fields" en="label + error + hint">
-          <p className="ui-kit-lead">所有控件自带 label、错误与提示状态，错误态会同步 aria-invalid 与描述文本。</p>
+        <Section id="forms" zh="表单" en="Form fields">
+          <p className="ui-kit-lead">{loc("所有控件自带 label、错误与提示状态，错误态会同步 aria-invalid 与描述文本。", "Every control ships label, error and hint states — errors sync aria-invalid and the description text.")}</p>
           <div className="ui-kit-grid-2">
             <div className="ui-kit-demo-col" style={{ gap: 16 }}>
-              <Input label="仓库地址 Repository" placeholder="https://github.com/org/repo" hint="Base/Head 差分源" />
-              <Input label="任务名称 Job name" required error="任务名称不能为空" defaultValue="" placeholder="verify-auth-01" />
-              <Input label="禁用 Disabled" disabled defaultValue="不可编辑" />
-              <Select label="主题基调 Theme" value={selectValue} onChange={(e) => setSelectValue(e.target.value)}>
-                <option value="aurora">Aurora 极光</option>
-                <option value="zinc">Zinc 石墨</option>
-                <option value="mono">Mono 终端</option>
+              <Input label={loc("仓库地址 Repository", "Repository")} placeholder="https://github.com/org/repo" hint={loc("Base/Head 差分源", "Base/head differential")} />
+              <Input label={loc("任务名称 Job name", "Job name")} required error={loc("任务名称不能为空", "Job name is required")} defaultValue="" placeholder="verify-auth-01" />
+              <Input label={loc("禁用 Disabled", "Disabled")} disabled defaultValue={loc("不可编辑", "Read-only")} />
+              <Select label={loc("主题基调 Theme", "Theme")} value={selectValue} onChange={(e) => setSelectValue(e.target.value)}>
+                <option value="aurora">{loc("Aurora 极光", "Aurora")}</option>
+                <option value="zinc">{loc("Zinc 石墨", "Zinc")}</option>
+                <option value="mono">{loc("Mono 终端", "Mono")}</option>
               </Select>
               <Textarea
-                label="需求规范 Specification"
+                label={loc("需求规范 Specification", "Specification")}
                 value={textValue}
                 onChange={(e) => setTextValue(e.target.value)}
-                placeholder="粘贴需求文本，或从仓库读取…"
-                hint={textValue.length + " 字符"}
+                placeholder={loc("粘贴需求文本，或从仓库读取…", "Paste the requirement, or read it from the repo…")}
+                hint={textValue.length + " " + loc("字符", "characters")}
               />
             </div>
             <div className="ui-kit-demo-col" style={{ gap: 16 }}>
-              <Checkbox label="自动生成回归用例" checked={checkA} onChange={(e) => setCheckA(e.target.checked)} />
-              <Checkbox label="拦截 BLOCKER 自动阻断合并" checked={checkB} onChange={(e) => setCheckB(e.target.checked)} />
-              <Checkbox label="不确定态 Indeterminate" indeterminate />
-              <Checkbox label="错误状态" error="需要先配置 Gate" checked={false} onChange={() => undefined} />
-              <Checkbox label="禁用 Disabled" disabled checked />
+              <Checkbox label={loc("自动生成回归用例", "Auto-generate regression cases")} checked={checkA} onChange={(e) => setCheckA(e.target.checked)} />
+              <Checkbox label={loc("拦截 BLOCKER 自动阻断合并", "Block merges on BLOCKER")} checked={checkB} onChange={(e) => setCheckB(e.target.checked)} />
+              <Checkbox label={loc("不确定态 Indeterminate", "Indeterminate")} indeterminate />
+              <Checkbox label={loc("错误状态", "Error state")} error={loc("需要先配置 Gate", "Configure a gate first")} checked={false} onChange={() => undefined} />
+              <Checkbox label={loc("禁用 Disabled", "Disabled")} disabled checked />
             </div>
           </div>
         </Section>
 
-        <Section id="data" title="数据展示 Data display" en="tables · badges · dots · progress · timeline">
-          <DemoTitle>可排序表格（粘性表头 · 紧凑模式）</DemoTitle>
+        <Section id="data" zh="数据展示" en="Data display">
+          <DemoTitle>{loc("可排序表格（粘性表头 · 紧凑模式）", "Sortable table (sticky header · compact)")}</DemoTitle>
           <Demo col>
             <div style={{ width: "100%", maxWidth: 560 }}>
-              <Table columns={FRUIT_COLUMNS} rows={FRUIT_ROWS} rowKey={(row) => row.name} />
+              <Table columns={makeFruitColumns(locale)} rows={FRUIT_ROWS} rowKey={(row) => row.name} />
             </div>
             <div style={{ width: "100%", maxWidth: 560, maxHeight: 150 }}>
-              <Table columns={FRUIT_COLUMNS} rows={FRUIT_ROWS} rowKey={(row) => row.name} dense />
+              <Table columns={makeFruitColumns(locale)} rows={FRUIT_ROWS} rowKey={(row) => row.name} dense />
             </div>
             <div style={{ width: "100%", maxWidth: 560 }}>
               <Table
-                columns={FRUIT_COLUMNS}
+                columns={makeFruitColumns(locale)}
                 rows={[]}
                 rowKey={(row) => row.name}
-                emptyTitle="没有契约 No contracts"
-                emptyDescription="为当前任务创建一个契约后重试。"
+                emptyTitle={loc("没有契约 No contracts", "No contracts")}
+                emptyDescription={loc("为当前任务创建一个契约后重试。", "Install a contract for the current task and retry.")}
               />
             </div>
           </Demo>
-          <DemoTitle>徽章 Badges</DemoTitle>
+          <DemoTitle>{loc("徽章 Badges", "Badges")}</DemoTitle>
           <Demo>
             <Badge tone="neutral">NEUTRAL</Badge>
             <Badge tone="accent">ACCENT</Badge>
@@ -382,40 +395,40 @@ export default function UiKit(): JSX.Element {
             <Badge tone="danger">BLOCKED</Badge>
             <Badge tone="info">RUNNING</Badge>
           </Demo>
-          <DemoTitle>状态点 StatusDots（running 带脉冲）</DemoTitle>
+          <DemoTitle>{loc("状态点 StatusDots（running 带脉冲）", "StatusDots (running pulses)")}</DemoTitle>
           <Demo>
-            <StatusDot status="running" label="运行中" />
-            <StatusDot status="success" label="通过" />
-            <StatusDot status="warning" label="警告" />
-            <StatusDot status="danger" label="失败" />
-            <StatusDot status="idle" label="排队" />
-            <StatusDot status="neutral" label="未知" />
+            <StatusDot status="running" label={loc("运行中", "Running")} />
+            <StatusDot status="success" label={loc("通过", "Passed")} />
+            <StatusDot status="warning" label={loc("警告", "Warning")} />
+            <StatusDot status="danger" label={loc("失败", "Failed")} />
+            <StatusDot status="idle" label={loc("排队", "Queued")} />
+            <StatusDot status="neutral" label={loc("未知", "Unknown")} />
           </Demo>
-          <DemoTitle>进度 Progress</DemoTitle>
+          <DemoTitle>{loc("进度 Progress", "Progress")}</DemoTitle>
           <div className="ui-kit-grid-2">
             <div className="ui-kit-demo-col">
-              <Progress label="门禁通过率" value={98} tone="success" showValue />
-              <Progress label="证据覆盖" value={86} showValue />
-              <Progress label="回归检测" value={74} tone="warning" showValue />
-              <Progress label="风险" value={12} tone="danger" showValue size="sm" />
-              <Progress label="大尺寸" value={60} size="lg" />
+              <Progress label={loc("门禁通过率", "Gate pass rate")} value={98} tone="success" showValue />
+              <Progress label={loc("证据覆盖", "Evidence coverage")} value={86} showValue />
+              <Progress label={loc("回归检测", "Regressions caught")} value={74} tone="warning" showValue />
+              <Progress label={loc("风险", "Risk")} value={12} tone="danger" showValue size="sm" />
+              <Progress label={loc("大尺寸", "Large size")} value={60} size="lg" />
             </div>
             <Demo col>
-              <DemoTitle>事件时间线 Timeline（job events）</DemoTitle>
+              <DemoTitle>{loc("事件时间线 Timeline（job events）", "Timeline (job events)")}</DemoTitle>
               <Timeline events={JOB_TIMELINE} />
             </Demo>
           </div>
-          <DemoTitle>面包屑 Breadcrumbs</DemoTitle>
+          <DemoTitle>{loc("面包屑 Breadcrumbs", "Breadcrumbs")}</DemoTitle>
           <Demo>
             <Breadcrumbs
               items={[
                 { label: "Agent", href: "#/agent" },
-                { label: "任务", href: "#/agent" },
+                { label: loc("任务", "Tasks"), href: "#/agent" },
                 { label: "SP-2480" },
               ]}
             />
           </Demo>
-          <DemoTitle>键盘键 Kbd</DemoTitle>
+          <DemoTitle>{loc("键盘键 Kbd", "Kbd")}</DemoTitle>
           <Demo>
             <Kbd>Ctrl</Kbd>
             <Kbd>K</Kbd>
@@ -426,45 +439,45 @@ export default function UiKit(): JSX.Element {
           </Demo>
         </Section>
 
-        <Section id="navigation" title="导航 Navigation" en="tabs · tooltips · command palette">
-          <DemoTitle>标签页 Tabs（← → 方向键切换）</DemoTitle>
+        <Section id="navigation" zh="导航" en="Navigation">
+          <DemoTitle>{loc("标签页 Tabs（← → 方向键切换）", "Tabs (← → to switch)")}</DemoTitle>
           <Demo col>
             <Tabs
-              ariaLabel="示例标签页"
+              ariaLabel={loc("示例标签页", "Example tabs")}
               items={[
-                { id: "overview", label: "总览", content: <p style={{ fontSize: "var(--text-md)", color: "var(--color-text-2)" }}>总览面板 — 任务统计与最近验证。</p> },
-                { id: "matrix", label: "证据矩阵", content: <p style={{ fontSize: "var(--text-md)", color: "var(--color-text-2)" }}>矩阵面板 — 契约 × 证据类型。</p> },
-                { id: "gates", label: "门禁", content: <p style={{ fontSize: "var(--text-md)", color: "var(--color-text-2)" }}>门禁面板 — 通过 / 阻断 / 待复核。</p> },
-                { id: "disabled", label: "禁用", disabled: true },
+                { id: "overview", label: loc("总览", "Overview"), content: <p style={{ fontSize: "var(--text-md)", color: "var(--color-text-2)" }}>{loc("总览面板 — 任务统计与最近验证。", "Overview — task stats and recent verifications.")}</p> },
+                { id: "matrix", label: loc("证据矩阵", "Matrix"), content: <p style={{ fontSize: "var(--text-md)", color: "var(--color-text-2)" }}>{loc("矩阵面板 — 契约 × 证据类型。", "Matrix panel — contract × evidence type.")}</p> },
+                { id: "gates", label: loc("门禁", "Gates"), content: <p style={{ fontSize: "var(--text-md)", color: "var(--color-text-2)" }}>{loc("门禁面板 — 通过 / 阻断 / 待复核。", "Gates panel — pass / block / review.")}</p> },
+                { id: "disabled", label: loc("禁用", "Disabled"), content: loc("禁用", "Disabled"), disabled: true },
               ]}
             />
           </Demo>
-          <DemoTitle>提示 Tooltip（悬停 / 聚焦 300ms 延迟）</DemoTitle>
+          <DemoTitle>{loc("提示 Tooltip（悬停 / 聚焦 300ms 延迟）", "Tooltip (hover / focus, 300ms delay)")}</DemoTitle>
           <Demo>
-            <Tooltip content="顶部提示 Top">
+            <Tooltip content={loc("顶部提示 Top", "Top")}>
               <Button variant="secondary" size="sm">Top</Button>
             </Tooltip>
-            <Tooltip content="底部提示 Bottom" side="bottom">
+            <Tooltip content={loc("底部提示 Bottom", "Bottom")} side="bottom">
               <Button variant="secondary" size="sm">Bottom</Button>
             </Tooltip>
-            <Tooltip content="左侧提示 Left" side="left">
+            <Tooltip content={loc("左侧提示 Left", "Left")} side="left">
               <Button variant="secondary" size="sm">Left</Button>
             </Tooltip>
-            <Tooltip content="右侧提示 Right" side="right">
+            <Tooltip content={loc("右侧提示 Right", "Right")} side="right">
               <Button variant="secondary" size="sm">Right</Button>
             </Tooltip>
           </Demo>
-          <DemoTitle>命令面板 CommandPalette（Ctrl / Cmd + K）</DemoTitle>
+          <DemoTitle>{loc("命令面板 CommandPalette（Ctrl / Cmd + K）", "CommandPalette (Ctrl / Cmd + K)")}</DemoTitle>
           <Demo col>
             <p style={{ fontSize: "var(--text-md)", color: "var(--color-text-2)" }}>
-              面板已全局挂载：可导航全部 <span className="ui-kit-chip">/agent/*</span> 与已验证路由、切换主题、打开
-              localStorage 中的最近任务。现在按 <Kbd>Ctrl</Kbd> <Kbd>K</Kbd> 试试 —— 本页面无需登录即可使用。
+              {loc("面板已全局挂载：可导航全部 ", "Mounted globally — navigate all ")}<span className="ui-kit-chip">/agent/*</span> {loc("与已验证路由、切换主题、打开", " and verified routes, switch themes, and open")}
+              {loc("localStorage 中的最近任务。现在按 ", "Recent tasks in localStorage. Press ")}<Kbd>Ctrl</Kbd> <Kbd>K</Kbd> {loc("试试 —— 本页面无需登录即可使用。", "to try it — no login required on this page.")}
             </p>
           </Demo>
-          <DemoTitle>键盘快捷键 ShortcutHelp（按 <Kbd>?</Kbd> 打开）</DemoTitle>
+          <DemoTitle>{loc("键盘快捷键 ShortcutHelp（按 ", "ShortcutHelp (press ")}<Kbd>?</Kbd>{loc(" 打开）", ") to open")}</DemoTitle>
           <Demo col>
             <Table
-              columns={SHORTCUT_COLUMNS}
+              columns={makeShortcutColumns(locale)}
               rows={SHORTCUT_ROWS}
               rowKey={(row) => row.group + ":" + row.label}
               dense
@@ -472,20 +485,20 @@ export default function UiKit(): JSX.Element {
           </Demo>
         </Section>
 
-        <Section id="feedback" title="反馈 Feedback" en="modal · toast · skeleton · empty state">
-          <DemoTitle>对话框 Modal（焦点陷阱 · Esc 关闭）</DemoTitle>
+        <Section id="feedback" zh="反馈" en="Feedback">
+          <DemoTitle>{loc("对话框 Modal（焦点陷阱 · Esc 关闭）", "Modal (focus trap · Esc closes)")}</DemoTitle>
           <Demo>
-            <Button variant="primary" onClick={() => setModalOpen(true)}>打开对话框</Button>
-            <span className="ui-kit-chip">Esc 关闭 · Tab 焦点循环 · 关闭后焦点还原</span>
+            <Button variant="primary" onClick={() => setModalOpen(true)}>{loc("打开对话框", "Open dialog")}</Button>
+            <span className="ui-kit-chip">{loc("Esc 关闭 · Tab 焦点循环 · 关闭后焦点还原", "Esc closes · Tab cycles focus · focus returns on close")}</span>
           </Demo>
-          <DemoTitle>通知 Toast（右下角堆叠 · 悬停暂停）</DemoTitle>
+          <DemoTitle>{loc("通知 Toast（右下角堆叠 · 悬停暂停）", "Toast (bottom-right · hover pauses)")}</DemoTitle>
           <Demo>
-            <Button variant="primary" size="sm" onClick={() => toast.toast({ title: "验证通过", description: "SP-2481 · AUTH-01 全部契约通过", tone: "success" })}>成功</Button>
-            <Button variant="secondary" size="sm" onClick={() => toast.toast({ title: "正在执行", description: "差分执行运行中，预计 40s", tone: "info" })}>信息</Button>
-            <Button variant="secondary" size="sm" onClick={() => toast.toast({ title: "2 个 MAJOR", description: "证据矩阵存在未处理警告", tone: "warning" })}>警告</Button>
-            <Button variant="danger" size="sm" onClick={() => toast.toast({ title: "BLOCKER 拦截", description: "base_pass_head_fail · H2 取证", tone: "danger", duration: 0 })}>错误（常驻）</Button>
+            <Button variant="primary" size="sm" onClick={() => toast.toast({ title: loc("验证通过", "Verified"), description: loc("SP-2481 · AUTH-01 全部契约通过", "SP-2481 · AUTH-01 all contracts passed"), tone: "success" })}>{loc("成功", "Success")}</Button>
+            <Button variant="secondary" size="sm" onClick={() => toast.toast({ title: loc("正在执行", "Running"), description: loc("差分执行运行中，预计 40s", "Differential running, ~40s left"), tone: "info" })}>{loc("信息", "Info")}</Button>
+            <Button variant="secondary" size="sm" onClick={() => toast.toast({ title: loc("2 个 MAJOR", "2 MAJORS"), description: loc("证据矩阵存在未处理警告", "The matrix carries unhandled warnings"), tone: "warning" })}>{loc("警告", "Warning")}</Button>
+            <Button variant="danger" size="sm" onClick={() => toast.toast({ title: loc("BLOCKER 拦截", "BLOCKER gate"), description: loc("base_pass_head_fail · H2 取证", "base_pass_head_fail · H2 evidence"), tone: "danger", duration: 0 })}>{loc("错误（常驻）", "Error (persistent)")}</Button>
           </Demo>
-          <DemoTitle>骨架屏 Skeleton</DemoTitle>
+          <DemoTitle>{loc("骨架屏 Skeleton", "Skeleton")}</DemoTitle>
           <Demo col>
             <Skeleton variant="text" width={240} />
             <Skeleton variant="text" width={320} />
@@ -498,32 +511,32 @@ export default function UiKit(): JSX.Element {
               </div>
             </div>
           </Demo>
-          <DemoTitle>空状态 EmptyState</DemoTitle>
+          <DemoTitle>{loc("空状态 EmptyState", "EmptyState")}</DemoTitle>
           <Demo col>
             <EmptyState
               icon={<InboxIcon size={18} />}
-              title="暂无验证任务 No jobs yet"
-              description="创建第一个验证任务后，执行管道与证据矩阵会显示在这里。"
-              action={<Button variant="secondary" size="sm">新建任务</Button>}
+              title={loc("暂无验证任务 No jobs yet", "No jobs yet")}
+              description={loc("创建第一个验证任务后，执行管道与证据矩阵会显示在这里。", "Run your first verification — the pipeline and evidence matrix appear here.")}
+              action={<Button variant="secondary" size="sm">{loc("新建任务", "New task")}</Button>}
             />
           </Demo>
         </Section>
 
-        <Section id="cards" title="卡片 Cards" en="hairline + layered elevation">
+        <Section id="cards" zh="卡片" en="Cards">
           <div className="ui-kit-grid-2">
-            <Card title="契约中心 Contract registry" subtitle="6 契约 · 2 高优先级" actions={<Badge tone="accent">LIVE</Badge>}>
+            <Card title={loc("契约中心 Contract registry", "Contract registry")} subtitle={loc("6 契约 · 2 高优先级", "6 contracts · 2 high priority")} actions={<Badge tone="accent">LIVE</Badge>}>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: "var(--text-md)" }}>
-                <span>AUTH-01 · 邮箱变更认证 — <Badge tone="success">PASS</Badge></span>
-                <span>EVT-04 · 事件幂等 — <Badge tone="info">RUNNING</Badge></span>
-                <span>BROKER-02 · 重试去重 — <Badge tone="danger">FAIL</Badge></span>
+                <span>{loc("AUTH-01 · 邮箱变更认证 — ", "AUTH-01 · email-change auth — ")}<Badge tone="success">PASS</Badge></span>
+                <span>{loc("EVT-04 · 事件幂等 — ", "EVT-04 · event idempotency — ")}<Badge tone="info">RUNNING</Badge></span>
+                <span>{loc("BROKER-02 · 重试去重 — ", "BROKER-02 · retry dedup — ")}<Badge tone="danger">FAIL</Badge></span>
               </div>
             </Card>
             <Card
-              title="门禁 Gates"
-              subtitle="合并前检查"
-              actions={<Button variant="ghost" size="sm">编辑</Button>}
+              title={loc("门禁 Gates", "Gates")}
+              subtitle={loc("合并前检查", "Pre-merge check")}
+              actions={<Button variant="ghost" size="sm">{loc("编辑", "Edit")}</Button>}
             >
-              <Progress label="通过率" value={98} tone="success" showValue />
+              <Progress label={loc("通过率", "Pass rate")} value={98} tone="success" showValue />
             </Card>
           </div>
         </Section>
@@ -531,7 +544,7 @@ export default function UiKit(): JSX.Element {
         <footer className="ui-kit-foot">
           <span>SpecProof UI Kit · Phase 1 foundation — tokens / theme / 21 components / palette</span>
           <span>
-            动效 <span className="ui-kit-chip">120–240ms</span> · 全部遵循 prefers-reduced-motion
+            {loc("动效 ", "Motion ")}<span className="ui-kit-chip">120–240ms</span>{loc(" · 全部遵循 prefers-reduced-motion", " · all honoring prefers-reduced-motion")}
           </span>
         </footer>
       </main>
@@ -539,22 +552,22 @@ export default function UiKit(): JSX.Element {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title="新建验证任务"
+        title={loc("新建验证任务", "New verification")}
         footer={
           <>
-            <Button variant="ghost" onClick={() => setModalOpen(false)}>取消</Button>
-            <Button variant="primary" onClick={() => setModalOpen(false)}>创建任务</Button>
+            <Button variant="ghost" onClick={() => setModalOpen(false)}>{loc("取消", "Cancel")}</Button>
+            <Button variant="primary" onClick={() => setModalOpen(false)}>{loc("创建任务", "Create task")}</Button>
           </>
         }
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <Input label="任务名称" placeholder="verify-auth-01" />
-          <Input label="仓库地址" placeholder="https://github.com/org/repo" />
-          <Select label="基线 Base">
+          <Input label={loc("任务名称", "Job name")} placeholder="verify-auth-01" />
+          <Input label={loc("仓库地址", "Repository")} placeholder="https://github.com/org/repo" />
+          <Select label={loc("基线 Base", "Baseline")}>
             <option>main</option>
             <option>release/v1</option>
           </Select>
-          <Checkbox label="自动生成回归用例" defaultChecked />
+          <Checkbox label={loc("自动生成回归用例", "Auto-generate regression cases")} defaultChecked />
         </div>
       </Modal>
     </div>

@@ -34691,3 +34691,33 @@ UI 层词表 i18n 是下一桩独立工程。
 
 * 铁律是已经在执行的规矩，不是本卷新发明；措辞直接对照仓库里的 commit 与账本；
 * 「连接可疑的手」与「接受」按钮的产品语义一致：button click 不代 agent 做决定。
+
+## #1721 旧页面双语化最后一块：/ui-kit 设计系统导览页全量本地化
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+`#/ui-kit` 是**面向访客和工程师的公开门面**（从 Aurora 设计系统到组件库全集，不需要凭据可看）——
+此前满屏中文。本号把它整块搬进双语世界：
+
+* 模块级数据（SHORTCUT_COLUMNS / FRUIT_COLUMNS）改为 locale 参数工厂——**由于在模块作用域里，
+  `loc()` 钩子不能直接用，故改为 `makeShortcutColumns(locale)` / `makeFruitColumns(locale)` 工厂**，
+  按渲染时的 locale 构造列定义；
+* `function Section({ id, zh, en })`：Section 标题按 `locale === "zh" ? props.zh : props.en` 分辨，
+  英文态下顺序组合「English title」+「zh 小字副标题」切换为「zh 字小标题」；
+* 全页所有散文（品牌介绍、组件签名、状态语义）逐条走 `loc("…", "…")`：
+  设计系统名称（SpecProof Design System · Aurora）、品牌色（极光/electric violet/极光青/aurora cyan）、
+  状态语义（门禁/matrix/…）、强调字样使用 &middot; 英标、所有 Input/Checkbox/Select demo 行的 label 与 placeholder
+  （如「主题基调」→ `{loc("主题基调 Theme", "Theme")}`）；
+* 示例线性演示里的 demo 行（FRUIT_ROWS 荔枝/山竹/…）以「中文名 + 拼音音译」成对保留——
+  属于双语片段展示，不是夹杂；
+* 验迹：vitest **62 文件 · 491/491**（UiKit.smoke.test.tsx 2/2 绿）；
+  `npm run build` 绿；tsc 净；ledger 45/45。
+
+### 二、诚实边界
+
+* `#/ui-kit` 仍使用 `DemoTitle` 等共享私有组件——未重写共享组件 API，只改了调用处文案；
+* demo 数据行（荔枝 Lychee、山竹 Mangosteen 等）保留「中文名 + 英文音译」——这是刻意的
+  双语展示不是文字混排；
+* UiKit.tsx 体积从 25478 B 增至约 27.3 KB；无逻辑改动。
