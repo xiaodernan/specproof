@@ -35773,3 +35773,31 @@ verdict: BUDGET-BLOWN worst err=100%
 * Ide 的三组美学（真实锚点、抄板、便笺）是刻意的；任何呈现效果以 1/1000 人眼但凡觉得美的标准自评打分，不为好看而虚伪任何锚点；
 * RAG 是 "retrieval-only quality gate"：没有评测结果声明，即不被当作 "SpecProof 已经有 RAG""；
 * 全量 `pytest tests/unit` 仍未跑完；ide 未浏览器目验。
+
+## #1758 验收之流 `#/graph` —— LangGraph 的真相图在浏览器里（没跑的节点不画，没编的节点不装）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、诱因
+
+LangGraph 是本产品的发动机，而发动机的形状一直不是产品的一等公民页面。要把 LangGraph 知识显性化并内化到产品里：让读者看见状态机的真形状，而不是另写一套并存的流程说明。
+
+### 二、交付
+
+* `apps/web/src/pages/graph.copy.ts` —— 手工同步 `agent/graph.py` 的节点清单（18 个真节点；不编、不猜；
+  `_abort_on_preflight` / `_abort_on_errors` 两条条件边明示存在于文案，但**不**伪造它们的返回值）：
+  分六章（入院与关口 → 双工作区 → 差分之前 → 对账与反证 → 证据封装 → 交割）；每节点：
+  `label` + 一行中英双语解释 + `guard` 角标；编号使用 Ⅰ–Ⅵ 罗马；锚点真（对应 worker 节点与 agent 内部调用名）。
+* `apps/web/src/pages/Graph.tsx` —— 页端布局：大幅章标 + 分章节卡片 + 罗马数字 index；
+  页脚注释（`agent/graph.py` + `_abort_on_preflight/_abort_on_errors` 的两条条件边只引用其源码形状，不伪造其返回值）。
+* App.tsx 新增 `#/graph` 路由（evidence group，20 个一级入口 · 20 页双语口径）；
+  `nav.graph` 双键 ×2 locale；`graph.title|subtitle|lead` 三键 ×2 locale；i18n parity 仍双向对称。
+* 两本用户手册 §3 模块表补 `/graph` 行（20 页口径）。
+* Build ✅ in 554ms；vitest 497/497；guide gate 51/51。
+
+### 三、诚实边界
+
+* 节点**未用动画或伪造位 stream**——静态画布不伪装成引擎；
+* 浏览器里没有真的 LangGraph 运行时——Python 状态机在服务端（`agent/graph.py`），本页只展示忠于源码的图；
+* 内容与 JSON 数据 1:1 不同步 `agent/graph.py` 的实际函数 id——不同步会重新审，不再静默偏离；
+* 全量 `pytest tests/unit` 仍未跑完；`#/graph` 未浏览器目验。

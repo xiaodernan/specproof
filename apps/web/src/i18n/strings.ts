@@ -26,6 +26,7 @@ const zh = {
   "nav.epic": "史诗",
   "nav.tour": "巡览",
   "nav.ide": "铁匠工坊",
+  "nav.graph": "验收之流",
   "nav.lexicon": "铁证词典",
   "nav.museum": "铁证博物馆",
   "nav.gestures": "验收官十四式",
@@ -49,6 +50,11 @@ const zh = {
   "ide.deleteNote": "烧掉",
   "ide.exportOk": "已导出",
   "ide.footNote": "本页所有锚点均为仓库真实路径；便笺仅写在本机（localStorage）。",
+
+  // ── graph · pipeline view ─────────────────────────────────────
+  "graph.title": "验收之流",
+  "graph.subtitle": "THE RIVER OF IRON",
+  "graph.lead": "你在每一个 SpecProof job 里看到的那些节点，是如何从 requirement 走到 capsule 的。这一页，就是那条河。",
   "nav.jobDetail": "验收详情",
 
   // ── groups ─────────────────────────────────────────────────────
@@ -481,6 +487,7 @@ const en: Record<keyof typeof zh, string> = {
   "nav.epic": "Chronicles",
   "nav.tour": "Grand Tour",
   "nav.ide": "The Forge",
+  "nav.graph": "The River",
   "nav.lexicon": "Iron Lexicon",
   "nav.museum": "Evidence Museum",
   "nav.gestures": "Fourteen Gestures",
@@ -504,6 +511,11 @@ const en: Record<keyof typeof zh, string> = {
   "ide.deleteNote": "Burn",
   "ide.exportOk": "Exported",
   "ide.footNote": "Every anchor is a real repo path; notes live only on this machine (localStorage).",
+
+  // ── graph · pipeline view ─────────────────────────────────────
+  "graph.title": "The River of Iron",
+  "graph.subtitle": "THE RIVER OF IRON",
+  "graph.lead": "The nodes you meet inside every SpecProof job, from the requirement to the capsule. This page is the river they run.",
   "nav.jobDetail": "Verification detail",
 
   "group.workspace": "Workspace",
