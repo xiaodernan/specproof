@@ -36117,3 +36117,28 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 本卷与第十三卷是**文字层**的交付，不改运行时；地图几何已经 #1771 目验有限（bbox 数学，非肉眼截图）；
 * 书名中「一千五百七十三节」随 chronicle 重建同步为 1,573（本节自带重跑）；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1773 repo_rag 两级缓存：进程内 LRU + Redis L2（真容器实测，冷 7.97s → 热 3.34s）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `scripts/repo_rag.py` 重写（检索路径零 LLM 依赖，可独立验证）：
+  - **L1** 进程内 LRU（512 键上限，本次运行内有效）；
+  - **L2** Redis（`SPECPROOF_REDIS_URL`，默认 `redis://127.0.0.1:6379/3`，命名空间 `specproof:rag:v1:`）——
+    文档 token 向量按 `path + mtime_ns + size` 指纹键控（TTL 24h，改写即自动失效），最终回答按问题规范化 sha256 键控（TTL 15min）；
+    Redis 不可达/异常/`SPECPROOF_RAG_CACHE=0` → 静默降级 L1-only；所有 L2 操作 try/except，永不抛出；
+  - 新子命令：`--retrieve-only`（只打印检索上下文，不碰 LLM，可无 key 验证）与 `--stats`（结束时打印 l1/l2 hit/miss 快照）；
+* **真实端到端实测**（不靠桩）：本机 Docker（29.9.3）起一次性 `redis:7-alpine`（`docker run -d -p 127.0.0.1:6399:6379 --name specproof-cache-smoke`，测试后 `docker rm -f`）：
+  - 冷跑：`redis=ok l2_hit=0 miss=142`，约 7,969ms；热跑：**`l2_hit=142 miss=0`**，约 3,336ms（≈2.4×）；
+  - `SCAN specproof:rag:v1:*` → 142 键；抽样 TTL ≈ 86,389s（24h 口径一致）；
+* 本地开发机自带的 Redis（6379/8000）**需要 AUTH，本仓库/本环境未持有凭据**——缓存对其不具破坏性：连不上即降级，不重试风暴（socket_timeout=1.5s）。
+
+### 二、诚实边界
+
+* **用户机上 6379/8000 的 Redis 未被用于本次测试**（认证不可得，禁止探测/爆破）；测试使用的是本人起的一次性容器；
+* 语义缓存（相似问题命中）**未实现**，只做精确归一化键；
+* 回答缓存 TTL 只有 15 分钟——文档更新后回答有窗口内陈旧的可能（问题指纹不含文档指纹）；
+* RAG 问答仍然不是验证（不替代 `specproof verify`）；
+* 全量 `pytest tests/unit` 仍未跑完。
