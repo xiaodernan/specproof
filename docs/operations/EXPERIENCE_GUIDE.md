@@ -60,7 +60,7 @@ Prometheus http://localhost:9090 → 22 条 SLO 告警规则已加载（2026-11-
 在 Claude Code/Codex 里配置这个 MCP server → 它们获得
 specproof_verify/specproof_verify_job/specproof_contracts_list/specproof_eval_summary/
 specproof_craft_plan/specproof_health/specproof_replay_info 七个工具。
-完整接线步骤与故障排查见 [MCP_GUIDE.md](./MCP_GUIDE.md)。
+完整接线步骤与故障排查见 [MCP_GUIDE.md](./MCP_GUIDE.md)（中文版 [MCP_GUIDE.zh.md](./MCP_GUIDE.zh.md)）。
 卖点: "我们不是另一个评审机器人, 而是给所有 AI Agent 提供中立验收的协议层。"
 
 ## 60 分钟体验完的结论语 (面试/演示收尾)

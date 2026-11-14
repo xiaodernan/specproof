@@ -1,5 +1,8 @@
 # SpecProof MCP Guide — wire an external agent into verification
 
+> **中文版**：[MCP_GUIDE.zh.md](./MCP_GUIDE.zh.md) · This file is the English edition;
+> the Chinese one mirrors it section for section.
+
 SpecProof ships an **MCP server** on stdio. That is the universal machine-to-
 machine wiring that lets an AI-agent host (Claude Code, Codex CLI, Cursor,
 OpenCode, any stdio JSON-RPC client) call `specproof_verify`, read contracts,
