@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { apiGet, HealthData } from "../api";
 import { ErrorBox, Panel, Spinner, StatCard, Table, healthStatusLabel, type Column, type StatTone } from "../ui";
 import { buildHealthCategories, HealthCategoryState } from "./healthCategories";
+import { useI18n } from "../i18n";
 
 interface DepRow {
   name: string;
@@ -10,16 +11,62 @@ interface DepRow {
   error?: string | null;
 }
 
-const DEP_COLUMNS: Column<DepRow>[] = [
+interface HealthCopy {
+  title: string; sub: string; fivePanel: string; overallLabel: string; unknownTitle: string;
+  depsLabel: string; depColName: string; depColStatus: string; depColLatency: string;
+  depColError: string; unknown: string; matrixTitle: string; matrixEmptyTitle: string;
+  matrixEmptyDesc: string; degradedStrong: string; degradedText: string;
+}
+
+const COPY: Record<"zh" | "en", HealthCopy> = {
+  zh: {
+    title: "服务状态",
+    sub: "五类健康 · 服务是否跑着、依赖是否配齐、能力是否可用、降级是否发生——每一格都如实显示；未知就是未知，绝不把它抹成绿色。",
+    fivePanel: "服务健康 · Five-category health",
+    overallLabel: "整体状态",
+    unknownTitle: "未知",
+    depsLabel: "可达依赖",
+    depColName: "依赖",
+    depColStatus: "状态",
+    depColLatency: "延迟 Latency",
+    depColError: "错误",
+    unknown: "未知",
+    matrixTitle: "依赖矩阵 Dependency Matrix",
+    matrixEmptyTitle: "没有依赖信息",
+    matrixEmptyDesc: "健康检查还没有返回任何探针。",
+    degradedStrong: "服务受限 DEGRADED",
+    degradedText: "有些探针未通过，记录可能不完整，确认是否是读取完整库的问题。",
+  },
+  en: {
+    title: "Service Health",
+    sub: "Five-category health — is the service up, are the dependencies wired, are the capabilities available, did anything degrade. Every cell renders the truth; unknown stays unknown, never painted green.",
+    fivePanel: "Five-category health",
+    overallLabel: "Overall",
+    unknownTitle: "UNKNOWN",
+    depsLabel: "Dependencies reachable",
+    depColName: "Dependency",
+    depColStatus: "Status",
+    depColLatency: "Latency",
+    depColError: "Error",
+    unknown: "UNKNOWN",
+    matrixTitle: "Dependency Matrix",
+    matrixEmptyTitle: "No dependency data",
+    matrixEmptyDesc: "The health check returned no probes yet.",
+    degradedStrong: "DEGRADED",
+    degradedText: "Some probes are not passing; the record may be incomplete — confirm whether full-schema reads are the issue.",
+  },
+};
+
+const makeColumns = (c: HealthCopy): Column<DepRow>[] => [
   {
     key: "name",
-    header: "依赖",
+    header: c.depColName,
     sortable: true,
     render: (r) => <span className="mono">{DEP_NAMES[r.name] || r.name}</span>,
   },
   {
     key: "ok",
-    header: "状态",
+    header: c.depColStatus,
     sortable: true,
     sortValue: (r) => (r.ok === true ? 0 : r.ok === false ? 2 : 1),
     render: (r) => (
@@ -28,26 +75,26 @@ const DEP_COLUMNS: Column<DepRow>[] = [
           "pill " + (r.ok === true ? "pill-ok" : r.ok === false ? "pill-bad" : "pill-mute")
         }
       >
-        {r.ok === true ? "OK" : r.ok === false ? "DOWN" : "未知"}
+        {r.ok === true ? "OK" : r.ok === false ? "DOWN" : c.unknown}
       </span>
     ),
   },
   {
     key: "latency_ms",
-    header: "延迟 Latency",
+    header: c.depColLatency,
     align: "right",
     sortable: true,
     sortValue: (r) => r.latency_ms ?? -1,
     render: (r) => (
       <span className="mono">
-        {typeof r.latency_ms === "number" ? r.latency_ms + " ms" : "—"}
+        {typeof r.latency_ms === "number" ? r.latency_ms + " ms" : c.unknown}
       </span>
     ),
   },
   {
     key: "error",
-    header: "错误",
-    render: (r) => <span className="muted mono">{r.error || "—"}</span>,
+    header: c.depColError,
+    render: (r) => <span className="muted mono">{r.error || c.unknown}</span>,
   },
 ];
 
@@ -68,6 +115,9 @@ const STATE_PILL: Record<HealthCategoryState, string> = {
 };
 
 export default function Health() {
+  const { locale } = useI18n();
+  const c = COPY[locale];
+  const depColumns = makeColumns(c);
   const [data, setData] = useState<HealthData | null>(null);
   const [error, setError] = useState<Error | string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -114,15 +164,13 @@ export default function Health() {
   return (
     <div>
       <div className="page-head">
-        <h1>健康 Health</h1>
-        <div className="page-sub" title="FIVE-CATEGORY HEALTH">
-          从五个角度看服务健康：服务是否可达、依赖是否可用、能力是否完整、当前是否降级、数据能否查询。缺少的信息会如实显示为「未知」，绝不用一个大绿勾掩盖问题。
-        </div>
+        <h1>{c.title}</h1>
+        <div className="page-sub" title="FIVE-CATEGORY HEALTH">{c.sub}</div>
       </div>
       <ErrorBox error={error} />
 
-      <Panel title="五类健康 Five-category health">
-        {buildHealthCategories(data, error).map((c) => (
+      <Panel title={c.fivePanel}>
+        {buildHealthCategories(data, error, locale).map((c) => (
           <div
             key={c.key}
             className="health-category"
@@ -144,33 +192,33 @@ export default function Health() {
         <>
           <div className="stat-grid" style={{ marginBottom: 16 }}>
             <StatCard
-              label="整体状态"
+              label={c.overallLabel}
               value={
-                <span title={data.status || "未知"}>
+                <span title={data.status || c.unknownTitle}>
                   {healthStatusLabel(data.status)}
                 </span>
               }
               tone={overallTone}
             />
             <StatCard
-              label="可用依赖"
-              value={total > 0 ? okCount + " / " + total : "未知"}
+              label={c.depsLabel}
+              value={total > 0 ? okCount + " / " + total : c.unknown}
               tone={depsTone}
             />
           </div>
-          <Panel title="依赖清单 Dependency Matrix">
+          <Panel title={c.matrixTitle}>
             <Table<DepRow>
-              columns={DEP_COLUMNS}
+              columns={depColumns}
               rows={depRows}
               rowKey={(r) => r.name}
-              emptyTitle="暂无依赖信息"
-              emptyDescription="健康端点未返回任何依赖检查。"
+              emptyTitle={c.matrixEmptyTitle}
+              emptyDescription={c.matrixEmptyDesc}
             />
           </Panel>
           {data.degraded === true ? (
             <div className="degraded" title="degraded">
-              <strong>降级中 DEGRADED</strong> —{" "}
-              部分依赖不可用；相关数据会以空结果明确返回并标记为降级，绝不伪造。
+              <strong>{c.degradedStrong}</strong> —{" "}
+              {c.degradedText}
             </div>
           ) : null}
         </>

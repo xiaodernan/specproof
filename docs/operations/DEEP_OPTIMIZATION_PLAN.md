@@ -34174,3 +34174,25 @@ EN/USER_GUIDE_EN.md = 英文新手路径（#1699）；MCP_GUIDE*.md = 机器发�
 * 本号只完成了 **Dashboard 一页**；Jobs / JobDetail / Matrix / Contracts / Eval / Billing / Audit /
   Health / Settings 等旧页面的正文仍是中文原生，排队中，一页一个 commit，不假装全站已双语；
 * copy 文件与组件分离，下一页照同样模式迁移（locale table + 同形两语言 + 无中文散文残留的门守）。
+
+## #1703 旧页面双语化第二批：Health 逐页本地化（含 `healthCategories.ts` 全链）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `healthCategories.ts`：`buildHealthCategories(data, error, locale)` —— **locale 参数化**，
+  五个类别（服务可达 / 依赖可达 / 能力清单 / 当前降级 / 数据可查询）的 label、value、detail、
+  unknownPill 全部走内部 `COPY.zh|en` 双语字典；英文版措辞是英文工程语言，不是直译腔；
+  zh 侧把「3 项已上报」「降级中」两个被单测锁住的词原样保留（测试是对产品语义的契约）；
+* `Health.tsx`：`COPY.zh|en` 覆盖标题、五类健康面板、表头（依赖/状态/延迟/错误）、
+  StatCard 标签（整体状态 / 可达依赖）、矩阵标题、空态文案、DEGRADED 文案、placeholder（未知）；
+  列定义抽成 `makeColumns(c)` 工厂（原 `DEP_COLUMNS` 定死中文 header）；
+* 验迹：Health.test.tsx **11/11**（含「部分依赖降级如实显示」「能力清单 3 项已上报」）；
+  vitest 全量 **486/486**；`npm run build` 绿（index 258.73 kB / gzip 87.96 kB）；tsc 净；ledger 45/45。
+
+### 二、诚实边界
+
+* 本号完成 **Health + 其派生模块** 两页中的一页（Health）并改完全链；Jobs / JobDetail / Matrix 等仍排队；
+* `buildHealthCategories` 的第三参数默认 `zh`（保持旧调用方行为），组件里显式传 `locale`；
+* 开发注释里仍有少量中文——注释不是产品内容，不阻塞；产品可见的所有字符串均已双语。
