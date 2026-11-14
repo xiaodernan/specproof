@@ -28,6 +28,7 @@ const IdentityApp = lazy(() => import("./identity/IdentityApp"));
 const UiKit = lazy(() => import("./ui-kit/UiKit"));
 const ModelSettings = lazy(() => import("./pages/ModelSettings"));
 const Guide = lazy(() => import("./pages/Guide"));
+const Epic = lazy(() => import("./pages/Epic"));
 
 type NavItem = {
   path: string;
@@ -41,6 +42,7 @@ const NAV: NavItem[] = [
   { path: "dashboard", label: "工作台", icon: "overview", group: "工作空间" },
   { path: "jobs", label: "变更验收", icon: "verify", group: "工作空间" },
   { path: "agent", label: "AI 开发", icon: "agent", group: "工作空间" },
+  { path: "epic", label: "史诗", icon: "guide", group: "工作空间" },
   { path: "matrix", label: "需求覆盖", icon: "matrix", group: "质量与证据" },
   { path: "contracts", label: "验收规则", icon: "contracts", group: "质量与证据" },
   { path: "eval", label: "效果评测", icon: "chart", group: "质量与证据" },
@@ -58,6 +60,7 @@ function renderRoute(route: string): JSX.Element {
   if (!seg.length || seg[0] === "dashboard") return <Dashboard />;
   if (seg[0] === "settings") return <ModelSettings />;
   if (seg[0] === "guide") return <Guide />;
+  if (seg[0] === "epic") return <Epic />;
   if (seg[0] === "login") return <Login />;
   if (seg[0] === "agent") return <AgentApp seg={seg} />;
   if (seg[0] === "identity") return <IdentityApp seg={seg} />;

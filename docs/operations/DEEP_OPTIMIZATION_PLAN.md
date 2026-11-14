@@ -33278,3 +33278,38 @@ broker 不通不应把 /health 打成 DOWN，与文件中 Redis 的既有禁用�
 - python light api（agent runtime）在毫无征兆的情况下进程消失（疑似宿主机调度 OOM kill——本号无权处置其他项目的进程，只做记录）；
   随后断路器在 8012 不通时把 /health 的 503 变成 `circuit-open`——**断路器的保护能力在生产姿态下得到证实**；
 - 本号**未删除、未修改任何他项目 Docker 容器**。
+
+## #1675 新模块「史诗 · The Chronicles of SpecProof」 —— 产品的精神内核落成页面
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、用户诉求
+
+"拓宽这个产品的边界、开发新的玩法、丰富内容、写出新的故事、模块、功能，并且进行宏观的史诗般的叙事——但是刨进去细节看却又在细节里面有魔鬼。"
+
+答案不是给产品贴一层文案皮——而是把这个项目**已经发生的真实历史**，用史诗的笔法写成了页面，让每一个大词背后都站着一块能被验证的铁证。
+
+### 二、交付
+
+* 新页 `apps/web/src/pages/Epic.tsx`「史诗 · THE CHRONICLES OF SPECROOF」——六卷竹简式排版：
+  卷〇 创世·一炉铁证熬成（差分验证内核、契约五类 checker、AI 不做判决）、
+  卷一 铁证·matrix_failures（base_pass_head_fail 铁的证据、探针防伪 #1638、severity 钉死 #1654、execution_surface 永远说明）、
+  卷二 双端·前进队与粮草官（SSE、阶段时间线、AI 解读增量流、Markdown 摘要一键入评审帖子）、
+  卷三 算力·缓存命中那场仗（流式统一、cached_tokens → 0.1× 计费、前缀 2272B 96.5% 实测 #1645、A/B 并列记录 #1668）、
+  卷四 军阵·钢铁长城（Eureka / Config / Gateway 离线构建并实测、specproof-gateway 注册进 Eureka、
+  resilience4j 503 翻开动作、specproof_edge_config_refresh_events_total 0→1、RabbitMQ 可选总线健康纪律 #1674）、
+  卷五 史官·一书不毁一证不添（append-only 账本、账本之门、e2e 抓到并修复「正在解读…永不结束」#1672）；
+* 排版：米黄色史卷式的 serif 中文 + 玉 medallion 数字 + 红色印章「序」「验讫」数件；sunrise/dark 双主题皆精，`.chronicles-*` 全套样式落在 `verification.css`（页级样式模式，随本页导入）；
+* `apps/web/src/ui/epicCertificate.ts` —— **per-job「史诗纪要」** 生成器：把一次验收拼成可朗读的「卷宗」（裁决/变更/matrix/findings/印记）；
+  严格编译自服务器返回值：缺什么写（未提供），绝不编造数字；铁证无发现时白纸黑字"这不等于没缺陷"；
+* JobDetail 增加「复制史诗纪要」按钮（复制 Markdown 摘要旁边，navigator.clipboard，全部取自服务器返回）；
+* `ui/__tests__/epicCertificate.test.ts` 4 腿（完整载荷装配 / 无发现分支不编造 / 缺字段→（未提供）/ 机器拼奏标记永远在）全绿；
+* `ui/index.ts` 导出 `buildEpicCertificate`，App.tsx 注册 `#/epic` 路由与侧栏「史诗」导航项（工作空间分组）。
+
+### 三、诚实边界
+
+* 本页史实**全部**来自本仓库的 git 历史与账本号（#1620→#1674）；凡主项目未完成的事，尾声明确写"未完"并点名（1.3 / 1.6 / 4.2 / 5.3 / 5.4 / 6.1）；
+* 史诗纪要按钮的演示（#1675 附图）：job `e2e00000…0001`（VERIFIED）按下后入剪贴板的文本包含仓库 `e2e/demo-repo · base→head-v1 · 2 条件 · 1 通过 / 1 未通过 · AUTH-02 runtime_diff MAJOR · 复现包地址`——
+  字段全部出自 /jobs/{id}/* 真实返回，没有编造一个字；
+* 本页不替代「验证概览」「矩阵」「Findings」——它是史卷、是传说，判决仍沿用确定性证据。
+* 浏览器内截图：亮色（`shots/epic-page.png`）与深色（`shots/epic-page-dark.png`）两张全页、`jobdetail-epic-button.png` 按钮实录——目检通过；种子：e2e fixture + vite dev 同机。

@@ -146,3 +146,117 @@
   .usage-chip, .usage-trend-bar, .usage-meter-fill { transition: none; }
   .usage-chip:hover { transform: none; }
 }
+
+
+/* ── 史诗 · The Chronicles of SpecProof ────────────────────────
+   卷轴式排版：竹简脊柱 + 印章 + 宋体正文。
+   颜色走 token，印章走字面红色——印章本来就是红的。 */
+.chronicles-page { display: grid; gap: var(--sp-6); max-width: 1040px; }
+.chronicles-en {
+  font-family: var(--font-mono); font-size: var(--text-xs);
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-text-3);
+}
+.chronicles-prologue {
+  display: flex; gap: var(--sp-4); align-items: flex-start;
+  border: 1px solid var(--color-border); border-left: 3px solid var(--accent-500);
+  background: linear-gradient(90deg, var(--accent-tint), transparent 60%);
+  border-radius: var(--radius-md); padding: var(--sp-5);
+}
+.chronicles-prologue p {
+  margin: 0; font-family: "Noto Serif CJK SC", "Songti SC", "STZhongsong", "SimSun", serif;
+  font-size: var(--text-md); line-height: 2.1; color: var(--color-text); letter-spacing: 0.02em;
+}
+.chronicles-prologue-mark {
+  flex: none; width: 34px; height: 34px; border-radius: 4px;
+  background: linear-gradient(160deg, #b91c1c, #dc2626);
+  color: #fef2f2; font-family: "Noto Serif CJK SC", "Songti SC", "SimSun", serif;
+  font-size: 19px; font-weight: 800; display: grid; place-items: center;
+  transform: rotate(-4deg); box-shadow: 0 2px 8px rgba(185, 28, 28, 0.35);
+}
+.chronicles-scroll {
+  display: grid; grid-template-columns: 56px 1fr; gap: var(--sp-4);
+  position: relative;
+}
+.chronicles-scroll + .chronicles-scroll { margin-top: var(--sp-2); }
+.chronicles-spine {
+  display: flex; flex-direction: column; align-items: center;
+}
+.chronicles-spine span {
+  width: 46px; height: 46px; border-radius: 999px;
+  background: radial-gradient(circle at 35% 32%, #2c4936, #121714 78%);
+  border: 1px solid var(--color-border-strong);
+  color: var(--accent-text); font-family: "Noto Serif CJK SC", "Songti SC", serif;
+  font-size: 21px; font-weight: 800; display: grid; place-items: center;
+  position: sticky; top: var(--sp-4);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent-500) 25%, transparent);
+}
+.chronicles-spine::after {
+  content: ""; width: 2px; background: linear-gradient(180deg, var(--accent-600), transparent 92%);
+  flex: 1; margin-top: var(--sp-2);
+}
+.chronicles-body {
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg); padding: var(--sp-5);
+  display: grid; gap: var(--sp-3);
+}
+.chronicles-scroll-head {
+  display: flex; align-items: center; gap: var(--sp-3);
+  border-bottom: 1px solid var(--color-border); padding-bottom: var(--sp-3);
+}
+.chronicles-seal {
+  flex: none; width: 40px; height: 40px; border-radius: 5px;
+  background: linear-gradient(155deg, #dc2626 0%, #b91c1c 55%, #991b1b 100%);
+  color: #fff7ed; font-family: "Noto Serif CJK SC", "Songti SC", "SimSun", serif;
+  font-size: 22px; font-weight: 800; display: grid; place-items: center;
+  transform: rotate(-3deg); letter-spacing: 0.02em;
+  box-shadow: inset 0 0 0 2px rgba(255, 247, 237, 0.35), 0 3px 10px rgba(185, 28, 28, 0.4);
+}
+.chronicles-scroll-head h2 { margin: 0; font-size: var(--text-lg); letter-spacing: 0.01em; }
+.chronicles-verse {
+  margin: 0; font-family: "Noto Serif CJK SC", "Songti SC", "STZhongsong", "SimSun", serif;
+  font-size: var(--text-md); line-height: 2.05; letter-spacing: 0.03em;
+  color: var(--color-text); text-indent: 2em;
+}
+.chronicles-details {
+  border: 1px dashed var(--color-border-strong); border-radius: var(--radius-md);
+  padding: var(--sp-3); background: var(--color-surface-2);
+  display: grid; gap: var(--sp-2);
+}
+.chronicles-details-title {
+  font-size: var(--text-xs); color: var(--accent-text); letter-spacing: 0.14em;
+  text-transform: uppercase; font-weight: var(--fw-600);
+}
+.chronicles-details dl { margin: 0; display: grid; gap: var(--sp-2); }
+.chronicles-detail-row { display: grid; grid-template-columns: 128px 1fr; gap: var(--sp-3); align-items: baseline; }
+.chronicles-detail-row dt {
+  font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-text-2);
+}
+.chronicles-detail-row dd { margin: 0; font-size: var(--text-sm); line-height: 1.8; color: var(--color-text-2); }
+.chronicles-closing {
+  display: flex; gap: var(--sp-4); align-items: flex-start;
+  border: 1px solid var(--color-border); border-top: 3px double var(--accent-500);
+  border-radius: var(--radius-md); padding: var(--sp-5);
+  background: linear-gradient(0deg, var(--accent-tint), transparent 50%);
+}
+.chronicles-closing h3 {
+  margin: 0 0 var(--sp-2); font-family: "Noto Serif CJK SC", "Songti SC", "SimSun", serif;
+  font-size: var(--text-lg); letter-spacing: 0.04em;
+}
+.chronicles-closing p {
+  margin: 0; font-family: "Noto Serif CJK SC", "Songti SC", "SimSun", serif;
+  font-size: var(--text-md); line-height: 2; color: var(--color-text-2); text-indent: 2em;
+}
+.chronicles-colophon { font-size: var(--text-xs); }
+.chronicles-colophon code {
+  font-size: var(--text-2xs); background: var(--color-surface-2);
+  padding: 1px 6px; border-radius: 4px; border: 1px solid var(--color-border);
+}
+@media (max-width: 860px) {
+  .chronicles-scroll { grid-template-columns: 40px 1fr; }
+  .chronicles-spine span { width: 38px; height: 38px; font-size: 17px; }
+  .chronicles-detail-row { grid-template-columns: 1fr; gap: var(--sp-1); }
+  .chronicles-colophon { font-size: 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chronicles-seal, .chronicles-prologue-mark { transform: none; }
+}

@@ -50,3 +50,4 @@ export { CountUp } from "./CountUp";
 export { AreaChart, type AreaChartPoint } from "./AreaChart";
 export { DonutMeter, type DonutSegment } from "./DonutMeter";
 export { Sparkline } from "./Sparkline";
+export { buildEpicCertificate, type EpicCertificateInput } from "./epicCertificate";
