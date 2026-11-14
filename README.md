@@ -1,5 +1,7 @@
 # SpecProof — 用证据验收代码变更
 
+> **English edition**: [README_EN.md](./README_EN.md) · 本文是中文原版；两版互为镜像。
+
 SpecProof 做两件事：**让 AI 按需求改代码；独立检查一次变更是否符合需求。**
 
 ## 新手入口 · Newcomers start here · 5 分钟

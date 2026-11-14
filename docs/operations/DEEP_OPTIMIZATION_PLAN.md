@@ -34569,3 +34569,35 @@ UI 层词表 i18n 是下一桩独立工程。
 * 英文版措辞是新写的英文，节结构与锚点一一对应；
 * 展厅已进产品（#/museum），正史即成实体——但那个 commit（#1715）没有本书叙事"批准"，
   这是先发生后叙的卷，与此前所有「史官在此记录」卷一致。
+
+## #1717 README 的英文版 `README_EN.md` —— 门面双语齐备 + 对照中文原文逐段校对
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、用户诉求
+
+"所有项目都要支持全内容中英文切换"——仓库首页（README）此前只有中文原生版。本号出英文版 RF：
+
+### 二、交付
+
+* `README_EN.md`：**结构镜像**中文原版（开头两句 SpecProof 双职能 / 新手入口表 / 启动 / 无Docker 轻量模式 /
+  模型连接表 / 快捷路径 / 判决语义与 Craft 通道 / 本轮真实验证 / 开发与运维 / License-Contributing-Security）——
+  人工逐段对照重写，不是机翻；
+* 修正**相对中文原文失实的三处**（如实记账）：
+  * 「Notable verifications」此前草稿含我自己编的段落（"NANA"、"the professional maintenance record" 等），
+    **已整段以中文原文逐句重译**：JS/TS 差分实测 + 需求覆盖页空白缺陷（#? ）+ Node 沙箱离线依赖（#56）、
+    2026-09-18 模型-mcp 全链路真跑；
+  * 「UNVERIFIED may not say not required」等句此前把英文版写成臆想文句——按原文改写为
+    「UNVERIFIED is not a verdict either; it cannot be used to claim a pass」（删"BLOCKING, not optional" 臆语）；
+  * 「Quick suite is safety floor / real safety is full CI」一句把原文口径说反了——原文是
+    快速内循环只是**开发便利**，不是新验收标准；CI 合并门仍裸 `pytest tests/unit tests/security tests/fault`；
+    EN 版已按中文原意写；
+  * Craft 段逐段按原文译（accept_json 落库 / 没跑验收 vs 读不出验收 / gates.overall 的两分支 /
+    无摘要=不能区分原因）；
+* `README.md` 顶部新增一行指向 [README_EN.md]；
+* 中文原版条目没有被改动一字（除顶部那一行指针）；
+
+### 三、验迹
+
+* 两版章节标题一一对应（用标题大纲逐项核对）；
+* 账本四件套 45/45；README 内容链接有效（全部目标在仓库内存在）。
