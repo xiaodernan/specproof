@@ -35999,3 +35999,26 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 本提交不改动验证管线、不加 API、不加 Docker——史诗是文字层，不用执行一个字；
 * 史诗卷十二的"手札带着走"是美学隐喻，不声称任何物理卡片存在（除非打印——print 路线已铺在 print.css）；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1768 铁样寨地 `#/census` —— 真正 LOC／真正文件 / 真正行动：铁样寨地
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `scripts/build_repo_stats.py` —— 纯 Python，git ls-files 一次性读入；LOC 全行实数；binaries de-count；output to `apps/web/src/pages/repoStats.json`；
+  实拍：files: **2690**、LOC: **481,896**、24.1MB→**27.1MB**（git tracked）、
+  账本 **3,577 KB**、中文书 **55KB**、英文书 **54KB**、**2,411 commits**；
+* `apps/web/src/pages/Census.tsx` + `stats.css` + `repoStats.json`：
+  全仓排名 `铁样寨地`（verify 图标），`tile-card feature grid 8 tiles`，语言条 chart；h1 + kicker 双语；
+  数据全部是**脚本生成、可重推**；出于"不伪"原则，本页没有任何数人手写出来的人造数；
+* App.tsx `#/census` evidence group 一级入口；22→23 入口；`nav.census` ×2 locale；`census.*` ×10 ×2 locale；
+* 用户手册 §3 补 `/census` 行（23 页口径）。
+
+### 二、诚实边界
+
+* 统计页面是**瞬态切片**——任何合 master 的提交都让 `repoStats.json` 立刻褪色
+  （与 chronicle.json 同道：`scripts/build_repo_stats.py` 必须重跑才能保持新鲜）；
+* 本页展示由 `git ls-files` 而非 `ls` 派生——本仓库的真相是git 跟踪的文件而非文件系统快照；
+* 本页不算 "quality score"、不算 "complexity rank"、零口号——只有事实；
+* 全量 `pytest tests/unit` 仍未跑完；E2E 未跑；`#/census` 未浏览器目验。

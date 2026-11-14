@@ -1,0 +1,30 @@
+/* ── Iron Census · 铁样寨地 ─────────────────────────────────────── */
+
+.census-page { max-width: 1180px; margin: 0 auto; }
+.census-page h1 { margin: 8px 0 12px; letter-spacing: -.03em; }
+.census-en { font-size: .42em; letter-spacing: .22em; color: var(--accent-text); vertical-align: .3em; margin-left: .35em; }
+.census-page .page-sub { color: var(--color-text-2); max-width: 800px; line-height: 1.9; }
+
+.census-hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 24px; }
+.census-tile { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 18px 16px 14px; position: relative; overflow: hidden; }
+.census-tile::after { content: ""; position: absolute; top: 0; left: 0; height: 2px; width: 40%; background: var(--accent-text); opacity: .7; }
+.census-value { font-size: var(--text-2xl); letter-spacing: -.02em; line-height: 1; font-weight: 700; color: var(--color-text); margin: 0; }
+.census-unit { font-size: var(--text-xs); color: var(--color-text-3); margin-left: 3px; font-weight: 400; }
+.census-label { font-size: var(--text-xs); color: var(--color-text-3); letter-spacing: .12em; text-transform: uppercase; margin: 6px 0 0; }
+
+.census-lang { margin-top: 32px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-xl); padding: 24px 26px; }
+.census-lang h2 { font-size: var(--text-lg); margin: 0 0 14px; letter-spacing: -.01em; }
+.census-lang-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.census-lang-row { display: grid; grid-template-columns: 140px 1fr 220px; gap: 14px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--color-border); }
+.census-lang-row:last-child { border-bottom: 0; }
+.census-lang-name { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--color-text-2); }
+.census-lang-bar { height: 14px; background: var(--color-surface-2, rgba(255,255,255,.03)); border-radius: var(--radius-full); overflow: hidden; }
+.census-lang-bar > div { height: 100%; border-radius: var(--radius-full); }
+.census-lang-num { font-size: var(--text-xs); color: var(--color-text-3); text-align: right; }
+.census-lang-num strong { color: var(--color-text); }
+.census-foot { margin-top: 16px; font-size: var(--text-xs); color: var(--color-text-3); border-top: 1px solid var(--color-border); padding-top: 12px; }
+
+@media (max-width: 760px) {
+  .census-lang-row { grid-template-columns: 100px 1fr; }
+  .census-lang-num { grid-column: span 2; text-align: left; }
+}

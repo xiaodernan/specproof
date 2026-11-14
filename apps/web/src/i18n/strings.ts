@@ -29,6 +29,7 @@ const zh = {
   "nav.graph": "验收之流",
   "nav.chronicle": "编年史",
   "nav.manual": "说明书",
+  "nav.census": "铁样寨地",
   "nav.lexicon": "铁证词典",
   "nav.museum": "铁证博物馆",
   "nav.gestures": "验收官十四式",
@@ -65,6 +66,17 @@ const zh = {
   "chronicle.searchLabel": "搜索编年史",
   "chronicle.placeholder": "搜索条目、净荷、编号… (支持 1759，#1759)",
   "chronicle.noResult": "书页变成灰…",
+
+  // ── census · 铁样寨地 ────────────────────────────────────
+  "census.title": "铁样寨地",
+  "census.subtitle": "IRON CENSUS",
+  "census.lead": "这是仓库自身的数量统计——不估算、不润色、不美化。每一条数字，任何脚本都能从本仓库推出来。",
+  "census.ledger": "账本体积",
+  "census.worldChinese": "中文铁证之书",
+  "census.worldEnglish": "英文铁证之书",
+  "census.langTitle": "按语言的源码行数 Top 14",
+  "census.lines": "行",
+  "census.foot": "本页所有数字由 scripts/build_repo_stats.py 生成，由 git ls-files 派生；动不动手，都能重推。任何人看到不同即见证是代码问题。",
   "nav.jobDetail": "验收详情",
 
   // ── groups ─────────────────────────────────────────────────────
@@ -500,6 +512,7 @@ const en: Record<keyof typeof zh, string> = {
   "nav.graph": "The River",
   "nav.chronicle": "Chronicle",
   "nav.manual": "Manual",
+  "nav.census": "Iron Census",
   "nav.lexicon": "Iron Lexicon",
   "nav.museum": "Evidence Museum",
   "nav.gestures": "Fourteen Gestures",
@@ -536,6 +549,17 @@ const en: Record<keyof typeof zh, string> = {
   "chronicle.searchLabel": "Search the chronicle",
   "chronicle.placeholder": "Search entries, payloads, numbers… (try 1759 / #1759)",
   "chronicle.noResult": "Nothing etched here yet.",
+
+  // ── census · 铁样寨地 ────────────────────────────────────
+  "census.title": "Iron Census",
+  "census.subtitle": "IRON CENSUS",
+  "census.lead": "The repo, measured — not narrated. Every figure here is derived from on-disk tracked files; any number can be re-derived by any reader.",
+  "census.ledger": "Ledger volume",
+  "census.worldChinese": "Book of Iron — Chinese",
+  "census.worldEnglish": "Book of Iron — English",
+  "census.langTitle": "Lines of code by language — top 14",
+  "census.lines": "lines",
+  "census.foot": "Every number on this page is produced by scripts/build_repo_stats.py from git ls-files — any divergence is a bug, not an opinion.",
   "nav.jobDetail": "Verification detail",
 
   "group.workspace": "Workspace",
