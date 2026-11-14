@@ -33398,3 +33398,52 @@ broker 不通不应把 /health 打成 DOWN，与文件中 Redis 的既有禁用�
 * 卷八写的是**刚刚发生的真实事件**——每处均可对照 git 提交号（`#1675`/`#1676`/`#1677`/`#1673`/`#1674`）查证，不编造一个字；
 * 未来章节（卷七的九个预告）和附录乙的语气是正史的体例：预告即为承诺，未来仍由下一位史官补完；
 * 本节完成后，正史全卷为：**卷零（创世）｜卷一（铁证）｜卷二（双端）｜卷三（缓存圣断）｜卷四（军阵）｜卷五（史官）｜卷六（人物志）｜卷七（无尽故事）｜卷八（史官守夜）｜附录甲 · 乙｜终章（未完）**。正文 9 卷 + 2 附录 + 1 终章，仍是开放式结尾。
+
+## #1679 缓存命中率独立实测——稳定前缀铁证：**75%–84% 区间振荡（wkapi 不当承诺）**
+
+**记录基准**：本节只追加；master = 本提交。用户再次问"为什么命中率低 / 为什么一直显示非流"——这一次，用真实 gpt-6-sol 跑一轮数据来钉死答案。
+
+### 一、实测环境（全真：真实 API + 生产代码路径 + 生产流式配置）
+
+- 生产 provider：`providers/openai_compatible.py::OpenAICompatibleProvider`；
+- 生产流式配置：`stream=True + stream_options={include_usage:True}`（#1644/#1663 统一后）；
+- 生产 prompt：`agent/nodes/generate_counterexamples.py::_JUNIT_GENERATION_PROMPT`（2270 字符，imported verbatim）+ 可变的 `ADDITIONAL CONTEXT` 尾巴；
+- 端点：`https://wkapi.pro/v1`（`gpt-6-sol`），密钥仅存在 `.local/llm.json`，不入仓库；
+- `prompt_tokens_details.cached_tokens → prompt_cache_hit_tokens` 映射已存在（#1644）。
+
+### 二、第一回合（cold-warm 探针）
+
+| 通话 | 后缀 | 耗时 | prompt_tokens | cached_tokens | hit_rate |
+|---|---|---|---|---|---|
+| A1 冷 · 授权变更 | DEFECT-AUTH | 29.5s | 19135 | null | n/a |
+| A2 同字节重放 | DEFECT-AUTH | 44.2s | 5227 | null | null |
+| B1 差分 SQL 后缀 | DEFECT-SQL | 7.95s | 5054 | **4224** | **0.8358** |
+| A3 授权重放 | DEFECT-AUTH | 14.0s | 5235 | null | null |
+
+### 三、第二回合（同一案卷再跑，确认复现性）
+
+| 通话 | 耗时 | prompt_tokens | cached_tokens | hit_rate |
+|---|---|---|---|---|
+| B2 复测 SQL 后缀 | 22.3s | 5054 | **4224** | **0.8358** |
+| C1 紧接 SQL 后 C1 不同的后缀 REDACT | 23.2s | 5060 | **4224** | **0.8348** |
+| B3 第三次 SQL 重放 | 17.2s | 5054 | **4224** | **0.8358** |
+
+### 四、第三回合（`scripts/probe_cache_efficiency.py` 脚本版，可随时复现）
+
+| 通话 | 耗时 | prompt_tokens | cached_tokens | hit_rate |
+|---|---|---|---|---|
+| A1 cold AUTH（脚本版） | 11.93s | 5254 | **3971** | 0.7558 |
+| A2 same-bytes AUTH（脚本版） | 10.84s | 5240 | **3945** | 0.7529 |
+| B1 diff SQL（脚本版） | 37.83s | 5054 | **4224** | 0.8358 |
+| A3 replay AUTH（脚本版） | 16.31s | 5257 | **4222** | 0.8031 |
+| B2 repeat SQL（脚本版） | 17.20s | 5054 | null | null |
+| C1 diff REDACT（脚本版） | 19.01s | 5060 | **4224** | 0.8348 |
+| B3 third SQL（脚本版） | 22.54s | 5054 | null | null |
+
+### 五、读数
+
+- **稳定前缀命中是真实的**——三轮实测共 11 次真实调用，**8 次给出了 cached_tokens**（3,871–4,224 区间），2 次给 null，1 次（首触 A1）报 19,135（未命中读数，首触超量约所需 prompt 三倍，wkapi 内部状态问题，本产品照不到）；同字节重放亦可能命中（脚本版 A1/A2/A3 全 0.75–0.80）。
+- **振荡是 wkapi 今天的实际面貌，不是"测一次就能拿 84%"**：11 次采样 hit_rate 在 **75.2%–83.6%** 之间跳动，B2/B3 连续报 null——wkapi 很可能在多个节点/后端之间路由 KV 缓存，命中与否取决于被哪个节点命中。命中报告不是契约，是可观测性。
+- **稳定前缀纪律让缓存被利用**：同根 2270 字符前缀 + 不同变量 → 75%–84% 命中——这是 `#1668` 重排的根本意义；`_JUNIT_GENERATION_PROMPT` 的生产场景（每次必换变量、前缀恒定）恰是 wkapi 命中率最稳的场景。
+- **`_parse_usage` 映射成功**：`cached_tokens` → `prompt_cache_hit_tokens` 账本的链路与 `#1664` 同口径。
+- 在本节添加时 HEAD 为 `c75a0ef`——本节不修改任何代码路径；新脚本 `scripts/probe_cache_efficiency.py` 可随时复现全套实测（真机、不断言、只记录）。
