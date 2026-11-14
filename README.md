@@ -2,6 +2,18 @@
 
 SpecProof 做两件事：**让 AI 按需求改代码；独立检查一次变更是否符合需求。**
 
+## 新手入口 · Newcomers start here · 5 分钟
+
+| 读物 / 入口 | 适合谁 |
+|---|---|
+| [`docs/operations/USER_GUIDE.md`](docs/operations/USER_GUIDE.md)（中文）· [`EN/USER_GUIDE_EN.md`](docs/operations/EN/USER_GUIDE_EN.md)（English） | 想从 clone 走到第一个 `VERDICT: BLOCKED` 的人 |
+| [`docs/operations/TOUR_MANUAL.md`](docs/operations/TOUR_MANUAL.md) | 想玩「巡览」六盖印游戏的人 |
+| [`docs/operations/MCP_GUIDE.zh.md`](docs/operations/MCP_GUIDE.zh.md) / [`MCP_GUIDE.md`](docs/operations/MCP_GUIDE.md) | 想把 AI agent 接进验收流水线的人 |
+| 前端 `http://127.0.0.1:5173/`（需先 `npm run build`） | 想先逛产品的人——侧栏搜「巡览 / 史诗 / 铁证词典」 |
+
+> 侧栏顶部的 **EN / 中** 语言钮可切换整站（英文/中文，不夹杂）；界面语言存本机 `specproof_locale`。
+
+
 - **AI 开发**：描述需求 → 模型生成计划 → 你批准 → 修改文件、运行检查 → 审阅差异。
 - **变更验收**：提供 Git 仓库、前后版本和需求文件 → 执行可用检查 → 查看覆盖情况、风险和证据。
 

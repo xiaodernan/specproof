@@ -34090,3 +34090,31 @@ SpecProof 被交给这个问题；它 **没用 LLM 看完、没用置信度投�
 * 英文版是**人工逐节对照**重写，不是机翻；命令、路径、预期输出一字不改；
 * 中英两版不可能逐句相同——结构对齐、事实对齐、例子对齐，措辞各自成文；
 * §3 路由数以构建产物为准（47 页含 `/lexicon`），若后续新增页面需同步两处。
+
+## #1700 README 首屏「新手入口 · Newcomers start here · 5 分钟」—— 第一眼就能走到铁证
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、用户诉求
+
+"给出新用户的简单新手教程，快速上手教程演示"——手册是文本，人进仓库第一眼是 README：
+README 必须把四扇门挂在最上面，而不是让人先读完安装段落才发现有手册。
+
+### 二、交付
+
+README 顶部新增一行章节追加在开场白之后、八卦细节之前：
+
+| 读物 / 入口 | 面对的问题 |
+|---|---|
+| `docs/operations/USER_GUIDE.md` + [`EN/USER_GUIDE_EN.md`](../EN/USER_GUIDE_EN.md) | clone 到第一个 `VERDICT: BLOCKED` |
+| `docs/operations/TOUR_MANUAL.md` | 想玩「巡览」六盖印 |
+| `docs/operations/MCP_GUIDE.zh.md` + `MCP_GUIDE.md` | 把 AI agent 接进验收流水线 |
+| `http://127.0.0.1:5173/`（先 `npm run build`） | 直接逛前端——侧栏搜「巡览 / 史诗 / 铁证词典」 |
+
+并在那一节写明：侧栏顶部 **EN / 中** 语言钮切换整站、选择存本机 `specproof_locale`、不夹杂。
+
+### 三、与前面手册的分工
+
+README = 入口；USER_GUIDE = 六十分钟完整走完；TOUR_MANUAL = 游戏玩法（#1694）；
+EN/USER_GUIDE_EN.md = 英文新手路径（#1699）；MCP_GUIDE*.md = 机器发声（#1695）。
+四本说明书在一个入口列表里互相指向，不制造新的孤岛。
