@@ -18,8 +18,10 @@ import {
   Table,
   shortId,
 } from "../ui";
+import { useI18n } from "../i18n";
+import { BILLING_BY_LOCALE, type BillingCopy } from "./billing.copy";
 
-// ── Wire shapes (mirror api/routes/billing.py) ──
+// ── Wire shapes (mirror api/routes/billing.py) ─────────────────────
 
 interface BillingPlan {
   id: string;
@@ -97,205 +99,189 @@ function invoicePill(status: string): string {
   return "pill-mute";
 }
 
-// Billing statuses arrive as English enums. Known tokens get a Chinese gloss in
-// the familiar "中文 · token" form (raw stays visible so nothing is hidden); an
-// unexpected value is passed through verbatim rather than guessed at.
-const SUBSCRIPTION_LABELS: Record<string, string> = {
-  active: "生效中",
-  canceled: "已取消",
-  past_due: "逾期未付",
-  trialing: "试用中",
-};
-const INVOICE_LABELS: Record<string, string> = {
-  draft: "草稿",
-  issued: "已开具",
-  paid: "已支付",
-  void: "已作废",
-};
+// Gloss enums into the readable-table language, keeping the raw token visible
+// (honesty): "生效中 · active". An unexpected value passes through verbatim.
 function glossEnum(labels: Record<string, string>, raw: string): string {
   if (!raw) return "—";
-  const cn = labels[raw];
-  return cn ? cn + " · " + raw : raw;
+  const gloss = labels[raw];
+  return gloss ? gloss + " · " + raw : raw;
 }
-function subscriptionLabel(status: string): string {
-  return glossEnum(SUBSCRIPTION_LABELS, status);
+
+function planColumns(c: BillingCopy): Column<BillingPlan>[] {
+  return [
+    {
+      key: "name",
+      header: c.colPlan,
+      sortable: true,
+      render: (p) => (
+        <div>
+          <div>{p.name}</div>
+          <div className="muted mono">{p.id}</div>
+        </div>
+      ),
+    },
+    {
+      key: "price_monthly",
+      header: c.colMonthly,
+      align: "right",
+      sortable: true,
+      render: (p) => (p.price_monthly === 0 ? c.freePlan : "$" + p.price_monthly.toFixed(2) + " " + c.perMonth),
+    },
+    {
+      key: "quotas",
+      header: c.colQuotas,
+      render: (p) => (
+        <div>
+          {Object.entries(p.quotas).map(([k, v]) => (
+            <div key={k} className="mono">
+              {k}: {v.toLocaleString()}
+            </div>
+          ))}
+        </div>
+      ),
+    },
+    {
+      key: "overage",
+      header: c.colOverage,
+      render: (p) => {
+        const entries = Object.entries(p.overage);
+        return entries.length === 0 ? (
+          <span className="muted">{c.hardStop}</span>
+        ) : (
+          <div>
+            {entries.map(([k, v]) => (
+              <div key={k} className="mono">
+                {k}: {"$" + v + "/unit"}
+              </div>
+            ))}
+          </div>
+        );
+      },
+    },
+  ];
 }
-function invoiceLabel(status: string): string {
-  return glossEnum(INVOICE_LABELS, status);
+
+function usageColumns(c: BillingCopy): Column<UsageRow>[] {
+  return [
+    {
+      key: "happened_at",
+      header: c.colTime,
+      sortable: true,
+      render: (r) => <span className="muted">{fmtEpoch(r.happened_at)}</span>,
+    },
+    {
+      key: "metric",
+      header: c.colMetric,
+      render: (r) => <span className="mono">{r.metric}</span>,
+    },
+    {
+      key: "units",
+      header: c.colUnits,
+      align: "right",
+      sortable: true,
+      render: (r) => r.units.toLocaleString(),
+    },
+    {
+      key: "unit_label",
+      header: c.colUnit,
+      render: (r) => r.unit_label || <span className="muted">{c.missingUnit}</span>,
+    },
+    {
+      key: "event_id",
+      header: c.colEvent,
+      render: (r) => (
+        <span className="mono muted" title={r.event_id}>
+          {shortId(r.event_id)}
+        </span>
+      ),
+    },
+    {
+      key: "tenant_id",
+      header: c.colTenant,
+      render: (r) => <span className="mono muted">{r.tenant_id}</span>,
+    },
+  ];
+}
+
+function invoiceColumns(c: BillingCopy): Column<Invoice>[] {
+  return [
+    {
+      key: "period",
+      header: c.colPeriod,
+      render: (inv) => <span className="mono">{inv.period}</span>,
+    },
+    {
+      key: "id",
+      header: c.colInvoice,
+      render: (inv) => <span className="mono muted">{inv.id}</span>,
+    },
+    {
+      key: "line_items",
+      header: c.colLineItems,
+      align: "right",
+      sortable: true,
+      sortValue: (inv) => (inv.line_items ?? []).length,
+      render: (inv) => String((inv.line_items ?? []).length),
+    },
+    {
+      key: "total",
+      header: c.colTotal,
+      align: "right",
+      sortable: true,
+      render: (inv) => inv.currency + " " + inv.total.toFixed(2),
+    },
+    {
+      key: "status",
+      header: c.colStatus,
+      render: (inv) => <span className={"pill " + invoicePill(inv.status)} title={inv.status}>{glossEnum(c.invoiceLabels, inv.status)}</span>,
+    },
+  ];
 }
 
 // UI visibility gate for the billing console (RBAC: billing:read —
-// admin/operator/auditor). Mirrors identity/useIdentityAccess: fail-open
-// on UNKNOWN identity so legacy (non-auth) deployments keep the existing
-// behavior; the backend enforces fail-closed and answers 403
-// TENANT_FORBIDDEN, which this page renders as its own state.
+// admin/operator/auditor). Fail-open on UNKNOWN identity so legacy deployments
+// keep working; the backend enforces fail-closed and answers 403.
 function useBillingAccess(): { checked: boolean; canView: boolean } {
-  // #117: one /auth/me + fail-open body for the whole app (ui/useRoleAccess.ts);
-  // the fail-open reason the comment above this hook states lives there now.
   const access = useRoleAccess(BILLING_ROLES);
   return { checked: access.checked, canView: access.allowed };
 }
 
 // Shared forbidden view: identity-gate denials and server-side 403
-// TENANT_FORBIDDEN land on the same honest state with a contact-admin
-// hint (§14.4 permission explanation).
-function BillingForbidden(props: { reason: string }): JSX.Element {
+// TENANT_FORBIDDEN land on the same honest state with a contact-admin hint.
+function BillingForbidden(props: { reason: string; c: BillingCopy }): JSX.Element {
+  const { c } = props;
   return (
     <div>
       <div className="errorbox" data-testid="billing-forbidden" role="alert">
         {props.reason}
       </div>
-      <Panel title="权限说明 Permission explanation">
+      <Panel title={c.forbiddenPanelScope}>
         <div className="kv">
-          <span className="kv-label">范围 Scope</span>
+          <span className="kv-label">{c.forbiddenPanelScope}</span>
           <span className="kv-value">
-            计费读取 billing:read — 套餐 / 订阅 / 用量账本 / 发票仅对 admin /
-            operator / auditor 开放; viewer 角色一律被服务端以 TENANT_FORBIDDEN
-            (403) 拒绝。
+            {c.forbiddenScopeValue(BILLING_ROLES.join(" / "))}
           </span>
         </div>
         <div className="kv">
-          <span className="kv-label">来源 Source</span>
+          <span className="kv-label">{c.forbiddenPanelSource}</span>
           <span className="kv-value">
-            权限来自服务端 /auth/me 解析的当前身份 (sp_* 令牌或 OIDC
-            id_token); 本页门控仅影响可见性, 服务端 RBAC fail-closed 才是权威。
+            {c.forbiddenSourceValue}
           </span>
         </div>
         <div className="permission-hint" data-testid="billing-contact-admin-hint">
-          需要访问? 请联系租户管理员 Contact admin — 请管理员在 身份 Identity
-          页将你的角色调整为 admin / operator / auditor, 或为你签发相应范围的令牌。
+          {c.forbiddenHint}
         </div>
       </Panel>
     </div>
   );
 }
 
-const planColumns: Column<BillingPlan>[] = [
-  {
-    key: "name",
-    header: "套餐 Plan",
-    sortable: true,
-    render: (p) => (
-      <div>
-        <div>{p.name}</div>
-        <div className="muted mono">{p.id}</div>
-      </div>
-    ),
-  },
-  {
-    key: "price_monthly",
-    header: "月费 Monthly",
-    align: "right",
-    sortable: true,
-    render: (p) => (p.price_monthly === 0 ? "免费 Free" : "$" + p.price_monthly.toFixed(2) + " /月"),
-  },
-  {
-    key: "quotas",
-    header: "配额 Quotas",
-    render: (p) => (
-      <div>
-        {Object.entries(p.quotas).map(([k, v]) => (
-          <div key={k} className="mono">
-            {k}: {v.toLocaleString()}
-          </div>
-        ))}
-      </div>
-    ),
-  },
-  {
-    key: "overage",
-    header: "超额 Overage",
-    render: (p) => {
-      const entries = Object.entries(p.overage);
-      return entries.length === 0 ? (
-        <span className="muted">硬上限 Hard stop</span>
-      ) : (
-        <div>
-          {entries.map(([k, v]) => (
-            <div key={k} className="mono">
-              {k}: {"$" + v + "/unit"}
-            </div>
-          ))}
-        </div>
-      );
-    },
-  },
-];
-
-const usageColumns: Column<UsageRow>[] = [
-  {
-    key: "happened_at",
-    header: "时间 Time",
-    sortable: true,
-    render: (r) => <span className="muted">{fmtEpoch(r.happened_at)}</span>,
-  },
-  {
-    key: "metric",
-    header: "指标 Metric",
-    render: (r) => <span className="mono">{r.metric}</span>,
-  },
-  {
-    key: "units",
-    header: "数量 Units",
-    align: "right",
-    sortable: true,
-    render: (r) => r.units.toLocaleString(),
-  },
-  {
-    key: "unit_label",
-    header: "单位 Unit",
-    render: (r) => r.unit_label || <span className="muted">—</span>,
-  },
-  {
-    key: "event_id",
-    header: "事件 Event",
-    render: (r) => (
-      <span className="mono muted" title={r.event_id}>
-        {shortId(r.event_id)}
-      </span>
-    ),
-  },
-  {
-    key: "tenant_id",
-    header: "租户 Tenant",
-    render: (r) => <span className="mono muted">{r.tenant_id}</span>,
-  },
-];
-
-const invoiceColumns: Column<Invoice>[] = [
-  {
-    key: "period",
-    header: "周期 Period",
-    render: (inv) => <span className="mono">{inv.period}</span>,
-  },
-  {
-    key: "id",
-    header: "发票 Invoice",
-    render: (inv) => <span className="mono muted">{inv.id}</span>,
-  },
-  {
-    key: "line_items",
-    header: "行项目 Line items",
-    align: "right",
-    sortable: true,
-    sortValue: (inv) => (inv.line_items ?? []).length,
-    render: (inv) => String((inv.line_items ?? []).length),
-  },
-  {
-    key: "total",
-    header: "合计 Total",
-    align: "right",
-    sortable: true,
-    render: (inv) => inv.currency + " " + inv.total.toFixed(2),
-  },
-  {
-    key: "status",
-    header: "状态 Status",
-    render: (inv) => <span className={"pill " + invoicePill(inv.status)} title={inv.status}>{invoiceLabel(inv.status)}</span>,
-  },
-];
-
 export default function Billing() {
+  const { locale } = useI18n();
+  const c = BILLING_BY_LOCALE[locale];
+  const planCols = planColumns(c);
+  const usageCols = usageColumns(c);
+  const invoiceCols = invoiceColumns(c);
   const { checked, canView } = useBillingAccess();
   const [month, setMonth] = useState(currentMonth);
   const [data, setData] = useState<BillingData | null>(null);
@@ -343,11 +329,8 @@ export default function Billing() {
 
   const pageHead = (
     <div className="page-head">
-      <h1>计费与用量 Billing &amp; Usage</h1>
-      <div className="page-sub">
-        BILLING — PLANS / SUBSCRIPTION / USAGE LEDGER / INVOICES (RBAC:
-        billing:read)
-      </div>
+      <h1>{c.title}</h1>
+      <div className="page-sub">{c.sub}</div>
     </div>
   );
 
@@ -355,7 +338,7 @@ export default function Billing() {
     return (
       <div>
         {pageHead}
-        <BillingForbidden reason="TENANT_FORBIDDEN — 当前角色无计费读取权限 billing:read (仅 admin / operator / auditor)" />
+        <BillingForbidden reason={c.forbiddenReasonIdentity} c={c} />
       </div>
     );
   }
@@ -364,7 +347,7 @@ export default function Billing() {
     return (
       <div>
         {pageHead}
-        <BillingForbidden reason="TENANT_FORBIDDEN — 服务端拒绝计费读取 billing:read (RBAC fail-closed)" />
+        <BillingForbidden reason={c.forbiddenReasonServer} c={c} />
       </div>
     );
   }
@@ -433,7 +416,7 @@ export default function Billing() {
         <>
           <div className="stat-grid" style={{ marginBottom: 16 }}>
             <StatCard
-              label="当前套餐 Current plan"
+              label={c.subActivePlan}
               value={planName}
               tone={
                 data.subscription
@@ -442,76 +425,76 @@ export default function Billing() {
                     : "warn"
                   : "mute"
               }
-              sub={data.subscription ? data.subscription.plan_id : "无订阅 No subscription"}
+              sub={data.subscription ? data.subscription.plan_id : c.noSubscriptionChip}
             />
             <StatCard
-              label={"本期用量记录 Usage (" + month + ")"}
+              label={c.usageLabel(month)}
               value={String(data.usage.length)}
               tone="info"
             />
             <StatCard
-              label={"本期发票 Invoices (" + month + ")"}
+              label={c.invoicesLabel(month)}
               value={String(data.invoices.length)}
               tone="info"
             />
           </div>
 
           <div data-testid="billing-plans">
-            <Panel title="套餐 Plans">
+            <Panel title={c.plansTitle}>
               <Table<BillingPlan>
-                columns={planColumns}
+                columns={planCols}
                 rows={data.plans}
                 rowKey={(p) => p.id}
-                emptyTitle="暂无套餐"
-                emptyDescription="服务端启动时按配置播种 free / pro 套餐"
+                emptyTitle={c.noPlansTitle}
+                emptyDescription={c.noPlansDescription}
               />
             </Panel>
           </div>
 
           <div data-testid="billing-subscription">
-            <Panel title="当前订阅 Subscription">
+            <Panel title={c.subTitle}>
               {data.subscription ? (
                 <div>
                   <div className="kv">
-                    <span className="kv-label">套餐 Plan</span>
+                    <span className="kv-label">{c.colPlan}</span>
                     <span className="kv-value">{planName}</span>
                   </div>
                   <div className="kv">
-                    <span className="kv-label">状态 Status</span>
+                    <span className="kv-label">{c.colStatus}</span>
                     <span className="kv-value">
                       <span className={"pill " + subscriptionPill(data.subscription.status)} title={data.subscription.status}>
-                        {subscriptionLabel(data.subscription.status)}
+                        {glossEnum(c.subscriptionLabels, data.subscription.status)}
                       </span>
                     </span>
                   </div>
                   <div className="kv">
-                    <span className="kv-label">周期 Period</span>
+                    <span className="kv-label">{c.colPeriod}</span>
                     <span className="kv-value">
                       {fmtEpoch(data.subscription.period_start)} →{" "}
                       {fmtEpoch(data.subscription.period_end)}
                     </span>
                   </div>
                   <div className="kv">
-                    <span className="kv-label">租户 Tenant</span>
+                    <span className="kv-label">{c.colTenant}</span>
                     <span className="kv-value mono">{data.subscription.tenant_id}</span>
                   </div>
                 </div>
               ) : (
-                <Empty text="当前租户暂无订阅 No active subscription for this tenant" />
+                <Empty text={c.noSubscription} />
               )}
             </Panel>
           </div>
 
           <div data-testid="billing-usage">
             <Panel
-              title={"用量 Usage — " + month + " (JSON)"}
+              title={c.usageTitle(month)}
               right={
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <input
                     type="month"
                     value={month}
                     data-testid="billing-month"
-                    aria-label="账单周期 Billing period"
+                    aria-label={c.monthAria}
                     onChange={(e) => {
                       if (MONTH_RE.test(e.target.value)) setMonth(e.target.value);
                     }}
@@ -525,29 +508,29 @@ export default function Billing() {
                       void downloadUsageCsv();
                     }}
                   >
-                    下载 CSV Download
+                    {c.downloadCsv}
                   </a>
                 </div>
               }
             >
               <Table<UsageRow>
-                columns={usageColumns}
+                columns={usageCols}
                 rows={data.usage}
                 rowKey={(r) => String(r.id)}
-                emptyTitle="本期暂无用量记录"
-                emptyDescription="meter 事件写入账本后按 [from, to) 窗口显示在这里"
+                emptyTitle={c.noUsageTitle}
+                emptyDescription={c.noUsageDescription}
               />
             </Panel>
           </div>
 
           <div data-testid="billing-invoices">
-            <Panel title={"发票 Invoices — " + month}>
+            <Panel title={c.invoicesTitle(month)}>
               <Table<Invoice>
-                columns={invoiceColumns}
+                columns={invoiceCols}
                 rows={data.invoices}
                 rowKey={(inv) => inv.id}
-                emptyTitle="本期暂无发票"
-                emptyDescription="GET /billing/invoices?period= 会按需从账本生成草稿发票"
+                emptyTitle={c.noInvoicesTitle}
+                emptyDescription={c.noInvoicesDescription}
               />
             </Panel>
           </div>

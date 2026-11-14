@@ -34336,3 +34336,31 @@ EN/USER_GUIDE_EN.md = 英文新手路径（#1699）；MCP_GUIDE*.md = 机器发�
 * 本号完成 **Audit**；JobDetail / NewVerification / Guide / Billing / Settings / Login 仍中文原生；
 * `denyHint` 设计为函数 `(roles: string) => string`——roles 列表始终以代码里的 `AUDIT_ROLES` 为准，
   绝不在副本里抄一份角色数组。
+
+## #1709 旧页面双语化第八批：Billing 逐页本地化（`billing.copy.ts`）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `apps/web/src/pages/billing.copy.ts`：`BillingCopy` 双版——
+  页眉（title/sub/RBAC 行）、三张 StatCard（当前计划 / 本期用量 / 本期发票）、
+  计划/订阅/用量/发票四面板标题、免费/硬上限文案、**零倍率超量（overage 为空 → 硬上限 Hard stop）**、
+  四张计划、六张用量、五张发票、六列计划列 / 六列用量列 / 五列发票列（列定义抽取成 factories）、
+  **TENANT_FORBIDDEN 两条 reason 文案（身份门槛分支 / 服务端分支）+ forbiddenScopeValue(roles) 函数 +
+  forbiddenSourceValue + forbiddenHint**、账单月份 aria、下载 CSV 链接、
+  「当前租户暂无订阅 No active subscription for this tenant」、「本期暂无用量记录」、「本期暂无发票」、
+  `subscriptionLabels` / `invoiceLabels` 双语词表（保留"生效中 · active"式的"读者玻璃纸 + 原始 token"诚实格式——
+  raw enum 永远可见，不会拿翻译盖住原始事实）；
+* `Billing.tsx` 全量走 `c.*`；`useI18n()` + `BILLING_BY_LOCALE[locale]`；
+  zh 侧逐字保留 Billing.test.tsx 锁死的全部字面（硬上限 Hard stop / 生效中 · active / 草稿 · draft /
+  当前租户暂无订阅 / 本期暂无用量记录 / 本期暂无发票 / 下载 CSV）——**7/7 用例一红未动**；
+* 诚实保留：`BILLING_ROLES` 与共享 `ui/accessRoles.ts` 不动；`fmtEpoch`、订阅/发票 pill tone、
+  空 states 文案的「meter 窗口 [from, to)」说明完整双语化；
+* 验迹：Billing.test.tsx **7/7**；vitest 全量 **486/486**；`npm run build` 绿（index 258.73 kB / gzip 87.94 kB）；
+  tsc 净；ledger 45/45。
+
+### 二、诚实边界
+
+* 本号完成 **Billing**；JobDetail / NewVerification / Guide / Settings / Login 仍中文原生；
+* 加载态「加载中 LOADING…」归 `ui/Spinner.tsx` 负责，故本页的 `loading` 字段未使用（死数据有意留存，按需再弃）。
