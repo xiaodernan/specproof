@@ -35261,3 +35261,22 @@ doctor 如实报告而不染绿；未追入这批改动，它们不是本提交�
 * **本号未跑 `mvn test`**——本机内存反复 ≤2.0GB，与全仓 `pytest` 同样受限；README 只陈述仓内**已有**的证据，不声明新测试绿；
 * README 里的端口与命令逐条核对自仓内文件；第一版把 discovery-server 误写成 8769（记忆），已按真机配置改正；
 * 世界书卷四《微服务军阵》对应的现实是本目录——书不是装饰，目录不是传说。
+
+## #1739 口袋卡 `POCKET_CARD.md` / `EN/POCKET_CARD.en.md` —— 可印出来揣兜里的那一页
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `docs/operations/POCKET_CARD.md`（中文原版）+ `docs/operations/EN/POCKET_CARD.en.md`（英文对应）——
+  A4 单面可印的「出门的五件事 · 三个不要 · 四个照做的命令 · 五个常见词 · 出事的时候」；
+  每一行都锚真实物：`https://wkapi.pro/v1`、`demo doctor`、4224 常量（#1723）、base/head-v1、append-only 账本。
+* 两本用户手册 §1.2.1 上方插入口袋卡指针（中英对照）——新用户 5 分钟路径里，
+  「先自己揣一张纸」排在「自己敲命令」之前。
+
+### 二、诚实边界
+
+* 口袋卡是**指示信**不是手册——读到最后你还是要去 `USER_GUIDE.md`；
+* 第一版卡片误写了未经证实的 8787 端口——已按 RUNBOOK 实测口径改正：Control Plane `http://127.0.0.1:8081/health`、
+  Edge 网关 `http://127.0.0.1:8090/actuator/health`（observability profile，RUNBOOK §1/§3 与 row 14）；
+* 口袋卡不复述「卷十六的终局誓言」——它把誓言翻译成口袋尺寸；

@@ -41,6 +41,9 @@ Open `http://127.0.0.1:5173/` — the sidebar carries 19 first-level entries:
 
 > No `.env` needed either — the tour works without one. To connect a real LLM, ask for `.local/llm.json`.
 
+Want the one-pager to print and pin to the monitor? **`docs/operations/EN/POCKET_CARD.en.md`** — the 30-second pocket card (five carry-outs, four verbatim commands, five words, when things break).
+> 中文版：`docs/operations/POCKET_CARD.md`.
+
 ### 1.2.1 30-second self-check: demo doctor
 
 ```bash

@@ -40,6 +40,9 @@ docker compose -f compose.phase0.yml up -d --wait
 
 > 没有 .env 也能看 —— 验收不需要 .env 才能视察；需要 `.local/llm.json` 才能跑真实 LLM。
 
+想直接揣一张纸出门？打印 **`docs/operations/POCKET_CARD.md`**——30 秒口袋卡（出门的五件事、四个命令、五个词、出错的时候）。
+> English mirror: `docs/operations/EN/POCKET_CARD.en.md`.
+
 ### 1.2.1 30 秒自检：demo doctor
 
 ```bash
