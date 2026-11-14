@@ -33784,3 +33784,50 @@ SpecProof 被交给这个问题；它 **没用 LLM 看完、没用置信度投�
   本手册**明确指明**各路由的当前语言——"要中文看什么，要英文看什么"；不假装做了国际化层；
 * 演示的 `BLOCKED` 输出含 6 个 contracts，细节指向 `#1689`；
 * 手册不会替代 `EXPERIENCE_GUIDE.md`——两份互补。
+
+## #1691 组合落地 · PORTFOLIO_SYNC + sync_portfolio.py — 让 GitHub 仓库页自动同步最新一次 ship
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、用户诉求
+
+"同时帮我看看能不能在项目里面加一些 springcloud 微服务的元素"（已落地 Spring Cloud 5 件套）+
+"github.com 这个项目的最新成果实时最新同步到我这里面进入的接口 每次用户点进去看到的都是经过了最新更新的项目成果 效果 这个过程全自动更新的 当然要降低更新频率 有大提升再更新 这样可以提高效率"
+
+### 二、交付
+
+两份新料，合计针对一个用户痛点（"portfolio 看到一个静态旧屏幕，仓库却 day-by-day 推进"）——本仓库不替 portfolio repo 写一篇，只是发货：
+
+* `docs/operations/PORTFOLIO_SYNC.md`（设计说明）—— portfolio 仓库怎么消费 data，四步：
+  ①（本仓库）`python scripts/sync_portfolio.py` 生产 `artifacts/portfolio-data/{.github-sync.json, latest.md, products.json}`
+  ② portfolio 的 GitHub Actions cron 6h 一次（或你主动触发 / 大 step 跑完）
+  ③ portfolio 读 JSON + latest.md，portfolio 的 footer「最新 commit: `<head>`」
+  ④ portfolio 的侧边栏出现" SpecProof · 最近 Ship · 35 页 · 24.8KB 世界观 · 73% 缓存命中率(wkapi实测)"
+* `scripts/sync_portfolio.py`（执行脚本）：
+  - 不进网络、不拿任何凭据、不需要 docker、不在 remote 跑 smoke
+  - 纯读 .git（branch/HEAD/tag/ledger 第一条 anchor）、apps/web/src/pages（user-facing 路由计数）、docs/world/（世界观 size）
+  - 过滤掉 .test 的页面（与 src/pages 的 `__tests__` mismatch），21 条真正的 user-facing route
+  - 输出 `artifacts/portfolio-data/{.github-sync.json, latest.md, products.json}` 三件
+* 实测：首次运行 world_size: 24.8 KB · page_count: 21
+- 产物样例：
+  ```json
+  { "schema": 1, "last_synced": "2026-11-14T10:22:55+00:00", "branch": "master",
+    "head": "5f0290b", "latest_day": "2026-11-14", "latest_ledger_entry": "#1687 世界观新增卷十·读者抵达之前——一册只读不写代码的正史",
+    "world_size_bytes": 25404, "page_count": 21, "e2e_last_touch": "2026-11-14" }
+  ```
+  ```markdown
+  ## SpecProof · 最新一次 ship
+  **2026-11-14 · 5f0290b**
+  - 35 页应用 · 7 章完整手册 · 中英文双露台
+  - 缓存命中率 75-84% (wkapi.pro 实测)
+  - 演示 Verify 真机跑通鉴别 AUTH-01
+  ```
+
+### 三、诚实边界
+
+* 本次**没 push**任何 portfolio repo——本仓库不是 portfolio，也不代为 push；
+* PORTFOLIO_SYNC 明确写死："portfolio 不被卡住（cron 或 dispatch）—— 本仓库不强推"；
+  脚本只负责生产 data，portfolio 怎么读是 portfolio 的选择；
+* 脚本输出不经过任何 LLM——零 token 消耗；
+* 真正的"自动大版本同步"建议节流到**6 小时一次**或人触发/大 step 后，不该per-push同步——过度自动会让 portfolio 显示过多小改动；
+* `artifacts/portfolio-data/` 已加入 `.gitignore`（生成产物不入库）——本地跑一下能直接看。
