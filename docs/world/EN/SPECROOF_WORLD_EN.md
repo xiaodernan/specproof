@@ -727,4 +727,46 @@ A quiz can be failed; evidence cannot. The drill examines the former; this book,
 signed certificate examine the latter.
 
 ---
+---
+
+## Volume XVII · The Two-Tongued Verdict (卷十七 · 两种语言的验收)
+
+> Volume XVI closed with: tongues have two colours; evidence has one.
+> This volume speaks to the two questions that follow: how a machine answers
+> in both languages, and how its own gate turns red when a promise is broken.
+
+### 17.1 Say it in two tongues — the verdict is the same word
+
+#1741, a live experiment: the identical finding, once in Chinese and once in English,
+thrown at gpt-6-sol with one rule — it may only answer BLOCKER / MAJOR / MINOR:
+
+- Chinese prompt, 4,749 tokens, `cached_tokens: 3981` — answer `BLOCKER`;
+- English prompt, 4,727 tokens, `cached_tokens: None` — answer `BLOCKER`;
+- verdict: CONSISTENT.
+
+The experiment settles one small thing, but it is a true one: **the bilingual UI is not an imagined
+double promise — the model returns the same verdict on the same sentence in two languages.**
+That the zh and en cache counters disagree is not a success datum for the consistency probe — it is
+a live re-enactment of #1723: the hit rate flips its flag at will, and every "health promise" must
+live in observation, never in wish.
+
+### 17.2 CI guards more than tests — it guards the manual's promises (#1740)
+
+Volume XV named the Demo doctor "the demo repo's signature"; this round it became a workflow:
+`.github/workflows/demo-doctor.yml` — fired on master push / PR / manual dispatch, with
+`fetch-depth: 0` so the `base` and `head-v1` tag refs survive checkout
+(a shallow clone would hollow this gate into a loud false alarm — and the manual's promise would rot into a slogan).
+Touch the demo repo, break a tag, delete a requirement — the machine turns red immediately.
+This is the first stair on the 6.1 “IDE/CI integration” debt, and one step into
+**"every promise deserves a guard."**
+
+### 17.3 This volume's vow
+
+Speak to the user in two languages; speak to the machine in two languages; speak to the ledger only in the truth.
+
+The machine reads indexes, charsets, arrow-aligned PNGs — the single amendment it accepts is
+the append-only line. Evidence before people, before models, before CI runbooks — before every
+urge to merge a little sooner.
+
+---
 

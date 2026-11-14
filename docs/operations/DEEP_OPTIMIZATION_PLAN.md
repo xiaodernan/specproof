@@ -35335,3 +35335,26 @@ verdict: CONSISTENT
 * 探针会花 token，但每次 2 次短调用，约 ≈9.5k prompt ≈ 报告级别——不会改变命中计费口径；
 * `load_model_config()` 读仓内配置（`.local/llm.json`），**key 全程不打印、不入库、不入账**；
 * 一致性的价值在「双语界面不会给出相反判定」——不代表本产品任何其它断言自动成立。
+
+## #1742 世界书卷十七《两种语言的验收（The Two-Tongued Verdict）》—— 对模型说话、对自己设门
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+`docs/world/SPECROOF_WORLD.md` + `docs/world/EN/SPECROOF_WORLD_EN.md` 同步追加卷十七：
+
+* 17.1 对模型说两种话，它给的是同一个 `BLOCKER`：#1741 实测 —— zh prompt 4749/cached 3981、
+  en prompt 4727/cached None，同题同答；两语言缓存计数不一致 = #1723 的活案底，双语 UI 不是想象的双重承诺；
+* 17.2 CI 不只守测试，也守手册承诺（#1740）：`.github/workflows/demo-doctor.yml`、
+  `fetch-depth: 0` 保卫 `base`/`head-v1` tag refs；任何人改了演示仓即触发红——
+  这是 6.1《IDE/CI 集成》欠条的第一台阶；
+* 17.3 本卷的誓言：对用户说两种语言，对机器说两种语言，对账本只说真话。
+
+世界书 48.5KB→50.5KB（中文）/ 47.7KB→49.9KB（英文）——下一次 portfolio-sync 自动取新尺寸。
+
+### 二、诚实边界
+
+* 17.1 是 temperature=0 单次实测的一手观察，不上升为统计承诺；
+* #1740 的 runner 行为本号未见红见绿，只验过本机的 demo doctor exit codes；卷十七照实写了这些；
+* 工件路径如 `docs/world/…` 均真实；提交号/账本号（#1723/#1740/#1741）均为本仓库真实账本。
