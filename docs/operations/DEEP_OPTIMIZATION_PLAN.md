@@ -35111,3 +35111,44 @@ doctor 如实报告而不染绿；未追入这批改动，它们不是本提交�
 * zh 文案逐字保持，en 译文未经母语者审校（后续任何 locale 改动同受 parity 门）；
 * `describePreflightError` 的分隔符仍以 `Preflight: ` 硬前缀剥离——这是后端协议的既定约定，未在本提交动；
 * 全量 `pytest tests/unit` 未跑完，不声称全绿。
+
+## #1733 新模块 —— `#/drill`「验收快问」：十二道速测把每个 SpecProof 常客问回仓库里去查
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、诱因
+
+"饱受欢迎的新功能 / 新玩法 / 新模块" —— 巡览（#1630 六盖印）验证了玩法化教学的有效性，
+但六盖印是「走廊」；快问是「十二道心跳体检」——把这个仓库里最真实的判断题做成节奏极快的游戏。
+
+### 二、交付
+
+* `apps/web/src/pages/drillQuestions.ts` —— **12 道题**，每题锚到真实文件/提交/账本：
+  `base_pass_head_fail` 的语义（agent/evidence_kinds.py + demo head-v1）、wkapi 4224 常量真相（#1723）、
+  「门禁红了没白红」（卷十四·14.3/14.4/14.13）、UNVERIFIED≠通过≠失败、`--no-llm` 离线车道真相、
+  stream=True 车道铁律（#1679/#1681）、矩阵单元格语义、BLOCKER 不被人为 override、
+  `checker_failed` 一律 UNVERIFIED、账本 append-only、headline verdict 的 shared-policy 归属。
+* `apps/web/src/pages/Drill.tsx` + `drill.copy.ts` + `styles/drill.css` ——
+  Idle（封印梯 four.tier：见习验收官→铁证验收官，本地最高分授印）→
+  Playing（进度条/连击芯片/键盘 1-4 作答 · Enter 推进/不允许跳题：先答再走）→
+  Done（pop 印章动画、满分表彰、**错题回炉清单**逐条回放「练师说」与正确答案）；
+  `specproof_drill_v1` 持久化 `{best, runs}`；暗金印章视觉继承 verification.css 的 token 系。
+* 侧边栏入「质量与证据」组（icon verify，zh「验收快问」/ en「Verify Drill」，19 一级入口）；懒加载 chunk（18.66 KB）。
+* 两本用户手册 §3 模块表补 `/drill` 行（49→50 页口径修正通报）；侧边栏口径 17→19、18→19 同步修正；
+  世界书卷十五 §15.5 增一句指向 `#/drill`（中英同步）。
+
+### 三、实证
+
+| 命令 | 结果 |
+|---|---|
+| `npx vitest run src/pages/Drill.test.tsx` | 5/5 绿（封印漏斗/锁定答案/keyboard 拒绝/全程持久化/盲测混合局 9 题） |
+| `npx vitest run`（全量） | **497/497 绿**（63 文件） |
+| `npm run build` | ✅ built in 242ms；lazy chunk Emitted（Drill 18.66 KB + css 9.22 KB） |
+| `pytest tests/unit/test_guide_route_catalog.py` | 6/6 绿 |
+
+### 四、诚实边界
+
+* 题目内容锚真实文件/账本条目（每题 teach 都附出处）；但**印章文案是原作成员 content**（如"见证骑士"）不属于产品契约；
+* 未跑浏览器自动点测（Playwright 未跑）；视觉未肉眼核对——交付证据是 build + 单测 + 上一轮 #1726 教训的 route-catalog gate；
+* `specproof_drill_v1` 的 `best` 语义为满分 12；计不计入 CI 冒烟——不写进 CI 验收判定（游戏是游戏）；
+* 全量 `pytest tests/unit` 仍未跑完；不声称全绿。

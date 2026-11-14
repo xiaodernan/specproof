@@ -34,6 +34,7 @@ const Tour = lazy(() => import("./pages/Tour"));
 const Lexicon = lazy(() => import("./pages/Lexicon"));
 const Museum = lazy(() => import("./pages/Museum"));
 const Gestures = lazy(() => import("./pages/Gestures"));
+const Drill = lazy(() => import("./pages/Drill"));
 const Explorer = lazy(() => import("./pages/Explorer"));
 
 type NavItem = {
@@ -59,6 +60,7 @@ const NAV: NavItem[] = [
   { path: "explorer", labelKey: "nav.explorer", icon: "contracts", groupKey: "group.evidence" },
   { path: "contracts", labelKey: "nav.contracts", icon: "contracts", groupKey: "group.evidence" },
   { path: "eval", labelKey: "nav.eval", icon: "chart", groupKey: "group.evidence" },
+  { path: "drill", labelKey: "nav.drill", icon: "verify", groupKey: "group.evidence" },
   { path: "identity", labelKey: "nav.identity", icon: "team", groupKey: "group.admin", roles: IDENTITY_ROLES },
   { path: "billing", labelKey: "nav.billing", icon: "billing", groupKey: "group.admin", roles: BILLING_ROLES },
   { path: "usage", labelKey: "nav.usage", icon: "chart", groupKey: "group.admin" },
@@ -102,6 +104,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "findings" && seg.length >= 3) return <FindingDetail jobId={decodeURIComponent(seg[1])} findingId={decodeURIComponent(seg[2])} />;
   if (seg[0] === "contracts") return <Contracts />;
   if (seg[0] === "eval") return <Eval />;
+  if (seg[0] === "drill") return <Drill />;
   if (seg[0] === "health") return <Health />;
   if (seg[0] === "billing") return <Billing />;
   if (seg[0] === "usage") return <Usage />;

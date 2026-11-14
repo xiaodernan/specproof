@@ -628,6 +628,7 @@ The showcase is a vitrine, not a scoreboard: updates land on big leaps, never on
 ### 15.5 For the next reader
 
 * If you are a **user**: start at `#/tour`, stamp all six seals — you will know this system better than 90% of the repo's readers;
+  in a hurry? go straight to `#/drill` — twelve rapid-fire questions, every one anchored to a real file or a real ledger line; finish it and see whether the iron recognises you;
 * If you are a **contributor**: pick any plot in 15.1, read Volume XIV first, then move —
   "what done looks like" is already written above; **the acceptance bar is not in your head, it is on this page**;
 * If you are the **keeper**: new convention — every time a debt is paid, add a line beside 15.4;

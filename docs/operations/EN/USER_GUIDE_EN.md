@@ -22,7 +22,7 @@ docker compose -f compose.phase0.yml up -d --wait
 
 ### 1.2 A lap around the whole product (5 minutes)
 
-Open `http://127.0.0.1:5173/` — the sidebar carries 18 first-level entries:
+Open `http://127.0.0.1:5173/` — the sidebar carries 19 first-level entries:
 
 | Group | Entry | What you can do right now | Iron evidence |
 |---|---|---|---|
@@ -139,7 +139,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 
 ---
 
-## §3 · The module catalogue (49-page application)
+## §3 · The module catalogue (50-page application)
 
 | Route | Module | One sentence |
 |---|---|---|
@@ -149,6 +149,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/matrix` | Requirement Coverage | contract_id × evidence_type table |
 | `/contracts` | Contracts | every contract listed + a plain-language explanation for non-experts |
 | `/eval` | Effectiveness | F1/P/R category diagnostics + golden reference |
+| `/drill` | Verify Drill | 12 rapid-fire questions; every answer anchored to a real file or ledger line; seal at the end |
 | `/billing` | Usage & Billing | real wkapi.pro token spend + hit_rate |
 | `/audit` | Audit Trail | every audit_logs write, nothing dropped |
 | `/health` | Service Status | 6-dependency latency distribution + 60 SLO alert triggers |
