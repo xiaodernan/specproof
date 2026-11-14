@@ -1020,4 +1020,43 @@ the progress denominator is 29 (`specproof_worldbook_read`) — progress is neve
 the moment the next volume is written, its lamp lights again.
 
 ---
+---
+
+## Volume XXIV · The Unmixed Tongue（卷二十四 · 不混）
+
+> This book is written by verifiers; verifiers tolerate no half-truth — likewise **no screen may be half-Chinese, half-English**.
+> This volume records the language discipline: zh mode renders in Chinese, en mode in English, never mixed; every mix is a bug.
+> This volume exists because it really happened — and was really fixed.
+
+### 24.1 Why mixing is a disease
+
+- A Chinese-mode reader meeting “规划中 Planning” reads half a sentence in two languages, not one whole one;
+- The chronicler writes no mixed sentences — a mixed sentence fools neither human nor machine: it is harder to search, to cite, to translate than either language alone;
+- **Language and evidence are the same discipline**: evidence precedes argument, language precedes the screen; bound first, render second.
+
+### 24.2 The spoils of the campaign (anchors #1777, #1778)
+
+| Battle | Fix |
+|---|---|
+| Agent console labels (~40 sites) | `规划中 Planning` → dual tables, picked per locale; backend mirror `AGENT_STATUS_META` untouched verbatim |
+| Gates / acceptVerdict / unknownNotice | pure-Chinese → zh\|en dual tables; acceptBlockedNotice bilingual; validation messages bilingual |
+| Epic certificate (Markdown export) | `zh「史诗验收纪要/一、卷首/二、铁证/三、印章」↔ en「Certificate of Verification/I·II·III」`; Verdict vocabulary bilingual; `（未提供）↔ Not provided` |
+| Verify Drill (#/drill) | already zh/en keyed since ~#1723 |
+| The Grand Tour (#/tour, six stamps) | `TOUR_BY_LOCALE` since landing |
+| Epic / World Book / Atlas / Reading Room | zh-branch or `Record<Locale, …>` from birth — holding the line, not a front of this campaign |
+| Test default | `test-setup.ts` pins `specproof_locale=zh` before each test; English scenarios opt in themselves |
+
+**The exchange that landed as #1778**: three test files' expectations were single-language-fied (16+3+1 sites); 497/497 with the one documented UiKit.smoke flake, green on re-run.
+
+### 24.3 Three footnotes to the iron law of language
+
+1. **Native English must also be translated under zh**: whatever the original says, zh mode puts Chinese on the screen — the baseline courtesy owed to the reader;
+2. **i18n parity is a CI gate**: the two strings.ts tables align key-for-key, or red — no blood-mixed fallback allowed;
+3. **Machine vocabulary and screen vocabulary are eaten separately**: backend `STATUS_LABELS` and the screen's Chinese table stand apart, pinned so neither side lies alone.
+
+### 24.4 This volume's vow
+
+**One screen, one tongue; every clause, one meaning; any mix must be signed.** The official history has carved this into two books plus one test default — from now on, whoever dares an English word into zh mode will be lit by the lamp this volume lit.
+
+---
 

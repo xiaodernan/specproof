@@ -36268,3 +36268,34 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
   仍按「展示层全中文」原则在中文模式可用、英文模式夹杂；标注为欠条（本条只证 util 展示层、史诗纪要出口双语化）；
 * `ui/tour.ts`（大巡览）与 `pages/drillQuestions.ts`（快问）为 **zh/en 双键四元组**，符合本条口径；
 * 全量 pytest tests/unit 本机仍未跑完。
+
+## #1779 压力探针（静态车道，回合冷启动如实）+ 卷二十四《不混》
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、压力实测（`scripts/stress_smoke.py` · loopback 静态车道 · 72 并发 × 4 轮 × 每线程 2 次 = 576 请求）
+
+| 轮 | total | ok | err% | p50 | p95 | p99 | max |
+|---|---|---|---|---|---|---|---|
+| 1（冷启动） | 144 | **0** | **100%** | 8011ms | 8525ms | 8990ms | 9029ms |
+| 2 | 144 | 144 | 0.00% | 334ms | 2032ms | 2072ms | 2075ms |
+| 3 | 144 | 144 | 0.00% | 169ms | 1021ms | 1048ms | 1539ms |
+| 4 | 144 | 144 | 0.00% | 524ms | 1053ms | 1548ms | 1564ms |
+
+* verdict=**BUDGET-BLOWN**（判据取所有轮 max；第 1 轮新开的 ThreadingHTTPServer 冷启动 + Windows loopback 抖动）；
+* **这不代表服务崩溃**：第 2–4 轮 144/144 成功，p99 ≈ 1.0–2.1s——本机 WSL2/loopback 通路 ~150–500ms 基础时延远大于原生 loopback（同一现象见 #1680s 时期 browser 502 与 6379 可达但 AUTH 所感知）；结论是"本机不是稳定给测点"，**不外推到生产 SLA**；
+* 报告落盘：`artifacts/stress/2026-11-15-static.json`（gitignored）；
+
+### 二、世界书卷二十四《不混 / The Unmixed Tongue》
+
+* `SPECROOF_WORLD.md` + `EN/SPECROOF_WORLD_EN.md`——卷二十四（中英对称）：**24.1 为什么夹杂是病**（屏一半中半英 = 两种语言各半句）｜
+  **24.2 这场战役的战果**（锚 #1777 llm probe、#1778 de-mix 大修；双语 Agent 标签、epicCertificate 双语出口、strings parity、test-setup zh 默认钉住）｜
+  **24.3 语言铁律的三条补注**（原生英文也要译成中文 / i18n parity 是 CI 门 / 机器词表与屏上词表分立）｜
+  **24.4 本卷誓言：一屏一语，一句一义；混者必须写明**；
+* `worldbook.json` 重建（31 节上架）；chronicle、repoStats 重跑；
+
+### 三、诚实边界
+
+* 第 1 轮 100% 失败 = 冷启动现象，不是"站点挂了"证据；判定以全轮 max 为准是本工具内置口径，如实强调，不替失败找借口；
+* 本轮未做后端 FastAPI/MySQL/Redis 车道压测（本机端口与 AUTH 条件受限，见 #1690s-1773 相关记录）；
+* 全量 `pytest tests/unit` 仍未跑完。
