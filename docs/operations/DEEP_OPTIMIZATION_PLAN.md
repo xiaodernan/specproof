@@ -34303,3 +34303,36 @@ EN/USER_GUIDE_EN.md = 英文新手路径（#1699）；MCP_GUIDE*.md = 机器发�
 
 * 本号完成 **Matrix**；剩余中文原生：JobDetail / NewVerification / Guide / Billing / Audit / Settings / Login；
 * contracts/verifications 表格头（Matrix 与 Contracts）已走表，但 ui 层 pill 文案仍中文——已记账。
+
+## #1708 旧页面双语化第七批：Audit 逐页本地化（`audit.copy.ts`）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `apps/web/src/pages/audit.copy.ts`：`AuditCopy` 双版——
+  无权页（「当前身份没有审计读取权限」/ Permission explanation/范围/令牌提示）、
+  面板标题「审计轨迹」、作业号过滤输入（**/按作业号过滤/** 为被测正则锁定）、查询/清除筛选按钮、
+  读取条数选择、重新读取、**503 鉴权-未开启分支（与「不是没有记录」原文语义一致，
+  明确审计端点不可用是配置事实不是记录缺失）**、403 分支（`deniedHint(roles)` 函数插值）、5xx 通用分支、
+  空表标题描述（「最近没有审计记录」）、六列表头、过滤说明三分支（作业存在 / 作业不存在且有行 /
+  作业不存在且无行 / 服务端未回传 job_present）、
+  统计卡四标签（已加载条数 / 作业在册 / 已按生命周期删除 / 引用无法解释）、
+  **null 分支 scope note 原文「服务端未回传命中总数，因此无法判断是否还有未加载的历史。」**、
+  部分加载 note（「共命中 N 条，这里显示最近的 M 条，另有 K 条未加载」）、全量 note（「已全部显示」）、
+  三个 filteredEmpty 场景文案（作业不存在 / 作业在册但无审计行 / job_present 为空）、
+  「怎么读这张表」面板全文；
+* `Audit.tsx` 全量走 `c.*`；`useI18n()` + `AUDIT_BY_LOCALE[locale]`；
+  zh 侧逐字保留 Audit.test.tsx 锁死的全部字面（最近没有审计记录 / 不是没有记录 / 按作业号过滤 /
+  查询 / 清除筛选 / 服务端拒绝 / 已全部显示 / 共命中 N 条 / 另有 N 条未加载 / 作业在册 /
+  库里已无这条作业 / 也没有它留下的审计行 / 未回传命中总数）——**15/15 用例一红未动**；
+* 诚实保留：`auditDisposition`（ui/auditLabels.ts）与 `AUDIT_ROLES` 不动；
+  disposition 词表（「未登记状态」/「词表之外」/「可能按生命周期删除」）归 ui 层单独立项；
+* 验迹：Audit.test.tsx **15/15**；vitest 全量 **486/486**；`npm run build` 绿（index 258.73 kB / gzip 87.96 kB）；
+  tsc 净；ledger 45/45。
+
+### 二、诚实边界
+
+* 本号完成 **Audit**；JobDetail / NewVerification / Guide / Billing / Settings / Login 仍中文原生；
+* `denyHint` 设计为函数 `(roles: string) => string`——roles 列表始终以代码里的 `AUDIT_ROLES` 为准，
+  绝不在副本里抄一份角色数组。

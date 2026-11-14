@@ -15,6 +15,8 @@ import {
 import { auditDisposition } from "../ui/auditLabels";
 import { AUDIT_ROLES } from "../ui/accessRoles";
 import { useRoleAccess } from "../ui/useRoleAccess";
+import { useI18n } from "../i18n";
+import { AUDIT_BY_LOCALE, type AuditCopy } from "./audit.copy";
 
 // Wire shape mirrors GET /api/v1/admin/audit (api/routes/admin.py), whose rows
 // come from storage/mysql.py::audit_trail. `job_disposition` is stamped
@@ -57,10 +59,7 @@ function jobFromHash(): string {
 }
 
 function useAuditAccess(): { checked: boolean; canView: boolean } {
-  // #117: this used to be a second hand-written copy of the /auth/me + fail-open
-  // body. One body now — ui/useRoleAccess.ts — so the three pages cannot
-  // disagree about what 'identity unknown' means while still naming the same
-  // shared role set. tests/unit/test_access_role_parity.py refuses a new copy.
+  // #117: one shared fail-closed body lives in ui/useRoleAccess.ts.
   const access = useRoleAccess(AUDIT_ROLES);
   return { checked: access.checked, canView: access.allowed };
 }
@@ -75,16 +74,15 @@ function dispositionPill(raw: string | null): JSX.Element {
 }
 
 // A filtered read that answers with nothing has three different meanings, and
-// the page must not collapse them into "最近没有审计记录" — that sentence
+// the page must not collapse them into "no records" — that sentence
 // describes an unfiltered window, not the job the reader asked about.
-function filteredEmpty(jobFilter: string, jobPresent: boolean | null): JSX.Element {
+function filteredEmpty(jobFilter: string, jobPresent: boolean | null, c: AuditCopy): JSX.Element {
   if (jobPresent === false) {
     return (
       <div data-testid="audit-job-missing">
-        <h3>没有找到这个作业号</h3>
+        <h3>{c.missingJobTitle}</h3>
         <p className="muted">
-          库里既没有 <code>{jobFilter}</code> 这条作业，也没有它留下的任何审计行。
-          审计行不会因为作业被删除而消失，所以这通常意味着作业号抄错了。
+          {c.missingJobBody(jobFilter)}
         </p>
       </div>
     );
@@ -92,26 +90,26 @@ function filteredEmpty(jobFilter: string, jobPresent: boolean | null): JSX.Eleme
   if (jobPresent === true) {
     return (
       <div data-testid="audit-job-no-rows">
-        <h3>作业在册，但没有审计行</h3>
+        <h3>{c.noRowsTitle}</h3>
         <p className="muted">
-          <code>{jobFilter}</code> 存在于 verification_jobs，却没有记录任何状态转换或取消动作。
-          新建后尚未被 worker 领取的作业就是这样；如果它已经跑完，说明有写入路径绕过了审计。
+          {c.noRowsBody(jobFilter)}
         </p>
       </div>
     );
   }
   return (
     <div data-testid="audit-job-unknown">
-      <h3>这个作业号没有返回审计行</h3>
+      <h3>{c.unknownPresenceTitle}</h3>
       <p className="muted">
-        服务端没有回传该作业是否存在（job_present 为空），所以无法区分“抄错作业号”与
-        “作业在但没有审计行”。请确认 API 版本已支持按作业检索。
+        {c.unknownPresenceBody}
       </p>
     </div>
   );
 }
 
 export default function Audit(): JSX.Element {
+  const { locale } = useI18n();
+  const c = AUDIT_BY_LOCALE[locale];
   const { checked, canView } = useAuditAccess();
   const [limit, setLimit] = useState<number>(100);
   const [jobFilter, setJobFilter] = useState<string>(() => jobFromHash());
@@ -187,18 +185,17 @@ export default function Audit(): JSX.Element {
     return (
       <div>
         <div className="errorbox" data-testid="audit-forbidden" role="alert">
-          当前身份没有审计读取权限。
+          {c.forbiddenText}
         </div>
-        <Panel title="权限说明 Permission explanation">
+        <Panel title={c.panelTitle}>
           <div className="kv">
-            <span className="kv-label">范围 Scope</span>
+            <span className="kv-label">{c.scopeLabel}</span>
             <span className="kv-value">
-              审计读取仅对 {AUDIT_ROLES.join(" / ")} 角色开放；operator 与 viewer
-              会被服务端以 TENANT_FORBIDDEN (403) 拒绝。
+              {c.scopeValuePrefix}{AUDIT_ROLES.join(" / ")}{c.scopeValueSuffix}
             </span>
           </div>
           <div className="permission-hint">
-            需要访问？请联系租户管理员在 身份 Identity 页调整角色，或签发相应范围的令牌。
+            {c.hint}
           </div>
         </Panel>
       </div>
@@ -215,13 +212,13 @@ export default function Audit(): JSX.Element {
   const columns: Column<AuditRow>[] = [
     {
       key: "created_at",
-      header: "时间 Time",
+      header: c.colTime,
       render: (row) => <span title={row.created_at || ""}>{fmtTime(row.created_at)}</span>,
     },
-    { key: "actor", header: "操作者 Actor", render: (row) => row.actor || "—" },
+    { key: "actor", header: c.colActor, render: (row) => row.actor || c.actorEmpty },
     {
       key: "action",
-      header: "动作 Action",
+      header: c.colAction,
       render: (row) => (
         <span title={row.detail || ""} data-testid="audit-action">
           {row.action}
@@ -230,15 +227,15 @@ export default function Audit(): JSX.Element {
     },
     {
       key: "transition",
-      header: "状态转换 Transition",
+      header: c.colTransition,
       render: (row) =>
         row.from_status || row.to_status
-          ? (row.from_status || "—") + " → " + (row.to_status || "—")
-          : "—",
+          ? (row.from_status || c.transitionEmpty) + " → " + (row.to_status || c.transitionEmpty)
+          : c.transitionEmpty,
     },
     {
       key: "job_id",
-      header: "作业 Job",
+      header: c.colJob,
       render: (row) =>
         row.job_id ? (
           row.job_disposition === "present" ? (
@@ -247,12 +244,12 @@ export default function Audit(): JSX.Element {
             <span title={row.job_id}>{shortId(row.job_id)}</span>
           )
         ) : (
-          <span className="pill pill-mute">无作业号</span>
+          <span className="pill pill-mute">{c.noJob}</span>
         ),
     },
     {
       key: "job_disposition",
-      header: "作业去向 Disposition",
+      header: c.colDisposition,
       render: (row) => dispositionPill(row.job_disposition),
     },
   ];
@@ -260,7 +257,7 @@ export default function Audit(): JSX.Element {
   return (
     <div className="page-stack">
       <Panel
-        title="审计轨迹 Audit trail"
+        title={c.trailTitle}
         right={
           <div className="row-gap">
             <form
@@ -271,15 +268,15 @@ export default function Audit(): JSX.Element {
               }}
             >
               <Input
-                label="按作业号过滤 Job id"
+                label={c.jobInputLabel}
                 type="search"
                 value={jobDraft}
-                placeholder="粘贴作业号后查询"
+                placeholder={c.jobInputPlaceholder}
                 maxLength={64}
                 onChange={(event) => setJobDraft(event.target.value)}
               />
               <button className="btn" type="submit">
-                查询
+                {c.query}
               </button>
               {jobFilter ? (
                 <button
@@ -287,23 +284,23 @@ export default function Audit(): JSX.Element {
                   type="button"
                   onClick={() => applyJob("")}
                 >
-                  清除筛选
+                  {c.clearFilter}
                 </button>
               ) : null}
             </form>
             <Select
-              label="读取条数 Limit"
+              label={c.limitLabel}
               value={String(limit)}
               onChange={(event) => setLimit(Number(event.target.value))}
             >
               {LIMITS.map((n) => (
                 <option key={n} value={String(n)}>
-                  最近 {n} 条
+                  {c.limitRows(n)}
                 </option>
               ))}
             </Select>
             <button className="btn btn-ghost" onClick={() => setReload((v) => v + 1)}>
-              重新读取
+              {c.reload}
             </button>
           </div>
         }
@@ -314,50 +311,47 @@ export default function Audit(): JSX.Element {
           error.status === 503 ? (
             <div data-testid="audit-auth-disabled">
               <ErrorBox
-                error={
-                  "这个部署没有开启多租户鉴权，审计接口不可用（不是没有记录）：" + error.detail
-                }
+                error={c.authDisabledPrefix + error.detail}
               />
               <p className="muted">
-                审计视图按租户鉴权暴露。开启方式：设置 SPECPROOF_AUTH_ENABLED=true
-                或配置 OIDC_ISSUER 后重启 API。
+                {c.authDisabledHint}
               </p>
             </div>
           ) : error.status === 403 ? (
             <div data-testid="audit-denied">
-              <ErrorBox error={"服务端拒绝了本次审计读取：" + error.detail} />
+              <ErrorBox error={c.deniedPrefix + error.detail} />
               <p className="muted">
-                审计读取仅限 {AUDIT_ROLES.join(" / ")} 角色，请联系管理员调整。
+                {c.deniedHint(AUDIT_ROLES.join(" / "))}
               </p>
             </div>
           ) : (
             <ErrorBox
-              error={"审计读取失败（" + (error.code || error.status || "未知错误") + "）：" + error.detail}
+              error={c.genericFailurePrefix + (error.code || error.status || c.unknownError) + "：" + error.detail}
             />
           )
         ) : jobFilter && rows.length === 0 ? (
-          filteredEmpty(jobFilter, jobPresent)
+          filteredEmpty(jobFilter, jobPresent, c)
         ) : (
           <Table
             columns={columns}
             rows={rows}
             rowKey={(row) => String(row.id)}
-            emptyTitle="最近没有审计记录"
-            emptyDescription="完成一次验收或取消操作后，这里会出现对应的审计行。"
+            emptyTitle={c.emptyTitle}
+            emptyDescription={c.emptyDescription}
           />
         )}
       </Panel>
       {!loading && !error && (
         <div className="stat-grid">
-          <StatCard label="已加载条数" value={rows.length} tone="info" />
-          <StatCard label="作业在册" value={counts.present || 0} tone="ok" />
+          <StatCard label={c.statLoaded} value={rows.length} tone="info" />
+          <StatCard label={c.statPresent} value={counts.present || 0} tone="ok" />
           <StatCard
-            label="已按生命周期删除"
+            label={c.statPurged}
             value={counts.purged_by_lifecycle || 0}
             tone="mute"
           />
           <StatCard
-            label="引用无法解释"
+            label={c.statUnexplained}
             value={unexplained}
             tone={unexplained ? "bad" : "mute"}
           />
@@ -365,36 +359,32 @@ export default function Audit(): JSX.Element {
       )}
       {!loading && !error && jobFilter && (
         <p className="muted" data-testid="audit-filter-note">
-          当前按作业号 <code>{jobFilter}</code> 检索 ·{" "}
+          {c.filterNotePrefix}<code>{jobFilter}</code>{" · "}
           {jobPresent === false
             ? rows.length > 0
-              ? "库里已无这条作业，下面这些是它留下的审计行；作业详情已经打不开"
-              : "库里既没有这条作业，也没有它留下的审计行（见下方说明）；作业详情无从链接"
+              ? c.filterNoteMissingWithRows
+              : c.filterNoteMissingNoRows
             : jobPresent === true
-              ? "作业在册 · "
-              : "服务端未回传作业是否存在 · "}
+              ? c.filterNotePresent
+              : c.filterNoteUnknown}
           {jobPresent !== false ? (
-            <a href={"#/jobs/" + encodeURIComponent(jobFilter)}>查看作业详情</a>
+            <a href={"#/jobs/" + encodeURIComponent(jobFilter)}>{c.filterNoteLink}</a>
           ) : null}
         </p>
       )}
       {!loading && !error && rows.length > 0 && (
         <p className="muted" data-testid="audit-scope-note">
           {total === null
-            ? `服务端未回传命中总数，因此无法判断是否还有未加载的历史。`
+            ? `${c.scopeNoteNull}`
             : total > rows.length
-              ? `这次查询共命中 ${total} 条，这里显示最近的 ${rows.length} 条，另有 ${total - rows.length} 条未加载。`
-              : `这次查询共命中 ${total} 条，已全部显示。`}{" "}
-          统计卡只数本页已加载的行。
+              ? c.scopeNotePartial(total, rows.length, total - rows.length)
+              : c.scopeNoteAll(total)}{" "}
+          {c.scopeNoteTail}
         </p>
       )}
-      <Panel title="怎么读这张表 How to read">
+      <Panel title={c.howToReadTitle}>
         <p className="muted">
-          每条审计只保存作业号，不保存作业本身。删除作业记录时，系统会在同一事务里补一行
-          job_records_deleted 说明，因此“作业已删除”是可解释的正常状态；三者都对不上的行会被标成
-          “引用无法解释”，它需要人工排查，而不是被隐藏。
-          排查某一个作业时请用上方的作业号检索：整张表只返回最近若干条，
-          一个作业的轨迹通常根本不在这个窗口里。
+          {c.howToReadBody}
         </p>
       </Panel>
     </div>
