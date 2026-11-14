@@ -34839,3 +34839,23 @@ UI 层词表 i18n 是下一桩独立工程。
 * 全量 Python 单元测试未能在本机跑（内存危机），本号只跑了应用内置 smoke 脚本；
 * 生成的 `SpecProofGeneratedTest.java` 已被删除，以保持 `base`/`head-v1` 演示 tag 的确定性；
 * Codex store 里其他 30+ 实测 SMOKE cases（#1642–#1697）仍然有效，本号不重新声明全量通过。
+
+## #1725 PORTFOLIO_SYNC 的英文版 `EN/PORTFOLIO_SYNC.en.md` —— 指南正文对照完·中文与英文平起平坐
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+`docs/operations/EN/PORTFOLIO_SYNC.en.md`：
+
+- §1 同步边界 — 完整翻译"哪些发布、哪些不发布"（同步清单 vs 不做的事项）；
+- §2 sync 脚本 — 完整翻译示例载荷（`.github-sync.json` / `latest.md` / workflow snippet）；
+- §3 自动同步 — 一字不改的英文版本（Weekly cadence、No-secret behaviour、Why-not every commit）；
+- §4 pull-model 说明（Why pull-model, not push-model）：Security / Resilience / Opt-in / Auditability；
+- §5 不承诺事项 — 忠实翻译成英文：sync 不推 portfolio 仓库、不渲染 UI、不强制触发 CI、不替换 SpecCraft 行为、最新数字是 human-readable 而非 live；
+- §6 文件地图 — 同步 `scripts/sync_portfolio.py` / `PORTFOLIO_SYNC.md` 对英文版 `EN/PORTFOLIO_SYNC.en.md` 的文件路径登记。
+
+### 二、诚实边界
+
+- 本号目的不是造假"英文官方版本"，而是给只读英文的开源/海外读者一个完整指南；
+- 沿用原中文版的全部边界与警告——排除臆想、不承诺 auto-push 能力。
