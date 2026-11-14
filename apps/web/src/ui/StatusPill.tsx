@@ -1,3 +1,9 @@
+import { STRINGS, storedLocale } from "../i18n/strings";
+
+function gloss(key: string): string {
+  return STRINGS[storedLocale()][key] ?? key;
+}
+
 // Design-system status pill. Keeps the legacy .pill class contract
 // (W39 e2e asserts .pill on the Matrix page) while rendering with the
 // Aurora status tokens.
@@ -17,25 +23,25 @@
 // storage/mysql.py::_VALID_TRANSITIONS and
 // tests/unit/test_job_status_channel_parity.py locks the two together.
 export const STATUS_LABELS: Record<string, string> = {
-  PENDING: "等待处理",
-  QUEUED: "等待执行",
-  PREPARING: "准备环境",
-  CONTRACT_REVIEW: "等待契约审批",
-  RUNNING: "正在验收",
-  REVIEWING: "评审裁决中",
-  WAITING_FOR_PROVIDER: "等待模型服务",
-  VERIFIED: "验收通过",
-  BLOCKED: "发现风险",
-  NEEDS_REVIEW: "需要人工判断",
-  FAILED: "执行失败",
-  ERROR: "执行出错",
-  CANCELLED: "已取消",
-  STALE: "已过期",
-  EXPIRED: "已超时",
+  PENDING: "jobStatus.PENDING",
+  QUEUED: "jobStatus.QUEUED",
+  PREPARING: "jobStatus.PREPARING",
+  CONTRACT_REVIEW: "jobStatus.CONTRACT_REVIEW",
+  RUNNING: "jobStatus.RUNNING",
+  REVIEWING: "jobStatus.REVIEWING",
+  WAITING_FOR_PROVIDER: "jobStatus.WAITING_FOR_PROVIDER",
+  VERIFIED: "jobStatus.VERIFIED",
+  BLOCKED: "jobStatus.BLOCKED",
+  NEEDS_REVIEW: "jobStatus.NEEDS_REVIEW",
+  FAILED: "jobStatus.FAILED",
+  ERROR: "jobStatus.ERROR",
+  CANCELLED: "jobStatus.CANCELLED",
+  STALE: "jobStatus.STALE",
+  EXPIRED: "jobStatus.EXPIRED",
   // Progress-stream stage rows carry "completed" for every finished stage;
   // without a label the timeline showed the raw token on every row. This is a
   // STREAM word, not a job status — it is deliberately absent from JOB_STATUSES.
-  COMPLETED: "已完成",
+  COMPLETED: "jobStatus.COMPLETED",
 };
 
 //: The job statuses, in lifecycle order — what a status FILTER may offer.
@@ -61,7 +67,8 @@ export const JOB_STATUSES: readonly string[] = [
 
 export function statusLabel(status?: string | null): string {
   const s = (status || "").toUpperCase();
-  return STATUS_LABELS[s] || s;
+  const cn = STATUS_LABELS[s];
+  return cn ? gloss(cn) : s;
 }
 
 export function StatusPill(props: { status: string }): JSX.Element {

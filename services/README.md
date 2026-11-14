@@ -37,10 +37,23 @@ upstream opened the breaker at the threshold; the distributed rate-limit filter 
 429 + `Retry-After` once the bucket drains. Ledger anchors: `#1673/#1674` in
 `docs/operations/DEEP_OPTIMIZATION_PLAN.md`.
 
-**Unit tests**: `services/gateway/src/test/` carries the filter/limiter/gate suites
-(`*GatewayFilterFactoryTest`, `RedisTokenBucketRateLimiterTest`,
-`GatewayOfflineResilienceTests`, `RouteTableIsomorphismGateTest` …); plain `mvn test`
-per module, no Docker required for the offline lanes.
+**Unit tests — real run on this machine (2026-11-15)**:
+
+```text
+mvn -o -B -ntp test   # services/gateway, Maven 3.9.15, offline, Netty on ephemeral ports
+[INFO] Tests run: 81, Failures: 0, Errors: 0, Skipped: 0
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS                     Total time: 02:03 min
+```
+
+Landmarks from that run: `RedisTokenBucketRateLimiterTest` 5/5 ·
+`GatewayUpstreamTimeoutTests` 2/2 · `GatewayMqEventConsumerTest` 8/8 ·
+`GatewayMqEventBindingTest` 4/4 · `GatewayPoolMetricsTests`, `GatewayPrometheusEndpointTests`,
+`GatewayApplicationTests` etc. all green · `RouteTableIsomorphismGate` printed a **non-fatal**
+warning (`missingServices=[api, control-plane]`) — a pinned visibility gap, not a pass/fail lie.
+
+**Per-module**: the other three services carry their own suites; only the gateway was re-run this round —
+don't extrapolate the 81/81 into them.
 
 ## 4. Honest limits / 诚实边界
 

@@ -35398,3 +35398,37 @@ verdict: CONSISTENT
 
 * 本号不推 portfolio——仍等 `PORTFOLIO_TOKEN`；至多证明重建不炸；
 * 收据里明说「#/drill 未浏览器目验、pytest 全量未跑完、CI 工作流未见红见绿」——三件事记在已入册的白纸黑字里。
+
+## #1745 微服务铁证补一发 —— `mvn -o test` 跑通 services/gateway 真实套件；StatusPill 的 16 个中文 jobStatus gloss 全部入表
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、`services/gateway` 实跑（2026-11-15，本机，Maven 3.9.15，`mvn -o -B -ntp test`）
+
+```text
+[INFO] Tests run: 81, Failures: 0, Errors: 0, Skipped: 0
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS                     Total time: 02:03 min
+```
+
+代表性：`RedisTokenBucketRateLimiterTest` 5/5 · `GatewayUpstreamTimeoutTests` 2/2（Netty 真启动）·
+`GatewayMqEventConsumerTest` 8/8 · `GatewayMqEventBindingTest` 4/4；
+`RouteTableIsomorphismGate` 打出**非致命**警告（`missingServices=[api, control-plane]`）——
+一条被钉住的可见缺口，不是装绿的手段。services/README.md 已更新为以上数字与边界。
+
+### 二、StatusPill jobStatus= 双语（#1730 纪律的最后一发）
+
+* `apps/web/src/ui/StatusPill.tsx`：`STATUS_LABELS` 的 16 个中文 jobStatus gloss 全部 i18n key 化
+  （`jobStatus.<TOKEN>`），`statusLabel()` 读时解析；表 key 集合不动——
+  `tests/unit/test_progress_event_labels.py` 双向门（produced/not glossed & vice versa）4/4 仍绿；
+* `strings.ts` 新增 `jobStatus.*` ×16 ×2 locale；
+* 第一版又出现同款「en 侧 bare key、zh 侧 prefixed key」不匹配——tsc error TS2353 当场拦住；
+  en 侧 16 行补上 `jobStatus.` 前缀后对称；**不改断言，改前缀**；
+* vitest 497/497；build ✅ in 496ms；ledger 四件套 + progress labels 49/49 绿。
+
+### 三、诚实边界
+
+* 81/81 只代表 gateway 模块——另外三个模块本号未重跑，不外推；
+* StatusPill 的中文取值逐字照旧，en 文案未经母语者审校；
+* 「Netty 是否真启动」的证据是日志原文（60732/49299 端口）——记录即证据，不是游历；
+* 全量 `pytest tests/unit` 未跑完。

@@ -71,6 +71,24 @@ const zh = {
   "footer.tagline": "SpecProof · 为交付提供可核验的证据",
   "footer.startLink": "从这里开始",
 
+  // ── ui glosses · job-status pills ─────────────────────────────────
+  "jobStatus.PENDING": "等待处理",
+  "jobStatus.QUEUED": "等待执行",
+  "jobStatus.PREPARING": "准备环境",
+  "jobStatus.CONTRACT_REVIEW": "等待契约审批",
+  "jobStatus.RUNNING": "正在验收",
+  "jobStatus.REVIEWING": "评审裁决中",
+  "jobStatus.WAITING_FOR_PROVIDER": "等待模型服务",
+  "jobStatus.VERIFIED": "验收通过",
+  "jobStatus.BLOCKED": "发现风险",
+  "jobStatus.NEEDS_REVIEW": "需要人工判断",
+  "jobStatus.FAILED": "执行失败",
+  "jobStatus.ERROR": "执行出错",
+  "jobStatus.CANCELLED": "已取消",
+  "jobStatus.STALE": "已过期",
+  "jobStatus.EXPIRED": "已超时",
+  "jobStatus.COMPLETED": "已完成",
+
   // ── ui glosses · stages & preflight ─────────────────────────────
   "stage.intake": "接收任务 · 校验输入",
   "stage.preflight": "检查执行环境（工具链）",
@@ -418,6 +436,24 @@ const en: Record<keyof typeof zh, string> = {
   "topbar.theme.toDark": "Switch to dark theme",
   "footer.tagline": "SpecProof · verifiable evidence for every delivery",
   "footer.startLink": "Start here",
+
+  // ── ui glosses · job-status pills ─────────────────────────────────
+  "jobStatus.PENDING": "Pending",
+  "jobStatus.QUEUED": "Queued",
+  "jobStatus.PREPARING": "Preparing",
+  "jobStatus.CONTRACT_REVIEW": "Awaiting contract approval",
+  "jobStatus.RUNNING": "Verifying",
+  "jobStatus.REVIEWING": "In adjudication",
+  "jobStatus.WAITING_FOR_PROVIDER": "Awaiting the model service",
+  "jobStatus.VERIFIED": "Accepted",
+  "jobStatus.BLOCKED": "Blocked — risk found",
+  "jobStatus.NEEDS_REVIEW": "Needs human review",
+  "jobStatus.FAILED": "Execution failed",
+  "jobStatus.ERROR": "Execution error",
+  "jobStatus.CANCELLED": "Cancelled",
+  "jobStatus.STALE": "Stale",
+  "jobStatus.EXPIRED": "Expired",
+  "jobStatus.COMPLETED": "Completed",
 
   // ── ui glosses · stages & preflight ─────────────────────────────
   "stage.intake": "Intake — validate the request",
