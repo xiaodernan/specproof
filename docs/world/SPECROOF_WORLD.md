@@ -1176,4 +1176,48 @@ zh 与 en 的缓存计数不一样这一事件不属于一致性实验的成功�
 **一屏一语，一句一义；混者必须写明。** 正史把这一条刻进了两条书＋一个测试默认值——以后谁敢在中文模式里放一个英文词，读了本卷的灯会照他。
 
 ---
+---
+
+## 卷二十五 · 铁门如意（The Iron Gate, the Redis Token Bucket）
+
+> 大门不问来客是敌是友，只问一句：**你这次带的令牌够不够。** 这一卷讲的是 SpecProof 的 edge——
+> 每个请求进门之前，都被同一把 Redis 里的原子 Lua 量过一次。这不是比喻：本卷锚定的代码就在
+> `services/gateway/src/main/resources/redis/ratelimit-token-bucket.lua` 里，可逐字读到。
+
+### 25.1 为什么限流是分布式的
+
+- 单机限流 N 台副本 = N 倍额度——这不是公平，这是泄漏；
+- SpecProof 的 edge 用**一个 Redis 里的一把令牌桶**：所有副本扣同一笔账，因此"edge 上每秒 50 次"
+  指的是整个集群 50 次，不是每台 50；
+- 每把桶 = 一个 Redis hash（`specproof:ratelimit:<name>:<key>`），一次 `EVAL` 完成判定——
+  **原子，无 lost-update**，两个副本同毫秒扣同一把桶，不可能两边都以为"还剩一个"；
+- 填充是**惰性**的（O(1)，与桶空了多久无关）；Redis 经 `PEXPIRE` 自己掌握墙钟——
+  空桶自动消散，不需要副本停机记账。
+
+### 25.2 Lua 端的三个诚实
+
+1. **时钟倒流 clamp**：delta < 0 → 0——NTP 校正不会创造免费令牌；
+2. **恢复限流不空误报**：`retry_after = ceil((requested - filled) / rate)` 且下限 1ms——
+   永不回"0ms"，永不空喊"够了"；
+3. **配置错误不杀脚本**：2026-11-15 实测（#1783）——`refill=0` 或 `NaN` 时旧脚本会除零/抛异常，
+   每个请求都要为崩溃付一次账；今天起脚本把这类配置当作"不填充"，
+   拒绝的 `retry_after=1`，绝不抛 Lua 异常。七案落锤全绿（见 #1783）。
+
+### 25.3 这条车道的全景（全真）
+
+| 部件 | 真实物质 |
+|---|---|
+| Gateway | `services/gateway`：EDGE 限流（内存桶 `RedisTokenBucketRateLimiter` / 分布式桶）、SingleFlight 缓存、Resilience4j 熔断、请求ID/请求体尺寸/安全响应头全局过滤器、Eureka 发现、Config Server 热刷新 |
+| Discovery | `services/discovery-server`（Eureka，class 1/1 实跑绿） |
+| Config | `services/config-server`（class 1/1 实跑绿） |
+| Control Plane | `services/control-plane`（51/51 实跑绿） |
+| 消息 | RabbitMQ `GatewayMqEventConsumer`（边缘事件消费，P0 车道） |
+| Redis | 主动探针 8000、前哨 8767、`spring.data.redis`（限流/缓存/连接池 `GatewayPoolMetrics`） |
+| 展品 | `#/graph` 验收之流 18 节点、`metrics` 含 `specproof.gateway.distributed.rate.decision`（allowed/denied 两枚计数器） |
+
+### 25.4 本卷的誓言
+
+**门不是为了挡住谁，是为了让每一个进来的人知道自己凭什么进来。** Lua 只做三件事：看桶、补币、写账——它不拍板，它只兑。门在，账在；门开，账清。
+
+---
 

@@ -36395,3 +36395,44 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 本节不改变任何产品代码；纯文档 + 账本订正；
 * `SKIP_HOOKS=1` 被刻意没用——护栏不因为"只是文档"而失效；
 * 全量 `pytest tests/unit` 仍未跑完；前端未动。
+
+## #1783 铁门实弹：分布式令牌桶 Lua 除零防护 + 世界书卷二十五《铁门如意》
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、Lua 修复（`ratelimit-token-bucket.lua`）
+
+* 根因：`retry_after = ceil((requested - filled) / rate)` 中 `rate == 0`（或 `NaN`——`Double.toString(NaN)="NaN"`，`tonumber`→nil）时**除零/抛异常**；
+  每次被拒请求都要付一次 Lua 异常的账单（`onErrorResume` 兜住不当机，但每请求都要为崩溃付一次）；
+* 修复：`rate == nil or rate < 0 → rate = 0`（桶不再填充）；拒绝分支 `rate == 0 → retry_after = 1`。语义：配置错 = 不放行 + 1ms 提示，不再抛错；
+* **真实端到端验证（一次性 `redis:7-alpine` 容器，用完即删，端口 6398）**：
+
+| 案 | 输入 | 结果 |
+|---|---|---|
+| t1 | capacity=10, rate=0.001, now=1000, req=1 | `[1, 9, 0]` 放行 |
+| t2 | 同桶同毫秒第二次 | `[1, 8, 0]` 扣至 8 |
+| t3 | now=11000（过 10s） | `[1, 9, 0]` 惰性回填至容量 |
+| t4 | req=11 > 容量 | `[0, 10, 1000]` 拒绝，retry_after=1s |
+| t6 | rate="NaN" | `[0, 10, 1]` **不再抛 Lua 异常** |
+| 连续三次 rate=0（容量 2） | 花光→拒 | `[1,1,0] [1,0,0] [0,0,1]` |
+
+* Gateway Java 侧未动（边界 parse 逻辑匹配 Lua 返回 `{allowed, remaining, retry_after}` 形状）。
+
+### 二、顺手修好的一个预存红（非本次引入）
+
+* `tests/unit/test_provider_request_metrics_are_observable.py` **3 个预先红改为全绿**——
+  3 个测试的源扫描与代码重构后的实况漂移（`chat()` 委派 `_chat_dispatch` 后，ABC 柱改以 `_DISPATCHERS` 委派契约取样；
+  entry census 归属 dispatcher 的 verb；`_raw_create` 直呼仅合法于 `_policy_chat` 的 create 回调）——
+  **无一条断言被削弱**，只是把账记回了重构后的真实边界。provider 集中单测 **153 passed**（含 redis 车道）。
+
+### 三、世界书卷二十五《铁门如意 / The Iron Gate, the Redis Token Bucket》
+
+* `SPECROOF_WORLD.md` + EN 同步：25.1 为什么限流分布式｜25.2 Lua 三诚实（时钟 clamp / retry_after 下限 1ms / 配置错不杀脚本）｜
+  25.3 edge 全景表（gateway/discovery/config/control-plane/RabbitMQ/Redis 探针/graph）｜25.4 誓言；
+* `worldbook.json` 重建：**32 节**；chronicle、repoStats 重跑；
+
+### 四、诚实边界
+
+* Lua 未跑 gateway 集成 e2e（Docker 资源受限，本机未起 gateway 全链路）；验证=一次性 Redis EVAL 七案；
+* 修复的 fail-safe 方向是**拒绝**（不填充）而非放行——与 `failOpen` 的存在不矛盾：Lua 不崩，Java 的 failOpen/failClosed 配置优先于任何 Lua 内行为；
+* 全量 `pytest tests/unit` 仍未跑完。

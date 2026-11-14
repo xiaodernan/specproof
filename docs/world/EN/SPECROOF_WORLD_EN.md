@@ -1059,4 +1059,47 @@ the moment the next volume is written, its lamp lights again.
 **One screen, one tongue; every clause, one meaning; any mix must be signed.** The official history has carved this into two books plus one test default — from now on, whoever dares an English word into zh mode will be lit by the lamp this volume lit.
 
 ---
+---
+
+## Volume XXV · The Iron Gate, the Redis Token Bucket（卷二十五 · 铁门如意）
+
+> The Gate never asks whether the caller is friend or foe; it asks one question only: **do you hold enough tokens for this pass?** This volume is the story of SpecProof's edge —
+> every request measured once, by the same atomic Lua inside one Redis. Not a metaphor: the code this volume anchors lives at
+> `services/gateway/src/main/resources/redis/ratelimit-token-bucket.lua`, readable verbatim.
+
+### 25.1 Why rate limiting is distributed
+
+- Single-instance limiting × N replicas = N times the quota — not fairness, a leak;
+- SpecProof's edge holds **one token bucket in one Redis**: every replica debits the same account, so "50 req/s at the edge" means 50 across the fleet, not 50 per replica;
+- One bucket = one Redis hash (`specproof:ratelimit:<name>:<key>`), one `EVAL` per decision —
+  **atomic, no lost-update**: two replicas racing on the same key cannot both believe a token was free;
+- Refill is **lazy** (O(1), regardless of idle hours); Redis owns the wall clock via `PEXPIRE` —
+  idle buckets simply expire, no replica needed to stop and keep books.
+
+### 25.2 The Lua script's three honesties
+
+1. **Clock regression clamp**: `delta < 0 → 0` — an NTP correction never mints free tokens;
+2. **Denial never undersells**: `retry_after = ceil((requested - filled) / rate)` floored at 1ms —
+   never "0ms", never a hollow "you may";
+3. **Misconfiguration does not kill the script**: measured 2026-11-15 (#1783) — `refill=0` or `NaN` made the old script divide by zero / raise,
+   every request paying once for the crash; the script now treats such configuration as "no refill",
+   denying with `retry_after=1` and never crossing a Lua exception onto the wire. Seven cases verified green (#1783).
+
+### 25.3 The full lane (all real)
+
+| Part | Real substance |
+|---|---|
+| Gateway | `services/gateway`: edge limiters (in-memory bucket / distributed bucket `RedisTokenBucketRateLimiter`), SingleFlight cache, Resilience4j circuit breaker, request-id / request-size / security-headers global filters, Eureka discovery, Config Server hot refresh |
+| Discovery | `services/discovery-server` (Eureka — 1/1 green) |
+| Config | `services/config-server` (1/1 green) |
+| Control plane | `services/control-plane` (51/51 green) |
+| Messaging | RabbitMQ `GatewayMqEventConsumer` (edge event consumer, P0 lane) |
+| Redis | primary probe :8000, sentinel :8767, `spring.data.redis` (limiter/cache/pool `GatewayPoolMetrics`) |
+| Exhibits | `#/graph` — the 18-node River of Verification; metrics carry `specproof.gateway.distributed.rate.decision` (allowed/denied counters) |
+
+### 25.4 This volume's vow
+
+**The Gate is not there to keep people out; it is there so every person who passes knows why they were let through.** Lua does exactly three things: look at the bucket, refill it, write the ledger — it does not decide, it settles. The Gate stands; the ledger stands; the Gate opens, the ledger is clear.
+
+---
 

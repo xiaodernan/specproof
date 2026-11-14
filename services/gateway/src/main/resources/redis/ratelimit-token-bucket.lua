@@ -24,6 +24,12 @@ local data   = redis.call('HMGET', key, 'tokens', 'ts')
 local tokens = tonumber(data[1])
 local ts     = tonumber(data[2])
 
+-- A misconfigured refill (NaN / negative / zero) must not error the script:
+-- a Lua exception crosses to the limiter, which fail-opens or fail-closes —
+-- but either way every request pays for the crash. Treat it as "no refill":
+-- the caller's configured fail semantics then applies, with a clean retry hint.
+if rate == nil or rate < 0 then rate = 0 end
+
 if tokens == nil then
   -- First sight of this key: hand out a full bucket, start the clock now.
   tokens = capacity
@@ -48,8 +54,12 @@ end
 -- back off instead of spinning. Ceil keeps the hint honest (never "0ms").
 local retry_after = 0
 if allowed == 0 then
-  retry_after = math.ceil((requested - filled) / rate)
-  if retry_after < 1 then retry_after = 1 end
+  if rate == 0 then
+    retry_after = 1
+  else
+    retry_after = math.ceil((requested - filled) / rate)
+    if retry_after < 1 then retry_after = 1 end
+  end
 end
 
 -- Persist. `ts` moves to `now`; `tokens` holds what is left (unchanged when we

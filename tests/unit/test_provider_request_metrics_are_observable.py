@@ -545,13 +545,24 @@ def _meter_blocks(tree: ast.Module) -> dict[str, int]:
     return counts
 
 
+#: Verbs that delegate their request work to a private dispatcher — the
+#: meter lives there, not in the (ledger-wrapped) verb body. Delegation is
+#: the pinned contract: chat() -> _chat_dispatch. A new dispatcher must be
+#: added here or its meter goes uncounted.
+_DISPATCHERS = {"chat": {"_chat_dispatch"}, "chat_stream": set()}
+
+def _meter_total_for(verb: str, blocks: dict[str, int]) -> int:
+    return sum(blocks.get(name, 0) for name in ({verb} | _DISPATCHERS.get(verb, set())))
+
 def test_abc_verbs_are_metred() -> None:
-    """Every async verb of the ABC carries at least one meter block — a new
-    verb cannot ship unmetered without this going red."""
+    """Every async verb of the ABC carries at least one meter block — or
+    delegates to a dispatcher that does (the meter lives in the dispatcher,
+    never in the unmetered delegation seam) — a new verb cannot ship
+    unmetered without this going red."""
     verbs = _abc_async_verbs()
     assert len(verbs) >= 2, f"ABC async surface shrank: {verbs}"
     blocks = _meter_blocks(_parse(_PROVIDER_PATH))
-    missing = [verb for verb in verbs if blocks.get(verb, 0) < 1]
+    missing = [verb for verb in verbs if _meter_total_for(verb, blocks) < 1]
     assert not missing, f"ABC verbs without a meter block: {missing}"
 
 
@@ -573,13 +584,16 @@ def test_every_entry_call_in_the_verb_bodies_is_metered() -> None:
         and isinstance(node.func.value, ast.Name)
         and node.func.value.id == "self"
     ]
+    # Attribute dispatcher call sites back to the verb that delegates to it.
+    fn_owner = {name: verb for verb, names in _DISPATCHERS.items() for name in names}
     per_verb = {verb: {"total": 0, "inside": 0} for verb in verbs}
     outside: set[str] = set()
     for fn, _node, depth in entry:
-        if fn in per_verb:
-            per_verb[fn]["total"] += 1
+        owner = fn if fn in per_verb else fn_owner.get(fn)
+        if owner is not None:
+            per_verb[owner]["total"] += 1
             if depth > 0:
-                per_verb[fn]["inside"] += 1
+                per_verb[owner]["inside"] += 1
         elif depth == 0:
             outside.add(fn)
     for verb, floor in _ENTRY_FLOORS.items():
@@ -599,9 +613,9 @@ def test_every_entry_call_in_the_verb_bodies_is_metered() -> None:
     )
     blocks = _meter_blocks(tree)
     for verb in verbs:
-        assert blocks.get(verb, 0) >= 2, (
-            f"{verb}() lost a meter block ({blocks.get(verb, 0)} left): each "
-            "protocol branch must own its region"
+        assert _meter_total_for(verb, blocks) >= 2, (
+            f"{verb}() lost a meter block ({_meter_total_for(verb, blocks)} left): "
+            "each protocol branch must own its region"
         )
     probes = [
         (fn, depth)
@@ -630,11 +644,17 @@ def test_raw_sdk_create_sites_are_the_three_helpers() -> None:
         "_raw_create",
     }, create_fns
     direct = [
-        node.lineno
-        for _fn, node, _depth in sites
+        (fn, node.lineno)
+        for fn, node, _depth in sites
         if isinstance(node.func, ast.Attribute) and node.func.attr == "_raw_create"
     ]
-    assert not direct, f"_raw_create must only be passed, never called (lines {direct})"
+    # The policy callback (create_and_aggregate) is the one legitimate call
+    # site — it IS the reason _raw_create exists; every other caller would
+    # be an unmetered ride around the policy path.
+    assert all(fn == "_policy_chat" for fn, _ in direct), (
+        f"_raw_create may only be called inside _policy_chat (the policy's "
+        f"create callback); found {direct}"
+    )
 
 
 def test_meter_region_counts_the_trio_with_exception_only_endings() -> None:
