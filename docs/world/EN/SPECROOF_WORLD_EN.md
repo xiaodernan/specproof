@@ -416,6 +416,43 @@ The next time someone asks: **"This world has Chinese and English too — the ro
 
 ---
 
+
+## Scroll 12 · Inside: The Hall of Exhibits
+
+> Scroll 11 taught two doors — one inward, one outward. Scroll 12 tells of the room that appeared once the doors were open: the officer pinned twelve iron proofs to the wall.
+
+### 12.1 Why the hall exists
+
+SpecProof's oldest habit is "write it down" — since the first differential experiment, every number landed in the ledger. But numbers land in the ledger, not on walls inside the house. No one photographed these exhibits at the moment they happened; they lay flat by date. So the Evidence Museum was raised: the numbers that were set down in git log, one by one, put back into the posture in which they occurred.
+
+Twelve exhibits, no decorative impact metrics, no "influence stars". **The anchor on each plaque is the weight** — press git show c75a0ef to see the Tour shipped (#1677); press git log --grep "#1689" to see the differential that caught AUTH-01. The hall proves nothing; the hall only turns the lights on at the scene.
+
+### 12.2 Inside the wall, or outside?
+
+The hall is inside — a user opens the sidebar and reads 「质量与证据」 until they see it. And the hall is outside — every anchor it indexes can be checked from outside the wall.
+
+Bidirectional: **seeing outside from inside; both sides share the same furnace.** The chronology from Scroll 0 to Scroll 11 became a user interface not to boast, but to stand up a findable shelf of iron evidence — the differential still runs, the matrix still lists, the seal still falls, the hall waits for you to check against.
+
+### 12.3 Who walks in
+
+There is no fixed hour for it, because **every entry is its opening hour**. Some come for it specifically:
+
+* **The auditor**: first Scroll 8 (The Chronicler's Vigil) for "the ledger does not lie", then walks the twelve plaques one by one, cross-checking anchors.
+* **The newcomer**: seals the first tour station (Scroll 1), then reads Exhibit V (the CSS class that broke the build) — and is careful with their first CSS selector forever after.
+* **The future chronicler**: one day frowns at one exhibit and begins the continuation of the twelfth. The hall is where the relay baton sits, between one hand and the next.
+
+Some things SpecProof makes for this hour; others — like the next volume — it makes for who will read it.
+
+### 12.4 Toward the next scroll
+
+The roadmap is unfinished: IDE integration (6.1), observability on by default (5.3), deployment shape (5.4) — they all wait in PRODUCT_ROADMAP.md for the next commit. Scroll 11 taught the doors, Scroll 12 taught the hall — what does the next one teach?
+
+*Scroll 12's answer is left after its own end.*
+
+It will not stop inside the Book of Iron Evidence; it will land in the next pull request — because the interface is ready to catch it: the route is open, the anchors are accurate, the chronicler lacks no pen — only the next thing being written down.
+
+---
+
 ## Final Scroll · The Unfinished
 
 Every victory, defeat, ledger, and scroll in this book lands on one answer:
