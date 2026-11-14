@@ -14,8 +14,59 @@ import {
   severityPill,
   type Column,
 } from "../ui";
+import { useI18n } from "../i18n";
+import { EVAL_BY_LOCALE } from "./eval.copy";
 
 type EvalCase = NonNullable<NonNullable<EvalData["report"]["cases"]>[number]>;
+
+type EvalCopy = (typeof EVAL_BY_LOCALE)["zh"];
+
+function makeColumns(c: EvalCopy): Column<EvalCase>[] {
+  return [
+    { key: "case", header: c.colCase, sortable: true, render: (k) => <span className="mono">{k.case}</span> },
+    {
+      key: "verdict",
+      header: c.colVerdict,
+      sortable: true,
+      // Keep the canonical English token (audit) and add the Chinese gloss;
+      // raw stays in title. Unknown verdicts pass through verbatim (no gloss).
+      render: (k) => {
+        const cn = k.verdict ? evalVerdictLabel(k.verdict) : "";
+        const glossed = !!cn && cn !== k.verdict;
+        return (
+          <span className={pillClass(k.verdict)} title={k.verdict || ""}>
+            {k.verdict || c.emptyPlaceholder}
+            {glossed ? " · " + cn : ""}
+          </span>
+        );
+      },
+    },
+    {
+      key: "should_detect",
+      header: c.colShouldDetect,
+      align: "center",
+      sortable: true,
+      sortValue: (k) => (k.should_detect ? 1 : 0),
+      render: (k) => <>{k.should_detect ? c.yesGlyph : c.noGlyph}</>,
+    },
+    {
+      key: "expected_severity",
+      header: c.colExpectedSeverity,
+      sortable: true,
+      render: (k) =>
+        k.expected_severity ? (
+          <span className={`pill ${severityPill(k.expected_severity).cls}`} title={severityHint(k.expected_severity) || k.expected_severity}>
+            {severityPill(k.expected_severity).label}
+          </span>
+        ) : (
+          <span className="mono">{c.emptyPlaceholder}</span>
+        ),
+    },
+    { key: "expected_contract", header: c.colExpectedContract, sortable: true, render: (k) => <span className="mono">{k.expected_contract || c.emptyPlaceholder}</span> },
+    { key: "contracts_found", header: c.colContractsFound, render: (k) => <span className="mono">{k.contracts_found || c.emptyPlaceholder}</span> },
+    { key: "matched_severities", header: c.colMatchedSeverities, render: (k) => <span className="mono">{k.matched_severities || c.emptyPlaceholder}</span> },
+  ];
+}
 
 function pillClass(verdict?: string): string {
   return verdict === "PASS"
@@ -25,52 +76,10 @@ function pillClass(verdict?: string): string {
     : "pill pill-run";
 }
 
-const CASE_COLUMNS: Column<EvalCase>[] = [
-  { key: "case", header: "案例 Case", sortable: true, render: (c) => <span className="mono">{c.case}</span> },
-  {
-    key: "verdict",
-    header: "判定 Verdict",
-    sortable: true,
-    // Keep the canonical English token (audit) and add the Chinese gloss;
-    // raw stays in title. Unknown verdicts pass through verbatim (no gloss).
-    render: (c) => {
-      const cn = c.verdict ? evalVerdictLabel(c.verdict) : "";
-      const glossed = !!cn && cn !== c.verdict;
-      return (
-        <span className={pillClass(c.verdict)} title={c.verdict || ""}>
-          {c.verdict || "—"}
-          {glossed ? " · " + cn : ""}
-        </span>
-      );
-    },
-  },
-  {
-    key: "should_detect",
-    header: "应检出?",
-    align: "center",
-    sortable: true,
-    sortValue: (c) => (c.should_detect ? 1 : 0),
-    render: (c) => <>{c.should_detect ? "是" : "否"}</>,
-  },
-  {
-    key: "expected_severity",
-    header: "期望严重度",
-    sortable: true,
-    render: (c) =>
-      c.expected_severity ? (
-        <span className={`pill ${severityPill(c.expected_severity).cls}`} title={severityHint(c.expected_severity) || c.expected_severity}>
-          {severityPill(c.expected_severity).label}
-        </span>
-      ) : (
-        <span className="mono">—</span>
-      ),
-  },
-  { key: "expected_contract", header: "期望契约 Contract", sortable: true, render: (c) => <span className="mono">{c.expected_contract || "—"}</span> },
-  { key: "contracts_found", header: "实际检出契约", render: (c) => <span className="mono">{c.contracts_found || "—"}</span> },
-  { key: "matched_severities", header: "匹配严重度 Severities", render: (c) => <span className="mono">{c.matched_severities || "—"}</span> },
-];
-
 export default function Eval() {
+  const { locale } = useI18n();
+  const c = EVAL_BY_LOCALE[locale];
+  const columns = makeColumns(c);
   const [data, setData] = useState<EvalData | null>(null);
   const [error, setError] = useState<Error | string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -99,8 +108,8 @@ export default function Eval() {
   return (
     <div>
       <div className="page-head">
-        <h1>评测 Evaluation</h1>
-        <div className="page-sub">精确率 / 召回率 / F1 — 数据来自评测管线的报告文件</div>
+        <h1>{c.title}</h1>
+        <div className="page-sub">{c.sub}</div>
       </div>
 
       {failed ? (
@@ -109,38 +118,38 @@ export default function Eval() {
           <ErrorBox error={error} />
           <div style={{ marginTop: 12 }}>
             <Button variant="ghost" onClick={() => setReload((n) => n + 1)}>
-              重新加载
+              {c.retry}
             </Button>
           </div>
         </>
       ) : !data ? (
-        <Empty text="尚无评测报告——评测管线还未运行过，或没有生成报告文件。这不是读取失败。" />
+        <Empty text={c.notFoundText} />
       ) : (
         <>
           <div className="kv">
-            <span className="kv-label">来源 Source</span>
+            <span className="kv-label">{c.sourceLabel}</span>
             <span className="kv-value mono">{data.source}</span>
           </div>
           <div className="kv" style={{ marginBottom: 16 }}>
-            <span className="kv-label">修改时间</span>
+            <span className="kv-label">{c.modifiedLabel}</span>
             <span className="kv-value">{fmtTime(data.modified_at)}</span>
           </div>
 
           <div className="stat-grid" style={{ marginBottom: 16 }}>
-            <StatCard label="Precision 精确率" value={r && r.precision != null ? r.precision.toFixed(1) + "%" : "—"} tone="info" />
-            <StatCard label="Recall 召回率" value={r && r.recall != null ? r.recall.toFixed(1) + "%" : "—"} tone="ok" />
-            <StatCard label="F1" value={r && r.f1 != null ? r.f1.toFixed(1) + "%" : "—"} tone="warn" />
-            <StatCard label="总案例" value={r ? (r.total_cases ?? "—") : "—"} />
-            <StatCard label="应检出" value={r ? (r.should_detect ?? "—") : "—"} />
-            <StatCard label="误报 FP" value={r ? (r.false_positives ?? "—") : "—"} tone={r && r.false_positives ? "bad" : "ok"} />
+            <StatCard label={c.statPrecision} value={r && r.precision != null ? r.precision.toFixed(1) + "%" : c.emptyPlaceholder} tone="info" />
+            <StatCard label={c.statRecall} value={r && r.recall != null ? r.recall.toFixed(1) + "%" : c.emptyPlaceholder} tone="ok" />
+            <StatCard label={c.statF1} value={r && r.f1 != null ? r.f1.toFixed(1) + "%" : c.emptyPlaceholder} tone="warn" />
+            <StatCard label={c.statTotal} value={r ? (r.total_cases ?? c.emptyPlaceholder) : c.emptyPlaceholder} />
+            <StatCard label={c.statShouldDetect} value={r ? (r.should_detect ?? c.emptyPlaceholder) : c.emptyPlaceholder} />
+            <StatCard label={c.statFalsePositives} value={r ? (r.false_positives ?? c.emptyPlaceholder) : c.emptyPlaceholder} tone={r && r.false_positives ? "bad" : "ok"} />
           </div>
 
-          <Panel title={"案例明细 (" + (r && r.cases ? r.cases.length : 0) + ")"}>
+          <Panel title={c.casesPanelTitle(r && r.cases ? r.cases.length : 0)}>
             <Table<EvalCase>
-              columns={CASE_COLUMNS}
+              columns={columns}
               rows={r?.cases ?? []}
-              rowKey={(c, i) => c.case || String(i)}
-              emptyTitle="无案例明细"
+              rowKey={(k, i) => k.case || String(i)}
+              emptyTitle={c.emptyCasesTitle}
             />
           </Panel>
         </>

@@ -34226,3 +34226,26 @@ EN/USER_GUIDE_EN.md = 英文新手路径（#1699）；MCP_GUIDE*.md = 机器发�
   与 `test_severity_vocabulary_parity.py` 锁死的词表绑定——**本页不翻译它们**，矩阵整体的
   UI 层 i18n 归为下一阶段（整个 `ui/toneMap.ts` 需要 locale 参数化 + parity 门重新配平）；
 * 本号完成 **Jobs**（验证列表页）；Matrix / Contracts / Eval / Billing / Audit / Settings 仍排队。
+
+## #1705 旧页面双语化第四批：Eval 逐页本地化（`eval.copy.ts`）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `apps/web/src/pages/eval.copy.ts`：`EvalCopy` 双版——标题、页眉说明、重试（「重新加载」，
+  与 Eval.test.tsx 契约逐字一致）、来源/更新时间标签、六张 StatCard 标签、用例明细面板标题
+  （带计数 `casesPanelTitle(n)`）、空表标题、未找到文案（含「尚无评测报告」字面，同样被测试锁住）、
+  七列表头、「是/否」glyphs、`—` 空占位符；
+* `Eval.tsx`：`useI18n()` + `EVAL_BY_LOCALE[locale]`；列定义抽成 `makeColumns(c)`；
+  五种场景（加载中/404 空态/5xx 错误态/正常数据/空表）全部对齐；
+  **evalVerdictLabel 的中英混排「PASS · 判定正确」保留**——raw token 用于审计保真，中文是读者的玻璃纸，
+  这是刻意的「token 不美化、读者不失真」，不是中英夹杂；
+* 验迹：Eval.test.tsx **6/6**；vitest 全量 **486/486**；`npm run build` 绿（index 258.73 kB / gzip 87.94 kB）；
+  tsc 净；ledger 45/45。
+
+### 二、诚实边界
+
+* 严重度/判决等**共享词表**（`severityPill`、`evalVerdictLabel`）归 `ui/toneMap.ts`，不因本页双语而翻译——
+  词表 i18n 涉及 `test_severity_vocabulary_parity.py` 与 `test_review_court_policy.py` 双门，单独立项；
+* 本号完成 **Eval**；剩余：JobDetail / Matrix / NewVerification / Guide / Billing / Audit / Settings / Login 仍排队。

@@ -163,7 +163,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 
 | 已经**逐页**本地化（中英可切、无中文散文残留） | 仍是**中文原生**（界面能切、页面正文未逐字翻译） |
 |---|---|
-| 侧栏全部 17 个导航 + 3 个分组标题 + 面包屑 + 工作台（#1702）+ 服务状态（#1703）+ 验证列表（#1704） | JobDetail / Matrix / Contracts / Eval / Billing / Audit / Settings 等旧页面正文 |
+| 侧栏全部 17 个导航 + 3 个分组标题 + 面包屑 + 工作台（#1702）+ 服务状态（#1703）+ 验证列表（#1704）+ 效果评测（#1705） | JobDetail / Matrix / Contracts / Billing / Audit / Settings 等旧页面正文 |
 | `/tour` — 六卷站整篇双语（`pages/tour.copy.ts`） | |
 | `/explorer` — 导语/字段/StatCard/铁证清单全量走表 | |
 | `/usage` — 标题/窗口芯片/六张卡/诚实口径句（含 `{basis}` 分母插值）/图例/空账本文案 | |
