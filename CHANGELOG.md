@@ -2,6 +2,32 @@
 
 格式约定：按日期列 **可归因的变更**；每条附"证据"行——命令、输出、结论，而非感知描述。本项目**尚无签名的版本标签**（tag），因此未发布 dists 无法引用；所有内容以 git 历史与 `docs/operations/DEEP_OPTIMIZATION_PLAN.md`（数字化账本，每个 `## #NNN` 对应一笔真实工作）为准：`git log --follow docs/operations/DEEP_OPTIMIZATION_PLAN.md` 或上面的账本。
 
+## 2026-11-15 · 验收快问 + 世界书卷十五 + UI 词表全量双语
+
+本条目覆盖 `765d00a` → `bda2092` 八个提交（ledger `#1726` → `#1733`，全部附实测命令）。
+
+### 新增
+- **`#/drill` 验收快问**：12 道速测，每题锚真实文件/链接/账本（base_pass_head_fail 语义、wkapi 4224 常量、UNVERIFIED 判词、账本 append-only、BLOCKER 不可人为 override……）；暗金印章封印梯（见习→正式→骑士→铁证），键盘 1-4/Enter，`specproof_drill_v1` 持久化最高分；`bda2092`。
+- **`demo doctor`**：`scripts/demo_doctor.py` 一条命令自检演示仓（标签解析/差异范围/需求族/工作树），零 Docker·零网络·零 LLM；`--json` 机读报告；`--strict-clean` 强制脏树转红；`bd0668a`。
+
+### 修复
+- **指南幽灵路由**：`USER_GUIDE.md` / `USER_GUIDE_EN.md` §3 曾列 `/mcp`、`/admin/identity`、`/readme`——应用从不挂载这三页；已改为真实路由（`/agent`、`/identity`、`/login`）并新增 `tests/unit/test_guide_route_catalog.py`（6 项断言锁死两边）；`765d00a`。
+- **App 外壳整段中文**：skip-link、会话区退出/连接、工作空间选择器、顶栏搜索/主题钮、页脚、404 回落 → 26 个 i18n 词条 + 独立 NotFoundPage；`765d00a`。
+- **UI 词表层中英脱节**：`toneMap.ts` / `errorHints.ts` / `stages.ts` / `preflight.ts` 的 gloss 全部随 locale 解析（78 + 51 词条）；Python 三门改读 i18n 表；`785c3cc`、`3f7ce44`。
+- **`verdict_channel_parity` 基线红**：`api/ai_summary.py` 写入 `verdict` 字段却不被任何通道声明——如实登记为 `job_summary` 通道搬运工（owner + opaque），门真绿；`785c3cc`。
+
+### 世界书
+- **卷十五《未完的路》**：六块空地逐条写「做完长什么样」+ 可考锚点；15.4 史官欠条如实入册（全量 pytest 未跑完也记）；`caefe2c`。
+- `/epic` 新增第七卷「未完的路」（中英七卷对齐）；`7807bbf`。
+- 世界书 43.2KB（中文）/ 41.9KB（英文）——portfolio-sync 下次自动带新尺寸；`ed35467` 两笔欠条已划掉。
+
+### 验证状态
+- `vitest` **497/497 绿**；`tsc --noEmit` 0 错误；`vite build` ✅（Drill chunk 18.66 KB 懒加载）；
+- Python 词表 parity 系列全绿（含 #1730 偿清的基线红 verdict_channel_parity）；
+- 账本四件套 45/45（本链路每个提交入账前均跑）；
+- 全量 `pytest tests/unit` **未**跑（本机内存上限），不声称全绿；
+- `#/drill` 未经浏览器目验（build + 单测 + route gate 背书）。
+
 ## 2026-11-09 — 初始公开主干汇总
 
 本项汇总了 2026-07-08 至 2026-11-09 的长期落地（见账本 `#1`–`#1541`）。以下是本次集中收尾的代表性变更；历史逐笔记录以 git log 为准，本文件仅列大版本轮廓，不重复抄账本正文。

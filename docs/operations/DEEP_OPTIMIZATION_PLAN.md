@@ -35152,3 +35152,21 @@ doctor 如实报告而不染绿；未追入这批改动，它们不是本提交�
 * 未跑浏览器自动点测（Playwright 未跑）；视觉未肉眼核对——交付证据是 build + 单测 + 上一轮 #1726 教训的 route-catalog gate；
 * `specproof_drill_v1` 的 `best` 语义为满分 12；计不计入 CI 冒烟——不写进 CI 验收判定（游戏是游戏）；
 * 全量 `pytest tests/unit` 仍未跑完；不声称全绿。
+
+## #1734 CHANGELOG 追更 —— 把 #1726→#1733 串成 2026-11-15 一条完整简报；portfolio-sync 数据以此校准
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `CHANGELOG.md` 新增 `## 2026-11-15 · 验收快问 + 世界书卷十五 + UI 词表全量双语`：
+  三段（新增 / 修复 / 世界书+验证状态），逐条锚提交与 `#账本节号`；明确写下本轮**未**承诺的事
+  （全量 pytest 未跑完、drill 未做浏览器点测）——portfolio 的 `latest_changelog` 读取的就是这一节。
+* `scripts/sync_portfolio.py` 本地重跑：`world_size: 42.5 KB`、`page_count: 25`、`latest_changelog` 指向本节——
+  证明 sync 脚本对本轮内容不炸、可解析（generated 物 gitignored，不入提交）。
+
+### 二、诚实边界
+
+* 本号**不推** portfolio——依旧等 `PORTFOLIO_TOKEN`（#1722）；至多证明“数据重建不翻车”。
+* CHANGELOG 中文表述口径沿用原版语气（列举根 commit、不含英文镜像）；验证状态段里写明 drill 未目验、全量 pytest 未跑完；
+  下次奏销必须逐项划掉或如实跨号。
