@@ -461,3 +461,10 @@
   .case-verdict-block { flex-direction: column; gap: var(--sp-4); }
   .case-seal { width: 96px; height: 96px; font-size: 44px; }
 }
+
+.tour-manual-link { margin: 0; }
+.tour-manual-link a {
+  font-size: var(--text-sm); color: var(--accent-text); text-decoration: none;
+  border-bottom: 1px dashed var(--accent-ring); padding-bottom: 1px;
+}
+.tour-manual-link a:hover { border-bottom-style: solid; }

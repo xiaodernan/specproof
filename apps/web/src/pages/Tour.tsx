@@ -143,6 +143,16 @@ export default function Tour() {
         </Button>
       </div>
 
+      <p className="tour-manual-link">
+        <a
+          href="https://github.com/xiaodernan/specproof/blob/master/docs/operations/TOUR_MANUAL.md"
+          target="_blank"
+          rel="noreferrer"
+        >
+          {locale === "zh" ? "玩法手册（机关 · 彩蛋 · 常见问题）→" : "How to play (mechanics · easter eggs · FAQ) →"}
+        </a>
+      </p>
+
       <p className="tour-colophon muted">
         {t("tour.colophon")}
       </p>
