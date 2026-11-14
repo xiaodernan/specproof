@@ -154,6 +154,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/contracts` | 验收规则 | 列出所有契约 + 不知道也能读的解释 |
 | `/eval` | 效果评测 | F1/P/R 分类诊断 + golden 对照 |
 | `/drill` | 验收快问（闪电问答） | 12 道速测——每题都锚真实文件与真实账本；答完揭晓称号 |
+| `/ide` | 铁匠工坊 | 真实锚点 + 抄板 + 炉边便笺，本机落盘 |
 | `/billing` | 用量与账单 | 真 wkapi.pro 实测 token + hit_rate |
 | `/audit` | 审计轨迹 | 每一步 audit_logs 写入，不丢任何 |
 | `/health` | 服务状态 | 6 依赖延迟分布 + 60 面板 SLO 告警触发 |

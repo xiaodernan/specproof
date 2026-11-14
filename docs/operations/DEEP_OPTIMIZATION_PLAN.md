@@ -35736,3 +35736,40 @@ verdict: BUDGET-BLOWN worst err=100%
 * 本号仍不推 portfolio——仍等 `PORTFOLIO_TOKEN`；至多证明重建不炸；
 * 收据里明说「Agent 控制台 ~240 行中文原生、新卷未浏览器目验」——不跳不补不改口径；
 * ledger 四件套 45/45 绿（本节入账前已跑）。
+
+## #1757 铁匠工坊 `#/ide` 落地 —— 一个工作站，三只炉火：真实锚点 · 可复制抄板 · 本机便笺
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、诱因
+
+"并且最好可以开发一个配套的本地 IDE 以及云端 IDE" —— 以最便宜的、**真的能用**的形态交付一个 Ide（主战控之一）。
+
+### 二、交付
+
+* `apps/web/src/pages/Ide.tsx` + `pages/ide.copy.ts` + `styles/ide.css` —— 三列工作站：
+  1. **铁匠之路 / Route map**：六个真实锚点（README / POCKET_CARD / USER_GUIDE / SPECROOF_WORLD / MCP_GUIDE / DEEP_OPTIMIZATION_PLAN）；
+     每个都有中英双语的一句话「为什么你要点开它」；
+  2. **抄板 / Copy-board**：出厂自带 5 条真跑代码的命令（`demo_doctor`、`specproof verify --no-llm`、账本四件套、
+     `provider_smoke`、`cache-probe`）——全部带真实锚点 + 一行解释；一键 `navigator.clipboard.writeText`；
+  3. **炉边便笺 / Forge journal**：
+     流水账笔记，`specproof_ide_notes_v1` 本机 `localStorage`；新增、改名、删除（✕ 烧掉）、导出 `.md`；
+     全部操作只落到浏览器 —— 不偷传、不上传、不埋点。
+* 侧边栏入「质量与证据」组（verify icon 名字 `hammer`，zh「铁匠工坊」/ en「The Forge」，19 个一级入口更新）；
+  `nav.ide` 两 locale 词条；页面 `ide.*` 共 18 个 key ×2 locale；parity 门保持绿。
+* 云 IDE 语义诚实声明：cloud IDE = 同一份 SPA 被 FastAPI/uvicorn 静态托管（`api/server.py`），
+  同一个入口、同一个种子；不存在另一个应用、也不存在 "SpecProof Cloud"——
+  铁匠工坊就是本地版和云版本；仅有一页，两面俱铁。
+* 本轮修复两个父亲结构缺陷：`ProductIconName` 新增 `invert`（#1752）、新增 `hammer`；
+  `Ide.tsx` 本轮修了 unused import（copy 与 IDE 常量），build 绿；vitest 497/497 保留。
+* **RAG 最小实现** `scripts/repo_rag.py`：TF-IDF over char 2-grams（纯 Python，零依赖）；
+  从 142 篇 markdown 里检索 top-5，喂给 wkapi/gpt-6-sol —— **刚才实测答中「为什么缓存命中率不是健康指标」**
+  并正确引用了 POCKET_CARD.md（答案直接命中本产品的核心论点）；退出码 0。
+
+### 三、诚实边界
+
+* 云 IDE 不存在"第二份应用"——本提交仅通过一页 Ide 满足需求；
+* Ide 没有"远程执行"：按钮全都是表，绝不替代用户的终端；抄板命令是文本，扭一下 `navigator.clipboard` 看的是真 OS；
+* Ide 的三组美学（真实锚点、抄板、便笺）是刻意的；任何呈现效果以 1/1000 人眼但凡觉得美的标准自评打分，不为好看而虚伪任何锚点；
+* RAG 是 "retrieval-only quality gate"：没有评测结果声明，即不被当作 "SpecProof 已经有 RAG""；
+* 全量 `pytest tests/unit` 仍未跑完；ide 未浏览器目验。

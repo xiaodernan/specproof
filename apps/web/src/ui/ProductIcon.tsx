@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type ProductIconName = "overview" | "verify" | "agent" | "matrix" | "contracts" | "team" | "chart" | "health" | "billing" | "guide" | "arrow" | "plus" | "shield" | "menu" | "close" | "scroll" | "invert";
+export type ProductIconName = "overview" | "verify" | "agent" | "matrix" | "contracts" | "team" | "chart" | "health" | "billing" | "guide" | "arrow" | "plus" | "shield" | "menu" | "close" | "scroll" | "invert" | "hammer";
 
 const paths: Record<ProductIconName, ReactNode> = {
   overview: <><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>,
@@ -20,6 +20,7 @@ const paths: Record<ProductIconName, ReactNode> = {
   menu: <path d="M4 6h16M4 12h16M4 18h16" />,
   close: <path d="m6 6 12 12M6 18 18 6" />,
   invert: <><path d="M12 3v18" /><path d="m8 7 4-4 4 4" /><path d="m8 17 4 4 4-4" /></>,
+  hammer: <><path d="M15 4 10 9l5 5 5-5Z" /><path d="M9 15l-6 6" /></>,
 };
 
 export function ProductIcon({ name, size = 20 }: { name: ProductIconName; size?: number }) {

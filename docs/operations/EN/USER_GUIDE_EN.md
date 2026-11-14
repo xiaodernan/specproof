@@ -153,6 +153,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/contracts` | Contracts | every contract listed + a plain-language explanation for non-experts |
 | `/eval` | Effectiveness | F1/P/R category diagnostics + golden reference |
 | `/drill` | Verify Drill | 12 rapid-fire questions; every answer anchored to a real file or ledger line; seal at the end |
+| `/ide` | The Forge | real anchors + paste-and-run cheat board + local notes |
 | `/billing` | Usage & Billing | real wkapi.pro token spend + hit_rate |
 | `/audit` | Audit Trail | every audit_logs write, nothing dropped |
 | `/health` | Service Status | 6-dependency latency distribution + 60 SLO alert triggers |
