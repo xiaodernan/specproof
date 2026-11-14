@@ -1,0 +1,76 @@
+/* ── 铁证晨报 · The Morning Gazette of Iron Evidence ───────────────
+   A folded-newspaper front page for the repository: masthead, lead
+   story, columns, by-the-numbers fold. Ink on newsprint, no card grid. */
+
+.gazette-page { max-width: 1180px; margin: 0 auto; color: #ece7da; }
+
+/* masthead */
+.gazette-masthead { text-align: center; border-top: 3px double rgba(212,175,55,.55); border-bottom: 3px double rgba(212,175,55,.55); padding: 18px 8px 16px; position: relative; }
+.gazette-kicker { font-size: 10.5px; letter-spacing: .42em; color: rgba(212,175,55,.8); margin: 0 0 10px; }
+.gazette-title { font-family: Georgia, 'Noto Serif SC', 'Songti SC', serif; font-size: clamp(3rem, 8vw, 5.2rem); line-height: .98; letter-spacing: -.02em; margin: 0; color: #f5efe0; font-weight: 700; }
+.gazette-title-en { display: block; font-size: .16em; letter-spacing: .52em; color: rgba(212,175,55,.85); margin-top: 12px; font-weight: 400; }
+.gazette-dateline { display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; margin-top: 14px; font-size: 11px; letter-spacing: .1em; color: #a9b2c6; border-top: 1px solid rgba(255,255,255,.07); padding-top: 10px; }
+.gazette-dot { color: rgba(212,175,55,.6); }
+
+/* front page layout */
+.gazette-front { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 0; margin-top: 22px; border: 1px solid rgba(212,175,55,.35); border-radius: 2px; overflow: hidden; background: #101826; box-shadow: 0 30px 80px -30px rgba(0,0,0,.85); }
+.gazette-lead { padding: 28px 30px 26px; border-right: 1px solid rgba(255,255,255,.08); background: linear-gradient(180deg, #131c2e 0%, #101826 100%); }
+.gazette-column { padding: 22px 24px; }
+.gazette-column h3 { font-size: 11px; letter-spacing: .34em; color: rgba(212,175,55,.85); margin: 0 0 12px; border-bottom: 1px solid rgba(212,175,55,.3); padding-bottom: 8px; font-family: Georgia, 'Noto Serif SC', serif; }
+.gazette-lead-kicker { font-size: 10px; letter-spacing: .4em; color: rgba(212,175,55,.7); margin: 0; display: flex; gap: 14px; align-items: baseline; }
+.gazette-lead-no { font-family: var(--font-mono); color: #9ecbff; font-size: 12px; }
+.gazette-lead h2 { font-family: Georgia, 'Noto Serif SC', serif; font-size: clamp(1.5rem, 2.6vw, 2.15rem); line-height: 1.35; color: #f5efe0; margin: 14px 0 0; }
+.gazette-lead-body { color: #b9c3d9; line-height: 2.0; margin: 14px 0 0; font-size: .95rem; }
+.gazette-lead-actions { display: flex; gap: 12px; align-items: center; margin-top: 18px; flex-wrap: wrap; }
+.gazette-pill { font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: #0b0f1c; background: #d4af37; padding: 9px 18px; border-radius: 2px; text-decoration: none; font-weight: 700; }
+.gazette-print { display: inline-flex; align-items: center; gap: 8px; background: transparent; border: 1px solid rgba(212,175,55,.4); color: #d4af37; padding: 9px 14px; border-radius: 2px; cursor: pointer; font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; }
+.gazette-print:hover { background: rgba(212,175,55,.12); }
+
+.gazette-column-briefs ul { list-style: none; padding: 0; margin: 0; }
+.gazette-column-briefs li { display: grid; grid-template-columns: 52px 1fr; gap: 10px; padding: 9px 0; border-bottom: 1px dashed rgba(255,255,255,.1); font-size: .83rem; line-height: 1.6; }
+.gazette-column-briefs li:last-child, .gazette-column-index li:last-child { border-bottom: 0; }
+.gazette-brief-no { font-family: var(--font-mono); color: #9ecbff; font-size: .72rem; align-self: start; padding-top: .14em; }
+.gazette-brief-t { color: #cfd6e6; }
+
+.gazette-column-index { border-top: 1px solid rgba(255,255,255,.08); }
+.gazette-column-index ol { list-style: none; padding: 0; margin: 0; columns: 2; column-gap: 18px; }
+.gazette-column-index li { break-inside: avoid; display: grid; grid-template-columns: 46px 1fr; gap: 8px; font-size: .68rem; line-height: 1.55; padding: 4px 0; color: #8f99b3; }
+
+/* second page */
+.gazette-second { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 5fr) minmax(0, 3fr); gap: 0; margin-top: 18px; border: 1px solid rgba(255,255,255,.08); border-radius: 2px; background: #0d1424; overflow: hidden; }
+.gazette-second .gazette-column { border-right: 1px solid rgba(255,255,255,.06); }
+.gazette-figures-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; }
+.gazette-figures-grid p { font-size: 1.55rem; font-weight: 700; color: #f5efe0; margin: 0; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.gazette-figures-grid span { font-size: 9px; letter-spacing: .22em; text-transform: uppercase; color: #77839f; }
+.gazette-figures-note { margin-top: 16px; font-size: 10px; color: #5f6b86; border-top: 1px solid rgba(255,255,255,.07); padding-top: 10px; line-height: 1.8; }
+
+.gazette-editorial-kicker { font-size: 10px; letter-spacing: .44em; color: rgba(212,175,55,.8); margin: 0; }
+.gazette-editorial h3 { font-size: 1.45rem !important; letter-spacing: 0 !important; border-bottom: 0 !important; padding-bottom: 0 !important; color: #f5efe0 !important; margin-top: 8px !important; text-transform: none !important; }
+.gazette-editorial p { color: #b9c3d9; line-height: 2.05; font-size: .93rem; margin: 14px 0 0; }
+.gazette-editorial-sign { color: #8fa3bd !important; font-style: italic; }
+
+.gazette-weather-big { font-family: Georgia, 'Noto Serif SC', serif; font-size: 2.4rem; color: #cfd6e6; margin: 6px 0 0; }
+.gazette-weather-line { color: #8fa3bd; font-size: .82rem; line-height: 1.9; margin: 8px 0 0; }
+.gazette-weather h4 { font-size: 10px; letter-spacing: .34em; color: rgba(212,175,55,.85); margin: 20px 0 8px; border-bottom: 1px solid rgba(212,175,55,.25); padding-bottom: 6px; }
+.gazette-weather ul { list-style: none; padding: 0; margin: 0; font-size: .78rem; color: #a9b2c6; line-height: 1.9; }
+.gazette-weather li { border-bottom: 1px dashed rgba(255,255,255,.08); padding: 5px 0; }
+.gazette-weather li:last-child { border-bottom: 0; }
+
+/* print: the paper folds itself */
+@media print {
+  .gazette-page { color: #000; max-width: none; }
+  .gazette-front, .gazette-second { box-shadow: none; background: #fff; border: 1px solid #000; }
+  .gazette-masthead { background: #fff; color: #000; border-color: #000; }
+  .gazette-title, .gazette-lead h2, .gazette-figures-grid p, .gazette-editorial h3 { color: #000 !important; }
+  .gazette-lead-body, .gazette-editorial p, .gazette-column-briefs li, .gazette-brief-t, .gazette-weather ul { color: #111 !important; }
+  .gazette-lead, .gazette-column { background: #fff !important; }
+  .gazette-kicker, .gazette-lead-kicker, .gazette-column h3, .gazette-weather h4 { color: #333 !important; }
+}
+
+@media (max-width: 1024px) {
+  .gazette-front { grid-template-columns: 1fr; }
+  .gazette-lead { border-right: 0; border-bottom: 1px solid rgba(255,255,255,.08); }
+  .gazette-second { grid-template-columns: 1fr; }
+  .gazette-second .gazette-column { border-right: 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+  .gazette-column-index ol { columns: 1; }
+}

@@ -22,7 +22,7 @@ docker compose -f compose.phase0.yml up -d --wait
 
 ### 1.2 A lap around the whole product (5 minutes)
 
-Open `http://127.0.0.1:5173/` — the sidebar carries 26 first-level entries:
+Open `http://127.0.0.1:5173/` — the sidebar carries 27 first-level entries:
 
 | Group | Entry | What you can do right now | Iron evidence |
 |---|---|---|---|
@@ -161,6 +161,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/atlas` | Atlas | The Evidence Archipelago map: three islands x 24 halls + three expedition routes — so newcomers never get lost |
 | `/worldbook` | World Book | 22 volumes + appendices, bilingual, full-text search with highlight, local reading progress |
 | `/nightwatch` | Night Watch | a 7-station, 3-oil walking quiz — every answer derived live from git/ledger/world bible; finish to set your best night |
+| `/gazette` | The Morning Gazette | the repo's daily paper: lead story, last 24 entries, live by-the-numbers fold + editorial; printable |
 | `/billing` | Usage & Billing | real wkapi.pro token spend + hit_rate |
 | `/audit` | Audit Trail | every audit_logs write, nothing dropped |
 | `/health` | Service Status | 6-dependency latency distribution + 60 SLO alert triggers |

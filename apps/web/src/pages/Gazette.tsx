@@ -1,0 +1,127 @@
+import { useMemo } from "react";
+import { useI18n, type Locale } from "../i18n";
+import chronicle from "./chronicle.json";
+import stats from "./repoStats.json";
+import worldbook from "./worldbook.json";
+import { ProductIcon } from "../ui/ProductIcon";
+import "../styles/gazette.css";
+
+/**
+ * The Morning Gazette of Iron Evidence — today's paper of the repository.
+ *
+ * Every column below is compiled from real, tracked artifacts at render time:
+ * the ledger-derived chronicle, the git-derived census, the world bible.
+ * The editorial is the one authored (and labelled) voice on the page.
+ * Print the page and it folds like a newspaper: it is one.
+ */
+
+type Entry = { n: number; t: string; s: string };
+const CHRONICLE = chronicle as Entry[];
+
+export default function Gazette() {
+  const { locale } = useI18n();
+  const zh = locale === "zh";
+
+  const latest = useMemo(() => [...CHRONICLE].slice(-6).reverse(), []);
+  const briefs = useMemo(() => [...CHRONICLE].slice(-24, -6).reverse(), []);
+  const lead = latest[0];
+  const entries = CHRONICLE.length;
+  const worldSections = (worldbook.locales as Record<Locale, { volumes: unknown[] }>)[locale]?.volumes.length ?? 0;
+  const worldNum = Number(stats.ledger_sections);
+  const isoToday = new Date().toISOString().slice(0, 10);
+  const isoWeek = new Date(Date.now() - 6 * 86_400_000).toISOString().slice(0, 10);
+  const entryNum = entries.toLocaleString();
+
+  return (
+    <div className="gazette-page">
+      {/* ── Masthead ─────────────────────────────────────────── */}
+      <header className="gazette-masthead">
+        <p className="gazette-kicker">{zh ? `铁 证 晨 报 · 第 ${entryNum} 份` : "THE MORNING GAZETTE OF IRON EVIDENCE"}</p>
+        <h1 className="gazette-title">{zh ? "铁证晨报" : "Iron Evidence"} <span className="gazette-title-en">{zh ? "THE MORNING GAZETTE" : "铁证晨报"}</span></h1>
+        <div className="gazette-dateline">
+          <span>{isoWeek} — {isoToday}</span>
+          <span className="gazette-dot">·</span>
+          <span>{zh ? "永久免费 · git 发行" : "Free forever · distributed by git"}</span>
+          <span className="gazette-dot">·</span>
+          <span>{zh ? `编年史共 ${entryNum} 节` : `${entryNum} entries and counting`}</span>
+        </div>
+      </header>
+
+      {/* ── Front page: lead story + columns ─────────────────── */}
+      <div className="gazette-front">
+        <article className="gazette-lead">
+          <p className="gazette-lead-kicker">{zh ? "领 导 故 事" : "LEAD STORY"}<span className="gazette-lead-no">#{lead?.n}</span></p>
+          <h2>{lead?.t}</h2>
+          <p className="gazette-lead-body">{lead?.s}</p>
+          <div className="gazette-lead-actions">
+            <a className="gazette-pill" href="#/chronicle">{zh ? "全文见编年史 →" : "Full text in the Chronicle →"}</a>
+            <button className="gazette-print" onClick={() => window.print()}>{zh ? "打印本报" : "Print this paper"} <ProductIcon name="gazette" size={14} /></button>
+          </div>
+        </article>
+
+        <aside className="gazette-column gazette-column-briefs">
+          <h3>{zh ? "本期速览" : "IN THIS ISSUE"}</h3>
+          <ul>
+            {latest.slice(1).map((e) => (
+              <li key={e.n}>
+                <span className="gazette-brief-no">#{e.n}</span>
+                <span className="gazette-brief-t">{e.t}</span>
+              </li>
+            ))}
+          </ul>
+        </aside>
+
+        <aside className="gazette-column gazette-column-index">
+          <h3>{zh ? "编年史最近 18 行" : "THE LAST 18 LINES"}</h3>
+          <ol>
+            {briefs.map((e) => (
+              <li key={e.n}>
+                <span className="gazette-brief-no">#{e.n}</span>
+                <span className="gazette-brief-t">{e.t}</span>
+              </li>
+            ))}
+          </ol>
+        </aside>
+      </div>
+
+      {/* ── Second page: numbers + editorial ──────────────────── */}
+      <div className="gazette-second">
+        <section className="gazette-column gazette-figures">
+          <h3>{zh ? "本报的数字" : "BY THE NUMBERS"}</h3>
+          <div className="gazette-figures-grid">
+            <div><p>{Number(stats.repository_files).toLocaleString()}</p><span>{zh ? "跟踪文件" : "tracked files"}</span></div>
+            <div><p>{Number(stats.total_lines_of_source).toLocaleString()}</p><span>{zh ? "源码行数" : "source lines"}</span></div>
+            <div><p>{Number(stats.git_commit_count).toLocaleString()}</p><span>{zh ? "提交次数" : "commits"}</span></div>
+            <div><p>{worldNum.toLocaleString()}</p><span>{zh ? "账本条目" : "ledger entries"}</span></div>
+            <div><p>{worldSections}</p><span>{zh ? "世界书节数" : "world-book sections"}</span></div>
+            <div><p>{stats.ledger_bytes_kB.toFixed(1)} KB</p><span>{zh ? "账本体积" : "ledger volume"}</span></div>
+          </div>
+          <p className="gazette-figures-note">{zh ? "本页所有数字由 scripts/build_repo_stats.py 与 build_chronicle.py 现推；不同即 bug。" : "Every figure on this page is re-derived live by build_repo_stats.py and build_chronicle.py; a mismatch is a bug."}</p>
+        </section>
+
+        <section className="gazette-column gazette-editorial">
+          <p className="gazette-editorial-kicker">{zh ? "社 论" : "EDITORIAL"}</p>
+          <h3>{zh ? "铁证先行，不信者为智" : "Evidence first; the doubter is wise"}</h3>
+          <p>
+            {zh
+              ? "这份报纸不是模板，它是一次发行：每一行都从账本现抄，每一节都从 git 现推。我们不相信演示数据，所以报纸没有演示数据；我们不相信没有签名的结论，所以每条新闻都挂着它的编号。读到哪里，哪里就是你的国土——包括这一页。"
+              : "This paper is not a template; it is an issue. Every line is transcribed from the ledger, every figure re-derived from git. We do not trust demo data, so this paper has none; we do not trust unsigned conclusions, so every story carries its number. Wherever you have read, that ground is yours — this page included."}
+          </p>
+          <p className="gazette-editorial-sign">{zh ? `—— 史官，于编年史第 ${entryNum} 节落笔时` : `— The Chronicler, signing at the ${entryNum}th entry`}</p>
+        </section>
+
+        <aside className="gazette-column gazette-weather">
+          <h3>{zh ? "明日天气" : "TOMORROW'S WEATHER"}</h3>
+          <p className="gazette-weather-big">{zh ? "多 云" : "Overcast"}</p>
+          <p className="gazette-weather-line">{zh ? "偶有 Redis 时延，东南风，适合验收。" : "Occasional Redis latency, SE wind. Good day for verification."}</p>
+          <h4>{zh ? "通 知" : "NOTICES"}</h4>
+          <ul>
+            <li>{zh ? "铁证书房第 32 节上架：卷二十五《铁门如意》" : "The Reading Room shelved section 32: Vol. XXV The Iron Gate"}</li>
+            <li>{zh ? "巡夜·子时之后 7 站开放试玩" : "The Night Watch — 7 stations, open for a walk"}</li>
+            <li>{zh ? "语义缓存命中实录 #1781" : "Semantic cache hits, on record: #1781"}</li>
+          </ul>
+        </aside>
+      </div>
+    </div>
+  );
+}

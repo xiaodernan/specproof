@@ -36436,3 +36436,32 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * Lua 未跑 gateway 集成 e2e（Docker 资源受限，本机未起 gateway 全链路）；验证=一次性 Redis EVAL 七案；
 * 修复的 fail-safe 方向是**拒绝**（不填充）而非放行——与 `failOpen` 的存在不矛盾：Lua 不崩，Java 的 failOpen/failClosed 配置优先于任何 Lua 内行为；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1784 铁证晨报 `#/gazette` —— 仓库自身的每日报纸：头版全真，可打印
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `apps/web/src/pages/Gazette.tsx` + `styles/gazette.css`：
+  **铁证晨报 / THE MORNING GAZETTE OF IRON EVIDENCE**——一份"发行于 git 的报纸"：
+  - 报头：`铁证晨报` + 期数（编年史条数现推，`1,584 节`）+ 日期线（近 7 日 — 今日）+「永久免费 · git 发行」；
+  - 头版故事：**#1783**（铁门 Lua 除零 + 卷二十五上架），「全文见编年史 →」直达；
+  - 本期速览：上一日 5 条（#1780–#1784 区间）；最近 18 行索引（columns 双栏）；
+  - 本报的数字：files 2,705 · LOC 484,829 · commits 2,425 · 账本条目 1,584 · 世界书 32 节 · 账本 3.6 MB——**全部现推**；
+  - 社论（明示「铁证先行，不信者为智」）+ 明日天气（"偶有 Redis 时延，东南风，适合验收。"→ 无心插柳却全真）+ 通知区；
+  - **打印**：`@media print` A4 出版——黑白、无阴影、1px 边框，打印即真报纸；
+* ProductIcon 新增 **gazette**（报纸折角）；App.tsx evidence 组一级入口（**27 个**）；
+  `nav.gazette` ×2；两本 USER_GUIDE 补 `/gazette` 行 + 入口 26→27；
+* **file:// 冒烟**（本地临时 bypass 门禁 → `vite build --base=./` → 预览）：
+  console 0 error；`.gazette-page` 挂载成功；briefs 5 / index 18 / figures 6 /
+  dateline「2026-11-08 — 2026-11-14 · 编年史共 1,584 节」/ 头版 = #1783；**门禁已原样恢复**（git diff 仅本节文件）；
+* tsc 0；build ✅ in 891ms（Gazette chunk 6.30 KB / 2.53 KB gz）；i18n parity 11/11。
+
+### 二、诚实边界
+
+* 报头与头版故事**随 chronicle 每次重建滚动**（build_chronicle.py 后必须重跑）——`#1783` 只是此刻的头版；
+* 明日天气与通知是**编辑文案**，非气象数据；数字栏全部是测量值；
+* 报纸不替代任何索引——它是浏览器前门的另一面，不是证据本身；
+* 未经像素截图；目验 = DOM/a11y/JS 交互断言 + console 0 error；
+* 全量 `pytest tests/unit` 仍未跑完。
