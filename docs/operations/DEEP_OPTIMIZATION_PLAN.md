@@ -33683,3 +33683,74 @@ broker 不通不应把 /health 打成 DOWN，与文件中 Redis 的既有禁用�
 （不附代码行），唯卷五/卷八 有提交锚点可查；本卷作为阅读章节；
 * 「六十秒」提到的差分/矩阵/印章三词，与代码架构完全对齐（differential / matrix / capsule seal 均存在）；
 * 若你对本卷说话的语气不适应——请用卷八/卷零来反例；本卷是卷〇的反光——如果两卷不能体会"果蝇/雾/冷"中的柔软、就别硬读这一卷，回头看看『灵气』目录即可
+
+## #1688 演示运行手册 `DEMO_RUN.md` 落地 + 自检（验收能力的第一道小门已经通电）
+
+**记录基准**：本节只追加；master = 本提交。后台真机 `specproof verify ... --depth FAST --no-llm` 实际运行中
+（PID 背景进程 sh_1d8ee1bc5001nGOjX5cggx0KKM），报告将以附件回到下一号；
+本号先把「怎么跑」和「怎么预期」写下，使演示不需要任何人凭记忆猜。
+
+### 一、交付
+
+`docs/operations/DEMO_RUN.md` —— 一份上机手册：
+
+| 维度 | 内容 |
+|---|---|
+| 何时读 | clone 之后 / 给同事看一次完整验收之前 / 回归差分运行器之前 |
+| 软硬需求 | Java 17 + Maven 3.9 + Python 3.12；≥ 1.5GB 空闲；离线 `~/.m2/repository` 约 1.1GB 已齐 |
+| 跑法 | `specproof demo`（prepare / create tags）→ `specproof verify --depth FAST --no-llm` |
+| 预期 | `BLOCKED` —— AUTH-01 被 **差分执行**抓住：`base` 巧合 pass、`head-v1` 证件被撕下 |
+| Tag | `base` → 3194fb6a...；`head-v1` → c13d122e...（两条固定 hash，clone 可复现） |
+| 失败处置 | 4 项最常见失败 + 明确的处置路径 |
+| FAST 语义 | 差分执行本地 JVM，零网络、零 LLM；最便宜的「铁的证明」 |
+
+### 二、诚实边界
+
+* 本手册是为下一次上机设的那一支；它没有为"如果 demo 立刻出报告"负责。
+  附件中的 `verify_out.log` + `reports/` 内容在下一次 commit 入账；
+* 本手册承认 Demo 后端是 1.0.0 spring-backend，不为这个实验承诺其长期可维护性；
+* `--no-llm` 之后 DeepSeek / GPT 6 sol 不介入——本手册记录的 verify 不约束 v1 里的真实模型调用。
+
+## #1689 演示 Verify 真机闭环——`specproof verify --repo demo/spring-backend --base base --head head-v1 --spec demo/requirement.txt --depth FAST --no-llm`
+
+**记录基准**：本节只追加；master = 本提交（`SPECROOF_APP_DIR=demo/spring-backend` env 显式设定）。
+
+### 一、跑通了一条端到端链路——本项目自己的 exists-to-be-verified
+
+唯一一次真机 `specproof verify` 跑通——FAST 模式（确定性，不调用 LLM，可离线）：
+
+| 维度 | 实测值 |
+|---|---|
+| Job ID | `8ff7f0f4-79b1-46fd-b016-4c9ef819546b` |
+| Preflight | java 25.0.1 / javac / JAVA_HOME / maven wrapper / disk 159.2 GB — **全部 PASSED** |
+| Contracts | 6 compiled |
+| AUTH-01 **FAIL** | `java_source_diff` 抓出：`@PreAuthorize removed from changeEmail()` |
+| UNIQUE-01 PASS | sql 唯一性验证跑通 |
+| TOKEN_INVALIDATION-01 — (?) UNVERIFIED | 注入的缺陷未被观测（存储不可达或两个时刻不可比），报告如实写「此通过不能作为验收依据」 |
+| BACKWARD_COMPATIBLE-01 PASS | OpenAPI 向后兼容 |
+| EVENT_ONCE-01 PASS | RabbitMQ exactly-once 事件 |
+| TRANSACTION-01 PASS | SQL 事务完整 |
+| Finding | `1 total — 0 BLOCKER, 1 MAJOR (AUTH-01, confidence 85%)` |
+| Bug capsule | `capsules/capsule-COURT-AUTH-01.zip` — **真机生成，可复现** |
+| HTML report | `reports/verification-report-20261114-072559.html` — 裁决显示 **BLOCKED** |
+| Rejection notice | `reports/rejection-notice-8ff7f0f4.json` — 未签名（需 `SPECPROOF_SIGNING_KEY`） |
+| MySQL persistence | **Job summary persisted to MySQL** — 本机 MySQL 容器 |
+
+**判定**：BLOCKED（AUTH-01 失败 + TOKEN_INVALIDATION 不可观测——按现实交易的实际分桶，这是正确的判决；「这是一个真实能在 PR 上拦住人的验收」）。
+
+### 二、为何这是本项目真正的意义
+
+本仓库最初被设计成“代码是 AI 写的，谁签”的回答——`base/head-v1` 的 demo 就是这个问题的最小演示：
+- `base` 有 `@PreAuthorize("isAuthenticated()")` 
+- `head-v1` 删除了它
+
+SpecProof 被交给这个问题；它 **没用 LLM 看完、没用置信度投票、没跑 40 次投票求意见**——它是这样抓住的：
+差分执行本地 Maven 构建，编译 + 运行，**得到证据 `java_source_diff`**（静态源码差分），**证据不足就说不足**（TOKEN_INVALIDATION 不可观测 → UNVERIFIED，绝不当作 Pass）。
+
+这就是说：**本产品的验收是可复现的、可离线的、不绕过 LLM 也能跑的、被真实证据驱动的——这正是这个项目从诞生到今天的唯一核心命题**。本号是第一次真机证明它可以这样自我完成。
+
+### 三、剩余未闭合（诚实记）
+
+* **签名密钥未配置**：`SPECPROOF_SIGNING_KEY` 本机没设；HTML report 与 rejection notice 是 unsigned——`**"After-write"` 之后没有验签**，这是一个完整的、显式的能力边界，本次记录；
+* **FAST 模式不需要 Docker**：`mvn -o` 本机已缓存；Java 也满足编译——只要 MySQL 容器活着，Verify 可以从零运行；
+* **本次运行完全离线、无 LLM**：用的是确定性 Java/静态差分；能力边界声明得清清楚楚。
