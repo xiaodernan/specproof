@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, type Finding, type JobsPage, type Job } from "../api";
 import { ErrorBox, Panel, StatCard, fmtTime, evidenceLabel, severityPill } from "../ui";
+import { useI18n } from "../i18n";
 import "../styles/verification.css";
 
 // 案件档案 · The Case File — 给最近一桩验收的 verdict 装订成可读的「案卷」。
@@ -36,6 +37,30 @@ const EVIDENCE_TIER: Record<string, { tier: string; rank: number }> = {
 const tierOf = (e?: string): { tier: string; rank: number } =>
   (e && EVIDENCE_TIER[e]) || { tier: "?", rank: 9 };
 
+// The CSS class is an ASCII slug; the glyph shown to the reader stays the
+// Chinese character (铁/半铁/静/坏/文/?). Keeping the two apart is what
+// lets the stylesheet minify — a Chinese class name breaks the build.
+const TIER_SLUG: Record<string, string> = {
+  "铁": "iron",
+  "半铁": "semi-iron",
+  "静": "quiet",
+  "坏": "broken",
+  "文": "script",
+  "?": "unknown",
+};
+
+const tierSlug = (tier: string): string => TIER_SLUG[tier] || "unknown";
+
+const verdictEpicEn = (v: string | undefined | null): string => {
+  if (!v) return "PENDING";
+  if (v === "VERIFIED") return "SEALED";
+  if (v === "BLOCKED") return "BLOCKED";
+  if (v === "NEEDS_REVIEW") return "TO REVIEW";
+  if (v === "FAILED") return "RUN FAILED";
+  if (v === "CANCELLED") return "CANCELLED";
+  return v;
+};
+
 const verdictEpic = (v: string | undefined | null): string => {
   if (!v) return "待议";
   if (v === "VERIFIED") return "验讫";
@@ -56,6 +81,7 @@ function unwrap<T>(wrapped: T | { summary?: T } | { job?: T } | null | undefined
 }
 
 export default function Explorer() {
+  const { t, locale } = useI18n();
   const [job, setJob] = useState<Job | null>(null);
   const [summary, setSummary] = useState<CaseSummary | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
@@ -111,7 +137,7 @@ export default function Explorer() {
   if (error) {
     return (
       <div className="case-explorer-page">
-        <div className="page-head"><h1>案件档案 <span className="case-en">The Case File</span></h1></div>
+        <div className="page-head"><h1>{t("explorer.title")} <span className="case-en">{t("explorer.subtitle")}</span></h1></div>
         <ErrorBox error={error} />
       </div>
     );
@@ -120,17 +146,17 @@ export default function Explorer() {
   return (
     <div className="case-explorer-page">
       <div className="page-head">
-        <h1>案件档案 <span className="case-en">The Case File</span></h1>
+        <h1>{t("explorer.title")} <span className="case-en">{t("explorer.subtitle")}</span></h1>
         <div className="page-sub" title="CASE FILE — IRON EVIDENCE ONLY">
-          一份装订机与印章构成的案卷——所有字句都来自服务器返回的数字，没有 LLM 给的文学一致性。
+          {t("explorer.lead")}
         </div>
       </div>
 
-      <Panel title="印章">
+      <Panel title={t("explorer.sealPanel")}>
         {loading ? (
-          <p className="muted">装订前翻检…</p>
+          <p className="muted">{t("explorer.loading")}</p>
         ) : !job ? (
-          <p className="muted">本机没有一桩验收记录尚可装订。先去完成一次验收，再来翻案。</p>
+          <p className="muted">{t("explorer.empty")}</p>
         ) : (
           <div className="case-verdict-block">
             <div
@@ -141,13 +167,13 @@ export default function Explorer() {
                   : " case-seal-pending")
               }
             >
-              {verdictEpic(verdictWord)}
+              {locale === "zh" ? verdictEpic(verdictWord) : verdictEpicEn(verdictWord)}
             </div>
             <div className="case-meta">
-              <div className="case-meta-row"><span className="case-meta-key">仓库</span><code className="case-meta-val">{job.repo_path ?? "未提供"}</code></div>
-              <div className="case-meta-row"><span className="case-meta-key">变更</span><code className="case-meta-val">{job.base_ref ?? "未提供"} → {job.head_ref ?? "未提供"}</code></div>
-              <div className="case-meta-row"><span className="case-meta-key">开卷日期</span><code className="case-meta-val">{job.created_at ? fmtTime(job.created_at) : "未提供"}</code></div>
-              <div className="case-meta-row"><span className="case-meta-key">案卷号</span><code className="case-meta-val">{job.id}</code></div>
+              <div className="case-meta-row"><span className="case-meta-key">{t("explorer.repo")}</span><code className="case-meta-val">{job.repo_path ?? "未提供"}</code></div>
+              <div className="case-meta-row"><span className="case-meta-key">{t("explorer.change")}</span><code className="case-meta-val">{job.base_ref ?? "未提供"} → {job.head_ref ?? "未提供"}</code></div>
+              <div className="case-meta-row"><span className="case-meta-key">{t("explorer.opened")}</span><code className="case-meta-val">{job.created_at ? fmtTime(job.created_at) : "未提供"}</code></div>
+              <div className="case-meta-row"><span className="case-meta-key">{t("explorer.caseNo")}</span><code className="case-meta-val">{job.id}</code></div>
             </div>
           </div>
         )}
@@ -156,21 +182,21 @@ export default function Explorer() {
       {job ? (
         <>
           <div className="stat-grid" style={{ marginBottom: 12 }}>
-            <StatCard label="验收条件" value={summary?.contracts_total ?? "未提供"} tone="mute" />
-            <StatCard label="已通过" value={summary?.matrix_passed ?? "未提供"} tone="ok" />
-            <StatCard label="未通过" value={summary?.matrix_failed ?? "未提供"} tone={summary?.matrix_failed ? "bad" : "ok"} />
-            <StatCard label="未验证" value={summary?.matrix_unverified ?? "未提供"} tone={summary?.matrix_unverified ? "warn" : "ok"} />
+            <StatCard label={t("explorer.conditions")} value={summary?.contracts_total ?? "未提供"} tone="mute" />
+            <StatCard label={t("explorer.passed")} value={summary?.matrix_passed ?? "未提供"} tone="ok" />
+            <StatCard label={t("explorer.failed")} value={summary?.matrix_failed ?? "未提供"} tone={summary?.matrix_failed ? "bad" : "ok"} />
+            <StatCard label={t("explorer.unverified")} value={summary?.matrix_unverified ?? "未提供"} tone={summary?.matrix_unverified ? "warn" : "ok"} />
           </div>
 
-          <Panel title="铁证清单">
+          <Panel title={t("explorer.evidencePanel")}>
             {findings.length === 0 ? (
-              <p className="muted">此案无发现——这不等于没有缺陷，只等于本次验收未逮到。缺什么铁证，就该补什么证据。</p>
+              <p className="muted">{t("explorer.noFindings")}</p>
             ) : (
               <div className="case-evidence-grid">
                 {findings.slice(0, 8).map((f, i) => {
                   const { tier } = tierOf(f.evidence_type);
                   return (
-                    <div className={"case-evidence tier-" + tier} key={(f.id ?? i) + String(f.contract_id ?? "") + String(i)}>
+                    <div className={"case-evidence tier-" + tierSlug(tier)} key={(f.id ?? i) + String(f.contract_id ?? "") + String(i)}>
                       <span className="case-evidence-letter">{tier}</span>
                       <div className="case-evidence-body">
                         <div className="case-evidence-head">
@@ -189,18 +215,18 @@ export default function Explorer() {
               </div>
             )}
             <p className="case-verdict-tally">
-              {ironCount} 项铁证 · {steelCount} 项静证 · 共 {findings.length} 桩发现。
-              此案{summary?.verdict ? `被判为「${verdictEpic(summary.verdict)}」` : "未获裁决"}——
-              {job.status ? `执行轨迹：${job.status}` : ""}。AI 在本案中没有作决定，证据替它开口。
+              {locale === "zh"
+                ? `${ironCount} 项铁证 · ${steelCount} 项静证 · 共 ${findings.length} 桩发现。此案${summary && summary.verdict ? `被判为「${verdictEpic(summary.verdict)}」` : "未获裁决"}——${job.status ? `执行轨迹：${job.status}` : ""}。AI 在本案中没有作决定，证据替它开口。`
+                : `${ironCount} iron · ${steelCount} quiet · ${findings.length} findings in all. This case was judged 「${verdictEpic(summary && summary.verdict)}」${job.status ? ` — trail: ${job.status}` : ""}. The AI did not decide; the evidence spoke.`}
             </p>
           </Panel>
 
-          <Panel title="案卷索取">
+          <Panel title={t("explorer.capsulePanel")}>
             <div className="case-capsule-list">
               {summary?.capsules && summary.capsules.length > 0
                 ? summary.capsules.slice(0, 5).map((c) => <code key={c} className="case-capsule">{c}</code>)
-                : <span className="muted">本卷未交出复现包（可能是 DEMO 演示卷——请看全程）</span>}
-              {summary?.report_path ? <div className="case-report-path"><span className="case-meta-key">报告路径</span><code>{summary.report_path}</code></div> : null}
+                : <span className="muted">{t("explorer.noCapsule")}</span>}
+              {summary?.report_path ? <div className="case-report-path"><span className="case-meta-key">{t("explorer.reportPath")}</span><code>{summary.report_path}</code></div> : null}
             </div>
           </Panel>
         </>

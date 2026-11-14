@@ -5,6 +5,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import TenantSwitcher from "./identity/TenantSwitcher";
 import { ThemeProvider, useTheme } from "./theme/ThemeProvider";
+import { useI18n } from "./i18n";
 import { Button, CommandPalette, ErrorBoundary, Kbd, ShortcutHelp, Spinner, ToastProvider } from "./ui";
 import { recordRouteVisit } from "./ui/onboarding";
 import { withViewTransition } from "./ui/viewTransition";
@@ -34,28 +35,30 @@ const Explorer = lazy(() => import("./pages/Explorer"));
 
 type NavItem = {
   path: string;
-  label: string;
+  /** i18n key — the label itself lives in the locale table, never inline. */
+  labelKey: string;
   icon: ProductIconName;
-  group: string;
+  /** i18n key of the sidebar group heading. */
+  groupKey: string;
   /** Roles allowed to open this surface; omitted means ungated. From ui/accessRoles.ts. */
   roles?: readonly string[];
 };
 const NAV: NavItem[] = [
-  { path: "dashboard", label: "工作台", icon: "overview", group: "工作空间" },
-  { path: "jobs", label: "变更验收", icon: "verify", group: "工作空间" },
-  { path: "agent", label: "AI 开发", icon: "agent", group: "工作空间" },
-  { path: "epic", label: "史诗", icon: "guide", group: "工作空间" },
-  { path: "tour", label: "巡览", icon: "scroll", group: "工作空间" },
-  { path: "matrix", label: "需求覆盖", icon: "matrix", group: "质量与证据" },
-  { path: "explorer", label: "案件档案", icon: "contracts", group: "质量与证据" },
-  { path: "contracts", label: "验收规则", icon: "contracts", group: "质量与证据" },
-  { path: "eval", label: "效果评测", icon: "chart", group: "质量与证据" },
-  { path: "identity", label: "团队与权限", icon: "team", group: "管理", roles: IDENTITY_ROLES },
-  { path: "billing", label: "用量与账单", icon: "billing", group: "管理", roles: BILLING_ROLES },
-  { path: "usage", label: "缓存健康", icon: "chart", group: "管理" },
-  { path: "audit", label: "审计轨迹", icon: "health", group: "管理", roles: AUDIT_ROLES },
-  { path: "settings", label: "模型连接", icon: "agent", group: "管理" },
-  { path: "health", label: "服务状态", icon: "health", group: "管理" },
+  { path: "dashboard", labelKey: "nav.dashboard", icon: "overview", groupKey: "group.workspace" },
+  { path: "jobs", labelKey: "nav.jobs", icon: "verify", groupKey: "group.workspace" },
+  { path: "agent", labelKey: "nav.agent", icon: "agent", groupKey: "group.workspace" },
+  { path: "epic", labelKey: "nav.epic", icon: "guide", groupKey: "group.workspace" },
+  { path: "tour", labelKey: "nav.tour", icon: "scroll", groupKey: "group.workspace" },
+  { path: "matrix", labelKey: "nav.matrix", icon: "matrix", groupKey: "group.evidence" },
+  { path: "explorer", labelKey: "nav.explorer", icon: "contracts", groupKey: "group.evidence" },
+  { path: "contracts", labelKey: "nav.contracts", icon: "contracts", groupKey: "group.evidence" },
+  { path: "eval", labelKey: "nav.eval", icon: "chart", groupKey: "group.evidence" },
+  { path: "identity", labelKey: "nav.identity", icon: "team", groupKey: "group.admin", roles: IDENTITY_ROLES },
+  { path: "billing", labelKey: "nav.billing", icon: "billing", groupKey: "group.admin", roles: BILLING_ROLES },
+  { path: "usage", labelKey: "nav.usage", icon: "chart", groupKey: "group.admin" },
+  { path: "audit", labelKey: "nav.audit", icon: "health", groupKey: "group.admin", roles: AUDIT_ROLES },
+  { path: "settings", labelKey: "nav.settings", icon: "agent", groupKey: "group.admin" },
+  { path: "health", labelKey: "nav.health", icon: "health", groupKey: "group.admin" },
 ];
 
 function renderRoute(route: string): JSX.Element {
@@ -92,6 +95,7 @@ function Workspace() {
   const [menuOpen, setMenuOpen] = useState(false);
   const contentRef = useRef<HTMLElement>(null);
   const { resolved, toggle } = useTheme();
+  const { t, toggleLocale, locale } = useI18n();
   useEffect(() => {
     const onChange = () => {
       const hash = window.location.hash || "#/dashboard";
@@ -111,7 +115,11 @@ function Workspace() {
     return () => { alive = false; };
   }, [hasKey]);
   const active = route.replace(/^#\//, "").split("/")[0] || "dashboard";
-  const label = NAV.find(item => item.path === active)?.label || (active === "guide" ? "上手指南" : "验收详情");
+  const label = NAV.find(item => item.path === active)
+    ? t(NAV.find((item) => item.path === active)!.labelKey)
+    : active === "guide"
+      ? "上手指南"
+      : "验收详情";
   useEffect(() => {
     document.title = label + " · SpecProof";
     contentRef.current?.scrollTo?.(0, 0);
@@ -138,12 +146,12 @@ function Workspace() {
       <a className="brand" href="#/dashboard" aria-label="SpecProof 工作台"><span className="brand-mark"><ProductIcon name="shield" size={23} /></span><span><span className="brand-name">SpecProof<span className="brand-dot">.</span></span><span className="brand-sub">让每一次交付，有据可依</span></span></a>
       <div className="workspace-selector"><span className="workspace-avatar">W</span><span><strong>我的工作空间</strong><small>代码变更验收平台</small></span><ProductIcon name="verify" size={16} /></div>
       <nav aria-label="主导航 Primary navigation">
-        {["工作空间", "质量与证据", "管理"].map(group => <div className="nav-group" key={group}><div className="nav-group-label">{group}</div>{nav.filter(item => item.group === group).map(item => <a key={item.path} href={"#/" + item.path} aria-current={active === item.path ? "page" : undefined} className={"nav-item" + (active === item.path ? " nav-active" : "")}><ProductIcon name={item.icon} size={18} /><span className="nav-label">{item.label}</span>{item.path === "agent" && <span className="nav-tag">CRAFT</span>}</a>)}</div>)}
+        {["group.workspace", "group.evidence", "group.admin"].map((groupKey) => <div className="nav-group" key={groupKey}><div className="nav-group-label">{t(groupKey)}</div>{nav.filter(item => item.groupKey === groupKey).map(item => <a key={item.path} href={"#/" + item.path} aria-current={active === item.path ? "page" : undefined} className={"nav-item" + (active === item.path ? " nav-active" : "")}><ProductIcon name={item.icon} size={18} /><span className="nav-label">{t(item.labelKey)}</span>{item.path === "agent" && <span className="nav-tag">CRAFT</span>}</a>)}</div>)}
       </nav>
       <div className="sidebar-guide"><ProductIcon name="guide" /><strong>第一次使用 SpecProof？</strong><p>从一个变更开始，了解完整验收流程。</p><a href="#/guide">阅读上手指南 <span aria-hidden="true">↗</span></a></div>
       <div className="sidebar-foot"><TenantSwitcher /><div className="account-row"><span className="account-avatar">{hasKey ? "SP" : "?"}</span><span><strong>{hasKey ? "当前会话" : "访客"}</strong><small>{hasKey ? "凭据已配置" : "连接后开始验收"}</small></span><Button variant="ghost" size="sm" onClick={async () => { const idpUrl = await logout(); setPrincipal(null); setHasKey(false); if (idpUrl) { window.location.href = idpUrl; } else { window.location.hash = "#/login"; } }}>{hasKey ? "退出" : "连接"}</Button></div></div>
     </aside>
-    <div className="workspace-main"><header className="workspace-topbar"><div className="topbar-left"><button className="icon-button mobile-menu" aria-label="打开导航" aria-expanded={menuOpen} aria-controls="workspace-navigation" onClick={() => setMenuOpen(!menuOpen)}><ProductIcon name={menuOpen ? "close" : "menu"} /></button><span className="topbar-workspace">工作空间</span><span className="breadcrumb-separator">/</span><strong>{label}</strong></div><div className="topbar-actions"><button className="command-trigger" onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }))}><SearchIcon /><span>搜索页面与操作</span><Kbd>Ctrl K</Kbd></button><a className="topbar-help" href="#/guide">使用帮助</a><button className="icon-button" aria-label={resolved === "dark" ? "切换浅色主题" : "切换深色主题"} onClick={toggle}>{resolved === "dark" ? <SunIcon size={18} /> : <MoonIcon size={18} />}</button></div></header>
+    <div className="workspace-main"><header className="workspace-topbar"><div className="topbar-left"><button className="icon-button mobile-menu" aria-label="打开导航" aria-expanded={menuOpen} aria-controls="workspace-navigation" onClick={() => setMenuOpen(!menuOpen)}><ProductIcon name={menuOpen ? "close" : "menu"} /></button><span className="topbar-workspace">工作空间</span><span className="breadcrumb-separator">/</span><strong>{label}</strong></div><div className="topbar-actions"><button className="command-trigger" onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }))}><SearchIcon /><span>搜索页面与操作</span><Kbd>Ctrl K</Kbd></button><a className="topbar-help" href="#/guide">使用帮助</a><button className="icon-button" aria-label={resolved === "dark" ? "切换浅色主题" : "切换深色主题"} onClick={toggle}>{resolved === "dark" ? <SunIcon size={18} /> : <MoonIcon size={18} />}</button><button type="button" className="icon-button" onClick={toggleLocale} aria-label={t("topbar.switchLocale")} title={t("topbar.switchLocale")}>{locale === "zh" ? "EN" : "中"}</button></div></header>
       <main className="content" id="main-content" tabIndex={-1} ref={contentRef}><ErrorBoundary key={active}><Suspense fallback={<Spinner />}>{renderRoute(route)}</Suspense></ErrorBoundary><footer className="workspace-footer"><span>SpecProof · 为交付提供可核验的证据</span><a href="#/guide">从这里开始 <span aria-hidden="true">↗</span></a></footer></main>
     </div>
   </div>;

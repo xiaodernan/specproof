@@ -432,12 +432,12 @@
   width: 44px; height: 44px; border-radius: 6px; display: grid; place-items: center;
   font-family: "Noto Serif CJK SC", "Songti SC", serif; font-size: 22px; font-weight: 800;
 }
-.tier-铁 .case-evidence-letter { background: linear-gradient(160deg, #dc2626, #991b1b); color: #fff7ed; }
-.tier-半铁 .case-evidence-letter { background: linear-gradient(160deg, #b45309, #92400e); color: #fff7ed; }
-.tier-静 .case-evidence-letter { background: linear-gradient(160deg, #57534e, #292524); color: #e7e5e4; }
-.tier-坏 .case-evidence-letter { background: linear-gradient(160deg, #f43f5e, #be123d); color: #fff1f2; }
-.tier-文 .case-evidence-letter { background: linear-gradient(160deg, #0891b2, #164e63); color: #ecfeff; }
-.tier-? .case-evidence-letter { background: var(--color-surface-3); color: var(--color-text-3); }
+.tier-iron .case-evidence-letter { background: linear-gradient(160deg, #dc2626, #991b1b); color: #fff7ed; }
+.tier-semi-iron .case-evidence-letter { background: linear-gradient(160deg, #b45309, #92400e); color: #fff7ed; }
+.tier-quiet .case-evidence-letter { background: linear-gradient(160deg, #57534e, #292524); color: #e7e5e4; }
+.tier-broken .case-evidence-letter { background: linear-gradient(160deg, #f43f5e, #be123d); color: #fff1f2; }
+.tier-script .case-evidence-letter { background: linear-gradient(160deg, #0891b2, #164e63); color: #ecfeff; }
+.tier-unknown .case-evidence-letter { background: var(--color-surface-3); color: var(--color-text-3); }
 .case-evidence-head { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-1); }
 .case-evidence-contract {
   font-family: var(--font-mono); font-size: var(--text-xs); font-weight: var(--fw-700);

@@ -33831,3 +33831,57 @@ SpecProof 被交给这个问题；它 **没用 LLM 看完、没用置信度投�
 * 脚本输出不经过任何 LLM——零 token 消耗；
 * 真正的"自动大版本同步"建议节流到**6 小时一次**或人触发/大 step 后，不该per-push同步——过度自动会让 portfolio 显示过多小改动；
 * `artifacts/portfolio-data/` 已加入 `.gitignore`（生成产物不入库）——本地跑一下能直接看。
+
+## #1693 i18n 层落地 —— 全站中英切换（不夹杂）+ 一个把构建炸了的 CSS 缺陷（当场抓住）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、用户诉求（原文）
+
+"所有项目都要支持全内容中英文切换，就是项目里面所有内容都翻译成中文或者翻译成英文，不要中英文夹杂，
+就是所有内容统一用中文或英文表示，两个都得支持，原生英文的内容也得全部翻译为中文。"
+
+### 二、交付
+
+**i18n 核心**（`apps/web/src/i18n/`）：
+
+* `index.tsx` —— `I18nProvider` / `useI18n()`：语言存本机 `specproof_locale`；
+  默认跟随浏览器语言（`navigator.language` 是 zh 就中文、是 en 就英文、都不是则中文）；
+  切换时写 `<html lang="zh-CN|en">`（读屏器与断词不再猜）；
+  **Provider 缺席时回落默认语言而不是抛错**——单测里单独挂一个页面仍然是一整屏同语言；
+* `strings.ts` —— 共享字符串表：**一个 key、两个 locale、没有第三个**；
+  缺一个 locale 的 key 由 `i18n.parity.test.ts` 直接判红（不是静默回落到另一种语言）；
+  数值必须出现在句子里时用 `{basis}` 之类占位符 + `interp()` 插值（切换语言不能悄悄把数字丢掉）；
+* `__tests__/i18n.parity.test.ts`（6 腿）+ `__tests__/locale.switch.test.tsx`（5 腿）：
+  两表 key 完全一致、无空值、两语言确实不同（防"整表复制"）、未知 key 返回 key 本身、
+  `lang` 属性正确、**切到英文后页面里不允许再出现中文散文**（`queryByText(/六卷：连接/)` 必须为空）。
+
+**已本地化的面**：
+
+* 侧栏全部 16 个导航项 + 三个分组标题 + 面包屑（`App.tsx` 的 NAV 改成带 `labelKey`/`groupKey`）；
+* 顶栏加了一枚 **语言切换按钮**（显示 `EN` / `中`，`aria-label` 走表）；
+* `#/tour`（巡览）—— 六站英文版整篇重写（`pages/tour.copy.ts`），含"行/授意"标签、印章字符（`验` / `SEAL`）；
+* `#/explorer`（案件档案）—— 标题、导语、印章面板、四行卷宗字段、四张 StatCard、铁证清单、案卷索取全部走表；
+* `#/usage`（缓存健康）—— 标题、窗口芯片（1h/24h/7d/30d）、六张 StatCard、诚实口径句（含 `{basis}` 分母插值）、
+  流式占比说明、趋势图例、空账本文案、降级文案全部走表；
+* `#/epic`（史诗）—— 中文六卷原文本留在 `epic.copy.ts` 的 `SCROLLS_ZH`，
+  英文六卷新写（`SCROLLS_EN`，锚点与中文版逐条对应：#1654/#1663/#1644/#1645/#1668/#1674/#1673），
+  尾声 `CLOSING_ZH`/`CLOSING_EN` 各三句。
+
+### 三、本号当场抓住的一个真缺陷（诚实记账）
+
+`npm run build` 红了：`[lightningcss minify] Unexpected token Delim('?')`——
+**#1680 引入的中文 class 名 `.tier-铁` / `.tier-?` 让生产构建炸了**
+（CSS 选择器里放中文与 `?`，lightningcss 无法压缩）。
+修法：**class 改 ASCII slug**（`tier-iron` / `tier-semi-iron` / `tier-quiet` / `tier-broken` / `tier-script` / `tier-unknown`），
+**读者看到的字形仍是中文**（铁/半铁/静/坏/文/?）——"class 是标识符、字形是内容"，两者本就不该混用。
+修后：`npm run build` 绿（250.28 kB / gzip 84.74 kB）、vitest **484/484**、`tsc` 干净。
+
+### 四、诚实边界
+
+* **本页改造覆盖的是"共享字符串 + 四个新页面"**，不是全站 34 页的逐字翻译——
+  其余旧页面（Dashboard / Jobs / JobDetail / Matrix / Billing …）目前仍是中文原文；
+  手册 `USER_GUIDE.md` §4 已如实写明"哪个路由是中文、哪个是英文"，不假装已全站切换；
+* 英文版史诗与巡览的散文是**新写的英文**，锚点与事实与中文版一一对应，但措辞不是机器直译；
+* 语言切换只影响前端字符串；报告、邮件、CLI 输出仍是中文（那属于"产出物"而不是"界面"）；
+* parity 门只管**共享表**；页面级 copy 文件（`tour.copy.ts` / `epic.copy.ts`）的两种语言由类型与各页测试守住。

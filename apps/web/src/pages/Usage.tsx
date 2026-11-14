@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import "../styles/verification.css";
 import { getLlmUsageSummary, type LlmUsageSummary, type LlmUsageTrendBucket } from "../api";
 import { Degraded, Empty, ErrorBox, Panel, Spinner, StatCard, Table, fmtPct, type Column, type StatTone } from "../ui";
+import { interp, useI18n } from "../i18n";
 
 // 窗口选择：覆盖"刚才那几次"到"最近一个月"，与后端窗口上限（30 天）一致。
 const WINDOWS = [
-  { hours: 1, label: "1 小时" },
-  { hours: 24, label: "24 小时" },
-  { hours: 24 * 7, label: "7 天" },
-  { hours: 24 * 30, label: "30 天" },
+  { hours: 1, labelKey: "usage.window.1h" },
+  { hours: 24, labelKey: "usage.window.24h" },
+  { hours: 24 * 7, labelKey: "usage.window.7d" },
+  { hours: 24 * 30, labelKey: "usage.window.30d" },
 ] as const;
 
 const fmtTokens = (n: number | null | undefined): string => {
@@ -83,6 +84,7 @@ const KIND_COLUMNS: Column<KindRow>[] = [
 
 /** 每小时趋势：柱 = 调用次数（缩放到最大值），折线 = 命中率（0–100%）。纯 SVG。 */
 function TrendChart({ trend }: { trend: LlmUsageTrendBucket[] }): JSX.Element {
+  const { t } = useI18n();
   const W = 660;
   const H = 132;
   const PAD_L = 6;
@@ -135,14 +137,15 @@ function TrendChart({ trend }: { trend: LlmUsageTrendBucket[] }): JSX.Element {
         ))}
       </svg>
       <div className="usage-trend-legend">
-        <span className="usage-legend-item"><span className="usage-legend-bar" aria-hidden="true" /> 调用次数{first && last ? `（${fmtHour(first.bucket_start)} → ${fmtHour(last.bucket_start)} UTC）` : ""}</span>
-        <span className="usage-legend-item"><span className="usage-legend-line" aria-hidden="true" /> 命中率（null = 网关未上报 → 折线断档，不画假点）</span>
+        <span className="usage-legend-item"><span className="usage-legend-bar" aria-hidden="true" /> {t("usage.callsOnly")}{first && last ? `（${fmtHour(first.bucket_start)} → ${fmtHour(last.bucket_start)} UTC）` : ""}</span>
+        <span className="usage-legend-item"><span className="usage-legend-line" aria-hidden="true" /> {t("usage.hitRateLegend")}</span>
       </div>
     </div>
   );
 }
 
 export default function Usage() {
+  const { t, locale } = useI18n();
   const [windowHours, setWindowHours] = useState<number>(24);
   const [data, setData] = useState<LlmUsageSummary | null>(null);
   const [error, setError] = useState<Error | string | null>(null);
@@ -172,14 +175,14 @@ export default function Usage() {
   return (
     <div className="usage-page">
       <div className="page-head">
-        <h1>缓存健康 <span className="usage-en">Cache Health</span></h1>
+        <h1>{t("usage.title")} <span className="usage-en">{t("usage.subtitle")}</span></h1>
         <div className="page-sub" title="LLM USAGE LEDGER">
-          LLM 每次调用 token 的实测账本——命中率、流式占比、延迟、按类型拆分，一览无余。命中率只按网关真正上报的调用计，绝不补零。
+          {t("usage.lead")}
         </div>
       </div>
 
-      <div className="usage-window-bar" role="group" aria-label="统计窗口">
-        <span className="usage-window-label">窗口</span>
+      <div className="usage-window-bar" role="group" aria-label={t("usage.window")}>
+        <span className="usage-window-label">{t("usage.window")}</span>
         {WINDOWS.map((w) => (
           <button
             key={w.hours}
@@ -188,11 +191,11 @@ export default function Usage() {
             aria-pressed={windowHours === w.hours}
             onClick={() => setWindowHours(w.hours)}
           >
-            {w.label}
+            {t(w.labelKey)}
           </button>
         ))}
         <span className="usage-generated" title={data?.generated_at}>
-          生成于 {data?.generated_at ? new Date(data.generated_at).toLocaleString() : "—"}
+          {t("usage.generatedAt")} {data?.generated_at ? new Date(data.generated_at).toLocaleString() : "—"}
         </span>
       </div>
 
@@ -201,53 +204,52 @@ export default function Usage() {
       {loading && !data ? (
         <Spinner />
       ) : emptyLedger ? (
-        <Panel title="缓存健康">
-          <Empty text="账本尚无记录——等真实 LLM 调用跑一批后，这里会开始累计命中率、流式占比与延迟；空账本不编造任何数字。" />
+        <Panel title={t("usage.emptyTitle")}>
+          <Empty text={t("usage.emptyText")} />
         </Panel>
       ) : data ? (
         <>
           <div className="stat-grid" style={{ marginBottom: 12 }}>
-            <StatCard label="缓存命中率" value={fmtPct(data.hit_rate)} tone={hitTone(data.hit_rate)} />
-            <StatCard label="缓存节省 token" value={fmtTokens(data.cached_tokens)} tone={data.cached_tokens > 0 ? "ok" : "mute"} />
-            <StatCard label="总 token" value={fmtTokens(data.total_tokens)} tone="mute" />
-            <StatCard label="调用次数" value={String(data.calls)} tone="mute" />
-            <StatCard label="延迟 P50" value={fmtMs(data.latency_p50_ms)} tone="mute" />
-            <StatCard label="延迟 P95" value={fmtMs(data.latency_p95_ms)} tone={typeof data.latency_p95_ms === "number" && data.latency_p95_ms > 8000 ? "warn" : "mute"} />
+            <StatCard label={t("usage.hitRate")} value={fmtPct(data.hit_rate)} tone={hitTone(data.hit_rate)} />
+            <StatCard label={t("usage.savedTokens")} value={fmtTokens(data.cached_tokens)} tone={data.cached_tokens > 0 ? "ok" : "mute"} />
+            <StatCard label={t("usage.totalTokens")} value={fmtTokens(data.total_tokens)} tone="mute" />
+            <StatCard label={t("usage.calls")} value={String(data.calls)} tone="mute" />
+            <StatCard label={t("usage.p50")} value={fmtMs(data.latency_p50_ms)} tone="mute" />
+            <StatCard label={t("usage.p95")} value={fmtMs(data.latency_p95_ms)} tone={typeof data.latency_p95_ms === "number" && data.latency_p95_ms > 8000 ? "warn" : "mute"} />
           </div>
 
           <p className="muted usage-basis-note">
-            命中率只统计网关上报 cached_tokens 的调用（本窗口 <strong>{data.hit_basis_calls}</strong> / {data.calls} 次）；
-            未上报的调用计入调用次数、不计入命中率；网关未上报时命中率显示为「—」，绝不补零。
-            {" 错误率 "}{fmtPct(data.error_rate)} · {"流式占比 "}{fmtPct(data.streamed_ratio)}
+            {interp(t("usage.basis"), { basis: `${data.hit_basis_calls} / ${data.calls}` })}
+            {locale === "zh" ? " 错误率 " : " Error rate "}{fmtPct(data.error_rate)} · {locale === "zh" ? " 流式占比 " : " Streaming share "}{fmtPct(data.streamed_ratio)}
           </p>
 
-          <Panel title="流式调用占比 Stream share">
-            <div className="usage-meter" aria-label="流式占比">
+          <Panel title={t("usage.streamShare")}>
+            <div className="usage-meter" aria-label={t("usage.streamAria")}>
               <div className="usage-meter-fill" style={{ width: `${((data.streamed_ratio ?? 0) * 100).toFixed(1)}%` }} />
             </div>
             <div className="muted usage-meter-note">
-              {fmtPct(data.streamed_ratio)} 的调用以 stream=true 请求——流式是网关回报缓存用量（cached_tokens）的前提。
+              {fmtPct(data.streamed_ratio)} {locale === "zh" ? "的调用以 stream=true 请求——流式是网关回报缓存用量（cached_tokens）的前提。" : "of the calls were requested with stream=true — streaming is the precondition for the gateway to report cached_tokens."}
             </div>
           </Panel>
 
-          <Panel title="按调用类型拆分 By kind">
+          <Panel title={t("usage.byKind")}>
             <Table<KindRow>
               columns={KIND_COLUMNS}
               rows={data.by_kind}
               rowKey={(r) => r.kind}
               emptyTitle="暂无类型记录"
-              emptyDescription="窗口内没有任何调用记录（含未上报的调用）"
+              emptyDescription={t("usage.trendEmpty")}
             />
           </Panel>
 
-          <Panel title="每小时趋势 Trend (UTC)">
-            {data.trend.length > 0 ? <TrendChart trend={data.trend} /> : <Empty text="窗口内没有任何小时桶——等真实调用落一批再看趋势。" />}
+          <Panel title={t("usage.trend")}>
+            {data.trend.length > 0 ? <TrendChart trend={data.trend} /> : <Empty text={t("usage.trendEmpty")} />}
           </Panel>
         </>
       ) : null}
 
       {error && !loading ? (
-        <Degraded reasons={["LLM 用量账本（只读聚合端点 /api/v1/llm/usage/summary）暂时不可用——本页不伪造任何数据；等端点恢复后自动恢复显示。"]} />
+        <Degraded reasons={[t("usage.degraded")]} />
       ) : null}
     </div>
   );
