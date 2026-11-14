@@ -936,4 +936,48 @@ Every number came from this repository — none was invented or padded. Whatever
 **each entry passed through its own signature; every signature is one of two sentences: "it did X" or "it did not do X." There is no third sentence.**
 
 ---
+---
+
+## Volume XXII · The Evidence Archipelago（卷二十二 · 证据群岛）
+
+> An infinitely large page has one problem: it is too big for anyone to dare a first stroke. This volume answers the other question — **the world never ends, people get lost; who draws the map?**
+> This is also the sequel to Volume XXI: a world of iron evidence is not a book but an archipelago; this volume charts its sea lanes.
+
+### 22.1 Why an endless world must ship a chart
+
+- Endless evidence means endless ways to be lost; lost means patience dies first, then leaving — both are enemies of iron evidence;
+- Nobody landing in SpecProof should have to memorize 24 entries first. They need a chart: three islands, twenty-four halls, three expedition routes;
+- **A map does not replace exploration — it is the porch over the threshold**: the one who reads the map is the one who dares the plains;
+- This volume is anchored to two commits: **#1770** (the Atlas, `#/atlas` — SPECROOF ATLAS, landed) and **#1771** (Atlas verification: `getBBox` math QA — compass, scale bar and caption all inside the frame).
+
+### 22.2 The archipelago at a glance — three islands, 24 halls, every hall a real route
+
+| Island | Halls (24) |
+|---|---|
+| The Workspace Highlands (5 halls · teal) | Dashboard `/dashboard` · Verifications `/jobs` · AI Developer `/agent` · Chronicles `/epic` · Grand Tour `/tour` |
+| The Evidence Plains (13 halls · indigo) | Iron Lexicon `/lexicon` · Evidence Museum `/museum` · Fourteen Gestures `/gestures` · Requirement Coverage `/matrix` · Case File `/explorer` · Contracts `/contracts` · Effectiveness `/eval` · Verify Drill `/drill` · The Forge `/ide` · The River `/graph` · Chronicle `/chronicle` · Iron Census `/census` · Manual `/manual` |
+| The Governance Coast (6 halls · amber) | Team & Access `/identity` · Usage & Billing `/billing` · Cache Health `/usage` · Audit Trail `/audit` · Model Connection `/settings` · Service Status `/health` |
+
+(Implementation: `apps/web/src/pages/Atlas.tsx`; data: `apps/web/src/pages/atlas.copy.ts`. Room-dot coordinates are a readability-first hand layout — the island silhouettes are a decorative device, not a geographic survey. Output formats are outside this volume's warranties.)
+
+### 22.3 The three honest parts of the chart — compass, scale bar, caption
+
+- **The scale bar is anchored to the real commit count** — `0 / 1,000 / 2,000 / 2,400+` and climbing with the trunk (`git rev-list --count HEAD` re-derived live). It is not decoration; it is the repo's heartbeat tick;
+- **The compass's N is engraved inside the dial** — flanked by an E/W tick, never crossing the 26px inner circle;
+- **The engraving `THE EVIDENCE ARCHIPELAGO · EST. #130 · MMXXVI` sits on the top-left margin** — never over an island, never over the sea, never over the compass;
+- The discipline shared by all three: **nothing crosses the frame** — outer gold rule, inner 1px gold hairline, no ornament allowed beyond.
+
+### 22.4 The three expedition routes — a lane for each kind of visitor
+
+1. **Fast Shore (90 seconds)** — `/tour` → `/manual`: six stamps and one folded page;
+2. **Evidence Expedition (25 minutes)** — `/epic` → `/chronicle` → `/census`: thirteen scrolls → one thousand five hundred seventy-three entries → files/LOC re-derived live;
+3. **Live-Fire Course (10 minutes)** — `/jobs/new` → `/matrix` → FindingDetail: run it for real — the demo repo's `@PreAuthorize` really is gone; six contracts, six verdicts.
+
+(The `#/atlas` page carries all three as cards at the bottom; the routes are also written here — pocket card, tour, manual, epic, drill: not one of them a prop.)
+
+### 22.5 This volume's vow
+
+**The world will not walk for you, and neither will the map; the map owns exactly one truth — wherever you have walked, that ground is yours.** Being lost was never a failure of strength — it is what happens when nobody draws the first chart. From this volume on, any page that claims to be "endlessly open" must first draw its island; what cannot be drawn is sand, not land.
+
+---
 

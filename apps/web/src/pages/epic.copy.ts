@@ -1,7 +1,7 @@
 import type { Locale } from "../i18n/strings";
 
 /**
- * The English edition of the Epic page's twelve scrolls.
+ * The English edition of the Epic page's thirteen scrolls.
  *
  * The Chinese edition lives inline in `Epic.tsx` (it is the original text of
  * the book); the English edition is kept beside it so both languages can be
@@ -239,6 +239,23 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "纸卡有一个秘密", value: "它永远折叠在你的口袋里——但它永远知道你昨天读了哪一本书，今天还没读哪一条律" },
     ],
   },
+  {
+    num: "卷十三",
+    title: "证据群岛",
+    en: "The Evidence Archipelago",
+    era: "2026-11 · 至今",
+    verses: [
+      "世界大到走不完，不等于你必须迷路——给每个来客画第一张图，就是这片世界的待客之道。",
+      "一张地图上三座岛：工作台高原、证据平原、治理海岸——二十四间大厅分别落座。",
+      "比例尺上刻着真实提交：0、1,000、2,000、2,400+——这张图不撒谎，因为它脚下踩的是 git。",
+    ],
+    details: [
+      { label: "世界舆图 #/atlas（#1770）", value: "SPECROOF ATLAS——三岛 × 24 厅 + 三条探险路线 + 活体地标（git ls-files 现推）" },
+      { label: "目验与入框（#1771）", value: "bbox 数学目验：三岛落框、N 入表盘、题词入缘——没有一件零件越出发框" },
+      { label: "三条探险路线", value: "快速上岸 90 秒（tour→manual）· 证据考察 25 分钟（epic→chronicle→census）· 验收实战 10 分钟（jobs/new→matrix→FindingDetail）" },
+      { label: "地图不是代替探索", value: "它是通往探索的门廊——看懂地图的人，才敢踏进平原；画不出岛的，是沙，不是洲" },
+    ],
+  },
 ];
 
 export const CLOSING_ZH = [
@@ -446,6 +463,23 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "The Triad (since #72, #1702)", value: "#/guide (ordered path) + #/tour (six stamps) + #/manual (one page) — not alternatives, but three verses of the same poem" },
       { label: "A card, not a slide deck", value: "five things on the way in + three do-nots + five repo commands — read once, keep it close, never taught again" },
       { label: "The secret of the card", value: "it always folds into the pocket; it always knows which page you stopped reading yesterday" },
+    ],
+  },
+  {
+    num: "Scroll 13",
+    title: "The Evidence Archipelago",
+    en: "卷十三 · 证据群岛",
+    era: "2026-11 · today",
+    verses: [
+      "A world that never ends does not owe you lostness — the first chart drawn for you is the archipelago's whole hospitality.",
+      "Three islands on one map: the Workspace Highlands, the Evidence Plains, the Governance Coast — twenty-four halls in their rightful seats.",
+      "The scale bar ticks real commits — 0, 1,000, 2,000, 2,400+ — the chart cannot lie because it stands on git.",
+    ],
+    details: [
+      { label: "The Atlas, #/atlas (#1770)", value: "SPECROOF ATLAS — three islands x 24 halls + three expedition routes + living landmarks (all git ls-files-derived)" },
+      { label: "Inspected in-frame (#1771)", value: "bbox math QA: islands inside the frame, N inside the dial, caption inside the margin — no ornament crosses the gold rule" },
+      { label: "Three expedition routes", value: "Fast Shore 90s (tour→manual) · Evidence Expedition 25min (epic→chronicle→census) · Live-Fire 10min (jobs/new→matrix→FindingDetail)" },
+      { label: "A map is not a substitute for exploration", value: "It is the porch over the threshold — the one who reads it dares the plains; what cannot be drawn is sand, not land" },
     ],
   },
 ];

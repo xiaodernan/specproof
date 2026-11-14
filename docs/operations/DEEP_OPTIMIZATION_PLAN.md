@@ -36094,3 +36094,26 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 登录门禁为本地临时关闭、**未提交**；dist/ 被 .gitignore，任何本地 dist 与主线源码无关；
 * file:// 加载的 SPA 无法触达 `/api/*`，所有验收请求均失败——本页为纯静态证据即不受影响；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1772 卷二十二《证据群岛》+ 史诗第十三卷 —— 一张无限大纸也要先画出第一张图
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `docs/world/SPECROOF_WORLD.md` + `EN/SPECROOF_WORLD_EN.md`——**卷二十二 · 证据群岛 (The Evidence Archipelago)**（中英对称）：
+  22.1 为什么无限世界必须有一张图（迷路无尽→耐心先死）｜22.2 三座岛 × 24 厅全景表（每厅直指真实路由）｜
+  22.3 三个老实零件：比例尺锚定真实提交数（`0/1,000/2,000/2,400+`，`git rev-list --count` 现推）、
+  罗盘 N 入表盘 E/W 刻度线、题词压顶缘左侧锐角——**不越发框**｜
+  22.4 三条探险路线（快速上岸 90 秒／证据考察 25 分钟／验收实战 10 分钟）｜22.5 誓言：
+  **画不出岛的，是沙，不是洲**；
+* `apps/web/src/pages/epic.copy.ts`——**史诗第十三卷《证据群岛 / The Evidence Archipelago》**（中英对称 13/13）：
+  锚 #1770（#/atlas 落地）与 #1771（bbox 数学目验）；
+* 两本 `USER_GUIDE`：史诗十二卷→十三卷；一级入口 19→**24**；删除随时间退化的 KB 数字（改引 `#/census`）；EN 对应全部同步；
+  `epic.copy.ts` 头注释 twelve→thirteen。
+
+### 二、诚实边界
+
+* 本卷与第十三卷是**文字层**的交付，不改运行时；地图几何已经 #1771 目验有限（bbox 数学，非肉眼截图）；
+* 书名中「一千五百七十三节」随 chronicle 重建同步为 1,573（本节自带重跑）；
+* 全量 `pytest tests/unit` 仍未跑完。

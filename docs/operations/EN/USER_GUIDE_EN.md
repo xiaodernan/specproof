@@ -22,7 +22,7 @@ docker compose -f compose.phase0.yml up -d --wait
 
 ### 1.2 A lap around the whole product (5 minutes)
 
-Open `http://127.0.0.1:5173/` — the sidebar carries 19 first-level entries:
+Open `http://127.0.0.1:5173/` — the sidebar carries 24 first-level entries:
 
 | Group | Entry | What you can do right now | Iron evidence |
 |---|---|---|---|
@@ -36,7 +36,7 @@ Open `http://127.0.0.1:5173/` — the sidebar carries 19 first-level entries:
 | Admin | Audit Trail | every audit_logs write in the chain | compliance |
 | Admin | Model Connection | switch the real key of any OpenAI-compatible gateway | — |
 | Admin | Service Status | health (mysql/redis/rabbitmq/minio) + latency distribution | — |
-| — | Epic | twelve scrolls of SpecProof's genesis | full pixel-for-pixel real commits |
+| — | Epic | thirteen scrolls of SpecProof's genesis | full pixel-for-pixel real commits |
 | — | Tour | interactive six-stamp corridor | the mother of all passovers |
 
 > No `.env` needed either — the tour works without one. To connect a real LLM, ask for `.local/llm.json`.
@@ -108,7 +108,7 @@ Every scroll has a Case File cover — repository / change / verdict / the iron 
 
 ### 2.5 `#/epic` — the Chronicles
 
-Twelve scrolls, every anchor a real `git` commit hash — a verifiable epic. Scroll XII is the newest: #1766. **The Chinese book runs 56.0KB as of #1766**; the English edition mirrors it at `docs/world/EN/SPECROOF_WORLD_EN.md`.
+Thirteen scrolls, every anchor a real `git` commit hash — a verifiable epic. Scroll XIII is the newest: #1771. **The Chinese book's volume ships free — see `#/census` for live figures**; the English edition mirrors it at `docs/world/EN/SPECROOF_WORLD_EN.md`.
 
 ### 2.6 MCP in the CLI — tools for external AI agents (`#/mcp` is not an in-app page)
 
