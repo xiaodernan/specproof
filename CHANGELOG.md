@@ -2,6 +2,22 @@
 
 格式约定：按日期列 **可归因的变更**；每条附"证据"行——命令、输出、结论，而非感知描述。本项目**尚无签名的版本标签**（tag），因此未发布 dists 无法引用；所有内容以 git 历史与 `docs/operations/DEEP_OPTIMIZATION_PLAN.md`（数字化账本，每个 `## #NNN` 对应一笔真实工作）为准：`git log --follow docs/operations/DEEP_OPTIMIZATION_PLAN.md` 或上面的账本。
 
+## 2026-11-15（五次登记） · 四服务铁证大一统 + UI 运输层 / 详情页全面双语
+
+本条目覆盖 `1f83434` → `5e22587`（ledger `#1746` → `#1748`）。
+
+### 新增 / 修复
+- **四个 Spring Cloud 服务本机全部亲跑绿**：gateway **81/81** · discovery-server **1/1**（Eureka 自签启动）· config-server **1/1**（native）· control-plane **51/51**（H2 + 本机 Redis 6379 + RabbitMQ 5672）= **134/134**；Eureka 复制器 offline noise 如实注明；`services/README.md` 四节实测证据就位。
+- **UI 运输层（`api.ts`）五个中文错误串进 i18n 表**（#1747）：`api.unreachable` / `requestFailed` / `streamUnavailable` / `streamDropped` / `aiStreamFailed`；`NETWORK_UNREACHABLE` 冻结 const → **`networkUnreachableMessage()` 现取**，修掉 frozen-at-import 的 en-only 缺陷；FindingDetail/api.net.test 29/29。
+- **`FindingDetail.tsx` 全页双语化**（#1748）：50 个用户面中文字面量 → `fd.*` i18n（zh 逐字、en 手译）；`FindingDetail.test.tsx` 26/26 保持全绿；详情页**无面向用户的原生中文字面量**。
+- `services/README.md` §3 已更新为四服务实测证据；**不外推到任何承诺**：这是一次本机的观察不是可用性背书。
+
+### 验证状态
+- `vitest` **497/497**；`tsc --noEmit` 0 错误；`vite build` ✅ in 519ms；progress-event 双向门 4/4；FindingDetail 26/26；ledger 四件套 45/45；
+- Spring Cloud 四服务 **134/134 本机亲跑**（含 Redis/RabbitMQ live）；全量 `pytest tests/unit` 仍未跑完；
+- 缓存命中率仍然是观测量（#1723），从来不是健康指标；`#/drill`/新卷未过浏览器目验；
+- 仍有未译残余：Agent 控制台约 240 行 CJK、ui-kit 剩余 props、Explorer/Usage 少量字面量——这些就是下一条账目，不遮不掩。
+
 ## 2026-11-15（四次登记） · 微服务铁证 mvn 81/81 + jobStatus 双语
 
 本条目覆盖 `1ff1c11`（ledger `#1745`）。
