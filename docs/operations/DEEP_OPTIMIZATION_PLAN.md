@@ -35930,3 +35930,22 @@ LangGraph 是本产品的发动机，而发动机的形状一直不是产品的�
 * POCKET_CARD 的形状与长期双语对齐规则被固定（单一页面 zh+en 一个收件夹）；本号没新增条目、没删条目，只对替换的两条 curl 负全部责任；
 * `specproof` 作为全局包名本号未做安装线上验证——`--no-llm` 那条命令是 `docs/operations/USER_GUIDE.md` §1.3 的既定 canon，卡里继续引用它，不声称已跑；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1765 世界书卷二十《铁证的印章》—— 把「盖了章」拆开讲，而不是当作合掌
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+`docs/world/SPECROOF_WORLD_EN.md` + `docs/world/SPECROOF_WORLD.md` 同步追加卷二十《铁证的印章 (The Cartouche of Iron Evidence)》：
+
+* 20.1 四种结案状态（APPROVED/PROPOSED/REJECTED/REVOKED）——每一条都带真义；
+* 20.2 印章不是「结束了」——是按钮落下的那一刻**责任**落到签字者头上；
+* 20.3 史官的秘密：REVOKED 不是丢人——它是「我曾一度相信它」的书写；
+* 20.4 本卷誓言：铁证只是一张纸，**一张铁的纸**。
+
+### 二、诚实边界
+
+* 本卷不吹「铁证之书」的名人堂——只拆解印章的真实形态；
+* 卷二十与前卷**不构成叙事依赖**——各卷独立可读，卷与卷之间没有强制顺序；
+* 全量 `pytest tests/unit` 仍未跑完；本号文本增加稿字，不机器执行。

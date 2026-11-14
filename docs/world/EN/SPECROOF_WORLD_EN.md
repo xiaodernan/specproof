@@ -857,4 +857,35 @@ This volume writes not the history but the law of the keeper. The keeper does
 exactly two things: records what happened, and offers no excuses.
 
 ---
+---
+
+## Volume XX · The Cartouche of Iron Evidence (卷二十 · 铁证的印章)
+
+> This volume covers only one thing: **whoever presses the button, bears that press. Iron is the imprint the button leaves behind — not an excuse.**
+
+### 20.1 Four ways a case closes
+
+- **APPROVED** — the iron says it; the iron is its own witness, not a borrowed grace;
+- **PROPOSED** — still a proposal; the moment of verdict has not arrived;
+- **REJECTED** — the iron says there's no case, and the reason is preserved in the record;
+- **REVOKED** — someone signed before and now withdraws. This is not weakness; it is honesty standing up.
+
+### 20.2 A seal is not, and has never been, an "ending"
+
+Pressing APPROVED does not write a full stop. It signs the page, yes —
+but it also puts the responsibility onto the same page, in the same ink:
+after this, if the chain is ever challenged, the signer meets the evidence again.
+
+### 20.3 The keeper's secret, written plainly
+
+Choosing to revoke is not shame. **Revoking happens only after the keeper has looked
+at their own earlier confidence and said it does not hold.** The iron rail does not
+applaud neither the fast seal nor the slow seal — only the honest one.
+
+### 20.4 This volume's vow
+
+**The Iron Book is a book every page of which is iron — but it is only ever
+worth what one hand has signed. Iron, by itself, does not speak. It waits for the signature.**
+
+---
 
