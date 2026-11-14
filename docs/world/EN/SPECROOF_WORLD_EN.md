@@ -565,3 +565,78 @@ Roadmap open items: `PRODUCT_ROADMAP.md` §§1.3 (demo self-check), 1.6 (verify 
 
 *This book does not finish; its scrolls accumulate. You are reading at its current edge.
 The next leaf is one commit away.*
+---
+
+## Volume XV · The Unfinished Road (卷十五 · 未完的路)
+
+> The final word said: "This book will never be finished — the next volume is one commit away."
+> This is that commit. This volume does not sing of what is done; it writes down what is **not** —
+> every unfinished thing in the canon, carved on the wall with what "done" looks like,
+> so that no successor mistakes a IOU for a tombstone.
+> A blank is not a shame — a blank is a map; and every blank on this map has a name.
+
+### 15.1 Six plots of open land
+
+| Debt | Name | What "done" looks like |
+|---|---|---|
+| 1.3 Demo self-check | Demo doctor | One command self-checks the demo repo: `base` and `head-v1` tags exist, `requirement.txt` exists, the verify trail replays byte-identically — red on broken, green on sound |
+| 1.6 Verify decoupling | Verify without the cockpit | The verify core becomes its own library; CLI / Web / worker all call **the same** iron-evidence pipeline — change any entry, and the other two drift on sight |
+| 4.2 Counterexample adjudication | The counterexample bench | Counterexamples can be voted "false positive / real issue" and filed into the `eval` golden set; the false-positive rate finally has a denominator — precision never again by vibes |
+| 5.3 Observability out of the box | Observability out of the box | `/metrics` (Prometheus) + a pre-stocked Grafana board: after `compose up`, verify p95 is on the home page with zero manual wiring |
+| 5.4 Deployment shape | The ship shape | `compose.production.yml` converges to one command for the full stack (API / worker / MySQL / Redis / RabbitMQ / static view); it earns a spot at the top of the README only when healthchecks are all green |
+| 6.1 IDE / CI integration | The doorway | A GitHub Action on the PR: base/head acceptance runs automatically, the verdict lands as a Check Run — no clone, no asking, the iron evidence is one click away |
+
+### 15.2 Surveyor's notes
+
+* **Demo doctor** is not a script; it is the demo repo's signature: anyone running `git tag -l` should see
+  `base` and `head-v1`, and the outcome must match `docs/operations/USER_GUIDE.md` §1.3 byte-for-byte —
+  docs and reality must not drift apart by a single character;
+* The enemy of **verify decoupling** is entries that grow unlike: `api/`, `worker/`, and CLI each patching
+  their own copy. The completion test is brutal and simple: one spec, three doors, **identical finding fingerprints**;
+* **Counterexample adjudication** is not E2E: E2E proves "it ran"; adjudication proves "it did not fool me."
+  The golden set must support voting, being overturned, and the overturn must be logged
+  (append-only law, Volume XIV · 14.4 — red is kept on record);
+* **Observability out of the box** has exactly one acceptance criterion: on a fresh machine, after
+  `docker compose up`, the Grafana home page shows verify p95 **without a single manual click** —
+  one missing dashboard is one missing lighthouse;
+* **Deployment shape** and **IDE/CI** are paired: the ship shape makes the system stay alive on its own;
+  the doorway makes it walk into other people's workflows — one is feeding, the other is letting in;
+  through the door, the user no longer needs to read this book at all;
+* One item in `docs/ROADMAP.md` under P5 — "LLM variability" — is **not** on this debt wall anymore:
+  it was paid, as **real LLM integration + real end-to-end smoke (#1724, 7/7 PASS)**.
+  But it must be said plainly: what was paid was "it runs," never "the model is innocent."
+
+### 15.3 The promise to the showcase
+
+The SpecProof entry on `xiaodernan.github.io` ships weekly (Sunday 06:00 UTC) via
+`.github/workflows/portfolio-sync.yml` (or on master merge / manual dispatch); it pushes
+`data/specproof-*` only when `PORTFOLIO_TOKEN` exists — otherwise it quietly rebuilds and bows out.
+The showcase is a vitrine, not a scoreboard: updates land on big leaps, never on noise.
+**The showcase tells no lies; the numbers never invoice themselves.**
+
+### 15.4 The keeper's IOUs (as of #1726)
+
+| Debt | Status |
+|---|---|
+| The reading of the "96.5% cache hit rate" | **Paid** (#1723 — gateway's 4224-token constant, downgraded to an observational metric) |
+| Portfolio auto-sync | **Tooling live** (#1722) — waiting on one secret; the IOU is on your desk, not the keeper's |
+| Ghost routes in the user guide | **Paid** (#1726 — guide ↔ App.tsx aligned + 6-test gate holds the line) |
+| Full `pytest tests/unit` | **Unpaid** — local memory fell to ~1.8 GB; only the ledger four + the new gate ran (51/51); this line is kept on the record, not whitewashed |
+| `toneMap.ts` / `errorHints.ts` Chinese residue | **Unpaid** — locked by the severity-vocabulary parity test; needs its own work item before translation |
+| Volume XV inside the app (`/epic` still shows six scrolls) | **Unpaid** — the book grew to fifteen volumes; bringing XV into `Epic.tsx` is the next commit |
+
+### 15.5 For the next reader
+
+* If you are a **user**: start at `#/tour`, stamp all six seals — you will know this system better than 90% of the repo's readers;
+* If you are a **contributor**: pick any plot in 15.1, read Volume XIV first, then move —
+  "what done looks like" is already written above; **the acceptance bar is not in your head, it is on this page**;
+* If you are the **keeper**: new convention — every time a debt is paid, add a line beside 15.4;
+  merge into master, and every page of this world is an archaeological layer of commits.
+
+### 15.6 This volume's vow
+
+Unfinished is not failure — unfinished is the map.
+Every plot of open land has a name; every name has a "what done looks like."
+That is the whole secret between "a vast world" and "one real commit at a time."
+
+**Volume XV keeps no good news — it keeps IOUs, the map, and the relay baton.**
