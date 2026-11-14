@@ -35280,3 +35280,24 @@ doctor 如实报告而不染绿；未追入这批改动，它们不是本提交�
 * 第一版卡片误写了未经证实的 8787 端口——已按 RUNBOOK 实测口径改正：Control Plane `http://127.0.0.1:8081/health`、
   Edge 网关 `http://127.0.0.1:8090/actuator/health`（observability profile，RUNBOOK §1/§3 与 row 14）；
 * 口袋卡不复述「卷十六的终局誓言」——它把誓言翻译成口袋尺寸；
+
+## #1740 CI 接入 demo doctor —— 「手册承诺」首次有机器长牙；世界书卷十五欠条之六（6.1 附近）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `.github/workflows/demo-doctor.yml`：
+  master push / PR 触发（也可手动）；`fetch-depth: 0` 保住 `base` / `head-v1` tag refs；
+  Python 3.12；两步——先 `--json`（机读报告落 stdout），再人读模式；
+  零 Docker、零网络、零 LLM；约 2 秒，失败即红（exit 1）。
+* 世界书卷十五 §15.1 欠条「6.1 IDE/CI 集成」在此迈出最小第一步：
+  CI 不只在守测试，**也在守「手册对用户作出的承诺仍然成立」**——
+  任何人合并前改了演示仓、弄坏了 tag、删了 requirement，门会立刻红。
+
+### 二、诚实边界
+
+* 本号未在真正的 GitHub runner 上验证过工作流——只验过 demo doctor 本机的 exit codes（#1728）；
+  「CI 会红」属逻辑推导（脚本 exit 1 → job 红），属推断非实测；
+* 这不是「CI 全录入款」——ci.yml 本身未动；本号只加了一个独立的、低风险的文档-承诺门；
+* 6.1 的终局仍是 GitHub App Check Run 的完整链路——这只是第一个台阶。

@@ -1,0 +1,43 @@
+name: demo-doctor
+
+# The user guide tells a newcomer: "run the demo verification."
+# This job makes sure the promise holds on every master push.
+# It is the cheapest possible gate: one Python script, zero Docker,
+# zero network, ~2 seconds, nothing to fake.
+
+on:
+  push:
+    branches: [master]
+  pull_request: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-doctor
+  cancel-in-progress: true
+
+jobs:
+  doctor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out specproof
+        uses: actions/checkout@v4
+        with:
+          # tags are refs too — a shallow fetch would lose base/head-v1
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Demo doctor self-check
+        # The demo tree is committed and clean on a runner, so a dirty
+        # checkout fails here loudly (exit 1) — that's the whole point.
+        run: |
+          python scripts/demo_doctor.py --json
+          echo "--- human-readable:"
+          python scripts/demo_doctor.py
