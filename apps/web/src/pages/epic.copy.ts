@@ -1,7 +1,7 @@
 import type { Locale } from "../i18n/strings";
 
 /**
- * The English edition of the Epic page's ten scrolls.
+ * The English edition of the Epic page's eleven scrolls.
  *
  * The Chinese edition lives inline in `Epic.tsx` (it is the original text of
  * the book); the English edition is kept beside it so both languages can be
@@ -205,6 +205,23 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "/health 59 秒变一半（#1755）", value: "MySQL+Redis 探针原串行：DEAD 后 29s，并行后 27s——收益有限，诚实记录，收据里没吹牛" },
     ],
   },
+  {
+    num: "卷十一",
+    title: "编年史",
+    en: "The Chronicle",
+    era: "2026-11 · 至今",
+    verses: [
+      "史官每天清早起床，先检查茶壶是不是满的——因为没写完的东西不是卷轴，是待办。",
+      "一本编年史永远是未完成的：谁合了 PR，谁就要重新跑一遍；不是懒得跑，是跑出来的才算数。",
+      "没有史官敢说「账本说了算」。账本只说它知道什么，不会替任何人宣称它已经完成了。",
+    ],
+    details: [
+      { label: "build_chronicle.py（#1761）", value: "纯 stdlib：解析 DEEP_OPTIMIZATION_PLAN.md 的 `## #NNNN` 节 + 正文首个有意义句，输出 apps/web/src/pages/chronicle.json；1561 节、#130→#1760" },
+      { label: "chronicle.json（#1760）", value: "~259 KB，每行 = 节号 + 标题 + 首个有意义句；首节从 #130 起——早期竹简由史官自己不给自己写" },
+      { label: "编年史页 #/chronicle（#1760）", value: "竖线编年体：搜条目/正文/编号，#NNNN 自引用也支持；连编都合进 history，跑起来不骗你" },
+      { label: "史官的两条法律（卷十九）", value: "《它做了 X》or《它没做 X》——没有第三句；编年史不是永动机，改变即重跑 build_chronicle.py（不自动）" },
+    ],
+  },
 ];
 
 export const CLOSING_ZH = [
@@ -378,6 +395,23 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "The river #/graph (#1758)", value: "agent/graph.py::build_phase0_graph(), eighteen nodes and two guard rails, drawn verbatim — the browser never runs Python" },
       { label: "RAG that was really run (#1757)", value: "scripts/repo_rag.py — pure-Python TF-IDF, 142 markdown files, top-5 fed to wkapi/gpt-6-sol; ask caching is not contract and get cited back to POCKET_CARD" },
       { label: "/health 59 seconds, halved (#1755)", value: "MySQL + Redis probes ran serially: 29.18 s on dead backend; parallelized: ~27 s — marginal, honest, not sellable" },
+    ],
+  },
+  {
+    num: "Scroll 11",
+    title: "The Chronicle",
+    en: "卷十一 · 编年史",
+    era: "2026-11 · today",
+    verses: [
+      "The keeper wakes before dawn to check whether the teapot is full — because what was unfinished is not a scroll, it is a task.",
+      "A chronicle is always unfinished: whoever merges a PR owes the book a complete re-read; nobody earns it by being too lazy to rerun.",
+      "No keeper dares say “the ledger is in charge.” The ledger only says what it knows; it cannot announce that it is done.",
+    ],
+    details: [
+      { label: "build_chronicle.py (#1761)", value: "pure stdlib: parses the `## #NNNN` headings out of DEEP_OPTIMIZATION_PLAN.md plus the first meaningful sentence; writes apps/web/src/pages/chronicle.json — 1,561 entries, #130 → #1760" },
+      { label: "chronicle.json (#1760)", value: "≈260 KB, one row per entry — number, title, first meaningful sentence; starts at #130 (the keeper does not write for themselves)" },
+      { label: "Chronicle page #/chronicle (#1760)", value: "vertical-ink timeline, searchable across title/body/#NNNNN — honest by construction; merge an entry and the page lies the moment you stop paying attention" },
+      { label: "The keeper's two laws (Vol. XIX)", value: "Either it did X or it did not X — nothing else; the chronicle is not a perpetual machine: changing the ledger obliges a re-run of build_chronicle.py" },
     ],
   },
 ];
