@@ -35382,3 +35382,19 @@ verdict: CONSISTENT
 
 * 未改 `Epic.tsx` 一行代码；未做浏览器目验——视觉未核对；
 * 卷八条目如实不夸大：#1741 是 temperature=0 单次观察，书里保留了原始 token 数字并自贬为「活案底」而非契约。
+
+## #1744 CHANGELOG 三次登记 —— 2026-11-15 的第三张收据（#1740–#1743 · portfolio-sync 重跑可解析）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `CHANGELOG.md` 第三张收据：覆盖 `2c149c0`（#1740 CI demo-doctor）→ `dcea0bd`（#1743 /epic 第九卷）；
+  语气与 #1734/#1737 一致——不外推 vitest 497/497 为全仓库测试结论；不粉饰 CI 工作流未经过真实 runner 的事实。
+* `scripts/sync_portfolio.py` 本地重跑：`world_size: 49.3 KB`、`page_count: 25`、`latest_changelog` → 三次登记节；
+  证明 sync 三张收据节均可解析（generated 物 gitignored）。
+
+### 二、诚实边界
+
+* 本号不推 portfolio——仍等 `PORTFOLIO_TOKEN`；至多证明重建不炸；
+* 收据里明说「#/drill 未浏览器目验、pytest 全量未跑完、CI 工作流未见红见绿」——三件事记在已入册的白纸黑字里。

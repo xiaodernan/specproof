@@ -2,6 +2,20 @@
 
 格式约定：按日期列 **可归因的变更**；每条附"证据"行——命令、输出、结论，而非感知描述。本项目**尚无签名的版本标签**（tag），因此未发布 dists 无法引用；所有内容以 git 历史与 `docs/operations/DEEP_OPTIMIZATION_PLAN.md`（数字化账本，每个 `## #NNN` 对应一笔真实工作）为准：`git log --follow docs/operations/DEEP_OPTIMIZATION_PLAN.md` 或上面的账本。
 
+## 2026-11-15（三次登记） · CI 守承诺 + 双语 LLM 实测 + 卷十七 / 第九卷
+
+本条目覆盖 `2c149c0` → `dcea0bd`（ledger `#1740` → `#1743`）。
+
+### 新增
+- **`.github/workflows/demo-doctor.yml`**：第一机 6.1《IDE/CI 集成》欠条的台阶——master push/PR 触发，fetch-depth: 0 保 `base`/`head-v1` tag refs，零 Docker、零网络、零 LLM。
+- **`scripts/llm_locale_consistency.py`**：双语一致性探针（观测型，不作 gate）；wkapi gpt-6-sol 实测同题同答 `BLOCKER`（zh 4749/cached 3981, en 4727/cached None）。
+- **世界书卷十七《两种语言的验收》**（中英双文）；仓库共 17 卷，EN 对应。
+- **`/epic` 第九卷**；九卷中英对齐。
+
+### 验证状态
+- `vitest` 497/497；`tsc --noEmit` 0 错误；`vite build` ✅；ledger 四件套 45/45；guide gate 6/6；
+- 全量 `pytest tests/unit` 未跑完；#/drill 未浏览器目验；CI 工作流尚未经过真实 runner 见红/见绿——三次登记一如既往不粉饰。
+
 ## 2026-11-15（二次登记） · 世界书卷十六 + /epic 第八卷
 
 本条目覆盖 `c7626b5` → `4a8a346`（ledger `#1735` → `#1736`）。
