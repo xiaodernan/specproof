@@ -34147,3 +34147,30 @@ EN/USER_GUIDE_EN.md = 英文新手路径（#1699）；MCP_GUIDE*.md = 机器发�
 * EN 版 Scroll 9/Final Word/Scroll 10 是对中文的**人工对译**，不是机翻；少数原中文术语（如「验讫」「铁」）保留在引号内，因其是产品 UI 字面；
 * 卷十一是新增章节——中文版先行、英文版随后，章节结构与锚点一致；它不是关于验收内核的新事实，而是关于世界在门之内、之外两处的话语；
 * 双语门目前覆盖的页面矩阵见 `USER_GUIDE.md §4` 实况表；旧页面仍按批次推进。
+
+## #1702 旧页面双语化第一批：Dashboard 逐页本地化（`dashboard.copy.ts` + 全组件重写）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、用户诉求
+
+"所有项目都要支持全内容中英文切换，统一用中文或英文表示，两个都得支持。"
+
+旧页面正文是双语化债务的最深处。Dashboard 是用户第一眼的页面，本号先开它。
+
+### 二、交付
+
+* `apps/web/src/pages/dashboard.copy.ts`：`DashboardCopy` 全量文案接口——
+  眼眉行 / 欢迎横幅 / 快速体验 4 张卡 / 3 个动作入口 / 4 张 StatCard 的 label+hint /
+  时间线列名与空态 / Donut 中心 / 最近验收表头 / 空态文案 / 活动面板 / 状态映射（8 种 job.status → 中/en）。
+  中文稿**重写为母语级中文**（之前 API 转译产生过"提交密码、刷题结果"之类的腔），不再有机器翻译味；
+* `Dashboard.tsx`：结构不变（className 一字未动），全部字面量换成 `c.*`，
+  用 `const c = DASHBOARD_BY_LOCALE[locale]`；错误态里指向 `#/health` 的"服务状态"本地化（zh/en）；
+* 验迹：`tsc` 净；**vitest 全量 486/486**；`npm run build` 绿（index 258.73 kB / gzip 87.95 kB）；
+  Dashboard.test.tsx 2/2 过（mock 了 API，断言的是行为不是字面量）。
+
+### 三、诚实边界
+
+* 本号只完成了 **Dashboard 一页**；Jobs / JobDetail / Matrix / Contracts / Eval / Billing / Audit /
+  Health / Settings 等旧页面的正文仍是中文原生，排队中，一页一个 commit，不假装全站已双语；
+* copy 文件与组件分离，下一页照同样模式迁移（locale table + 同形两语言 + 无中文散文残留的门守）。
