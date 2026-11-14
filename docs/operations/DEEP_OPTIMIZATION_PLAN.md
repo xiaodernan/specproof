@@ -35432,3 +35432,17 @@ verdict: CONSISTENT
 * StatusPill 的中文取值逐字照旧，en 文案未经母语者审校；
 * 「Netty 是否真启动」的证据是日志原文（60732/49299 端口）——记录即证据，不是游历；
 * 全量 `pytest tests/unit` 未跑完。
+
+## #1746 CHANGELOG 四次登记 —— 2026-11-15 的第四张收据（#1745 · 微服务铁证 mvn 81/81）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `CHANGELOG.md` 第四张收据：覆盖 `1ff1c11`（#1745）；直写了 gateway 实测数字、`RouteTableIsomorphismGate` 非致命警告、jobStatus 双语落地、**gateway 81/81 只代表 gateway 模块**——不外推。
+* `scripts/sync_portfolio.py` 本地重跑：`world_size: 49.3 KB`、`page_count: 25`、`latest_changelog` → 四次登记节；sync 落地的是四张收据——数字真实但不入提交（generated 物 gitignored）。
+
+### 二、诚实边界
+
+* 本号仍不推 portfolio——仍等 `PORTFOLIO_TOKEN`；至多证明重建不炸；
+* 收据里如实写下「全量 pytest 未跑完」——这条不会因为收据越来越多就消失。

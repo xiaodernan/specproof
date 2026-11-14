@@ -2,6 +2,18 @@
 
 格式约定：按日期列 **可归因的变更**；每条附"证据"行——命令、输出、结论，而非感知描述。本项目**尚无签名的版本标签**（tag），因此未发布 dists 无法引用；所有内容以 git 历史与 `docs/operations/DEEP_OPTIMIZATION_PLAN.md`（数字化账本，每个 `## #NNN` 对应一笔真实工作）为准：`git log --follow docs/operations/DEEP_OPTIMIZATION_PLAN.md` 或上面的账本。
 
+## 2026-11-15（四次登记） · 微服务铁证 mvn 81/81 + jobStatus 双语
+
+本条目覆盖 `1ff1c11`（ledger `#1745`）。
+
+### 修复 / 新增
+- **`services/gateway` 实跑 `mvn -o test`**：`Tests run: 81, Failures: 0, Errors: 0, Skipped: 0 — BUILD SUCCESS`（02:03 min，Netty 真启动，ephemeral ports 60732/49299，`RedisTokenBucketRateLimiterTest` 5/5）。`services/README.md` 已更新为以上数字与可见缺口（`missingServices=[api, control-plane]` — 非致命警告，如实留档）。
+- **jobStatus 16 个 gloss 入 i18n 表**（`StatusPill.tsx`）：en/zh 双向对称，`test_progress_event_labels` 双向门 4/4 绿；TS2353 拦住的 en 侧 key 前缀不匹配也如实划掉了。
+
+### 验证状态
+- `vitest` 497/497；`tsc --noEmit` 0 错误；`vite build` ✅ in 496ms；progress-event 双向门 4/4；ledger 四件套 45/45；
+- **gateway 81/81 只代表 gateway 模块**，三个其余模块未重跑——不外推；全量 `pytest tests/unit` 仍未跑完。
+
 ## 2026-11-15（三次登记） · CI 守承诺 + 双语 LLM 实测 + 卷十七 / 第九卷
 
 本条目覆盖 `2c149c0` → `dcea0bd`（ledger `#1740` → `#1743`）。
