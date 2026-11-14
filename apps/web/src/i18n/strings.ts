@@ -26,6 +26,7 @@ const zh = {
   "nav.epic": "史诗",
   "nav.tour": "巡览",
   "nav.lexicon": "铁证词典",
+  "nav.museum": "铁证博物馆",
 
   // ── groups ─────────────────────────────────────────────────────
   "group.workspace": "工作空间",
@@ -132,6 +133,14 @@ const zh = {
   "explorer.tierUnknown": "?",
 
   // ── Usage page ─────────────────────────────────────────────────
+  "museum.title": "铁证博物馆",
+  "museum.subtitle": "THE EVIDENCE MUSEUM",
+  "museum.lead":
+    "十二件展品，每件钉在仓库里的一个真实事实上。展签上的编号指向账本，不指向幻想。",
+  "museum.filter": "按类别筛选展品",
+  "museum.all": "全部",
+  "museum.colophon":
+    "本馆不设装饰性指标——每件展品都指向账本（DEEP_OPTIMIZATION_PLAN.md）里的一个真实条目；编号可 git log 对账。",
   "lexicon.title": "铁证词典",
   "lexicon.subtitle": "THE IRON LEXICON",
   "lexicon.lead":
@@ -192,6 +201,7 @@ const en: Record<keyof typeof zh, string> = {
   "nav.epic": "Chronicles",
   "nav.tour": "Grand Tour",
   "nav.lexicon": "Iron Lexicon",
+  "nav.museum": "Evidence Museum",
 
   "group.workspace": "Workspace",
   "group.evidence": "Quality & Evidence",
@@ -291,6 +301,14 @@ const en: Record<keyof typeof zh, string> = {
   "explorer.tierScript": "Scripted",
   "explorer.tierUnknown": "?",
 
+  "museum.title": "Evidence Museum",
+  "museum.subtitle": "THE EVIDENCE MUSEUM",
+  "museum.lead":
+    "Twelve exhibits, each pinned to one true fact in this repository. The plaque numbers point at the ledger, never at an imaginary gallery.",
+  "museum.filter": "Filter exhibits by tag",
+  "museum.all": "All",
+  "museum.colophon":
+    "This museum sets no decorative metrics — every exhibit points at a real entry in the ledger (DEEP_OPTIMIZATION_PLAN.md); every number reconciles with git log.",
   "lexicon.title": "Iron Lexicon",
   "lexicon.subtitle": "THE IRON LEXICON",
   "lexicon.lead":

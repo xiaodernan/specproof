@@ -493,3 +493,29 @@
 .lexicon-colophon { font-size: var(--text-xs); }
 .lexicon-empty { padding: var(--sp-4); text-align: center; }
 @media (max-width: 640px) { .lexicon-toggle { grid-template-columns: 1fr auto; } .lexicon-gloss { grid-column: 1 / -1; } }
+
+.museum-page { display: grid; gap: var(--sp-4); max-width: 980px; }
+.museum-en { color: var(--color-text-3); font-weight: 400; }
+.museum-tags { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+.museum-tag {
+  padding: var(--sp-1) var(--sp-3); border: 1px solid var(--color-border-2); border-radius: 999px;
+  background: var(--color-surface-2); color: var(--color-text-2); font-size: var(--text-sm); cursor: pointer;
+}
+.museum-tag:hover { border-color: var(--accent-ring); color: var(--color-text-1); }
+.museum-tag-active { background: var(--color-accent-soft); border-color: var(--accent-ring); color: var(--accent-text); }
+.museum-wall { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
+.museum-plaque { border: 1px solid var(--color-border-2); border-radius: var(--radius-md); background: var(--color-surface-2); overflow: hidden; }
+.museum-plaque-open { border-color: var(--accent-soft); background: var(--color-surface-3); }
+.museum-plaque-head {
+  display: grid; grid-template-columns: 52px 1fr auto auto; align-items: baseline; gap: var(--sp-3);
+  width: 100%; text-align: left; padding: var(--sp-2) var(--sp-3); background: transparent; border: 0; cursor: pointer; color: inherit;
+}
+.museum-plaque-head:hover { background: var(--color-surface-3); }
+.museum-numeral { font: 700 var(--text-lg) var(--font-mono); color: var(--accent-text); }
+.museum-title { color: var(--color-text-1); font-size: var(--text-base); font-weight: 600; }
+.museum-tag-chip { font-size: var(--text-xs); color: var(--color-text-3); border: 1px solid var(--color-border-2); border-radius: var(--radius-sm); padding: 0 6px; }
+.museum-chevron { color: var(--color-text-3); }
+.museum-plaque-body { padding: var(--sp-2) var(--sp-3) var(--sp-3); border-top: 1px dashed var(--color-border-2); display: grid; gap: var(--sp-2); }
+.museum-anchor { font-size: var(--text-xs); color: var(--color-text-2); word-break: break-all; }
+.museum-colophon { font-size: var(--text-xs); }
+@media (max-width: 640px) { .museum-plaque-head { grid-template-columns: 40px 1fr auto; } .museum-tag-chip { display: none; } }

@@ -21,7 +21,7 @@ docker compose -f compose.phase0.yml up -d --wait
 
 ### 1.2 看一眼所有面（5 分钟）
 
-直接打开 `http://127.0.0.1:5173/`——侧栏已有 16 个一级入口：
+直接打开 `http://127.0.0.1:5173/`——侧栏已有 17 个一级入口：
 
 | 组 | 入口 | 你能马上做的事 | 铁证 |
 |---|---|---|---|
@@ -129,7 +129,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 
 ---
 
-## §3 · 模块目录（47 页应用）
+## §3 · 模块目录（48 页应用）
 
 | 路由 | 模块 | 一句话 |
 |---|---|---|
@@ -150,6 +150,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/tour` | 巡览 | 新手交互式走廊，六盖一齐验讫 |
 | `/explorer` | 案件档案 | 铁证装订 - 红印验讫封面 |
 | `/lexicon` | 铁证词典 | 十四个词，每词可搜、可点开、锚到仓库真实位置 |
+| `/museum` | 铁证博物馆 | 十二件实证展品，每件锚到账本真实条目 |
 | `/usage` | 缓存健康 | 真 hit_rate + 计费链条 |
 | `/guide` | 上手指南 | 从 clone 到第一个 BLOCKED 的 4 步 |
 | `/readme` | 推荐读物 | 本仓库的阅读者地图 |

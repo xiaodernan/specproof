@@ -22,7 +22,7 @@ docker compose -f compose.phase0.yml up -d --wait
 
 ### 1.2 A lap around the whole product (5 minutes)
 
-Open `http://127.0.0.1:5173/` — the sidebar carries 16 first-level entries:
+Open `http://127.0.0.1:5173/` — the sidebar carries 17 first-level entries:
 
 | Group | Entry | What you can do right now | Iron evidence |
 |---|---|---|---|
@@ -127,7 +127,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 
 ---
 
-## §3 · The module catalogue (47-page application)
+## §3 · The module catalogue (48-page application)
 
 | Route | Module | One sentence |
 |---|---|---|
@@ -148,6 +148,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/tour` | Grand Tour | interactive onboarding corridor; six stamps seal 「验讫」 |
 | `/explorer` | Case File | iron-evidence binding — red seal 「验讫」 on the cover |
 | `/lexicon` | Iron Lexicon | fourteen words, each searchable, each anchored to a real location |
+| `/museum` | Evidence Museum | twelve exhibits, each pinned to a real ledger entry |
 | `/usage` | Cache Health | truthful hit_rate + billing chain |
 | `/guide` | Onboarding Guide | from clone to your first BLOCKED in 4 steps |
 | `/readme` | Recommended Reading | this repository's reader map |

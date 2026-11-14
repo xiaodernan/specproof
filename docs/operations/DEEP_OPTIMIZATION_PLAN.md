@@ -34511,3 +34511,32 @@ EN/USER_GUIDE_EN.md = 英文新手路径（#1699）；MCP_GUIDE*.md = 机器发�
 
 `ui/toneMap.ts`（严重度/结论/证据类型词表）与 `ui/errorHints.ts`（流水线错误中文词表）仍中文——它们被 `severity_vocabulary_parity` 锁死，
 UI 层词表 i18n 是下一桩独立工程。
+
+## #1715 新模块：铁证博物馆 `#/museum` —— 十二件真实展品，每件锚到账本
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、为什么
+
+「铁证」散落在账本与正史里——#1645 的缓存命中、#1674 的断路器、#1689 的真机 BLOCKED、#1672 的 done 帧缺陷——
+每件都能在 git log 里对账，但**没人看得见它们站在一起**。本号给它们一个展厅。
+
+### 二、交付
+
+* `apps/web/src/pages/museum.copy.ts`：`EXHIBITS` 共 **12 件展品**（铁证/缓存/微服务/前端/正史/后端/治理/玩法 8 类标签），
+  每件含 `id` / 罗马数字展陈序号 / zh+en 标题与展陈故事（2 句话含数字本身）/ **verbatim anchor（账本编号 · 文件或 hash）**/
+  类别标签——**展厅不钉任何装饰性「影响指标」**，锚点本身就是分量；
+* `apps/web/src/pages/Museum.tsx`：展陈墙（tag 过滤，最近首件默认展开），aria-expanded 可折叠，
+  12 件展品 zh 全屏默认渲染——与 Lexicon 同一交互骨架；
+* 路由 `#/museum` 注册进 `App.tsx`（侧栏「质量与证据」分组，图标 `scroll`）；
+* `nav.museum` 中/英 + `museum.*` 六键（parity 门守缺 key）；
+* 样式 `.museum-*`：牌匾卡片（衬线罗马数字、展陈标签、虚线展开）、移动端 tag chip 隐藏；
+* `USER_GUIDE.md`/`EN/USER_GUIDE_EN.md` §3 增 `/museum` 行、48 页、侧栏 16→17 入口实况校准；
+* 验迹：Museum.test.tsx **2/2**；vitest 全量 **488/488**；`npm run build` 绿（index 263.93 kB / gzip 89.59 kB）；tsc 净；ledger 45/45。
+
+### 三、诚实边界
+
+* 展品 anchor **逐一对应真实账本条目**（#1672/#1674/#1675/#1677/#1679/#1681/#1689/#1693/#1698/#1700/#1701/#1703/#1708 全部存在）；
+  展陈措辞保留「capsuled / honest / 五分之一断路器」等事实，不加油添醋；
+* 展厅本身是**静的**——没有动态聚合（en 展览目录为 `.copy.ts`，未来由脚本从 ledger 自动生成，规划见 3 个月路线图）；
+* 路由没有落入正动画，只是 tag 过滤 + 展开收起——美学一致但刻意保持安静。
