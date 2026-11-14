@@ -36212,3 +36212,34 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * artifacts/ 不入库（.gitignore），本节**不**声称 portfolio 已更新——推送器仍只在 PORTFOLIO_TOKEN 存在时运行；
 * 订正世界书两处数字**非** append-only 账本，账本未动（本条除外）——世界书是活文档，这是它与账本的分工；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1777 缓存命中率的现场复测（2026-11-15 实测）+ `scripts/llm_cache_probe.py` 入库
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、实测（wkapi.pro · gpt-6-sol · 本机直连 · 未改动任何 key）
+
+| 请求 | lane | prompt | completion | cached |
+|---|---|---|---|---|
+| 短 prompt（「只回答一个字：证。」） | non-stream | 4,456 | 5 | 4,224 |
+| 短 prompt | stream+include_usage | 4,456 | 5 | 4,224 |
+| 长 prompt（约 4.5k tok 中文） | non-stream | 6,343 | 140 | 3,968 |
+| 长 prompt | stream+include_usage | 6,343 | 202 | 3,968 |
+| 长 prompt（再次） | non-stream | 6,343 | 168 | **6,144** |
+| 长 prompt（再次） | stream+include_usage | 6,343 | 205 | 3,968 |
+
+### 二、结论（不吹不黑）
+
+1. **每次调用都要先付约 4.2–4.5k 的静态前缀**——wkapi 对 `gpt-6-sol` 注入的巨大系统提示/前缀，不管你发什么都在账上；
+   所以你看到的 cached≈4,224 是**静态前缀被缓存**，不是你的消息命中率；
+2. **两 lane 都能报 usage**（stream 必须带 `stream_options={"include_usage": true}`，否则 usage 为 None——
+   这是"一直显示非流/显示不到缓存"的直接原因，本仓库 provider 自 #1640s 起已默认走这条车道）；
+3. cached 值在同一请求两次间会跳（3,968 ↔ 6,144）——**它不是一份可信的 SLA**，只是 provider 侧观测值，别拿它硬套产品指标；
+4. 真要省 token，**能控的是调用次数与我们自己的精确缓存**（#1773 的 RAG L2），不是 provider 遥测——
+   wkapi 的缓存前缀是它送的，不是我们能影响的；我们能影响的是"别重复问同一个问题"。
+
+### 三、交付与诚实边界
+
+* `scripts/llm_cache_probe.py` 入库：任何人可复现本表（只打印 source/model/token 数，不打印/不写 key）；
+* **本表不是性能承诺**——缓存行为由 provider 决定；wkapi 将来若改前缀策略，cached 数字随之改变；
+* 全量 `pytest tests/unit` 仍未跑完。
