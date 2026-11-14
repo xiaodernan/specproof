@@ -117,11 +117,13 @@ function Workspace() {
   const [hasKey, setHasKey] = useState(() => getApiKey() !== "" || getBearerToken() !== "");
   const [principal, setPrincipal] = useState<PrincipalInfo | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Default ON per the owner's explicit, repeated demand: scroll down must look
+  // down. Users who want the untouched browser default can press the topbar ⇅.
   const [invertScroll, setInvertScroll] = useState((): boolean => {
     try {
-      return window.localStorage.getItem("specproof_invert_scroll") === "1";
+      return window.localStorage.getItem("specproof_invert_scroll") !== "0";
     } catch {
-      return false;
+      return true;
     }
   });
   const contentRef = useRef<HTMLElement>(null);
