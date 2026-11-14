@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type ProductIconName = "overview" | "verify" | "agent" | "matrix" | "contracts" | "team" | "chart" | "health" | "billing" | "guide" | "arrow" | "plus" | "shield" | "menu" | "close" | "scroll" | "invert" | "hammer" | "map" | "book" | "lantern" | "gazette";
+export type ProductIconName = "overview" | "verify" | "agent" | "matrix" | "contracts" | "team" | "chart" | "health" | "billing" | "guide" | "arrow" | "plus" | "shield" | "menu" | "close" | "scroll" | "invert" | "hammer" | "map" | "book" | "lantern" | "gazette" | "calendar";
 
 const paths: Record<ProductIconName, ReactNode> = {
   overview: <><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>,
@@ -25,6 +25,7 @@ const paths: Record<ProductIconName, ReactNode> = {
   book: <><path d="M4 5a2 2 0 0 1 2-2h14v16H6a2 2 0 0 0-2 2Z" /><path d="M4 19a2 2 0 0 1 2-2h14" /><path d="M9 7h6M9 11h4" /></>,
   lantern: <><path d="M9 3h6M10 3v2h4V3M8 9a4 4 0 0 1 8 0v5a4 4 0 0 1-8 0Z" /><path d="M12 10.5c.9 1.1 1.2 1.8 0 3.1-1.2-1.3-.9-2 0-3.1Z" /><path d="M10.5 17.5h3M12 17.5V21" /></>,
   gazette: <><path d="M3 5h13a2 2 0 0 1 2 2v12H5a2 2 0 0 1-2-2V5Z" /><path d="M18 9h3v8a2 2 0 0 1-2 2" /><path d="M6 9h7M6 13h7M6 17h4" /></>,
+  calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 10.5h18" /><path d="M7.5 15h2M11.5 15h2M15.5 15h2M7.5 18h2M11.5 18h2" /></>,
 };
 
 export function ProductIcon({ name, size = 20 }: { name: ProductIconName; size?: number }) {

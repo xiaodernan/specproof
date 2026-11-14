@@ -36513,3 +36513,32 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * Maven 以 `-o` 离线跑在本机——仅依赖此前缓存在本机的 `.m2`；未验证全新机器上的在线构建；
 * Gateway e2e（RabbitMQ 实连）仍在 #1694 时期的范围内未在本轮重跑；目验=离线单测 + Lua 七案；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1787 铁证日历 `#/calendar` —— 一年 365 格的 git 现实地图
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `scripts/build_calendar.py`：`git log --since=<364d ago> --format=%ad --date=short` 按日计数 →
+  `apps/web/src/pages/calendarData.json`（`days`: {date: count}；现推 `total_commits` / `busiest_date` / `longest_streak`）；
+  **实拍（2026-11-15）**：窗口 2025-11-16 → 2026-11-15｜**2,429 commits**｜最忙一天 **2026-11-07 · 622 次**（#1694–#1704 合入波峰日，真实）｜**最长连击 14 天**｜有提交天数 60；
+* `apps/web/src/pages/Calendar.tsx` + `styles/calendar.css`：
+  - 53×7 网格（周一起），五档海-金色（0/1–2/3–4/5–7/8+）格，hover/focus 放大 + tooltip（日期 · 次数）；
+  - 月份标签（等宽网格对齐）；
+  - 四格统计（2,429 commits / 60 active days / busiest 2026-11-07 622 / streak 14）；
+  - 右上角注记 `since→until`（全部 git log 现推）；
+* ProductIcon 新增 `calendar`；App.tsx evidence 组一级入口（**28 个**）；
+  `nav.calendar` ×2；两本 USER_GUIDE 补 `/calendar` 行 + 入口 27→28；
+* **file:// 冒烟**（本地临时 bypass 门禁 → `vite build --base=./` → 预览）：console 0 error；
+  `.calendar-page` 挂载成功；**366→365 修正**（原 inclusive 边界多 1 天，已重建）；
+  stats 实测 2,429 / 60 / 2026-11-07 · 622 次 / streak 14；**门禁已原样恢复**（git diff 仅本节文件）；
+* tsc 0；build ✅ in 829ms（Calendar chunk 10.10 KB / 3.01 KB gz）；i18n parity 11/11。
+
+### 二、诚实边界
+
+* 日历数字是**提交量**，不是活动质量——"多"不意味着"好"；
+* busiest day 622 是合入波峰，非创建日频率的常数；
+* `git log --since` 的时区以提交者 author-date 为准；clock skew 未校正；
+* 365→现推值可重跑；**file:// 冒烟无像素截图**；
+* 全量 `pytest tests/unit` 仍未跑完。

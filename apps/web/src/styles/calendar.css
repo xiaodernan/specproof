@@ -1,0 +1,42 @@
+/* ── 铁证日历 · The Evidence Calendar ─────────────────────────────
+   A GitHub-style year of real commits, restyled as an ink-and-gold
+   ledger year: every cell a day, every hue a class of its own. */
+
+.calendar-page { max-width: 1180px; margin: 0 auto; }
+.calendar-page h1 { margin: 8px 0 12px; letter-spacing: -.03em; }
+.calendar-en { font-size: .38em; letter-spacing: .22em; color: var(--accent-text); vertical-align: .34em; margin-left: .4em; white-space: nowrap; }
+.calendar-page .page-sub { color: var(--color-text-2); max-width: 760px; line-height: 1.95; }
+
+.calendar-legend-row { display: flex; align-items: center; gap: 10px; margin: 20px 2px 12px; flex-wrap: wrap; }
+.calendar-legend-cap { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--color-text-3); }
+.calendar-swatch { width: 15px; height: 15px; border-radius: 3.5px; }
+.calendar-count-note { margin-left: auto; font-size: 11px; color: var(--color-text-3); font-family: var(--font-mono); }
+
+.calendar-bucket-0 { background: #141d2e; }
+.calendar-bucket-1 { background: #173a44; }
+.calendar-bucket-2 { background: #145a54; }
+.calendar-bucket-3 { background: #1f8a63; }
+.calendar-bucket-4 { background: #d4af37; }
+
+.calendar-scroll { overflow-x: auto; padding: 4px 2px 8px; }
+.calendar-grid { width: max-content; }
+.calendar-months { display: grid; gap: 0; margin-left: 52px; height: 18px; }
+.calendar-month { font-size: 9px; letter-spacing: .12em; color: var(--color-text-3); font-family: var(--font-mono); }
+
+.calendar-body { display: flex; gap: 3px; }
+.calendar-dows { display: grid; grid-template-rows: repeat(7, 16px); gap: 3px; margin-right: 6px; align-content: start; }
+.calendar-dow { font-size: 9px; color: var(--color-text-3); align-self: center; letter-spacing: .1em; }
+
+.calendar-week { display: grid; grid-template-rows: repeat(7, 16px); gap: 3px; }
+.calendar-cell { width: 16px; height: 16px; border-radius: 3.5px; position: relative; transition: transform .14s ease, box-shadow .14s ease; cursor: default; }
+.calendar-cell.is-empty { background: transparent; }
+.calendar-cell:not(.is-empty):hover, .calendar-cell:not(.is-empty):focus-visible { transform: scale(1.32); z-index: 5; outline: 1px solid rgba(212,175,55,.8); box-shadow: 0 0 12px rgba(212,175,55,.45); }
+.calendar-tip { display: none; position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%); white-space: nowrap; background: #05070f; border: 1px solid rgba(212,175,55,.5); color: #f5e08a; font-size: 10.5px; padding: 5px 9px; border-radius: 4px; z-index: 10; pointer-events: none; font-family: var(--font-mono); }
+.calendar-cell:hover .calendar-tip, .calendar-cell:focus-visible .calendar-tip { display: block; }
+
+.calendar-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 22px; }
+.calendar-stat { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 14px 16px 12px; }
+.calendar-stat-num { font-size: 1.35rem; font-weight: 700; color: #f5e08a; letter-spacing: -.02em; margin: 0; font-variant-numeric: tabular-nums; font-family: Georgia, 'Noto Serif SC', serif; }
+.calendar-stat-label { font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--color-text-3); margin: 6px 0 0; }
+
+.calendar-footnote { display: flex; align-items: center; gap: 8px; margin-top: 16px; font-size: 12px; color: var(--color-text-3); border-top: 1px solid var(--color-border); padding-top: 12px; }
