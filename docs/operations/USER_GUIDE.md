@@ -1,5 +1,6 @@
 # SpecProof 使用手册 · User Guide
 
+> **English edition**: [EN/USER_GUIDE_EN.md](./EN/USER_GUIDE_EN.md) · 本文是中文原版；两种语言互为镜像。
 > 目标读者：**刚克隆仓库的人 / 要给面试官展示的人 / 希望看完全部产品面的人**。
 > 阅读顺序：§1 快速"打就完事儿"、§2 完整体验路径、§3 完整模块目录、§4 中英文切换。
 
@@ -20,7 +21,7 @@ docker compose -f compose.phase0.yml up -d --wait
 
 ### 1.2 看一眼所有面（5 分钟）
 
-直接打开 `http://127.0.0.1:5173/`——侧栏已有 12 个一级入口：
+直接打开 `http://127.0.0.1:5173/`——侧栏已有 16 个一级入口：
 
 | 组 | 入口 | 你能马上做的事 | 铁证 |
 |---|---|---|---|
@@ -128,7 +129,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 
 ---
 
-## §3 · 模块目录（46 页应用）
+## §3 · 模块目录（47 页应用）
 
 | 路由 | 模块 | 一句话 |
 |---|---|---|
@@ -148,24 +149,30 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/epic` | 史诗 | 中文创世记，每卷锚死 git 哈希 |
 | `/tour` | 巡览 | 新手交互式走廊，六盖一齐验讫 |
 | `/explorer` | 案件档案 | 铁证装订 - 红印验讫封面 |
+| `/lexicon` | 铁证词典 | 十四个词，每词可搜、可点开、锚到仓库真实位置 |
 | `/usage` | 缓存健康 | 真 hit_rate + 计费链条 |
 | `/guide` | 上手指南 | 从 clone 到第一个 BLOCKED 的 4 步 |
 | `/readme` | 推荐读物 | 本仓库的阅读者地图 |
 
 ---
 
-## §4 · 中英文切换（若所见界面中出现异色）
+## §4 · 中英文切换（if the screen shows mixed colours of text）
 
-侧栏底部的 「夜间/日间 主题」和 **巡览页** 已同时支持中文与英文语境。当前版本的文本：
+顶栏**语言切换钮**（显示 `EN` / `中`）随时可切；选择存本机 `specproof_locale`，刷新后保留；
+文件 `<html lang>` 随之宣告给读屏器（`en` / `zh-CN`）。**两档都支持、不夹杂**：
 
-- **中文** — `/epic`, `/tour`, `/explorer`（案件档案）
-- **英文** — `/usage`（everything）、`#/health`、`/health`、`/billing`、绝大多数工程目录名
-- **混合（过渡期）** — 其余子路由：英文字段（UI）+ 中文术语（world）
+| 已经**逐页**本地化（中英可切、无中文散文残留） | 仍是**中文原生**（界面能切、页面正文未逐字翻译） |
+|---|---|
+| 侧栏全部 17 个导航 + 3 个分组标题 + 面包屑 | Dashboard / Jobs / JobDetail / Matrix / Contracts / Eval / Billing / Audit / Health / Settings 等旧页面正文 |
+| `/tour` — 六卷站整篇双语（`pages/tour.copy.ts`） | |
+| `/explorer` — 导语/字段/StatCard/铁证清单全量走表 | |
+| `/usage` — 标题/窗口芯片/六张卡/诚实口径句（含 `{basis}` 分母插值）/图例/空账本文案 | |
+| `/epic` — 中文六卷原文 + 英文六卷 + 双语尾声（`pages/epic.copy.ts`） | |
+| `/lexicon` — 十四条目逐条中英双语（term/gloss/iron/anchor） | |
 
-> 要中文优先看：`#/epic`、`GUIDE.md`、`README.md`（中文占多），
-> 要英文优先看：`/usage` 的纯英文 metro、`#/billing`、`docs/world/EN/SPECROOF_WORLD_EN.md`。
+**原生英文的文档也全部有中文**：`CLAUDE.md` 逐段中英并列（#1696）、`ARCHITECT_CLAUDE.md` 逐段中英并列（#1697）、请查阅 `MCP_GUIDE.zh.md` 等成对手册。
 
----
+要读《铁证之书》英文全文：`docs/world/EN/SPECROOF_WORLD_EN.md`。
 
 ## §5 · 五分钟「最后的诱惑」
 
