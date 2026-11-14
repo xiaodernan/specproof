@@ -31,6 +31,7 @@ const ModelSettings = lazy(() => import("./pages/ModelSettings"));
 const Guide = lazy(() => import("./pages/Guide"));
 const Epic = lazy(() => import("./pages/Epic"));
 const Tour = lazy(() => import("./pages/Tour"));
+const Lexicon = lazy(() => import("./pages/Lexicon"));
 const Explorer = lazy(() => import("./pages/Explorer"));
 
 type NavItem = {
@@ -49,6 +50,7 @@ const NAV: NavItem[] = [
   { path: "agent", labelKey: "nav.agent", icon: "agent", groupKey: "group.workspace" },
   { path: "epic", labelKey: "nav.epic", icon: "guide", groupKey: "group.workspace" },
   { path: "tour", labelKey: "nav.tour", icon: "scroll", groupKey: "group.workspace" },
+  { path: "lexicon", labelKey: "nav.lexicon", icon: "guide", groupKey: "group.evidence" },
   { path: "matrix", labelKey: "nav.matrix", icon: "matrix", groupKey: "group.evidence" },
   { path: "explorer", labelKey: "nav.explorer", icon: "contracts", groupKey: "group.evidence" },
   { path: "contracts", labelKey: "nav.contracts", icon: "contracts", groupKey: "group.evidence" },
@@ -69,6 +71,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "guide") return <Guide />;
   if (seg[0] === "epic") return <Epic />;
   if (seg[0] === "tour") return <Tour />;
+  if (seg[0] === "lexicon") return <Lexicon />;
   if (seg[0] === "explorer") return <Explorer />;
   if (seg[0] === "login") return <Login />;
   if (seg[0] === "agent") return <AgentApp seg={seg} />;

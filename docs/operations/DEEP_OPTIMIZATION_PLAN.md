@@ -34026,3 +34026,37 @@ SpecProof 被交给这个问题；它 **没用 LLM 看完、没用置信度投�
 
 * 本号只做两份文件；eval/architecture 下其余英文文档**仍是英文孤岛**，本账本不假装它们已翻译；
 * 表格类文件只加中文摘要，不逐单元格翻译——数据是数据，说明是说明。
+
+## #1698 新模块：铁证词典 `#/lexicon` —— 把正史附录变成可搜索的室内陈列
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、为什么
+
+`docs/world/APPENDIX_IRON_LEXICON.md` 有十四个词，每个都能指到仓库里的真实位置——
+但它是个 Markdown 文件，新用户不一定翻得到。本号把它搬进产品：
+**左侧栏「铁证词典」→ 搜索框 → 点开任意一条看到中文铁语境 + 仓库锚点**。
+
+### 二、交付
+
+* `apps/web/src/pages/lexicon.copy.ts` —— `LEXICON`：14 条目，每条含
+  `term` / `gloss`(zh|en) / `iron`(zh|en) / `anchor`（真实仓库路径/文件名，无一虚构）；
+  英文与中文在同一条目下，结构由类型守住——缺一段是编译错误；
+* `apps/web/src/pages/Lexicon.tsx` —— 可搜（对 term/anchor/两处散文做不区分半角大小写的子串匹配）、
+  可点开（aria-expanded 折叠面板）、空结果如实说「词典只收十四个真正在本仓库跑过的条目」、
+  计数器实时显示 `filtered / 14`；
+* 路由 `#/lexicon` 注册进 `App.tsx`（lazy import + `NAV` 放进「质量与证据」分组，图标 `guide`）；
+* `nav.lexicon` 两语言表项（铁证词典 / Iron Lexicon）+ `lexicon.*` 七个键（parity 门守住）；
+* 样式 `.lexicon-*`：单列卡片流、等宽字体 term、手账式虚线展开、移动端自动换行；
+* `src/pages/__tests__/Lexicon.test.tsx`：中文默认渲染（14 条无遗漏）与英文全屏渲染两腿。
+
+### 三、验迹
+
+* `tsc --noEmit` 净；`npm run build` 绿（index 251.91 kB / gzip 85.37 kB）；
+  vitest i18n 全绿、Lexicon 两腿绿；ledger 门 45/45。
+
+### 四、诚实边界
+
+* 这不是"第十五卷正史"——不新增世界观事实，只把**已存在**的附录变成可查的室内陈列；
+* 搜索是前缀无关的子串匹配，没有做拼音/模糊；刻意保持"搜到的就是写死了的"；
+* 条目内容与附录一字对应，附录改了必须同步改这一页（未做成自动生成——未来可由脚本从 .md 生成）。

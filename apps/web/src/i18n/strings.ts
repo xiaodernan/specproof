@@ -25,6 +25,7 @@ const zh = {
   "nav.health": "服务状态",
   "nav.epic": "史诗",
   "nav.tour": "巡览",
+  "nav.lexicon": "铁证词典",
 
   // ── groups ─────────────────────────────────────────────────────
   "group.workspace": "工作空间",
@@ -131,6 +132,15 @@ const zh = {
   "explorer.tierUnknown": "?",
 
   // ── Usage page ─────────────────────────────────────────────────
+  "lexicon.title": "铁证词典",
+  "lexicon.subtitle": "THE IRON LEXICON",
+  "lexicon.lead":
+    "十四个不容折衷的词，每一个都能在仓库里指到确切的位置——这是验收官认得的字面图，不是定义集。",
+  "lexicon.searchLabel": "搜索词条",
+  "lexicon.placeholder": "搜索词条、位置、中英文说明……（例：capsule / base_pass_head_fail / 审判庭）",
+  "lexicon.noResult": "没有这个词——词典只收十四个真正在本仓库里跑过的条目。",
+  "lexicon.colophon":
+    "本页条目与 docs/world/APPENDIX_IRON_LEXICON.md 一字对应；英文与中文在同一页面里、同一条目下，不混排。",
   "usage.title": "缓存健康",
   "usage.subtitle": "CACHE HEALTH",
   "usage.lead":
@@ -181,6 +191,7 @@ const en: Record<keyof typeof zh, string> = {
   "nav.health": "Service Status",
   "nav.epic": "Chronicles",
   "nav.tour": "Grand Tour",
+  "nav.lexicon": "Iron Lexicon",
 
   "group.workspace": "Workspace",
   "group.evidence": "Quality & Evidence",
@@ -280,6 +291,15 @@ const en: Record<keyof typeof zh, string> = {
   "explorer.tierScript": "Scripted",
   "explorer.tierUnknown": "?",
 
+  "lexicon.title": "Iron Lexicon",
+  "lexicon.subtitle": "THE IRON LEXICON",
+  "lexicon.lead":
+    "Fourteen words that refuse compromise — every one of them points to an exact place in this repository. This is the literal map the officer reads, not a definition list.",
+  "lexicon.searchLabel": "Filter entries",
+  "lexicon.placeholder": "Search terms, locations, or either language… (e.g. capsule / base_pass_head_fail / review court)",
+  "lexicon.noResult": "No such entry — the lexicon only holds the fourteen entries that actually run in this repository.",
+  "lexicon.colophon":
+    "Every entry on this page matches docs/world/APPENDIX_IRON_LEXICON.md word for word; both languages live under the same entry, never interleaved.",
   "usage.title": "Cache Health",
   "usage.subtitle": "CACHE HEALTH",
   "usage.lead":
