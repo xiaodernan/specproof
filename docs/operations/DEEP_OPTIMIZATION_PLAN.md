@@ -33162,3 +33162,61 @@ AI 解读面板在真实 LLM 往返下：正文完整流入、按钮永远停在
 （done 只当关闭信号）与 #1665 的依赖顺序（done 还要当数据帧）是各自都"对"的组合，
 难点在**两边一起定义时谁的语义赢**。判据只能是真实往返：本号以后对"事件流契约"
 的改动一律补 e2e 腿。
+
+## #1673 并轨车道接手收尾（token 级用量账本，0d22eff）+ 微服务冒烟的诚实记账
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、接手并轨车道——usage ledger 从"半成品"到"可提交"
+
+并轨车道在本会话前段停在 `providers/usage_ledger.py` + `usage routes` + provider 埋点，
+`tests/unit/test_llm_usage_ledger.py` 当时 **3/17 红**（`test_hit_rate_only_over_reported_subset`、
+`test_by_kind_breakdown`、`test_summary_window_is_clamped`）。本号按该车道自己 docstring 的合约
+修正（不是放宽测试，也不是改红为绿——是让代码兑现它已写下的承诺）：
+
+* `hit_rate` 只按**上报了 cached_tokens 的调用子集**计（此前分母是全部非错误调用——
+  会把没上报的调用算进分母压低命中率，与 docstring "neither inflate nor deflate the rate" 冲突）；
+* by_kind 桶零上报 → 显式 `null`（不报 0.0——0 ≠ "不知道"）；
+* 趋势桶排除 error 行并按子集计；
+* `MAX_WINDOW_HOURS` 补齐为模块常量（720h，单测要求的位置，与路由钳制同一来源）。
+
+### 二、验迹
+
+* `test_llm_usage_ledger.py` 17/17 绿；
+* chat_streams/semantic_cache/client_policy/kind_threading/ai_summary_stream/judge_persona_wiring 80/80 绿；
+* live 冒烟（uvicorn light, 127.0.0.1:8012）：`GET /api/v1/llm/usage/summary?window_hours=720` → 200，
+  字段形状与合同一致（可惜 11/14 清晨的这次取证机会在 316MB 空闲内存的危机中被机器重启打断——
+  见下）；
+* **并轨车道文件归属**：`api/routes/llm_usage.py`、`providers/usage_ledger.py`、
+  `tests/unit/test_llm_usage_ledger.py` 由并轨车道原创；本号接手、修复 red contract、
+  审核并提交（`0d22eff`）。这是用户授权的接手，归属如实。
+
+### 三、微服务离线冒烟（Spring Cloud + Eureka + Config + Gateway）
+
+| 服务 | 离线构建 | 启动 | 结果 |
+|---|---|---|---|
+| config-server (Spring Cloud Config, native) | ✓ `mvn -o package` 绿 | ✓ 启动至 `Started` | `/actuator/health` → **200** |
+| discovery-server (Eureka Server) | ✓ 绿 | ✓ `server.port=8769`（8761 被其他项目 Docker 占用） | `/actuator/health` → **200** |
+| gateway (Spring Cloud Gateway, WebFlux) | ✓ 绿 | ✗ **启动失败** | JVM malloc malloc failed（宿主机内存危机——该次 free ≈316-719MB） |
+| agent runtime (Python light) | n/a | ✓ | `/health` → **200** |
+
+**诚实的边界**：
+
+* gateway **自己的配置导入链路已被进程日志证实走通**：`ConfigServerConfigDataLoader ... "Located environment: name=specproof-gateway, profiles=[default], label=null, version=null, state=null"`——`optional:configserver:` import 真实连接 config-server 并被其响应确认；
+* gateway 未能启动**纯属环境资源（JVM 无法 malloc），不是代码缺陷**；
+* 随后机器在本号清理进程过程中重启（11/14 17:00 左右），恢复后空闲 ≈1725MB——
+  **重启后未再次尝试 gateway 启动**；重启后 JVM 内的所有该次进程已自然消亡；
+* 本号未删除并轨车道的任何字节；未把 `config-server/8888` 与 `discovery-server/8769` 两台冒烟服务的端口变更写入仓库（8769 是 `--server.port` 命令行参数，非常设配置）。
+
+### 四、仓库外的事（worktree 处理，如实记）
+
+- **`sp-final10`（detached, b3173ab，#1646 本地 /actuator/refresh 实录）**：该提交是 master 的祖先，
+  worktree 干净，已 `git worktree remove` 移除——内容在 master 中永久保留；
+- **`specproof-base-hnmy6y65`（detached, a6d33af）**：含未提交的演示夹具删除（1661 行），
+  `git worktree remove` 被拒（需要 `--force`）；**本号未加 `--force`，该夹具保留**；
+- **`specproof-head-4hmy8xy1`（detached, 3a1a94c，golden head-v1 夹具）**：非 master 祖先、
+  演示仓库，**保留**；本号不代 demo 工具链决定删改；
+- **三个远程分支逐一核对**：
+  `origin/feature/interview-hardening`（2032 落后）、`origin/feature/p1-reliability-kernel`（2295）、
+  `origin/release/p0.5-verified-v1`（2308）——都严格是 master 的祖先，**没有任何内容 master 未吸收**；
+  是否删除远程分支引用需要明确指示，本号未删。
