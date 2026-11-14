@@ -35237,3 +35237,27 @@ doctor 如实报告而不染绿；未追入这批改动，它们不是本提交�
 
 * 本号不推 portfolio——仍等 `PORTFOLIO_TOKEN`（#1722）；只证明重建不炸。
 * CHANGELOG 的验证状态口径与 #1734 保持一致：不把 497/497 前端测试外推成全仓库测试结论。
+
+## #1738 services/ 语言手册 —— 微服务车道第一份「任何人一分钟可开局」的说明书（每条端口/边界都读自配置文件）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+`services/README.md`（§1–5，中英对照）：
+
+* 四个模块的实证身份：discovery-server（Eureka **8761**）、config-server（native，**8888**）、
+  gateway（Spring Cloud Gateway + Resilience4j + **Redis Lua 令牌桶** + SingleFlight + 路由表同构门，**8080**，`GATEWAY_PORT` 覆盖）、
+  control-plane（webhook 验签/RabbitMQ/MySQL，异步内核，不给浏览器看）；
+  端口全部读自仓内的 `application.yml`（不是凭记忆抄的——第一版草稿就记错了两个端口，核对后改正）；
+* 算法这一刀单独成节：Lua 原子令牌桶 vs Resilience4j 断路器 vs SingleFlight future 合流 vs 路由表同构门 vs Outbox+MQ——
+  每一项都落到 `services/gateway/{ratelimit,cache,discovery,mq}/…` 真实文件；
+* 启动顺序 + Maven 模块布局 + 既有实测锚点（`#1673/#1674`：actuator/refresh 把
+  `specproof_edge_config_refresh_events_total` 从 0.0 打到 1.0；断路器第 5 次翻开）；
+* 诚实边界独立成节：不承诺多节点生产零中断；限流限于真实 Redis；无任何提交的 secret 进仓；control-plane 无压测背书。
+
+### 二、诚实边界
+
+* **本号未跑 `mvn test`**——本机内存反复 ≤2.0GB，与全仓 `pytest` 同样受限；README 只陈述仓内**已有**的证据，不声明新测试绿；
+* README 里的端口与命令逐条核对自仓内文件；第一版把 discovery-server 误写成 8769（记忆），已按真机配置改正；
+* 世界书卷四《微服务军阵》对应的现实是本目录——书不是装饰，目录不是传说。
