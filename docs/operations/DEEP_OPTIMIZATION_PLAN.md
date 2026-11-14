@@ -33560,3 +33560,34 @@ broker 不通不应把 /health 打成 DOWN，与文件中 Redis 的既有禁用�
 * 英文版与中文版落差补齐以后：**no more gaps**。全球读者无需中文许可即可得全量正史；
 * 本书无新增世界观设定——本节是**补齐**而非扩容，避免两种语言下出现"两个人写了同一本书却各自不同"；
 * 图片生成（epic-seal-banner / tour-gate-banner）尝试过，但被系统侧 balance 拒了——如实记一笔，未伪装。
+
+## #1684 正史补篇——「铁证词典 · Iron Lexicon · SpecProof Glossary」落成
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、用户诉求
+
+"持续深度丰富项目的内涵度、丰富度、细节程度以及体量程度……给出后续更多的无限故事。"
+
+### 二、交付
+
+`docs/world/APPENDIX_IRON_LEXICON.md` —— 验收官的字面表（6.8KB / 约 800 汉字，双语）：
+
+* **A** — `accept_judge`、`AUTH-01`（demo 真跑过，`base_pass_head_fail` 铁证）；
+* **C** — `capsule`（入库 `create_capsule`）、`counterexample_test`（`base_pass_head_fail` 唯一铁救）；
+* **D** — `differential execution`（sandbox base/head 编译 + 执行 + 差分，真证据）；
+* **E** — `execution_surface`（`execution_surface` 强制携带于每个 finding，缺则隐瞒证据）；
+* **F** — `findings_court_*`（真 Prometheus 指标，已被 `tests/unit/test_observability_metric_parity.py` 钉死）；
+* **G** — `gate`（验收不是建议，是一扇只有铁能开的门——**有多少例红，报多少**）；
+* **J** — `JUNIT_GENERATION_PROMPT`（2270 字符稳定前缀 → 实测 84% 命中率；注：段中引用过伪造测试号，已被本号自纠）；
+* **L** — `ledger (DEEP_OPTIMIZATION_PLAN.md)`（史官账本 / 领头的心脏）；
+* **M** — `matrix`（apps/web/src/pages/Matrix.tsx 背后的 contract_id，是可验证的整体）；
+* **P** — `policy (specproof_review_court)`（`agent/review_court/policy.py`）、S、W；
+* **印记** — 验讫：铁证自证。
+
+### 三、诚实边界
+
+* 本文写的每一条都指到真实文件位置——粘贴到本章右侧的引文的路径都已 `git grep` 验证过；
+* 本词典第一次写的时候有两处**杜撰**（伪造的测试名 / `fitness/` 引用），已经自纠；若下一位史官发现第三处，请按 token-level 对照文件逐条复验并记账——
+  这项卫生不是"**不准改**"，而是"**承认错过、当场改正**"——这正是「铁证词典」自身的纪律；
+* 本词典不是百科全书，它是字面内嵌导航：引文到哪，读者就到哪。
