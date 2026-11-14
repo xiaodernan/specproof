@@ -815,4 +815,46 @@ The forge's privacy boundary: the journal lives in `localStorage`, the chimney i
 keyboard, the coals are your own requirement — nobody collects your data.
 
 ---
+---
+
+## Volume XIX · The Forge's Pen (卷十九 · 铁匠之笔)
+
+> Volume XVIII said the cloud IDE does not exist. This volume holds two things:
+> the pen the keeper writes with, and the pen the keeper uses to label the
+> blanks as blanks. The two are the same pen.
+
+### 19.1 Every stroke in the repository is a commit
+
+The 1,561 entries in `DEEP_OPTIMIZATION_PLAN.md` are not "documentation". Each
+one is the **transcript of a commit**. They record not what might have been
+done, but what was. The keeper only accepts two kinds of sentences: "it did X"
+(with the measurement) or "it did not do X" (with the boundary). There is no
+third kind of sentence.
+
+Volume XIV said red stays red; this volume says the same thing on its other
+side: **each entry reports only what it actually did and actually did not do**.
+There is no "felt fully accomplished" section. There is no "well done" section.
+Each entry has an honest-limits block and it lives there permanently.
+
+### 19.2 The chronicle is a snapshot, not a perpetual-motion machine
+
+`apps/web/src/pages/chronicle.json` is a digest of the ledger — 1,561 rows, JSON,
+under 260 KB. It **must be regenerated** to track the ledger; if you change one
+line of the ledger and forget `build_chronicle.py`, the chronicle page lies to
+you and says "the ledger did not move". That is a crime by this house's laws.
+This volume therefore sets the rule: **the ledger is one thing, the chronicle is
+its projection at one instant, and only one intermediary script stands between
+them.**
+
+### 19.3 This volume's vow
+
+**The pen will not lie for you. But it can say, with no remorse, that you did not do the thing.**
+
+**If you did it, write it into the ledger, and it becomes a permanent part of the record.
+If you did not, write it into the boundary block, and it will never haunt you again.**
+
+This volume writes not the history but the law of the keeper. The keeper does
+exactly two things: records what happened, and offers no excuses.
+
+---
 
