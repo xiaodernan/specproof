@@ -1102,4 +1102,50 @@ the moment the next volume is written, its lamp lights again.
 **The Gate is not there to keep people out; it is there so every person who passes knows why they were let through.** Lua does exactly three things: look at the bucket, refill it, write the ledger — it does not decide, it settles. The Gate stands; the ledger stands; the Gate opens, the ledger is clear.
 
 ---
+---
+
+## Volume XXVI · The Wall and the Wire（卷二十六 · 铁墙与消息）
+
+> The Gate guards the door; the wire guards the exit — this volume is the story of SpecProof's other silent lane:
+> **the agent runtime (Python) writes six events to RabbitMQ; the edge (Spring Cloud gateway) counts them from the far shore.**
+> Neither imports the other's code — they meet on the `specproof.observability.events` topic exchange —
+> which is the entire point of an event bus: strangers collaborating without ever meeting.
+
+### 26.1 Six events, one exchange
+
+| Event | Meaning |
+|---|---|
+| `published` | message enqueued |
+| `publish_confirm_timeout` | broker never confirmed |
+| `consumed` | a consumer handled it |
+| `duplicate_acked` | idempotent ack replayed |
+| `retry_scheduled` | a retry was scheduled |
+| `dead_lettered` | dead-lettered |
+
+- Exchange `specproof.observability.events` (topic, durable); routing keys are the event names;
+- Both sides declare the exchange and its bindings idempotently (`q.gateway.mq-events`) — **whichever boots first, fine**;
+- **Both sides default OFF**: Python requires `SPECPROOF_MQ_EVENTS_ENABLED=1`; the edge requires `specproof.gateway.mq-events.enabled=true`;
+  until an operator deliberately turns both on, the gateway binds nothing — "prove the topology exists, then let the container come up."
+
+### 26.2 The Wall: bounded tag cardinality, always
+
+- The edge counter `specproof.gateway.mq.event` tags by `event`: **only the six + `unknown` + `malformed`** — at most eight series;
+- Found 2026-11-14 (#1786): previously `handle()` let **any string from the message through as a tag** —
+  a sick producer emitting a thousand names would inflate the Prometheus label universe into an explosion;
+- Fixed: `event ∉ KNOWN_EVENTS → unknown`; `empty string → unknown`; `malformed → malformed` (parse failure is its own series);
+  `GatewayMqEventCardinalityTest` pins three contracts: unpublished name → unknown, a thousand junk names collapse to one series, empty → unknown;
+- **Honest note**: this is not swallowing errors — it pushes tomorrow's accident shape into eight boxes instead of a billion: engineered expectation, not luck.
+
+### 26.3 The lane's discipline
+
+1. **The wire never ruminates**: the edge renders no business judgment on the payloads — it only counts;
+2. **The wire never trespasses**: the edge never touches the agent runtime's database — it only subscribes to the exchange;
+3. **The wire never lies**: unparseable payloads count as `malformed` — visible, not silently dropped;
+4. **Both sides off by default**: a container that does not start cannot start — that principle outranks "maximum availability".
+
+### 26.4 This volume's vow
+
+**The Gate and the Wire are one discipline: in both directions, every passerby is counted, and every datum lands in its own box.** The Wall does not inspect content — it inspects the name; outside the six, every name goes into the same cell: unknown.
+
+---
 

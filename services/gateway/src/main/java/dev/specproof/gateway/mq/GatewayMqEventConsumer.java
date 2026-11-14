@@ -133,12 +133,15 @@ public class GatewayMqEventConsumer {
 
     /**
      * Testable core: tallies one observability event by its {@code event} name.
-     * A missing or non-string name is counted under {@code "unknown"} rather
-     * than dropped — the edge reports what it sees, it does not guess.
+     * A missing, non-string, empty or out-of-vocabulary name is counted under
+     * {@code "unknown"} rather than dropped or tagged literally — the edge
+     * reports what it sees and never lets a producer inflate the tag set
+     * beyond the six published kinds plus {@code unknown} and {@code malformed}
+     * (bounded tag cardinality: at most eight counter series).
      */
     void handle(Map<String, Object> payload) {
         Object raw = payload == null ? null : payload.get("event");
-        String name = raw instanceof String s ? s : "unknown";
+        String name = raw instanceof String s && !s.isEmpty() && KNOWN_EVENTS.contains(s) ? s : "unknown";
         incrementEventCounter(name);
     }
 

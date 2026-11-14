@@ -36486,3 +36486,30 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 本行不改变任何 API 请求、不改变网关、不改变 /usage 指标定义（命中率口径不动，仅多一句注解）；
 * 「含静态前缀」是结论性的透明说明，不是解决方案——真正的省 token 仍在 #1773（RAG L2 精确缓存）与 #1781（draft/diagnose 语义缓存，需 SPECPROOF_PROVIDER_POLICY=1）；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1786 铁墙：MQ 事件消费者标签基数封死（tag-bomb 防护）+ 世界书卷二十六《铁墙与消息》
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、缺陷与修复（真实缺陷，非演练）
+
+* `services/gateway/.../mq/GatewayMqEventConsumer.java::handle()` 此前把**消息里任意的 `event` 字符串原样打成 Micrometer 标签**——
+  健康生产者无事；病态/恶意生产者发 1,000 种名字，`specproof.gateway.mq.event` 计数器即有 1,000 个 series（Prometheus 标签宇宙膨胀，内存与抓取成本双增）；
+* `KNOWN_EVENTS`（六种）字段存在却从未被用于限制——修复：`event ∉ KNOWN_EVENTS → "unknown"`，空串同 `unknown`；`malformed`（解析失败）单独成系；
+  总 series 数**封死为 8 个**；
+* 新增 `GatewayMqEventCardinalityTest` 三个 pin：未发布名落 unknown（不产生新 series）／1,000 种垃圾名合并为 1 个 series／空串 unknown；
+* **Maven 离线实跑**（`-o -Dtest='GatewayMqEvent*Test'`）：binding 4 + cardinality 3 + consumer 8 = **15/15 绿**；
+  全量 gateway 套件（`mvn -o test`）：**84 tests, 0 failures, BUILD SUCCESS**（此前 81，加 3）；
+* 漏洞级别措辞：这不是远程执行，是**可观测性面不可控膨胀（metric cardinality DoS）**——被打爆的是监控，不是旅客，但一样会拖垮运维；
+
+### 二、世界书卷二十六《铁墙与消息 / The Wall and the Wire》（中英对称）
+
+* 26.1 六事件一交换机｜26.2 铁墙（标签基数）｜26.3 三条纪律｜26.4 誓言；
+* `worldbook.json` 重建：**33 节**；chronicle/repoStats 重跑；
+
+### 三、诚实边界
+
+* 修复的信念方向是**看见就收**——`malformed` 依然单独可见，未被吞掉；
+* Maven 以 `-o` 离线跑在本机——仅依赖此前缓存在本机的 `.m2`；未验证全新机器上的在线构建；
+* Gateway e2e（RabbitMQ 实连）仍在 #1694 时期的范围内未在本轮重跑；目验=离线单测 + Lua 七案；
+* 全量 `pytest tests/unit` 仍未跑完。

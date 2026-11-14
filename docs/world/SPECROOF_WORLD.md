@@ -1220,4 +1220,50 @@ zh 与 en 的缓存计数不一样这一事件不属于一致性实验的成功�
 **门不是为了挡住谁，是为了让每一个进来的人知道自己凭什么进来。** Lua 只做三件事：看桶、补币、写账——它不拍板，它只兑。门在，账在；门开，账清。
 
 ---
+---
+
+## 卷二十六 · 铁墙与消息（The Wall and the Wire）
+
+> 大门守住入口，消息守住出口——这一卷讲的是 SpecProof 的另一条静默航线：
+> **agent 运行时（Python）把六个事件写进 RabbitMQ，edge（Spring Cloud gateway）在对岸计数。**
+> 两边的代码互不导入，只在 `specproof.observability.events` 主题交换机上相遇——
+> 事件总线存在的全部意义，就是"不认识也能合作"。
+
+### 26.1 六个事件，一座交换机
+
+| 事件 | 语义 |
+|---|---|
+| `published` | 消息已入队 |
+| `publish_confirm_timeout` | broker 未确认 |
+| `consumed` | 消费者处理 |
+| `duplicate_acked` | 幂等确认重放 |
+| `retry_scheduled` | 重试被安排 |
+| `dead_lettered` | 死信 |
+
+- 交换机 `specproof.observability.events`（topic，durable）；路由键即事件名；
+- 两个组件各自幂等声明交换机与队列（`q.gateway.mq-events`）——**哪一边先启动都无所谓**；
+- 开关**默认两侧都关**：Python 侧 `SPECPROOF_MQ_EVENTS_ENABLED != 1`，edge 侧 `specproof.gateway.mq-events.enabled != true`；
+  只有运维明确打开两侧，edge 才会建立 AMQP 连接——「先证明拓扑存在，再让容器起来」。
+
+### 26.2 铁墙：标签基数，永不被打爆
+
+- 边缘计数器 `specproof.gateway.mq.event` 按 `event` 打 tag：**只认六种 + `unknown` + `malformed`**，最多八个 series；
+- 2026-11-14 暴露的真问题（#1786）：此前 `handle()` 会用**消息里任意的 event 字符串原样打 tag**——
+  一个病态生产者发几千种名字，Prometheus 的标签宇宙就会爆炸——计数器理论上能上千条 series；
+- 修复后：`event ∉ KNOWN_EVENTS → unknown`，`空串 → unknown`，`malformed → malformed`（解析失败单独一类）；
+  `GatewayMqEventCardinalityTest` 三条 pin：未发布名落向 unknown、千种垃圾名合并为 1 个 series、空串 unknown；
+- **诚实声明**：这不是吞掉错误——它把"未来的事故形状"从几亿 series 提前关进八个格子里，工程上可预期，不赌运气。
+
+### 26.3 这条航线的纪律
+
+1. **消息永不反刍**：edge 不对事件内容做任何业务判断——它只计数；
+2. **消息永不越界**：edge 不连 agent 运行时的数据库；它只订阅交换机；
+3. **消息永不说谎**：出错（JSON 坏）计入 `malformed`——看得见，不是静默吞掉；
+4. **两侧默认 off**：不启动的容器不会启动——这条原则比"尽量可用"要紧。
+
+### 26.4 本卷的誓言
+
+**门与线是同一件事：让每一个方向的"谁经过了这里"都有数可查，而每一个方向的数据都落在自己的格子里。** 铁墙不问消息内容，铁墙只问名字——出了六种的名字，一律进同一格：未知。
+
+---
 
