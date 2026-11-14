@@ -160,7 +160,7 @@ The **language toggle** in the top bar (shows `EN` / `中`) switches at any time
 
 | Already **per-page** localised (switch freely; no Chinese prose residue) | Still **Chinese-native** (UI switches, page body not translated line-by-line) |
 |---|---|
-| All 17 sidebar entries + 3 group headings + breadcrumbs + Dashboard (#1702) + Service Health (#1703) + Verifications (#1704) + Effectiveness (#1705) + Contracts (#1706) + Requirement Coverage Matrix (#1707) + Audit Trail (#1708) + Usage & Billing (#1709) | Body text of JobDetail / Settings / NewVerification / Guide / Login and other legacy pages |
+| All 17 sidebar entries + 3 group headings + breadcrumbs + Dashboard (#1702) + Service Health (#1703) + Verifications (#1704) + Effectiveness (#1705) + Contracts (#1706) + Requirement Coverage Matrix (#1707) + Audit Trail (#1708) + Usage & Billing (#1709) + Login (#1710) | Body text of JobDetail / Settings / NewVerification / Guide and other legacy pages |
 | `/tour` — the six stations, fully bilingual (`pages/tour.copy.ts`) | |
 | `/explorer` — lead, fields, stat cards, evidence list — all via the table | |
 | `/usage` — title, window chips, six cards, the honesty basis sentence (with `{basis}` denominator), legend, empty-ledger copy | |

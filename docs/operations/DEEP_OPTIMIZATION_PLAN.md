@@ -34364,3 +34364,29 @@ EN/USER_GUIDE_EN.md = 英文新手路径（#1699）；MCP_GUIDE*.md = 机器发�
 
 * 本号完成 **Billing**；JobDetail / NewVerification / Guide / Settings / Login 仍中文原生；
 * 加载态「加载中 LOADING…」归 `ui/Spinner.tsx` 负责，故本页的 `loading` 字段未使用（死数据有意留存，按需再弃）。
+
+## #1710 旧页面双语化第九批：Login 逐页本地化（`login.copy.ts`）——进门这页双语齐准
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `apps/web/src/pages/login.copy.ts`：`LoginCopy` 双版——
+  品牌尾注、眉语行（「从需求到证据，每次交付都有依据」/ EN「From requirement to evidence — every delivery has its proof」）、
+  大标题两行（「代码改好了？」「需求，真的实现了吗？」）、
+  欢迎描述、三步流程（01 写清需求 / 02 对比变更 / 03 查看证据）、典型场景案例（权限变更）、
+  使用指南链接、卡片区（连接后开始第一次验收）、模式切换（访问令牌 / API Key）、
+  标签、placeholder、显示/隐藏、两个 hint、连接按钮、正在验证连接态、SSO、
+  配置读取失败兜底、帮助 details（本机路径三种分支）、页脚；
+* zh 侧逐字保留 Login.test.tsx 锁死的全部字面（需求，真的实现了吗？/ 第一次使用 /
+  工作区 API Key / 工作区访问令牌 / 连接工作区 / 凭据未通过验证 / 后端已响应 / SPECPROOF_AUTH_ENABLED）——
+  **6/6 用例一红未动**；
+* 诚实保留：`BrandSuffix`（「 S SpecProof」）业务后缀不动；`oidc` 流程不动；
+* help details 的三分支（本机 / 非本机 / 局域网）逐分支双语；
+* 验迹：Login.test.tsx **6/6**；vitest 全量 **486/486**；`npm run build` 绿（index 263.58 kB / gzip 89.46 kB）；
+  tsc 净；ledger 45/45。
+
+### 二、诚实边界
+
+* 本号完成 **Login**；剩余 JobDetail / NewVerification / Guide / Settings 仍中文原生；
+* 英文版"欢迎故事"（walkthrough 三段）是**新写**的英文，与中文等长对齐，不互相惜字如金。
