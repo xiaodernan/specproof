@@ -4,17 +4,21 @@ import { useRemoteData } from "../hooks/useRemoteData";
 import { Button, Degraded, ErrorBox, Input, Panel, Select, Spinner, StatCard, Table, Term, attributionLabel, checkerLabel, dependencyInstallLabel, executionSurfaceLabel, executionSurfaceTone, resultCaption, resultPill, shortId } from "../ui";
 import { ProductIcon } from "../ui/ProductIcon";
 import { QualityEmpty, QualityHeader, QualityPagination } from "./QualityLayout";
+import { useI18n } from "../i18n";
+import { MATRIX_BY_LOCALE } from "./matrix.copy";
 
 const PAGE_SIZE = 25;
 
 /** A count the pipeline never recorded is not the same fact as a recorded 0. */
-function countText(value: number | null): string | number {
-  return value === null ? "未统计" : value;
+function countText(value: number | null, unmeasured: string): string | number {
+  return value === null ? unmeasured : value;
 }
 
 type MatrixRow = MatrixData["rows"][number];
 
 export default function Matrix() {
+  const { locale } = useI18n();
+  const c = MATRIX_BY_LOCALE[locale];
   const [jobId, setJobId] = useState("");
   const [filter, setFilter] = useState("");
   const [page, setPage] = useState(1);
@@ -29,44 +33,44 @@ export default function Matrix() {
   const missingEvidence = (data?.rows ?? []).filter(row => !row.evidence_ref?.trim()).length;
 
   return <div className="quality-page">
-    <QualityHeader icon="matrix" eyebrow="REQUIREMENT COVERAGE" title="每条需求，都有落点。" description="把需求、检查结果和证据逐条对应。先看未通过与证据不足的部分，再决定这次变更能否交付。" action={jobId ? <a className="btn btn-secondary" href={"#/jobs/" + encodeURIComponent(jobId)}>查看完整验证 →</a> : <a className="btn btn-primary" href="#/jobs/new">新建验证 →</a>} />
-    <div className="quality-brief"><ProductIcon name="shield" /><p><strong>通过不等于全覆盖。</strong> 这里呈现已提取<Term id="contract">规则</Term>的结果；未识别的需求、尚未执行的检查或缺少<Term id="evidence">证据</Term>的结果，仍需要补充验证。</p></div>
-    <div className="quality-filters"><Select className="quality-filter-wide" label="选择验证任务" value={jobId} disabled={jobs.loading} onChange={event => { setJobId(event.target.value); setFilter(""); setPage(1); }}><option value="">选择一个任务，查看需求覆盖</option>{(jobs.data?.jobs ?? []).map(job => <option key={job.id} value={job.id}>{shortId(job.id)} · {(job.repo_path || "").split(/[\\/]/).pop()} · {job.base_ref || "?"} → {job.head_ref || "?"}</option>)}</Select><Button variant="ghost" loading={jobId ? matrix.refreshing : jobs.refreshing} onClick={jobId ? matrix.refresh : jobs.refresh}>刷新</Button></div>
+    <QualityHeader icon="matrix" eyebrow={c.eyebrow} title={c.title} description={c.description} action={jobId ? <a className="btn btn-secondary" href={"#/jobs/" + encodeURIComponent(jobId)}>{c.viewFull}</a> : <a className="btn btn-primary" href="#/jobs/new">{c.newButton}</a>} />
+    <div className="quality-brief"><ProductIcon name="shield" /><p><strong>{c.briefStrong}</strong> {c.briefBody}<Term id="contract">{c.briefTermContract}</Term>{c.briefTail}<Term id="evidence">{c.briefTermEvidence}</Term></p></div>
+    <div className="quality-filters"><Select className="quality-filter-wide" label={c.selectLabel} value={jobId} disabled={jobs.loading} onChange={event => { setJobId(event.target.value); setFilter(""); setPage(1); }}><option value="">{c.selectPlaceholder}</option>{(jobs.data?.jobs ?? []).map(job => <option key={job.id} value={job.id}>{shortId(job.id)} · {(job.repo_path || "").split(/[\\/]/).pop()} · {job.base_ref || c.selectOption} → {job.head_ref || c.selectOption}</option>)}</Select><Button variant="ghost" loading={jobId ? matrix.refreshing : jobs.refreshing} onClick={jobId ? matrix.refresh : jobs.refresh}>{c.refresh}</Button></div>
     <ErrorBox error={jobs.error || error} />
-    {!jobId ? <Panel title="需求与证据"><QualityEmpty icon="matrix" title={jobs.error ? "暂时无法读取任务" : jobs.loading ? "正在读取验证任务" : jobs.data?.jobs.length ? "选择一次验证，展开交付依据" : "还没有可查看的验证"} description={jobs.error ? "请检查服务连接后重试。" : jobs.data?.jobs.length ? "选择器提供最近 200 条任务。查看每条需求是否经过检查，以及证据是否齐全。" : "创建一次变更验收后，即可在这里查看需求和证据的对应关系。"} action={jobs.error ? <Button onClick={jobs.refresh}>重新加载</Button> : !jobs.loading && !jobs.data?.jobs.length ? <a href="#/jobs/new" className="btn btn-primary">创建第一次验证 →</a> : null} /></Panel> : loading ? <Spinner /> : error ? <QualityEmpty icon="matrix" title="暂时无法读取这次验证" description="请稍后重试，也可以前往完整验证页检查任务进度。" action={<Button onClick={matrix.refresh}>重新加载</Button>} /> : data && <>
-      {data.degraded && <Degraded reasons={[data.degraded_reason || "部分覆盖数据暂不可用，请稍后刷新。"]} />}
-      <div className="quality-metrics"><StatCard label="已提取规则" value={countText(data.counts.total)} /><StatCard label="检查通过" value={countText(data.counts.passed)} tone="ok" /><StatCard label="发现不符" value={countText(data.counts.failed)} tone="bad" /><StatCard label="证据不足" value={countText(data.counts.unverified)} tone="warn" /></div>
-      {missingEvidence > 0 && <div className="quality-brief quality-warning"><ProductIcon name="guide" /><p><strong>{missingEvidence} 条规则尚无证据引用。</strong> 请结合完整验证报告核查，单独的检查状态无法代替可复核的证据。</p></div>}
-      {data.rows_truncated && <div className="quality-brief"><ProductIcon name="guide" /><p><strong>逐条结果较多，此处仅展示前 {data.rows.length} 条（共 {data.rows_total ?? data.rows.length} 条）。</strong> {data.counts.total === null ? "管线没有记录这些计数，所以上方不做推算：展示条数既不是总数，也不代表没有任何结果。" : "上方统计取自管线自身的总数，不因展示条数减少而变小。"}</p></div>}
-      <Panel title="需求与证据" right={<Input aria-label="搜索需求" type="search" placeholder="搜索需求、编号或结果" value={filter} onChange={event => { setFilter(event.target.value); setPage(1); }} />}>
-        {!rows.length ? <QualityEmpty icon="matrix" title={filter ? "没有匹配的需求" : data.counts.total === null ? "这一轮没有留下矩阵统计" : data.counts.total > 0 ? "有统计数字，但读不到逐条结果" : "这次验证记录为 0 条规则"} description={filter ? "换一个关键词，或清除搜索条件。" : data.counts.total === null ? "上方四项都标着“未统计”：管线没有记录过任何一项计数——任务可能仍在执行、以失败结束，或早于这项统计上线。这不等于没有需求，也不等于全部通过；要结论请查看任务详情或重新发起验证。" : data.counts.total > 0 ? `本次验证记录了 ${data.counts.total} 条规则的结果，但逐条明细没能读到（多半是任务在摘要写入前中断）。请把总数视为未经逐条核对，不要据此认为每条需求都有落点。` : "管线确实记录了 0 条规则：这一轮没有提取到可检查的需求。没有规则不能视为验收通过，请确认需求是否已写进规格。"} action={filter ? <Button onClick={() => setFilter("")}>清除搜索</Button> : <a href={"#/jobs/" + encodeURIComponent(jobId)}>查看任务详情 →</a>} /> : <><Table<MatrixRow>
+    {!jobId ? <Panel title={c.matrixPanelTitle}><QualityEmpty icon="matrix" title={jobs.error ? c.readFailedTitle : jobs.loading ? c.loadingJobsTitle : jobs.data?.jobs.length ? c.selectJobTitle : c.jobsEmptyTitle} description={jobs.error ? c.jobsErrorDescription : jobs.data?.jobs.length ? c.matrixHasJobsDescription : c.jobsEmptyDescription} action={jobs.error ? <Button onClick={jobs.refresh}>{c.reload}</Button> : !jobs.loading && !jobs.data?.jobs.length ? <a href="#/jobs/new" className="btn btn-primary">{c.createFirst}</a> : null} /></Panel> : loading ? <Spinner /> : error ? <QualityEmpty icon="matrix" title={c.matrixReadFailedTitle} description={c.matrixReadFailedDescription} action={<Button onClick={matrix.refresh}>{c.reload}</Button>} /> : data && <>
+      {data.degraded && <Degraded reasons={[data.degraded_reason || c.degradedFallback]} />}
+      <div className="quality-metrics"><StatCard label={c.metricTotal} value={countText(data.counts.total, c.unmeasured)} /><StatCard label={c.metricPassed} value={countText(data.counts.passed, c.unmeasured)} tone="ok" /><StatCard label={c.metricFailed} value={countText(data.counts.failed, c.unmeasured)} tone="bad" /><StatCard label={c.metricUnverified} value={countText(data.counts.unverified, c.unmeasured)} tone="warn" /></div>
+      {missingEvidence > 0 && <div className="quality-brief quality-warning"><ProductIcon name="guide" /><p><strong>{c.missingEvidenceStrong(missingEvidence)}</strong> {locale === "zh" ? "这些没有留下证据的行，其状态无法成为合并判据。" : "Rows without evidence cannot gate a merge."}</p></div>}
+      {data.rows_truncated && <div className="quality-brief"><ProductIcon name="guide" /><p><strong>{c.truncationStrong(data.rows.length, data.rows_total ?? data.rows.length)}</strong> {data.counts.total === null ? c.truncationNullNote : c.truncationNote}</p></div>}
+      <Panel title={c.matrixPanelTitle} right={<Input aria-label={c.filterAria} type="search" placeholder={c.filterPlaceholder} value={filter} onChange={event => { setFilter(event.target.value); setPage(1); }} />}>
+        {!rows.length ? <QualityEmpty icon="matrix" title={filter ? c.filterNoMatchTitle : data.counts.total === null ? c.totalNullTitle : data.counts.total > 0 ? c.totalPositiveEmptyTitle : c.totalZeroTitle} description={filter ? c.filterNoMatchDescription : data.counts.total === null ? c.totalNullDescription : data.counts.total > 0 ? c.totalPositiveEmptyDescription : c.totalZeroDescription} action={filter ? <Button onClick={() => setFilter("")}>{c.clearFilter}</Button> : <a href={"#/jobs/" + encodeURIComponent(jobId)}>{c.viewFull2}</a>} /> : <><Table<MatrixRow>
           className="quality-table"
           rows={rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)}
           rowKey={(row, index) => row.contract_id_str + index}
           columns={[
             {
               key: "requirement",
-              header: "需求 / 规则编号",
+              header: c.colReq,
               render: (row) => (
                 <>
-                  <strong>{row.requirement_text || "未提供需求描述"}</strong>
+                  <strong>{row.requirement_text || c.noRequirement}</strong>
                   <span className="quality-cell-secondary mono">{row.contract_id_str}</span>
                 </>
               ),
             },
             {
               key: "expected",
-              header: "预期行为",
-              render: (row) => <span className="quality-cell-copy">{row.expected_behavior || "尚未提供"}</span>,
+              header: c.colExpected,
+              render: (row) => <span className="quality-cell-copy">{row.expected_behavior || c.noExpected}</span>,
             },
             {
               key: "checker",
-              header: "检查方式",
+              header: c.colChecker,
               render: (row) => <span className="mono" title={row.checker_type || undefined}>{checkerLabel(row.checker_type)}</span>,
             },
             {
               key: "result",
-              header: "检查结果",
+              header: c.colResult,
               render: (row) => {
                 const result = resultPill(row.result);
                 return (
@@ -78,7 +82,7 @@ export default function Matrix() {
                         absent rather than defaulting to generic advice. */}
                     {row.next_action && (
                       <div className="quality-cell-secondary" title={row.next_action}>
-                        下一步：{row.next_action}
+                        {c.nextStepPrefix}{row.next_action}
                       </div>
                     )}
                   </>
@@ -87,15 +91,15 @@ export default function Matrix() {
             },
             {
               key: "diff",
-              header: "改前 / 改后对照",
+              header: c.colDiff,
               render: (row) => {
                 // Absent means the pipeline ran no differential experiment for
-                // this rule — never render it as a green side, and never as "—".
+                // this rule — never render it as a green side, and never as zero.
                 if (!row.base_result && !row.head_result) {
-                  return <span className="quality-cell-secondary">未做改前/改后差分实验</span>;
+                  return <span className="quality-cell-secondary">{c.noDifferentialExperiment}</span>;
                 }
                 const side = (value?: string) => {
-                  if (!value) return <span className="quality-cell-secondary">无观测</span>;
+                  if (!value) return <span className="quality-cell-secondary">{c.missingSide}</span>;
                   const pill = resultPill(value);
                   return <span className={"pill " + pill.cls} title={value}>{pill.label}</span>;
                 };
@@ -107,12 +111,11 @@ export default function Matrix() {
                       {side(row.head_result)}
                     </span>
                     <div className="quality-result-caption">
-                      {row.attribution ? attributionLabel(row.attribution) : "归因未知"}
+                      {row.attribution ? attributionLabel(row.attribution) : c.attributionUnknown}
                     </div>
-                    {/* Safety disclosure: the differential ran the change's own
-                        tests somewhere. Say where — a host run had no sandbox,
-                        and that is the reader's business, not an internal
-                        detail. Unknown values pass through verbatim. */}
+                    {/* Safety disclosure: where the differential ran the change's
+                        own tests. A host run had no sandbox, and that is the
+                        reader's business, not an internal detail. */}
                     {row.execution_surface && (
                       <div
                         className={"quality-execution-surface tone-" + executionSurfaceTone(row.execution_surface)}
@@ -135,10 +138,10 @@ export default function Matrix() {
             },
             {
               key: "evidence",
-              header: "证据引用",
+              header: c.colEvidence,
               render: (row) => (
                 <>
-                  <span className="mono muted">{row.evidence_ref || "未知"}</span>
+                  <span className="mono muted">{row.evidence_ref || c.evidenceEmpty}</span>
                   {row.unverified_reason && (
                     <div className="quality-cell-secondary" title={row.unverified_reason}>
                       {row.unverified_reason}

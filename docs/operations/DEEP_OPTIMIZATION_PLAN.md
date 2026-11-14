@@ -34273,3 +34273,33 @@ EN/USER_GUIDE_EN.md = 英文新手路径（#1699）；MCP_GUIDE*.md = 机器发�
 * 本页**没有**单测——与 QualityLayout 壳层的其它页面（Matrix 有 Matrix.test.tsx）不同，
   Contracts 此前无测试覆盖；本提交不伪造覆盖率，列入下一阶段测试补齐清单；
 * 仍为中文原生：JobDetail / Matrix / NewVerification / Guide / Billing / Audit / Settings / Login。
+
+## #1707 旧页面双语化第六批：Matrix 逐页本地化（`matrix.copy.ts`）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `apps/web/src/pages/matrix.copy.ts`：`MatrixCopy` 双版——眼眉/标题/描述、CTA、
+  `quality-brief`（briefStrong/body/两个 `<Term>`/tail）、选择验证任务过滤器、全部四类空态
+  （jobs 错误 / jobs 加载 / jobs 有数据 / jobs 为空）、矩阵读取失败态、降级回落、
+  四张 StatCard、`未统计`（`countText` 的 null 分支——「管线未统计 ≠ 0」）、
+  `归因未知`、`未做改前/改后差分实验`、`无观测`、`下一步：` 前缀、缺证据强提示、
+  截断提示（null 分支与非-null 分支两套，**刻意不含「上方统计取自管线自身的总数」字样**——
+  Matrix.test.tsx 用 `toBeNull()` 锁死它）、过滤无匹配态、两个固定断言标题
+  （「这次验证记录为 0 条规则」/「这一轮没有留下矩阵统计」/「有统计数字，但读不到逐条结果」）；
+* `Matrix.tsx` 全量走 `c.*`；`countText` 增加 locale 参数（null→`未统计` 的语义保持不变）；
+  表格 Column header（需求/期望/验证方式/检查结果/改前改后对照/证据）全部 c；
+* **zh 侧逐字保留 Matrix.test.tsx 锁死的全部字面**（未统计/未做改前/改后差分实验/无观测/
+  搜索需求／改前 / 改后对照／仅展示前 N 条（共 M 条）／所以上方不做推算/不等于没有需求/
+  没有规则不能视为验收通过/这次验证记录为 0 条规则/这一轮没有留下矩阵统计/有统计数字，但读不到逐条结果），
+  21/21 用例一个不红；
+* 诚实保留：resultPill/resultCaption/attributionLabel/executionSurfaceLabel/dependencyInstallLabel/
+  checkerLabel（`ui/toneMap.ts`）不动——词表 i18n 是 `severity_vocabulary_parity` 三门锁死的单独立项；
+* 验迹：Matrix.test.tsx **21/21**；vitest 全量 **486/486**；`npm run build` 绿（index 258.73 kB / gzip 87.95 kB）；
+  tsc 净；ledger 45/45。
+
+### 二、诚实边界
+
+* 本号完成 **Matrix**；剩余中文原生：JobDetail / NewVerification / Guide / Billing / Audit / Settings / Login；
+* contracts/verifications 表格头（Matrix 与 Contracts）已走表，但 ui 层 pill 文案仍中文——已记账。
