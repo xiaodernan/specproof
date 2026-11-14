@@ -156,6 +156,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/ide` | The Forge | real anchors + paste-and-run cheat board + local notes |
 | `/graph` | The River of Iron | the eighteen LangGraph nodes, from requirement to capsule | 
 | `/chronicle` | The Chronicle | 1,560 real ledger entries, one long scroll, always growing |
+| `/manual` | Manual (POCKET CARD) | a printable 30-second cheat sheet baked into the UI |
 | `/billing` | Usage & Billing | real wkapi.pro token spend + hit_rate |
 | `/audit` | Audit Trail | every audit_logs write, nothing dropped |
 | `/health` | Service Status | 6-dependency latency distribution + 60 SLO alert triggers |

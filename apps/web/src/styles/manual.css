@@ -1,0 +1,34 @@
+/* ── SpecProof Manual ───────────────────────────────────────────────
+   The pocket card, the way it wants to be read: as a single piece of
+   paper with everything important on it. A4-fitted when printed. */
+
+.manual-page { max-width: 920px; margin: 0 auto; }
+.manual-page h1 { margin: 8px 0 12px; letter-spacing: -.03em; }
+.manual-en { font-size: .42em; letter-spacing: .22em; color: var(--accent-text); vertical-align: .3em; margin-left: .35em; }
+.manual-page .page-sub { color: var(--color-text-2); max-width: 720px; line-height: 1.9; }
+
+.manual-paper { margin-top: 22px; border: 1px solid color-mix(in srgb, var(--accent-text) 35%, var(--color-border)); background: #fefcf7; color: #1a1a1a; border-radius: var(--radius-lg); padding: 42px 44px 36px; box-shadow: 0 14px 44px rgba(0,0,0,.35); position: relative; }
+.manual-paper::before { content: ""; position: absolute; top: 10px; left: 10px; right: 10px; height: 6px; background: repeating-linear-gradient(90deg, #b8860b 0 12px, transparent 12px 16px); opacity: .55; }
+
+.manual-kicker { font-size: var(--text-xs); letter-spacing: .24em; text-transform: uppercase; color: #8a6a18; font-weight: 700; margin: 0 0 18px; }
+.manual-section { margin: 22px 0; }
+.manual-section h2 { font-size: var(--text-xl); letter-spacing: -.01em; margin: 0 0 10px; color: #1a1a1a; }
+.manual-list { padding-left: 22px; margin: 0; }
+.manual-list li { margin: 6px 0; line-height: 1.65; font-size: var(--text-md); color: #1a1a1a; }
+
+.manual-cmd-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.manual-cmd { border: 1px solid #e3d9c2; border-radius: var(--radius-md); background: #fff; padding: 10px 12px; display: grid; gap: 6px; }
+.manual-cmd-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.manual-cmd strong { font-size: var(--text-sm); color: #1a1a1a; }
+.manual-cmd code { display: block; font-family: var(--font-mono); font-size: 11.5px; color: #4a3a10; background: #fbf7ec; padding: 6px 10px; border-radius: 4px; word-break: break-all; }
+.manual-copy { flex: 0 0 auto; background: #b8860b; color: #1a1a1a; border: 0; padding: 6px 14px; border-radius: var(--radius-md); font-weight: 700; font-size: var(--text-xs); letter-spacing: .06em; cursor: pointer; }
+.manual-copy:hover { background: #caa02a; }
+
+.manual-punchline { margin-top: 26px; border-top: 2px solid #1a1a1a; padding-top: 18px; font-size: var(--text-md); color: #1a1a1a; }
+
+@media print {
+  .manual-paper { background: #fff; box-shadow: none; margin: 0; padding: 28px 30px; }
+  .manual-cmd { break-inside: avoid; }
+  .manual-page { max-width: none; }
+  .manual-copy { background: #eee; color: #1a1a1a; }
+}

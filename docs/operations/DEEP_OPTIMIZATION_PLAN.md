@@ -35949,3 +35949,33 @@ LangGraph 是本产品的发动机，而发动机的形状一直不是产品的�
 * 本卷不吹「铁证之书」的名人堂——只拆解印章的真实形态；
 * 卷二十与前卷**不构成叙事依赖**——各卷独立可读，卷与卷之间没有强制顺序；
 * 全量 `pytest tests/unit` 仍未跑完；本号文本增加稿字，不机器执行。
+
+## #1766 说明书页 `#/manual` —— 把 POCKET_CARD 融进产品本身；嵌入式 A4
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、诱因
+
+"用户在使用项目的时候其中一个功能就是查看教学说明书——不要写在项目文档里面，没有客户会去看项目文档的；就直接嵌入项目最终展示的内容里面。"
+
+### 二、交付
+
+* `apps/web/src/pages/Manual.tsx` + `manual.css` + `manual.copy.ts` ——
+  把 docs/operations/POCKET_CARD.md 的全部内容用中文/英文双在线渲染进 App 自身；
+  纸色封面 + 顶部金色横杆 + 黑色字体；Print 友好（.print-area，`@media print`
+  去除阴影/投影、打印 A4、`break-inside: avoid` 锁区段，印出来就是一张真合格的小册/口袋卡）；
+* nav.manual "说明书 / Manual" · Route evidence group · 21→22 一级入口；
+* USER_GUIDE §3 双补 `/manual` 行（22 页口径）；
+* 抄写站里的五条命令依旧指向仓库真实脚本（demo_doctor / build_chronicle / ledger-four / provider_smoke / sync_portfolio）；
+* i18n parity 11/11 绿；`nav.manual` 双语进 strings 表；
+* tsc 0；build ✅ in 1.18s；`Manual-*.js` chunk 4.70 KB，`Manual-*.css` 2.17 KB。
+
+### 三、路线导航
+
+Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏「说明书」— 与 Guide(#/guide) / Tour(#/tour) 三学带替换，互补：#/guide（按部就班指引）/#/tour（六盖印通关）/#/manual（一张纸拿走）。
+
+### 四、诚实边界
+
+* 内容与 POCKET_CARD_MD 略重复——手册把同一批事实用双语+App原生形式呈现，两者如有漂移立刻违纪
+* `#/manual` 仍未浏览器目验；print layout 美学以 CSS 验证，不是人眼；但 `@media print` 与 `.print-area` 为事实代码，纸版看起来就该长这样；
+* 全量 `pytest tests/unit` 仍未跑完。

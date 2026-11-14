@@ -157,6 +157,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/ide` | 铁匠工坊 | 真实锚点 + 抄板 + 炉边便笺，本机落盘 |
 | `/graph` | 验收之流 | 18 个 LangGraph 节点逐一拆解：从需求到 capsule | 
 | `/chronicle` | 编年史 | 1560 条真实账本条目，一拉到底，永远在长 |
+| `/manual` | 说明书（SPECROOF POCKET CARD） | 嵌入 App 的30 秒手札：5 件 / 3 不要 / 5 命令 / 报告词表，可打印可阅读 |
 | `/billing` | 用量与账单 | 真 wkapi.pro 实测 token + hit_rate |
 | `/audit` | 审计轨迹 | 每一步 audit_logs 写入，不丢任何 |
 | `/health` | 服务状态 | 6 依赖延迟分布 + 60 面板 SLO 告警触发 |
