@@ -116,11 +116,16 @@ def main() -> int:
         python_test_files = web_test_files = -1
 
     try:
-        import re
         heading_re = re.compile(r"^## #\d+\s+", re.M)
         ledger_sections = len(heading_re.findall(ledger_path.read_text(encoding="utf-8", errors="ignore"))) if ledger_path.exists() else -1
     except Exception:
         ledger_sections = -1
+
+    try:
+        world_zh = REPO / "docs" / "world" / "SPECROOF_WORLD.md"
+        worldbook_sections = len(re.findall(r"^## ", world_zh.read_text(encoding="utf-8", errors="ignore"), re.M)) + 1 if world_zh.exists() else -1
+    except Exception:
+        worldbook_sections = -1
 
     stats = {
         "generated_by": "scripts/build_repo_stats.py",
@@ -131,6 +136,7 @@ def main() -> int:
         "by_language": by_lang,
         "ledger_bytes_kB": ledger_kb,
         "ledger_sections": ledger_sections,
+        "worldbook_sections": worldbook_sections,
         "world_bytes_zh": world_zh.stat().st_size if world_zh.exists() else 0,
         "world_bytes_en": world_en.stat().st_size if world_en.exists() else 0,
         "git_commit_count": commit_count,

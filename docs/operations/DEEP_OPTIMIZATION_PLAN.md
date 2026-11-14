@@ -36299,3 +36299,32 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 第 1 轮 100% 失败 = 冷启动现象，不是"站点挂了"证据；判定以全轮 max 为准是本工具内置口径，如实强调，不替失败找借口；
 * 本轮未做后端 FastAPI/MySQL/Redis 车道压测（本机端口与 AUTH 条件受限，见 #1690s-1773 相关记录）；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1780 巡夜 · 子时之后 `#/nightwatch` —— 史官的可玩正史：7 站 × 3 滴灯油
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `apps/web/src/pages/NightWatch.tsx` + `nightwatch.copy.ts` + `styles/nightwatch.css`：
+  **史官守夜（The Night Watch）**——一款"行走的世界书"：卯时·差分之炉 → 辰时·编年之柱 → 巳时·铁样寨地 →
+  午时·铁证书房 → 未时·缓存圣断 → 酉时·印章庭 → 戌时·证据群岛；3 滴灯油，答错即耗油；
+  **每道题的答案全部从 `repoStats.json`（git ls-files 现推）现场推导**——编年史 1,580 节、跟踪文件 ~2,700、
+  世界书 31 节、#1777 实测 cached=4,224，全部是本仓库的当下事实，不可能编造；
+* 开场叙事 + 守夜规则 + 最快/最省油通关入册（`specproof_nightwatch_best`，localStorage）；
+  终局两种（天亮 `night-dawn` / 灯油尽 `night-dusk`）+ 失败出口（前往 /tour 补课）；
+* `build_repo_stats.py` 新增 **`worldbook_sections`**（>=2,702 等真实文件数随之可考）；`repoStats.json` 含
+  `ledger_sections: 1580` / `worldbook_sections: 31`；ProductIcon 新增 **lantern**；
+* App.tsx evidence 组一级入口（**26 个入口**）；`nav.nightwatch` ×2；两本 USER_GUIDE 补 `/nightwatch` 行 + 入口 25→26；
+* 视觉：深墨夜空 + 月晕 + 繁星 + 雾(drift keyframes) + 金灯芯绒（flicker）+ 衬线碑文；
+  **file:// 冒烟（本地临时 bypass 门禁 → `vite build --base=./` → 预览）：console 0 error；
+  引导页 → 上岗 → 7 站全对通关用时 **25.8s、余灯 3/3、newBest 入册**（dawnVisible=true, best={timeMs:25822,oilLeft:3,moves:7,date:2026-11-14}）；
+  门禁已原样恢复**（git diff 仅含本节文件）；
+* tsc 0；build ✅（NightWatch chunk 12.52 KB / 5.62 KB gz）；i18n parity 11/11。
+
+### 二、诚实边界
+
+* 本关所有数字题在合入本提交**之后**仍成立——因为它们每次构建时从仓库重新推导；数字题本身不随本次提交增加文件数而失效（git ls-files 跟踪口径自动滚动）；
+* 游戏节奏：答错 1 题不灭灯（油 3→2→1→0）；查错无惩罚重来；
+* 未经浏览器像素截图（桌面窗口仍不可见）；目验 = DOM/a11y/JS 全程脚本通关，非肉眼；
+* 全量 `pytest tests/unit` 仍未跑完。
