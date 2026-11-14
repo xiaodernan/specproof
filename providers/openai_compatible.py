@@ -63,6 +63,7 @@ from tenacity import (
 from contracts.retry_after import wait_retry_after_or_exponential
 from observability.metrics import incr, observe_duration
 from .usage_ledger import record_llm_call
+from .semantic_cache import cacheable
 
 from .base import LLMMessage, LLMResponse, ModelProvider
 from .capability_probe import CapabilityProbe
@@ -617,7 +618,22 @@ class OpenAICompatibleProvider(ModelProvider):
         timeout: float = 180.0,
         kind: str | None = None,
     ) -> LLMResponse:
-        if self.protocol == "responses":
+        # A cacheable mechanical step (draft/diagnose) must ride the chat
+        # completions lane, where the policy's semantic cache engages. The
+        # responses lane returns before the policy branch, which made the
+        # cache structurally unreachable on gpt-6* deployments: every kind-
+        # tagged call bypassed the policy, so the measured hit rate was a
+        # structural 0 rather than a matching failure (#1781). Evidence
+        # kinds never qualify and stay on whichever lane the probe chose.
+        effective_protocol = self.protocol
+        if (
+            self.protocol == "responses"
+            and self._policy is not None
+            and kind is not None
+            and cacheable(kind)
+        ):
+            effective_protocol = "chat_completions"
+        if effective_protocol == "responses":
             kwargs: dict[str, Any] = request_kwargs(
                 self.model, messages, effort=self.reasoning_effort, tools=tools,
                 tool_choice=tool_choice, response_format=response_format, opts=opts,

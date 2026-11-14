@@ -36328,3 +36328,70 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 游戏节奏：答错 1 题不灭灯（油 3→2→1→0）；查错无惩罚重来；
 * 未经浏览器像素截图（桌面窗口仍不可见）；目验 = DOM/a11y/JS 全程脚本通关，非肉眼；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1781 语义缓存为什么"打不中"：gpt-6 默认 responses 通道在策略分支之前就返回了——已修
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、根因（用真实探针实测，不是推测）
+
+* SpecCraft 的 `draft`/`diagnose` 调用**自带 kind 标签**（`craft/planner.py:446`、`craft/loop.py:1816/2080`）；
+* `providers/client_policy.py` 实现了完好的**语义缓存**（`SemanticCache`，memory + `semantic_cache_redis`，证据类 kind 硬排除）——
+  但 `providers/openai_compatible.py::_chat_dispatch` 对 `protocol == "responses"` 的调用**先走 responses lane 并 return**，
+  永远不到 `policy is not None and kind is not None` 的 policy 分支（代码里 policy 只在 chat-completions lane 存在）；
+* `LLM_PROTOCOL` 未设置时默认：`model.startswith("gpt-6")` → **responses**（`providers/config.py:59-64`）——
+  于是本部署上语义缓存**结构上不可达**：命中率不是"没匹配上"，是"根本没走到缓存"。计数恒为 0；
+* wkapi 自己的 prefix cache（`cached≈4,224`）是另一回事：它是**静态前缀**被缓存，不是用户消息命中率（已在 #1777 实测）。
+
+### 二、修复（10 行、证据类不动、默认不变）
+
+* `providers/openai_compatible.py::_chat_dispatch`：gpt-6 responses 部署上，**cacheable 的 draft/diagnose kind** 自动改走 chat-completions lane——
+  仅在 `SPECPROOF_PROVIDER_POLICY=1` 且 kind 属 `{draft, diagnose}` 时生效；其余一切（evidence kinds、policy 未开、chat lane probe 内）字节级不变；
+* ~~`.env.example` 补 `SPECPROOF_PROVIDER_POLICY=0` 块~~ — 作废：global pre-commit 钩将 `.env.*` 拒入（本仓 `.env.example` 属此例），改为 `docs/operations/PROVIDER_POLICY.md`（见 #1782）；
+* `scripts/semantic_cache_bench.py` 入库：任何人可复现本节全部测量（不打印 key）。
+
+### 三、实测（SPECPROOF_PROVIDER_POLICY=1 · wkapi.pro · gpt-6-sol · 2026-11-15）
+
+**修复前（仅 env 无代码）：** draft 32.8s→1.8s，但 `hits 0→0, puts 0→0, size=0`——第二次请求依然打了网关，缓存从未接住。
+
+**修复后（默认配置，仅开 policy 门）：**
+
+| 调用 | 时延 | total_tokens | 缓存 |
+|---|---|---|---|
+| draft #1 | 10,255ms | 104 | puts 0→1 |
+| draft #2 | **3.0ms** | 104（回放） | **hits 0→1**，内容逐字一致 |
+| court #1 | 3,936ms | 38 | 不入缓存 ✓ |
+| court #2 | 2,110ms | 40 | 不入缓存 ✓ |
+
+* court/counterexample/accept_judge/contract_compile —— 永不缓存，修复后仍永不缓存（设计使然）；
+* policy 未设 SPECPROOF_PROVIDER_POLICY → provider 的 behavior 与本提交之前**字节级一致**（policy 不构造）；
+* provider 单测：156 passed，与改动前一致（**3 个预先红测试 `test_provider_request_metrics_are_observable.py` 经 stash A/B 验证在 master 上同样红**——
+  它扫描层怀疑自己（其自身断言写着 "the scan, not the code, is suspect"），与本提交无关；如实记账，不顺手改此门禁）；
+* `scripts/semantic_cache_bench.py` 输出已包含 `replay identical content: True`；
+
+### 四、诚实边界
+
+* **缓存只对 draft/diagnose 生效，且 TTL=300s、max_entries=1024** ——深思-heavy 的裁决绝不会被缓存；
+* 语义缓存命中回放的是**旧响应**——prompt 不变即命中，不适合需要逐次新鲜输出的场景（draft 重试本来就该一致）;
+* 不保证 responses lane 下所有 kind 一律可缓存——本修复只为 cacheable 两族开旁路，不扩大语义缓存适用范围；
+* 全量 `pytest tests/unit` 仍未跑完；前端未受此改动影响。
+
+## #1782 PROVIDER_POLICY.md 落地：`.env.example` 被全局 pre-commit 钩拒入（.env.* 保护）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、事实与纠偏
+
+* 提交 #1781 的预期动作是".env.example 补 SPECPROOF_PROVIDER_POLICY 配置块"——
+  **global pre-commit 钩（C:/Users/18414/.codex/git-hooks/pre-commit）把 `.env.*` 归为禁入**（`.env|.env.*`，与 `.env.example` 是否已追踪无关），故提交被阻；
+* #1781 的账本条目已当场订正（~~删除线~~ 保留，改引本节）——账本不粉饰自己的弯路；
+* 替代物：**`docs/operations/PROVIDER_POLICY.md`**（zh 为纲 + 30 秒英文版）——
+  三条开关的作用域表（SPECPROOF_PROVIDER_POLICY / LLM_PROTOCOL / SPECPROOF_SEMANTIC_CACHE_BACKEND）、
+  #1781 根因→修复→实测（draft 二次 3.0ms、0 新 token、hits 0→1；court 不缓存）、`semantic_cache_bench.py` 复现路径、诚实边界；
+* `.env.example` 恢复原样，**零侵入**（untested hook behavior remains untouched）。
+
+### 二、诚实边界
+
+* 本节不改变任何产品代码；纯文档 + 账本订正；
+* `SKIP_HOOKS=1` 被刻意没用——护栏不因为"只是文档"而失效；
+* 全量 `pytest tests/unit` 仍未跑完；前端未动。
