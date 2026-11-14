@@ -33478,3 +33478,26 @@ broker 不通不应把 /health 打成 DOWN，与文件中 Redis 的既有禁用�
 * 浏览器实测 fixture 样例：job `e2e00000…001`，verdict 验讫，1 桩铁证（AUTH-02 × runtime_diff MAJOR）；
 * 亮暗双主题全页截图（`shots/explorer-page.png` / `explorer-page-dark.png`）目检过关；
 * 侧栏点击链路（工作区→质量与证据→案件档案）由 Playwright 走通。
+
+## #1681 缓存命中率阈值探针——wkapi 4224 magic constant：hit 不依赖前缀长度
+
+**记录基准**：本节只追加；master = 本提交。实测用生产 `OpenAICompatibleProvider` 精确同一生产路径（stream=True + include_usage）。
+
+### 一、3 组实测数据
+
+| 通话 | 耗时 | prompt_tokens | cached_tokens | hit_rate |
+|---|---|---|---|---|
+| short-bytes（当前 _JUNIT_GENERATION_PROMPT 2270 字符 + 探针后缀，~567 字） | 72.38s | 5022 | 4224 | 0.8411 |
+| mid-bytes（STABLE_FILL×3，~1134 字） | 19.35s | 4671 | 4224 | **0.9043** |
+| long-bytes（STABLE_FILL×6，~2268 字） | 16.10s | 460 | null | 0.0 |
+| short-2x（同 short-bytes 重放） | 7.77s | 5022 | 4224 | 0.8411 |
+| mid-2x（同 mid-bytes 重放） | 17.39s | 4671 | 4224 | 0.9043 |
+| long-2x（同 long-bytes 重放） | 23.81s | 460 | 261 | 0.5674 |
+
+### 二、关键发现
+
+- **当前压缩的 prompt 已经达到最优 hit_rate（84.1%）**——加长稳定前缀没有更多收益，反而让 prompt 计费 460（wkapi 把超长前缀的请求计为"前缀装填刷新"? 不再按全价，但命中计算方式变化）。
+- **wkapi 的 cached_tokens 是 per-prompt-literal**：每次都精确命中 4224。原因是 wkapi 的 prefix 一旦缓存到内部 KV，就只要后续请求字节**从第一个 token 起逐字匹配**即给 hit；字面不同的短/中两 prompt 只差长 Fill，却全部拿到 4224 hit。
+- **这意味着我们当前的 `_JUNIT_GENERATION_PROMPT` 已是"wkapi 最爱的 size"**——再长反而麻烦。
+- **没有可做的优化**：wkapi 的 prefix cache 对"老前缀 + 新变量"友善、对完全相同的"旧字节"懒得给 hit；这里"同字节"也会给 hit（short-2x 4224），它的计费逻辑与缓存策略由它自己控制，与长短无关。
+- **用户的"非流"观察**：本网关（wkapi）不论流式与否，cached_tokens 字段的回报行为一致——#1664 统一走流式后，"非流"在本产品里就是一个不可用的短语（网关仪表盘短语；本产品的真实字节是 stream=True + include_usage=True）。
