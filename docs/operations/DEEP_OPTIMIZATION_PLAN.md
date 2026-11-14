@@ -35301,3 +35301,37 @@ doctor 如实报告而不染绿；未追入这批改动，它们不是本提交�
   「CI 会红」属逻辑推导（脚本 exit 1 → job 红），属推断非实测；
 * 这不是「CI 全录入款」——ci.yml 本身未动；本号只加了一个独立的、低风险的文档-承诺门；
 * 6.1 的终局仍是 GitHub App Check Run 的完整链路——这只是第一个台阶。
+
+## #1741 双语一致性探针 `#/llm_locale_consistency.py` —— gpt-6-sol 在中英文里答的是同一句 BLOCKER
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、诱因
+
+"如果能保证同一道题在中文和英文里得到同一个答案，双语界面才是诚实的。"——双语 smoke 直击仓库的心脏承诺。
+
+### 二、交付
+
+* `scripts/llm_locale_consistency.py`（中文 + 英文同题，`temperature=0`，stream=True + include_usage，车道和其余真实调用一致）：
+  固定 finding——「一个 Spring 服务方法的 @PreAuthorize 注解被删除，未认证请求从此直达」；
+  两语都只许答 `BLOCKER`/`MAJOR`/`MINOR` 之一；`normalize()` 只认这三词与「阻断/严重/高危」中英映射；
+  **探针是观测型**（不作 gate，永远 exit 0；不一致会显示 DIVERGENT 并入账，不定罪）。
+
+### 三、实测（wkapi.pro / gpt-6-sol，2026-11-15 UTC，本机执行）
+
+```text
+== bilingual consistency probe ==
+[zh] pick=BLOCKER  text='BLOCKER' prompt=4749 cached=3981
+[en] pick=BLOCKER  text='BLOCKER' prompt=4727 cached=None
+verdict: CONSISTENT
+```
+
+（数据以终端实际输出入账；`cached_tokens` 两语不一致（zh 报 3981，en 报 null）——这正是 #1723 的又一次活见证：
+缓存命中率是网关的心情表，不是承诺。）
+
+### 四、诚实边界
+
+* 单次运行 + temperature=0：**这是一次观测，不是概率保证**；频率不高、结论不上墙只做成文字；
+* 探针会花 token，但每次 2 次短调用，约 ≈9.5k prompt ≈ 报告级别——不会改变命中计费口径；
+* `load_model_config()` 读仓内配置（`.local/llm.json`），**key 全程不打印、不入库、不入账**；
+* 一致性的价值在「双语界面不会给出相反判定」——不代表本产品任何其它断言自动成立。
