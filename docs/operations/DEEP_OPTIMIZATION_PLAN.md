@@ -36173,3 +36173,23 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 阅读进度仅存本机 localStorage，不跨浏览器/设备；无账号同步（将来若要，必须先过身份层）；
 * 全书搜索是子串匹配，不是语义检索（语义检索请用 `scripts/repo_rag.py`）；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1775 卷二十三《书房》+ 史诗第十四卷 —— 正史给自己盖了房间，书房也入了正史
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `docs/world/SPECROOF_WORLD.md` + `EN/SPECROOF_WORLD_EN.md`——**卷二十三《书房 (The Reading Room)》**（中英对称）：
+  23.1 为什么书需要自己的房间（正史不该躺在终端）／23.2 二十九节逐字上架表（序章 + 23 卷 + 附录甲–丁 + 终章）／
+  23.3 入口与书房会老（master 每合必重跑 `build_worldbook.py`）／23.4 誓言：**房间是正史的殿，不是展厅的角**；
+* `apps/web/src/pages/epic.copy.ts`——**史诗第十四卷《铁证书房 / The Reading Room》**（中英对称 14/14），锚 #1774；
+* `worldbook.json` 重建：29 → **30 节**（卷二十三自动上架，书房不结卷）；
+* 两本 `USER_GUIDE`：史诗十三卷→十四卷（scroll 与 in-text 交叉引用同步）；
+* tsc 0；build ✅（WorldBook chunk 更新，含新卷）；guide gate 以实际运行为准（见下）。
+
+### 二、诚实边界
+
+* 本节是**文字层**交付，不改运行时；
+* worldbook.json 现为 30 节，而 #1774 条目中写的「29 节」是该次交付时的真值，本节前后一致可考；
+* 全量 `pytest tests/unit` 仍未跑完。

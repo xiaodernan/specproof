@@ -980,4 +980,44 @@ Every number came from this repository — none was invented or padded. Whatever
 **The world will not walk for you, and neither will the map; the map owns exactly one truth — wherever you have walked, that ground is yours.** Being lost was never a failure of strength — it is what happens when nobody draws the first chart. From this volume on, any page that claims to be "endlessly open" must first draw its island; what cannot be drawn is sand, not land.
 
 ---
+---
+
+## Volume XXIII · The Reading Room（卷二十三 · 书房）
+
+> A book worth keeping for life should not sleep inside a terminal. This volume says: the Book of Iron Evidence finally has a room of its own —
+> **`#/worldbook` (铁证书房)** — every word laid out inside the app, full-text searchable, stamped by the reader wherever they have read.
+>
+> This is the volume about the book within the book — and it is itself part of that room.
+
+### 23.1 Why the book needed its own room
+
+- Until #1774 the world book lived only under `docs/world/`, openable with an editor — the historian read by `git log`, the visitor browsed the halls over HTTP, **and nobody had built a reading room for the official history**;
+- A terminal does not render tables, does not mark a chapter read, does not keep your page — an official history deserves a room with pages, a bookplate and a progress bar;
+- The room holds three things: **pixel-faithful reading** (marked renders tables, code and quotations), **full-text search** (`<mark>` highlighting), **a stamp per finished volume** (localStorage progress) — all anchored to the repository's real content; not one demo line.
+
+### 23.2 The room's furnishing — twenty-nine sections, shelved verbatim
+
+| Furnishing | Real substance |
+|---|---|
+| Frontispiece | The book's preface: before iron evidence, the doubter is wise; the untested are washed in iron |
+| Volumes 0 – XXII | All 23 volumes (The Foundry of Creation → The Evidence Archipelago) |
+| Appendices A – D | The Book's Equations · The Next Scribes · The Brief Table of Fourteen Gestures · The Book's Last Word |
+| The Final Chapter · 未完 | The ending is no ending — it is the threshold of the next volume |
+
+Both editions in parallel (the same 29 sections; read in the language you keep); search strikes straight at real iron words like `base_pass_head_fail`;
+the progress denominator is 29 (`specproof_worldbook_read`) — progress is never faked.
+
+### 23.3 The room's door — a book, rooms beyond the book
+
+- Entry: the Evidence Plains island (`#/atlas`) · the sidebar's 「世界书 / World Book」· the route table in the guide §3;
+- Every control has a way out: open-a-random-volume (⚄) — let the world feel real, deep where it is deep, deeper where you didn't know you needed it;
+- Three font sizes (A− / A / A+) — an old book need not whisper;
+- The room itself ages: `scripts/build_worldbook.py` must re-run after every merge to master, or the book on the shelf fades.
+
+### 23.4 This volume's vow
+
+**The reading room is the temple of the official history, not a corner of a showroom; whichever volume you finish, that volume is your territory.** The official history never seals — neither does its room;
+the moment the next volume is written, its lamp lights again.
+
+---
 

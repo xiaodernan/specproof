@@ -1,7 +1,7 @@
 import type { Locale } from "../i18n/strings";
 
 /**
- * The English edition of the Epic page's thirteen scrolls.
+ * The English edition of the Epic page's fourteen scrolls.
  *
  * The Chinese edition lives inline in `Epic.tsx` (it is the original text of
  * the book); the English edition is kept beside it so both languages can be
@@ -256,6 +256,23 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "地图不是代替探索", value: "它是通往探索的门廊——看懂地图的人，才敢踏进平原；画不出岛的，是沙，不是洲" },
     ],
   },
+  {
+    num: "卷十四",
+    title: "铁证书房",
+    en: "The Reading Room",
+    era: "2026-11 · 至今",
+    verses: [
+      "一本值得终身保存的书，不该躺在终端里——正史该有自己的房间，书房该有页码和书牌。",
+      "二十九节逐字上架：序章、卷零到卷二十二、附录甲到附录丁、终章——每一字都能拿和仓库对照。",
+      "书房里的每一卷，读到了就是你的国土；没读到的，永远在等你推门。",
+    ],
+    details: [
+      { label: "铁证书房 #/worldbook（#1774）", value: "29 节（序章 + 23 卷 + 附录 ×4 + 终章）中英对照 · 全文搜索 <mark> 高亮 · 进度本地持久化 · 随机开一卷" },
+      { label: "书房的原料只有一座", value: "docs/world/SPECROOF_WORLD.md（zh）与 EN/SPECROOF_WORLD_EN.md（en）——build_worldbook.py 一字不改地上架" },
+      { label: "书房不是展厅", value: "不是陈列，是阅读—— marked 渲染表格/代码/引用；搜索命中 2 处即刻点亮；读完一卷按一次「已读完本卷」" },
+      { label: "书房会老", value: "合一次 master 重跑 scripts/build_worldbook.py，书才不褪色——世书更新的节奏，就是书房亮灯的节奏" },
+    ],
+  },
 ];
 
 export const CLOSING_ZH = [
@@ -480,6 +497,23 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "Inspected in-frame (#1771)", value: "bbox math QA: islands inside the frame, N inside the dial, caption inside the margin — no ornament crosses the gold rule" },
       { label: "Three expedition routes", value: "Fast Shore 90s (tour→manual) · Evidence Expedition 25min (epic→chronicle→census) · Live-Fire 10min (jobs/new→matrix→FindingDetail)" },
       { label: "A map is not a substitute for exploration", value: "It is the porch over the threshold — the one who reads it dares the plains; what cannot be drawn is sand, not land" },
+    ],
+  },
+  {
+    num: "Scroll 14",
+    title: "The Reading Room",
+    en: "卷十四 · 铁证书房",
+    era: "2026-11 · today",
+    verses: [
+      "A book worth keeping for life should not sleep in a terminal — the official history deserves a room, and the room deserves pages and a bookplate.",
+      "Twenty-nine sections shelved verbatim: frontispiece, Volumes 0–XXII, appendices A–D, the final chapter — every glyph checkable against the repo.",
+      "Every volume you finish in the reading room is your territory; the ones you have not read are waiting behind their doors.",
+    ],
+    details: [
+      { label: "The Reading Room, #/worldbook (#1774)", value: "29 sections (frontispiece + 23 volumes + 4 appendices + final chapter), bilingual · full-text <mark> search · local reading progress · random-volume draw" },
+      { label: "One quarry of raw material", value: "docs/world/SPECROOF_WORLD.md (zh) + EN/SPECROOF_WORLD_EN.md (en) — build_worldbook.py shelves them verbatim" },
+      { label: "A reading room, not a showroom", value: "marked renders tables/code/quotes; two hits in the current volume light up instantly; one stamp per finished volume" },
+      { label: "The room ages", value: "every master merge re-runs scripts/build_worldbook.py — the room lights up at the pace of the book" },
     ],
   },
 ];
