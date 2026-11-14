@@ -35220,3 +35220,20 @@ doctor 如实报告而不染绿；未追入这批改动，它们不是本提交�
 
 * 本提交未改 Epic.tsx 一行代码（数据驱动）；未做浏览器目验；
 * 尾声(closing)仍为「路线图所欠条目仍未交割」——#1730–#1734 是已交割的部分，欠条仍在卷十五清单上。
+
+## #1737 CHANGELOG 二次登记 —— 2026-11-15 第二张收据（卷十六 + /epic 第八卷 · portfolio-sync 重跑可解析）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `CHANGELOG.md` 在 2026-11-15 首张收据（#1734）侧边增二型记录：
+  覆盖 `c7626b5`（#1735 卷十六）→ `4a8a346`（#1736 /epic 第八卷）；
+  条目如实写下未承诺项（全量 pytest 未完、#/drill 未浏览器目验）。
+* `scripts/sync_portfolio.py` 本地重跑：`world_size: 47.4 KB`、`page_count: 25`、`latest_changelog` → 二次登记节——
+  证明 sync 双解析均不发虚（generated 物 gitignored 不入提交）。
+
+### 二、诚实边界
+
+* 本号不推 portfolio——仍等 `PORTFOLIO_TOKEN`（#1722）；只证明重建不炸。
+* CHANGELOG 的验证状态口径与 #1734 保持一致：不把 497/497 前端测试外推成全仓库测试结论。
