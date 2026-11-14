@@ -453,6 +453,43 @@ It will not stop inside the Book of Iron Evidence; it will land in the next pull
 
 ---
 
+
+## Scroll 13 · The Chronicler and the Cache
+
+> Scroll 3 taught the cache as a doctrine; Scroll 13 teaches the cache as **self-discipline** — when the chronicler writes "do not touch that stable text" into their instincts, the cache is no longer a switch but a restraint.
+
+### 13.1 Measure first, then speak
+
+The chronicler never writes "the cache hit rate is high." The chronicler writes: "On 2026-11, _JUNIT_GENERATION_PROMPT's stable prefix measured 96.5% repeated-cache hits on wkapi.pro (#1645); stripped to bytes (#1679/#1681), the same variable tail against different variable values oscillates between 75.2% and 84%."
+
+The sentences are longer but every number lands in git. A cache is a thing that forces honesty out of you — it does not believe you "think you are stable"; it only looks at whether the prefix is truly byte-identical.
+
+### 13.2 Those 2272 bytes
+
+The stable prefix of _JUNIT_GENERATION_PROMPT is ~567 tokens; nobody who wrote it humanised it for readability — the order of fields, the count of newlines, the placement of comments, everything serves the cache. Change one space and you changed the cache key. Sacrificing aesthetics to the machine, the machine pays you back with lower cost and continuous counter-example production.
+
+There are several ways an AI developer treats stable prefixes — quietly extend them, silently shorten them, reorder them, tighten the comments. The chronicler records all of "only grow, never shrink" in their notebook: **what can be frozen, freeze; what drifts, pin down** — push every variable to the tail; dig out the invariant part and brick it into byte-stable blocks.
+
+### 13.3 After the two lanes
+
+After #1644 and #1663, both lanes of verification — the legacy lane and the policy lane — finally run `stream=True + include_usage=True` — the gateway can report cached_tokens now, and the hit rate can land in the ledger of used tokens instead of drifting between a question mark and a comma.
+
+#1681 sets this down as iron law: **every real invocation must take the streaming lane**, otherwise whether the provider's cache saved any tokens depends on whether "the gateway feels like it that day". Streaming is not a style, it is an audit.
+
+### 13.4 Even the cache has a fate
+
+#1679 and #1681 each measured this: **wkapi's cached_tokens may return null** — it computes cache per prompt bytes; whoever swaps bytes pays the recompute. Even with a byte-identical prefix, missing gateway reports or a slightly different prompt snaps the metric off a cliff.
+
+So the cache hit rate is never a contract value. The cache is a hint, not a verdict; the record is the conclusion, not the guess. SpecProof writes "explicitly null when the gateway says nothing" into the Usage panel (#1646/#1704) — better to break the line than draw a fake one. That is the whole doctrine of the chronicler walking with the cache.
+
+### 13.5 Bilingualism changes the meaning of the prefix
+
+After Scroll 11 set "one key, two locales", prompts split into two stable prefixes in two languages — extra cache opportunity, and a harder discipline: both languages are pinned; switching the language is switching a brick. You can try to sneak an English edit and hope nobody notices; in a bilingual review, drift in either edition points at the same PR.
+
+The cache is a mirror: how honest you are with it, your prompts are that efficient.
+
+---
+
 ## Final Scroll · The Unfinished
 
 Every victory, defeat, ledger, and scroll in this book lands on one answer:

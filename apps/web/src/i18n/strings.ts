@@ -28,6 +28,8 @@ const zh = {
   "nav.lexicon": "铁证词典",
   "nav.museum": "铁证博物馆",
   "nav.gestures": "验收官十四式",
+  "nav.guide": "上手指南",
+  "nav.jobDetail": "验收详情",
 
   // ── groups ─────────────────────────────────────────────────────
   "group.workspace": "工作空间",
@@ -215,6 +217,8 @@ const en: Record<keyof typeof zh, string> = {
   "nav.lexicon": "Iron Lexicon",
   "nav.museum": "Evidence Museum",
   "nav.gestures": "Fourteen Gestures",
+  "nav.guide": "Onboarding Guide",
+  "nav.jobDetail": "Verification detail",
 
   "group.workspace": "Workspace",
   "group.evidence": "Quality & Evidence",

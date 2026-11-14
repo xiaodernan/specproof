@@ -127,8 +127,8 @@ function Workspace() {
   const label = NAV.find(item => item.path === active)
     ? t(NAV.find((item) => item.path === active)!.labelKey)
     : active === "guide"
-      ? "上手指南"
-      : "验收详情";
+      ? t("nav.guide")
+      : t("nav.jobDetail");
   useEffect(() => {
     document.title = label + " · SpecProof";
     contentRef.current?.scrollTo?.(0, 0);
