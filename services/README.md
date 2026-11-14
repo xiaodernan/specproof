@@ -52,8 +52,25 @@ Landmarks from that run: `RedisTokenBucketRateLimiterTest` 5/5 ·
 `GatewayApplicationTests` etc. all green · `RouteTableIsomorphismGate` printed a **non-fatal**
 warning (`missingServices=[api, control-plane]`) — a pinned visibility gap, not a pass/fail lie.
 
-**Per-module**: the other three services carry their own suites; only the gateway was re-run this round —
-don't extrapolate the 81/81 into them.
+**discovery-server — real run (2026-11-15)**:
+
+```text
+mvn -o -B -ntp test      # services/discovery-server, Eureka application boot on 8761
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS                         Total time: 00:50 min
+```
+
+**config-server — real run (2026-11-15)**:
+
+```text
+mvn -o -B -ntp test      # services/config-server, native profile against repo config
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS                         Total time: 00:37 min
+```
+
+That is three of four services re-run on this machine this round — gateway 81/81, discovery 1/1,
+config 1/1; **control-plane was not re-run** (12 `*Test.java` classes on disk, not executed now),
+don't extrapolate the three into the fourth.
 
 ## 4. Honest limits / 诚实边界
 

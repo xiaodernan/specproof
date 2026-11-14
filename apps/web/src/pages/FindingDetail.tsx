@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  ApiError, NETWORK_UNREACHABLE, apiGet, createFindingFeedback, downloadCapsule, getJobFeedback,
+  ApiError, networkUnreachableMessage, apiGet, createFindingFeedback, downloadCapsule, getJobFeedback,
   getReviewer, setReviewer, type FeedbackData, type FeedbackReceipt, type Finding, type FindingsData,
 } from "../api";
 import { Button, Degraded, Empty, ErrorBox, Input, Panel, SEVERITY_STOREABLE, Spinner, Table, Term, Textarea, fmtPct, fmtTime, kv, severityPill, severityHint, evidenceLabel } from "../ui";
@@ -27,7 +27,7 @@ function describeFeedbackError(e: unknown): string {
     }
     return e.detail + "（HTTP " + e.status + (e.code ? " · " + e.code : "") + "）";
   }
-  if (e instanceof Error && e.message === NETWORK_UNREACHABLE) {
+  if (e instanceof Error && e.message === networkUnreachableMessage()) {
     return "网络不可达：反馈服务没有响应，这一票没有记上";
   }
   return e instanceof Error ? e.message : String(e);

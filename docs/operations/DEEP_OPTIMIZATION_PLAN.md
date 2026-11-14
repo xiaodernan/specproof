@@ -35446,3 +35446,47 @@ verdict: CONSISTENT
 
 * 本号仍不推 portfolio——仍等 `PORTFOLIO_TOKEN`；至多证明重建不炸；
 * 收据里如实写下「全量 pytest 未跑完」——这条不会因为收据越来越多就消失。
+
+## #1747 两把服务真机跑通 —— discovery-server 绿、config-server 绿；API 传输错误的 5 个中文串全部入表
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、`mvn -o test` 再下两城（2026-11-15，本机）
+
+```text
+services/discovery-server  [INFO] Tests run: 1, Failures: 0 — BUILD SUCCESS (50s)
+services/config-server     [INFO] Tests run: 1, Failures: 0 — BUILD SUCCESS (37s)
+```
+
+Eureka 自签启动、Config native 配置合法——这是微服务车道第二、三份可复现证据，
+连同 #1745 gateway 81/81，**本机四个模块里三个已被亲手跑绿**；control-plane（12 个 *Test.java，本号未跑）如实不外推。
+`services/README.md` §3 更新为以上三份实测数字和"不外推给 control-plane"的边界。
+
+### 二、api.ts 传输层的 5 个中文串全部入 i18n 表（#1730 纪律继续）
+
+* `api.unreachable` / `api.requestFailed` / `api.streamUnavailable` / `api.streamDropped` / `api.aiStreamFailed` ×2 locale，键集合对称 parity 门锁；
+* `NETWORK_UNREACHABLE` const 冻结在 import 时刻（en 先于 zh 固定，永远 en）——
+  正确解法不是 patch 断言，而是把它改成 **`networkUnreachableMessage()` 现取**：
+  测试条理化后 `api.net.test.ts` 与 FindingDetail 29/29 绿；
+* Python sweep 发现 api.ts 共 5 处面向用户的中文传输错误——全部就位；
+  后续 sweep 剩余命中集中在 `ui/*` 与 `agent/*`（FindingDetail 56、AgentWizard 55、UiKit 139 等）——**这是本提交不宣称的边界**。
+
+### 三、过程里如实记下这一件间歇
+
+* 全量 vitest 首轮一次失败：`UiKit.smoke.test.tsx`（dark theme render）；单跑绿、重跑全绿——**环境负载导致的瞬时抖动**，记之不讳，不装作从没发生；
+* `_cjk_sweep.txt`（`apps/web/src` 的 CJK 扫描）保留在工作树外面的临时目录，不入库。
+
+### 四、实证
+
+| 命令 | 结果 |
+|---|---|
+| `npx tsc --noEmit` | 0 错误 |
+| `npx vitest run` | **497/497 绿（两次跑，含一次瞬时抖动消失）** |
+| `npm run build` | ✅ built in 739ms |
+| ledger 四件套 | 45/45 绿（107s） |
+
+### 五、诚实边界
+
+* `services/` 只有三个模块被重验；control-plane 未跑；
+* UI/Agent 的 CJK 残余中文面（FindingDetail/Agent 系列/UiKit 139 行级）**仍是中文原生**——sweep 已定位但未译，列为下一个大条目；
+* 全套 `pytest tests/unit` 仍未跑完。

@@ -71,6 +71,13 @@ const zh = {
   "footer.tagline": "SpecProof · 为交付提供可核验的证据",
   "footer.startLink": "从这里开始",
 
+  // ── api transport errors ─────────────────────────────────────────
+  "api.unreachable": "无法连接到服务，请确认后端已启动、API 地址填写正确（见「模型连接 / 设置」），并在网络可用后重试。",
+  "api.requestFailed": "请求失败，请稍后重试",
+  "api.streamUnavailable": "实时进度连接不可用",
+  "api.streamDropped": "实时连接已断开",
+  "api.aiStreamFailed": "AI 解读流式失败",
+
   // ── ui glosses · job-status pills ─────────────────────────────────
   "jobStatus.PENDING": "等待处理",
   "jobStatus.QUEUED": "等待执行",
@@ -436,6 +443,13 @@ const en: Record<keyof typeof zh, string> = {
   "topbar.theme.toDark": "Switch to dark theme",
   "footer.tagline": "SpecProof · verifiable evidence for every delivery",
   "footer.startLink": "Start here",
+
+  // ── api transport errors ─────────────────────────────────────────
+  "api.unreachable": "Cannot reach the service. Make sure the backend is running and the API address in Model Connection / Settings is correct, then try again when the network is back.",
+  "api.requestFailed": "The request failed — please try again later.",
+  "api.streamUnavailable": "The live-progress connection is unavailable.",
+  "api.streamDropped": "The live connection was dropped mid-stream.",
+  "api.aiStreamFailed": "The AI interpretation stream failed.",
 
   // ── ui glosses · job-status pills ─────────────────────────────────
   "jobStatus.PENDING": "Pending",

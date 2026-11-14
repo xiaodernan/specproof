@@ -1,3 +1,4 @@
+import { STRINGS, storedLocale } from "./i18n/strings";
 // Unified API client: fetch + SSE, explicit errors and degradation states.
 // Credentials live in sessionStorage and travel in request headers,
 // including authenticated fetch-based SSE streams.
@@ -188,15 +189,16 @@ function headers(): Record<string, string> {
 // fetch" must not leak to a Chinese UI, so translate it into an actionable
 // message. AbortError is rethrown untouched so caller-driven cancellations
 // (AbortSignal) are never mistaken for a connectivity failure.
-export const NETWORK_UNREACHABLE =
-  "无法连接到服务，请确认后端已启动、API 地址填写正确（见「模型连接 / 设置」），并在网络可用后重试。";
+export function networkUnreachableMessage(): string {
+  return STRINGS[storedLocale()]["api.unreachable"];
+}
 
 async function doFetch(url: string, init?: RequestInit): Promise<Response> {
   try {
     return await fetch(url, init);
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") throw err;
-    throw new ApiError(0, NETWORK_UNREACHABLE);
+    throw new ApiError(0, networkUnreachableMessage());
   }
 }
 
@@ -213,7 +215,7 @@ async function handleResponse<T>(resp: Response): Promise<T> {
       return {} as T;
     }
   }
-  let detail = resp.statusText || "请求失败，请稍后重试";
+  let detail = resp.statusText || STRINGS[storedLocale()]["api.requestFailed"];
   let code: string | undefined;
   let requestId = resp.headers.get("X-Request-ID") || undefined;
   try {
@@ -293,7 +295,7 @@ function openEventStream(
       const response = await fetch(apiBase() + path, { headers: requestHeaders, signal: controller.signal });
       if (stopped) { await response.body?.cancel(); return; }
       if (!response.ok) await handleResponse(response);
-      if (!response.body) throw new Error("实时进度连接不可用");
+      if (!response.body) throw new Error(STRINGS[storedLocale()]["api.streamUnavailable"]);
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -356,7 +358,7 @@ function openEventStream(
       } finally {
         reader.releaseLock();
       }
-      if (!stopped) throw new Error("实时连接已断开");
+      if (!stopped) throw new Error(STRINGS[storedLocale()]["api.streamDropped"]);
     } catch (error) {
       if (stopped) return;
       onStatus("error");
@@ -420,7 +422,7 @@ export function streamAiSummary(
           cached: Boolean(frame.cached),
         });
       } else if (type === "error") {
-        onError(typeof frame.detail === "string" ? frame.detail : "AI 解读流式失败");
+        onError(typeof frame.detail === "string" ? frame.detail : STRINGS[storedLocale()]["api.aiStreamFailed"]);
       }
     },
     () => {},
