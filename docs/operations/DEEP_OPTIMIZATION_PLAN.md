@@ -33343,3 +33343,36 @@ broker 不通不应把 /health 打成 DOWN，与文件中 Redis 的既有禁用�
   终章白纸黑字写"未完"并点名——**绝不写成"已成"**；
 * 此书不替代任何产品行为——它是正史/故事册，给史官讲、给新人入门、给怀疑者对照仓库用；
 * "世界观"作为一类产品内容，第一次进入仓库（`docs/world/` 新建）；后续更多故事（第卷七起）可按同一标准连续追加。
+
+## #1677 全新模块「巡览 · The Grand Tour of SpecProof」——新用户的第一夜之旅（可盖章、可反悔、可炫耀）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、商品
+
+* 新页 `apps/web/src/pages/Tour.tsx`「巡览 · The Grand Tour of SpecProof」：
+  六卷竹简式排版，与「史诗」页同源 serif 中文语境；
+  卷一 门 · 连接工作区 → 卷二 验 · 读一份验收报告 → 卷三 山 · 读矩阵铁证 →
+  卷四 府 · 读一条 finding → 卷五 史 · 读任意一卷 → 卷六 印 · 盖验讫章；
+* `apps/web/src/ui/tour.ts`：TOUR_STATIONS 六站元数据（每站给出路由、任务、提示、章号）+ localStorage 状态机
+  （`specproof_tour_v1`：completed / completed_at / sealed_at）；完成/反悔都会刷新；
+* 全程手写装填——**不是**引导浮层：没有遮罩、不锁定任何控件、不替用户点；每一卷的动作都必须由用户自己完成，
+  否则"盖上此卷"不成立——这是本模块的伦理地基；
+* 导航新增「巡览」项（scroll 图标 · 工作空间分组），`ProductIcon` 新增 `scroll` 卷轴图标。
+
+### 二、行为
+
+* 盖上/撕掉/重进/清空四端互洽；`localStorage` 被禁用 → 如实提示"此处的完成不会在刷新后保留，不会假装已保存"；
+* 本机进度损坏 → 降级展示并提示"可能手动改坏了、或浏览器换了 profile，按全新状态呈现"；
+* 六卷齐盖 → 进度条满 + 庆祝面板「六卷齐盖，章落」+ 红色印章；
+* 无 API 依赖——巡览页的可用性不受任何后端服务影响（即使 /health 黄了，巡览照样可走）。
+
+### 三、验迹
+
+- 11 腿单测（fresh / corrupt / unknown-ids 过滤 / toggle→反悔→再盖 / 盖满→seal→反悔→seal 撤销 / reset / 计数）全绿；
+- 全量 vitest **473/473**（56 → 57 文件，458 → 462 → 473）；
+- typecheck 干净；vite build 绿（bundle 234.70 kB，gzip 78.39 kB）；
+- 浏览器目检：`shots/tour-page.png`（首屏）、`shots/tour-progress-1.png`（盖第 1 卷后进度条 1/6）、
+  `shots/tour-sealed.png`（六卷齐盖庆祝）、`shots/tour-sealed-top.png`（进度满 + 验讫印章渲染正常）；
+- 六卷全部由 Playwright 实机点按并复读状态（盖/撕/盖），与眼睛一致——ui 即行、行即 ui；
+- 本机 headless Chromium 下从登录 → 盖印 → 庆祝全流程无控制台报错。

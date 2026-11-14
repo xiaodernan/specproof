@@ -260,3 +260,120 @@
 @media (prefers-reduced-motion: reduce) {
   .chronicles-seal, .chronicles-prologue-mark { transform: none; }
 }
+
+
+/* ── 巡览 · The Grand Tour of SpecProof ───────────────────────
+   六卷巡礼：玉册 + 红印 + 金句。与「史诗」同源，但每一步都有完成按钮。 */
+.tour-page { display: grid; gap: var(--sp-5); max-width: 1010px; }
+.tour-en {
+  font-family: var(--font-mono); font-size: var(--text-xs);
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-text-3);
+}
+.tour-prologue {
+  display: flex; gap: var(--sp-4); align-items: flex-start;
+  border: 1px solid var(--color-border); border-left: 3px solid var(--accent-500);
+  background: linear-gradient(90deg, var(--accent-tint), transparent 60%);
+  border-radius: var(--radius-md); padding: var(--sp-5);
+}
+.tour-prologue p {
+  margin: 0; font-family: "Noto Serif CJK SC", "Songti SC", "STZhongsong", "SimSun", serif;
+  font-size: var(--text-md); line-height: 2.1; letter-spacing: 0.02em;
+  color: var(--color-text);
+}
+.tour-prologue-mark {
+  flex: none; width: 34px; height: 34px; border-radius: 4px;
+  background: linear-gradient(160deg, #b91c1c, #dc2626);
+  color: #fef2f2; font-family: "Noto Serif CJK SC", "Songti SC", "SimSun", serif;
+  font-size: 19px; font-weight: 800; display: grid; place-items: center;
+}
+.tour-progress { display: grid; gap: var(--sp-2); }
+.tour-progress-row { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-3); align-items: center; }
+.tour-progress-label {
+  font-family: var(--font-mono); font-size: var(--text-sm);
+  color: var(--accent-text); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.tour-progress-rail {
+  height: 8px; border-radius: 999px; background: var(--color-surface-2);
+  border: 1px solid var(--color-border); overflow: hidden;
+}
+.tour-progress-fill {
+  height: 100%; background: var(--gradient-aurora);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+.tour-sealed {
+  display: flex; gap: var(--sp-4); align-items: center;
+  border: 2px solid var(--success-fg); border-radius: var(--radius-md);
+  padding: var(--sp-4) var(--sp-5); background: linear-gradient(90deg, var(--success-tint), transparent 70%);
+}
+.tour-sealed-stamp {
+  flex: none; width: 64px; height: 64px; border-radius: 8px;
+  background: linear-gradient(150deg, #dc2626 0%, #b91c1c 60%, #991b1b 100%);
+  color: #fff7ed; font-family: "Noto Serif CJK SC", "Songti SC", "SimSun", serif;
+  font-size: 30px; font-weight: 800; display: grid; place-items: center;
+  transform: rotate(-5deg); letter-spacing: 0.02em;
+  box-shadow: inset 0 0 0 2px rgba(255,247,237,.35), 0 4px 14px rgba(185,28,28,.45);
+}
+.tour-sealed strong { display: block; font-size: var(--text-md); margin-bottom: 4px; color: var(--color-text); }
+.tour-sealed span { color: var(--color-text-2); font-size: var(--text-sm); line-height: 1.8; }
+.tour-hint { margin: 0; font-size: var(--text-sm); }
+.tour-station {
+  display: grid; grid-template-columns: 64px 1fr; gap: var(--sp-4);
+  border: 1px solid var(--color-border); border-radius: var(--radius-lg);
+  background: var(--color-surface); padding: var(--sp-5);
+  position: relative; transition: border-color var(--dur) var(--ease-out);
+}
+.tour-station-done {
+  border-color: color-mix(in srgb, var(--success) 45%, var(--color-border));
+  background: linear-gradient(180deg, var(--success-tint), transparent 24%), var(--color-surface);
+}
+.tour-seal {
+  flex: none; width: 52px; height: 52px; border-radius: 6px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface-2); display: grid; place-items: center;
+  font-family: "Noto Serif CJK SC", "Songti SC", "SimSun", serif;
+  font-size: 24px; font-weight: 800; color: var(--color-text-3);
+  align-self: start;
+}
+.tour-station-done .tour-seal {
+  background: linear-gradient(150deg, #dc2626, #991b1b);
+  color: #fff7ed; border-color: transparent;
+  box-shadow: inset 0 0 0 2px rgba(255,247,237,.35), 0 2px 10px rgba(185,28,28,.45);
+  transform: rotate(-3deg);
+}
+.tour-body { display: grid; gap: var(--sp-2); }
+.tour-chapter {
+  font-size: var(--text-xs); color: var(--accent-text);
+  letter-spacing: 0.14em; text-transform: uppercase; font-weight: var(--fw-600);
+}
+.tour-body h2 {
+  margin: 0; font-size: var(--text-lg);
+  font-family: "Noto Serif CJK SC", "Songti SC", "STZhongsong", serif;
+  border-bottom: 1px dashed var(--color-border-strong); padding-bottom: var(--sp-2);
+}
+.tour-narrate, .tour-task, .tour-tip {
+  margin: 0; font-family: "Noto Serif CJK SC", "Songti SC", "SimSun", serif;
+  color: var(--color-text); line-height: 1.9; font-size: var(--text-md);
+}
+.tour-task { color: var(--color-text-2); }
+.tour-tip { color: var(--color-text-3); font-size: var(--text-sm); display: flex; gap: var(--sp-2); align-items: baseline; }
+.tour-tip-label {
+  flex: none; font-family: var(--font-mono); font-size: var(--text-2xs);
+  letter-spacing: 0.2em; color: var(--accent-text); border: 1px solid var(--accent-ring);
+  border-radius: 4px; padding: 1px 6px; background: var(--accent-tint);
+}
+.tour-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-1); }
+.tour-reset-row { display: flex; justify-content: flex-end; }
+.tour-colophon { font-size: var(--text-xs); }
+.tour-colophon code {
+  background: var(--color-surface-2); padding: 1px 6px; border-radius: 4px;
+  border: 1px solid var(--color-border); font-size: var(--text-2xs);
+}
+@media (max-width: 900px) {
+  .tour-station { grid-template-columns: 52px 1fr; padding: var(--sp-4); }
+  .tour-seal { width: 44px; height: 44px; font-size: 20px; }
+  .tour-toggle-row, .tour-actions { flex-direction: column; align-items: stretch; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tour-progress-fill, .tour-station { transition: none; }
+  .tour-station-done .tour-seal, .tour-sealed-stamp { transform: none; }
+}
