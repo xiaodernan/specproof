@@ -621,9 +621,9 @@ The showcase is a vitrine, not a scoreboard: updates land on big leaps, never on
 | The reading of the "96.5% cache hit rate" | **Paid** (#1723 — gateway's 4224-token constant, downgraded to an observational metric) |
 | Portfolio auto-sync | **Tooling live** (#1722) — waiting on one secret; the IOU is on your desk, not the keeper's |
 | Ghost routes in the user guide | **Paid** (#1726 — guide ↔ App.tsx aligned + 6-test gate holds the line) |
-| Full `pytest tests/unit` | **Unpaid** — local memory fell to ~1.8 GB; only the ledger four + the new gate ran (51/51); this line is kept on the record, not whitewashed |
-| `toneMap.ts` / `errorHints.ts` Chinese residue | **Unpaid** — locked by the severity-vocabulary parity test; needs its own work item before translation |
-| Volume XV inside the app (`/epic` still shows six scrolls) | **Unpaid** — the book grew to fifteen volumes; bringing XV into `Epic.tsx` is the next commit |
+| Full `pytest tests/unit` | **Unpaid** — local memory fell to ~1.8 GB; as of #1730: 492/492 frontend vitest green + all parity vocabulary gates green + ledger four 45/45; the full Python unit suite still has not run; this line is kept on the record, not whitewashed |
+| ~~`toneMap.ts` / `errorHints.ts` Chinese residue~~ | **Paid (#1730)** — glosses now resolve per locale (78 keys ×2); the Python gates read the i18n table; `preflight.ts`/`stages.ts` remain, tracked separately |
+| ~~Volume XV inside the app (`/epic` showed six scrolls)~~ | **Paid (#1729)** — `/epic` gained Scroll VI, The Unfinished Road; seven scrolls in zh and en |
 
 ### 15.5 For the next reader
 

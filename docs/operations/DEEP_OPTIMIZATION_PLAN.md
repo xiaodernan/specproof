@@ -35050,3 +35050,22 @@ doctor 如实报告而不染绿；未追入这批改动，它们不是本提交�
 * toneMap/errorHints 的**注释**仍是中文（写给维护者看，不是 UI 文案）；`preflight.ts`（describePreflightError）与 `stages.ts`（stageLabel）仍为中文——它们是同宗债务但没在本提交偿还；
 * zh 文案逐字保持；en 译文未经母语者审校；
 * `ui/index.ts` 继续导出 `SEVERITY_HINT` 等符号（类型不变），其值现在是 i18n key 映射——**对外行为零变化**（无消费者按值读）。
+
+## #1731 卷十五欠条墙更新 —— 两块「未偿还」被划掉，一块注明进度，账簿与世界同步
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+`docs/world/SPECROOF_WORLD.md` 与 `docs/world/EN/SPECROOF_WORLD_EN.md` 的 15.4「史官的欠条」同步更新：
+
+| 欠条 | 新状态 |
+|---|---|
+| toneMap / errorHints 中文残留 | **已偿还（#1730）**——gloss 随 locale 解析；Python 门改读 i18n 表；preflight/stages 另欠单独记账 |
+| /epic 应用内六卷 | **已偿还（#1729）**——第七卷「未完的路」，中英对齐 |
+| 全量 pytest tests/unit | 仍**未偿还**，但进度如实更新：492/492 前端 vitest + parity 词表门全绿 + 账本四件套 45/45；全量 Python 单元测试仍未跑完 |
+
+### 二、诚实边界
+
+* 世界书与账本是同一件事的两个窗口——任何一边的进度都要让另一边看得见；
+* 本提交没有新增代码，只把世界书对齐到 #1729/#1730 的现实。
