@@ -27,6 +27,7 @@ const zh = {
   "nav.tour": "巡览",
   "nav.lexicon": "铁证词典",
   "nav.museum": "铁证博物馆",
+  "nav.gestures": "验收官十四式",
 
   // ── groups ─────────────────────────────────────────────────────
   "group.workspace": "工作空间",
@@ -133,6 +134,17 @@ const zh = {
   "explorer.tierUnknown": "?",
 
   // ── Usage page ─────────────────────────────────────────────────
+  "gestures.title": "验收官十四式",
+  "gestures.subtitle": "THE FOURTEEN GESTURES",
+  "gestures.lead":
+    "验收官站在证据面前大约有十四种站姿。敲一敲，认识每一张脸，再决定要不要认下你面前的铁。",
+  "gestures.collecting": "慢慢收集——每敲一式，你的验收官人格就完整一分。",
+  "gestures.complete": "十四式全章——你的验收官人格在本机这面镜子里已经完整了。",
+  "gestures.gridAria": "十四种站姿",
+  "gestures.tokenNote":
+    "每种站姿都落在一张真实的结论标签上——VERIFIED / BLOCKED / NEEDS_REVIEW / FAILED / STALE / EXPIRED / ERROR / CANCELLED，与本产品的报告逐字对应。",
+  "gestures.colophon":
+    "十四式的收集状态仅保存在本机 localStorage 的 specproof_gestures_v1；换设备、换浏览器，盖章的奖杯只会重新布阵。",
   "museum.title": "铁证博物馆",
   "museum.subtitle": "THE EVIDENCE MUSEUM",
   "museum.lead":
@@ -202,6 +214,7 @@ const en: Record<keyof typeof zh, string> = {
   "nav.tour": "Grand Tour",
   "nav.lexicon": "Iron Lexicon",
   "nav.museum": "Evidence Museum",
+  "nav.gestures": "Fourteen Gestures",
 
   "group.workspace": "Workspace",
   "group.evidence": "Quality & Evidence",
@@ -301,6 +314,17 @@ const en: Record<keyof typeof zh, string> = {
   "explorer.tierScript": "Scripted",
   "explorer.tierUnknown": "?",
 
+  "gestures.title": "Fourteen Gestures",
+  "gestures.subtitle": "THE FOURTEEN GESTURES",
+  "gestures.lead":
+    "An acceptance officer standing before evidence assumes roughly fourteen stances. Tap to meet every face, then decide whether to trust the iron in front of you.",
+  "gestures.collecting": "Collect slowly — every face you collect makes the officer in you more complete.",
+  "gestures.complete": "The Fourteen are complete — the officer inside your mirror is whole on this device.",
+  "gestures.gridAria": "The fourteen stances",
+  "gestures.tokenNote":
+    "Every stance lands on one real verdict label — VERIFIED / BLOCKED / NEEDS_REVIEW / FAILED / STALE / EXPIRED / ERROR / CANCELLED — word for word with this product's reports.",
+  "gestures.colophon":
+    "Collection progress lives in this browser's localStorage under specproof_gestures_v1; another browser re-walks the hall from zero.",
   "museum.title": "Evidence Museum",
   "museum.subtitle": "THE EVIDENCE MUSEUM",
   "museum.lead":

@@ -34601,3 +34601,34 @@ UI 层词表 i18n 是下一桩独立工程。
 
 * 两版章节标题一一对应（用标题大纲逐项核对）；
 * 账本四件套 45/45；README 内容链接有效（全部目标在仓库内存在）。
+
+## #1718 新模块：验收官十四式 `#/gestures` —— 把附录丙变成可敲、可收集的展墙
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、为什么
+
+`SPECROOF_WORLD.md` 附录丙（Brief Table）里有十四种验收官姿态——每一张脸对应一个真实的 verdict token。
+这些脸目前只躺在正史附录里。本号把它们搬进产品：一个可敲、可展开、可收集的画廊，
+**收集只落本机 localStorage（specproof_gestures_v1）**——与巡览同一套法则：信任要自己从零捡起来。
+
+### 二、交付
+
+* `apps/web/src/pages/gestures.copy.ts`：`GESTURES`——十四张脸，逐张标
+  `numeral`(壹…十四) / zh+en 姿态名 / ic(b命中 token：VERIFIED/BLOCKED/NEEDS_REVIEW/STALE/CANCELLED/ERROR/FAILED/EXPIRED) /
+  「脸+行动」双语（face/act）/ 真实路由（每个脸配一对应功能页如 #/matrix 或 #/explorer/#/audit）/
+  路由按钮文案两语言；
+* `apps/web/src/pages/Gestures.tsx`：三栏布局——左：牌匾网格（可敲、aria-pressed、罗马数字、✓ 标记）；
+  右：当前姿态详情（大号罗马数字、姿态名、token chip、两段文案、指向真实页面的按钮）/
+  顶部收集计数器（0/14、完成时一句"十四式全章——验收官人格在本机已完整"）；
+* `USER_GUIDE.md`/`EN/USER_GUIDE_EN.md` §3 加 `/gestures` 行（49 页、侧栏 18 入口同步校准）；
+* 验迹：Gestures.test.tsx **3/3**（默认渲染十四张牌匾 + 收集入库/出库 + EN 渲染与 zh 无遗留）；
+  vitest 全量 **491/491**；`npm run build` 绿（index 265.94 kB / gzip 90.30 kB）；tsc 净；ledger 45/45。
+
+### 三、诚实边界
+
+* 收集奖杯**仅在本机**——它没有任何服务端价值，不会被当作验收证据的一部分使用；
+* 姿态与 verdict token 的对应关系是正史附录丙已立的**象征映射**（每张脸都可指到
+  `apps/web/src/ui/verdict.ts` 的真实 token），不是验收语义本身；
+* 英文版：EN 版本名是原创写的英文（The Look / The Challenge / The Probe / … The Waved Hand），
+  不是机器直译。

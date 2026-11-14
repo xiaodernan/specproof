@@ -519,3 +519,36 @@
 .museum-anchor { font-size: var(--text-xs); color: var(--color-text-2); word-break: break-all; }
 .museum-colophon { font-size: var(--text-xs); }
 @media (max-width: 640px) { .museum-plaque-head { grid-template-columns: 40px 1fr auto; } .museum-tag-chip { display: none; } }
+
+.gestures-page { display: grid; gap: var(--sp-4); max-width: 1080px; }
+.gestures-en { color: var(--color-text-3); font-weight: 400; }
+.gestures-progress { display: flex; gap: var(--sp-3); align-items: baseline; padding: var(--sp-2) var(--sp-3);
+  background: var(--color-surface-2); border: 1px solid var(--color-border-2); border-radius: var(--radius-md); }
+.gestures-progress strong { font-variant-numeric: tabular-nums; color: var(--accent-text); }
+.gestures-layout { display: grid; grid-template-columns: 1fr 380px; gap: var(--sp-4); align-items: start; }
+@media (max-width: 900px) { .gestures-layout { grid-template-columns: 1fr; } }
+.gestures-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: var(--sp-2); }
+.gesture-card {
+  position: relative; display: grid; gap: 2px; place-items: center; padding: var(--sp-3) var(--sp-2);
+  background: var(--color-surface-2); border: 1px solid var(--color-border-2); border-radius: var(--radius-md);
+  cursor: pointer; color: var(--color-text-2); transition: transform .12s ease, border-color .12s ease;
+}
+.gesture-card:hover { border-color: var(--accent-ring); transform: translateY(-2px); }
+.gesture-card-owned { border-color: var(--accent-soft); background: var(--color-surface-3); }
+.gesture-card-selected { border-color: var(--accent-ring); box-shadow: 0 0 0 2px var(--accent-soft); }
+.gesture-numeral { font: 600 var(--text-sm) var(--font-mono); color: var(--color-text-3); }
+.gesture-zh { font-size: var(--text-xl); color: var(--color-text-1); font-weight: 700; }
+.gesture-en { font-size: var(--text-xs); color: var(--color-text-3); letter-spacing: .04em; }
+.gesture-token { font: 600 10px var(--font-mono); color: var(--accent-text); }
+.gesture-check { position: absolute; top: 6px; right: 8px; color: var(--accent-text); font-weight: 700; }
+.gesture-detail { border: 1px solid var(--color-border-2); border-radius: var(--radius-md); background: var(--color-surface-2);
+  padding: var(--sp-4); display: grid; gap: var(--sp-3); position: sticky; top: var(--sp-4); }
+.gesture-detail-head { display: flex; gap: var(--sp-3); align-items: center; }
+.gesture-detail-numeral { font: 700 42px/1 var(--font-mono); color: var(--accent-text); }
+.gesture-detail h2 { margin: 0; font-size: var(--text-xl); color: var(--color-text-1); }
+.gesture-token-chip { display: inline-block; margin-top: var(--sp-1); padding: 2px 8px; border-radius: var(--radius-sm);
+  border: 1px solid var(--accent-soft); color: var(--accent-text); font: 600 var(--text-xs) var(--font-mono); }
+.gesture-face { font-size: var(--text-lg); color: var(--color-text-1); margin: 0; }
+.gesture-act { color: var(--color-text-2); margin: 0; }
+.gesture-token-note { font-size: var(--text-xs); margin: 0; }
+.gestures-colophon { font-size: var(--text-xs); }
