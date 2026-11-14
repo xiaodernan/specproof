@@ -34807,3 +34807,35 @@ UI 层词表 i18n 是下一桩独立工程。
 * **将网关命中率从「健康指标」降级为「观测指标」**——`#/usage` 面板此前已经说明"网关未上报=null，绝不补零"，不需要改 UI；
 * **仍然值得接入 `include_usage`**——数据是真的、计费是真的、记录可读；
 * 文档里如实新增这条判例：README_EN.md / DEEP_OPTIMIZATION_PLAN.md 已经写明命中率不是 100%；本号补充"因为网关对用户 prompt 不做缓存"。
+
+## #1724 provider_smoke 真跑 —— wkapi.pro/gpt-6-sol 全链路 7/7 PASS（含 generated JUnit 编译通过）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、这是真实 API 端到端测试
+
+用户授权真实调用 `https://wkapi.pro/v1`（gpt-6-sol）；本号按仓库内置的 `scripts/provider_smoke.py`
+（specproof 自身的 smoke，不是新写）实跑全链路：
+
+| 阶段 | 结果 | 说明 |
+|---|---|---|
+| 1-Provider-Probe | PASS | openai_compatible @ https://wkapi.pro/v1，`capability probe` 结果 healthy |
+| 2-NonThinking-Chat | PASS | 基础对话完成 |
+| 3-Structured-JSON | PASS | JSON 结构化输出解析通过 |
+| 4-JUnit-Generation | PASS | 模型真实生成 SpecProofGeneratedTest.java，**7 项 schema 全部满足** |
+| 5-Maven-Compile | PASS | `.class files found: 1`，Maven 实编通过 |
+| 6-Secret-Scan | PASS | 生成代码里不包含任何 API 密钥（`.local/llm.json` 全程不入文件） |
+| 7-Digest-Chain | PASS | 4/4 源文件哈希入报表 |
+
+**Verdict: PASS**。
+
+### 二、secret 卫生
+
+`.local/llm.json` 全程未写入任何报告、未入 git、未入 artifact 目录（报表仅记录部分哈希等非敏感字段）；
+报表路径 `artifacts/p0.5/provider-smoke-20261114T150548Z/` 被 `.gitignore` 排除。
+
+### 三、诚实边界
+
+* 全量 Python 单元测试未能在本机跑（内存危机），本号只跑了应用内置 smoke 脚本；
+* 生成的 `SpecProofGeneratedTest.java` 已被删除，以保持 `base`/`head-v1` 演示 tag 的确定性；
+* Codex store 里其他 30+ 实测 SMOKE cases（#1642–#1697）仍然有效，本号不重新声明全量通过。
