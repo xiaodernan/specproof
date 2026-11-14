@@ -490,6 +490,69 @@ The cache is a mirror: how honest you are with it, your prompts are that efficie
 
 ---
 
+
+## Scroll 14 · The Fourteen Iron Vows
+
+> Scroll 13 was self-discipline; Scroll 14 nails it into institution. This scroll no longer teaches systems, only the rules — printed on the wall, so every commit can see them.
+
+### 14.1 The iron evidence is never re-written
+
+"It ran once" is not "it will run again." Once the iron evidence lands, erasing it and re-signing it is forgery. Capability may be re-implemented by new code; evidence may only be appended.
+
+### 14.2 Never draw a fake point
+
+Missing is missing. When the gateway does not report cached_tokens, print "—", never zero; when the line breaks, let it break. SpecProof would rather hand over a solid line with honest gaps than a smooth line of lies.
+
+### 14.3 A gate is not a slogan
+
+A gate is allowed to go red. A red gate is not a face-saving excuse; it is the debt you owe this system. One "it was failing but we considered" reads as one undelivered piece of evidence.
+
+### 14.4 The reds are kept
+
+Every failure's count, file and reason is written into the ledger. SpecProof has no "remove the failure record" feature; if a failure vanishes from history, it is not the product changing — it is the chronicler losing their job.
+
+### 14.5 Never forge
+
+When certificates are generated, do not assume "it must have passed"; when approvals are asked, do not presume "it should work"; when output is printed, do not re-express what humans decided. The evidence speaks; you keep its mouth shut or open honestly.
+
+### 14.6 No substitution of roles
+
+An acceptance officer cannot replace a developer; a developer cannot replace an acceptance officer's judgement. The one who writes owns every line written; the one who verifies owns every piece of evidence found. Neither speaks for the other.
+
+### 14.7 Must reproduce
+
+No one should be asked to believe a spur-of-the-moment eerie behavior that cannot reproduce in a fresh environment. The bug capsule exists so that "eerie" can happen twice.
+
+### 14.8 Test hostility
+
+Tests cover the happy path, and the reverse path; a test does not only "should work", it also "cannot be deceived". Counter-examples are not invented; they come from the requirement — base_pass_head_fail.
+
+### 14.9 Division of labor
+
+The chronicler records; the officer verifies; the developer implements; the compliance guard complies. No one is allowed to play two roles at once.
+
+### 14.10 No guessing
+
+What cannot be seen clearly is "unknown". In SpecProof reports, "unknown" is a legal state, and more trustworthy than "probably fine".
+
+### 14.11 Better to be plain
+
+State "275 fast tests", not "all tests are green". Each commit prints what it did and what it did not; nothing is left to inference.
+
+### 14.12 Blank is its own silence
+
+A blank is not nothing; every "unknown" need not be filled with guesses.
+
+### 14.13 Connects the suspicious hand
+
+Anyone who presses "accept" must carry the consequences of "accept". After you clicked, the system still works with the iron evidence — it does not inherit your blindness, nor feed your fantasy.
+
+### 14.14 The last iron vow
+
+**Evidence comes before people; people are responsible for the evidence.** Whether you are a developer, an acceptance officer, or the reader here now — the first thirteen are operational rules; this one is ontology.
+
+---
+
 ## Final Scroll · The Unfinished
 
 Every victory, defeat, ledger, and scroll in this book lands on one answer:
