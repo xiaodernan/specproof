@@ -35490,3 +35490,37 @@ Eureka 自签启动、Config native 配置合法——这是微服务车道第�
 * `services/` 只有三个模块被重验；control-plane 未跑；
 * UI/Agent 的 CJK 残余中文面（FindingDetail/Agent 系列/UiKit 139 行级）**仍是中文原生**——sweep 已定位但未译，列为下一个大条目；
 * 全套 `pytest tests/unit` 仍未跑完。
+
+## #1748 四服务铁证大一统 —— control-plane 51/51，微服务车道四件套全绿；FindingDetail 页双语化
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、`services/control-plane` 本机实跑（2026-11-15）
+
+```text
+mvn -o -B -ntp test  # H2 内存库 + localhost Redis 6379 + RabbitMQ 5672（本机实跑均在线）
+[INFO] Tests run: 51, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS                     Total time: 01:14 min
+```
+
+代表用例：`OutboxRelayServiceTest` 3/3 · `RedisJobReadCacheTest` 真 Redis 读写 ·
+`InMemoryJobReadCacheTest` · `JobCacheBreakerPressureTest` · `ControlPlaneOfflineResilienceTests`。
+
+**全四服务本机实测：gateway 81/81 + discovery 1/1 + config 1/1 + control-plane 51/51 = 134 green**；
+`services/README.md` §3 已更新——如实注明 Eureka 复制器续栈打印的是 offline noise，
+suite 是为正确原因变绿，不被噪声掩盖。
+
+### 二、FindingDetail 全页双语化
+
+`apps/web/src/pages/FindingDetail.tsx` —— 50 个面向用户界面的中文字面量 → i18n key
+（`fd.*`），zh 逐字、en 手译；`useI18n()` 全页解析；`rateText(t, …)` 与 `describeFeedbackError(t, …)`
+ 按 locale 解析；`STATE_KEYS`/`receiptText(t, receipt.state)` helper 化（消了 TS6133/2552 两处类型红点）。
+CJK 残留全面清查：详情页无面向用户的原生中文字面量（注释保留中文，考虑周全）；
+`FindingDetail.test.tsx` 26/26 保持绿（zh 逐字）。
+
+### 三、诚实边界
+
+* Agent 系控制台（`agent/*` 约 240 行 CJK）、`ui/copySummary.ts`/`glossary.ts`/ui-kit 剩余 props、
+  `Explorer`/`Epic` 剩希望本号不越权一笔——**下一大节**；
+* 134/134 是本机执行一次实况——不构成稳定性/容量承诺；
+* 全量 `pytest tests/unit` 未跑完；E2E 未跑。

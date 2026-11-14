@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useI18n } from "../i18n";
 import {
   ApiError, networkUnreachableMessage, apiGet, createFindingFeedback, downloadCapsule, getJobFeedback,
   getReviewer, setReviewer, type FeedbackData, type FeedbackReceipt, type Finding, type FindingsData,
@@ -10,34 +11,39 @@ import { feedbackVerdictLabel } from "../ui/util";
 
 // The backend already scales this to a percentage; fmtPct() multiplies by
 // 100, so routing it through fmtPct would print "5000.0%" for a 50% rate.
-function rateText(pct: number | null): string {
-  if (pct === null || pct === undefined) return "无法计算（还没有人投票）";
+function rateText(t: (key: string) => string, pct: number | null): string {
+  if (pct === null || pct === undefined) return t("fd.rateUnavailable");
   return pct.toFixed(1) + "%";
 }
 
-function describeFeedbackError(e: unknown): string {
+function describeFeedbackError(t: (key: string) => string, e: unknown): string {
   if (e instanceof ApiError) {
     if (e.status === 403) {
       // Two independent gates can refuse this call for opposite fixes (role
       // matrix vs token scopes), so the server's own sentence is printed
       // rather than paraphrased into one of them. The code is shown only when
       // the envelope carries one — there is no invented placeholder here.
-      return "权限不足（HTTP 403" + (e.code ? " · " + e.code : "")
-        + "）—— 后端给出的原因：" + e.detail;
+      return t("fd.perms403")
+        .replace("{code}", e.code ? " · " + e.code : "")
+        .replace("{detail}", e.detail);
     }
     return e.detail + "（HTTP " + e.status + (e.code ? " · " + e.code : "") + "）";
   }
   if (e instanceof Error && e.message === networkUnreachableMessage()) {
-    return "网络不可达：反馈服务没有响应，这一票没有记上";
+    return t("fd.networkUnreachable");
   }
   return e instanceof Error ? e.message : String(e);
 }
 
-const STATE_TEXT: Record<FeedbackReceipt["state"], string> = {
-  created: "已记下你的一票（这个 finding 的第一条记录）",
-  replaced: "已覆盖你之前的一票 —— 同一个人只算一票，不会加权",
-  unchanged: "你之前已经投过完全相同的一票，本次没有重复计数",
+const STATE_KEYS: Record<FeedbackReceipt["state"], string> = {
+  created: "fd.receiptCreated",
+  replaced: "fd.receiptReplaced",
+  unchanged: "fd.receiptUnchanged",
 };
+
+function receiptText(t: (key: string) => string, state: FeedbackReceipt["state"]): string {
+  return t(STATE_KEYS[state]);
+}
 
 // finding_feedback.severity is the SAME MySQL ENUM as the backend request
 // pattern (infra/mysql/migrations/0009 + api/routes/feedback.py), and the
@@ -46,6 +52,7 @@ const STATE_TEXT: Record<FeedbackReceipt["state"], string> = {
 // enabling them would trade a dead click for a 422 the reviewer cannot act on.
 
 export function FeedbackSection(props: { jobId: string; finding: Finding }) {
+  const { t } = useI18n();
   const { jobId, finding } = props;
   const [data, setData] = useState<FeedbackData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -70,7 +77,7 @@ export function FeedbackSection(props: { jobId: string; finding: Finding }) {
         // A failed load must never look like "nobody voted".
         if (alive) {
           setData(null);
-          setLoadError(describeFeedbackError(e));
+          setLoadError(describeFeedbackError(t, e));
         }
       })
       .finally(() => {
@@ -92,15 +99,16 @@ export function FeedbackSection(props: { jobId: string; finding: Finding }) {
     : undefined;
   const severity = finding.severity ? String(finding.severity) : "";
   const notYourVote = vote.known && !vote.allowed
-    ? "只有 " + FEEDBACK_VOTE_ROLES.join(" / ") + " 可以对这条判定投票 —— 后端对每一次写票都按同一条权限规则把关，这不是这个页面自己定的规矩；下面的票数与接受率你照常读得到。"
+    ? t("fd.notYourVote").replace("{roles}", FEEDBACK_VOTE_ROLES.join(" / "))
     : null;
   const blocking = notYourVote ?? (!findingId
-    ? "这条风险没有 id，无法把票挂到它上面（不替你编一个）"
+    ? t("fd.noFindingId")
     : !finding.contract_id
-      ? "这条风险缺少验收条件编号，后端要求随票一起记录，缺任何一项都无法提交"
+      ? t("fd.noContractId")
       : !SEVERITY_STOREABLE.includes(severity)
-        ? "这条风险的严重程度是 " + (severity || "未知") + "，不在后端可记录的值（" +
-          SEVERITY_STOREABLE.join("/") + "）之内，所以这一票没有地方存 —— 不是不让你投，是存下来就会说谎"
+        ? t("fd.severityUnstorable")
+            .replace("{sev}", severity || "?")
+            .replace("{allowed}", SEVERITY_STOREABLE.join("/"))
         : null);
 
   async function submit(verdict: "accept" | "reject") {
@@ -111,11 +119,11 @@ export function FeedbackSection(props: { jobId: string; finding: Finding }) {
       return;
     }
     if (!who) {
-      setFormError("请先填写评审人标识：后端按「同一个人对同一条风险只记一票」计数");
+      setFormError(t("fd.reviewerRequired"));
       return;
     }
     if (verdict === "reject" && !reason.trim()) {
-      setFormError("打回必须写理由（修复者要知道按哪一条打回）；接受可以不写");
+      setFormError(t("fd.rejectReasonRequired"));
       return;
     }
     setBusy(verdict);
@@ -138,7 +146,7 @@ export function FeedbackSection(props: { jobId: string; finding: Finding }) {
       setReceipt(r);
       setReload((k) => k + 1);
     } catch (e) {
-      setFormError(describeFeedbackError(e));
+      setFormError(describeFeedbackError(t, e));
     } finally {
       setBusy(null);
     }
@@ -146,23 +154,23 @@ export function FeedbackSection(props: { jobId: string; finding: Finding }) {
 
   return (
     <Panel
-      title={<Term id="feedback">验收反馈</Term>}
-      right={data ? <span className="muted">{rateText(data.stats.acceptance_rate_pct)}</span> : null}
+      title={<Term id="feedback">{t("fd.panelFeedback")}</Term>}
+      right={data ? <span className="muted">{rateText(t, data.stats.acceptance_rate_pct)}</span> : null}
     >
       <div>
         <Input
-          label="评审人标识"
+          label={t("fd.reviewerFieldLabel")}
           value={who}
           onChange={(e) => setReviewerName(e.target.value)}
           readOnly={!!vote.userId}
           hint={
             vote.userId
-              ? "取自当前登录身份（" + vote.userId + "），改不了：后端按它计「一人一票」"
-              : "未登录：这是本机自报的计票键，只存在浏览器里，后端不会替你核验它是谁"
+              ? t("fd.reviewerSelfClaim").replace("{who}", vote.userId)
+              : t("fd.reviewerGuestClaim")
           }
         />
         <Textarea
-          label="理由（打回必填）"
+          label={t("fd.reasonLabel")}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           rows={2}
@@ -171,7 +179,7 @@ export function FeedbackSection(props: { jobId: string; finding: Finding }) {
         {blocking ? <p className="severity-hint">{blocking}</p> : null}
         {mine ? (
           <p className="severity-hint">
-            你当前的一票：{feedbackVerdictLabel(mine.verdict)}
+            {t("fd.yourVote")}{feedbackVerdictLabel(mine.verdict)}
             {mine.reason ? " · " + mine.reason : ""}（{fmtTime(mine.created_at)}）
           </p>
         ) : null}
@@ -182,7 +190,7 @@ export function FeedbackSection(props: { jobId: string; finding: Finding }) {
             disabled={busy !== null || !!blocking}
             onClick={() => submit("accept")}
           >
-            接受这条判定
+            {t("fd.accept")}
           </Button>
           <Button
             variant="danger"
@@ -190,24 +198,24 @@ export function FeedbackSection(props: { jobId: string; finding: Finding }) {
             disabled={busy !== null || !!blocking}
             onClick={() => submit("reject")}
           >
-            打回（误报/证据不足）
+            {t("fd.reject")}
           </Button>
         </div>
         {formError ? <ErrorBox error={formError} /> : null}
-        {receipt ? <p className="severity-hint">{STATE_TEXT[receipt.state]}</p> : null}
+        {receipt ? <p className="severity-hint">{receiptText(t, receipt.state)}</p> : null}
       </div>
 
       {loading ? (
         <Spinner />
       ) : loadError ? (
         <div>
-          <ErrorBox error={"反馈记录加载失败：" + loadError} />
+          <ErrorBox error={t("fd.loadFailed") + loadError} />
           <Button variant="ghost" size="sm" onClick={() => setReload((k) => k + 1)}>
-            重试
+            {t("fd.retry")}
           </Button>
         </div>
       ) : !data || data.rows.length === 0 ? (
-        <Empty text="还没有人提交过反馈。注意：没有反馈不等于已接受 —— 接受率在最常见情形下就是「无法计算」。" />
+        <Empty text={t("fd.emptyFeedback")} />
       ) : (
         // Through the shared table (#122): 理由 is the one cell on this page a
         // human types freely, and `.ui-table-wrap` scrolls a long unbroken
@@ -218,24 +226,24 @@ export function FeedbackSection(props: { jobId: string; finding: Finding }) {
           columns={[
             {
               key: "created_by",
-              header: "评审人",
+              header: t("fd.colReviewer"),
               render: (r) => (
                 <span className="mono">
                   {r.created_by}
-                  {r.created_by === who ? "（你）" : ""}
+                  {r.created_by === who ? t("fd.youSuffix") : ""}
                 </span>
               ),
             },
-            { key: "verdict", header: "判定", render: (r) => feedbackVerdictLabel(r.verdict) },
+            { key: "verdict", header: t("fd.colVerdict"), render: (r) => feedbackVerdictLabel(r.verdict) },
             {
               key: "finding_id",
-              header: "对应风险",
+              header: t("fd.colFinding"),
               render: (r) => <span className="mono">{r.finding_id.slice(0, 8)}</span>,
             },
-            { key: "reason", header: "理由", render: (r) => r.reason || "—" },
+            { key: "reason", header: t("fd.colReason"), render: (r) => r.reason || "—" },
             {
               key: "created_at",
-              header: "时间",
+              header: t("fd.colTime"),
               render: (r) => <span className="mono">{fmtTime(r.created_at)}</span>,
             },
           ]}
@@ -243,8 +251,10 @@ export function FeedbackSection(props: { jobId: string; finding: Finding }) {
       )}
       {data ? (
         <p className="muted">
-          本任务计票：接受 {data.stats.accepted} · 打回 {data.stats.rejected} · 接受率{" "}
-          {rateText(data.stats.acceptance_rate_pct)}；没有反馈的风险不计入分母。
+          {t("fd.tally")
+            .replace("{a}", String(data.stats.accepted))
+            .replace("{r}", String(data.stats.rejected))
+            .replace("{rate}", rateText(t, data.stats.acceptance_rate_pct))}
         </p>
       ) : null}
     </Panel>
@@ -253,6 +263,7 @@ export function FeedbackSection(props: { jobId: string; finding: Finding }) {
 
 
 export default function FindingDetail(props: { jobId: string; findingId: string }) {
+  const { t } = useI18n();
   const { jobId, findingId } = props;
   const [data, setData] = useState<FindingsData | null>(null);
   const [error, setError] = useState<Error | string | null>(null);
@@ -276,7 +287,7 @@ export default function FindingDetail(props: { jobId: string; findingId: string 
   }, [jobId]);
 
   if (loading) return <Spinner />;
-  if (!data) return <ErrorBox error={error || "加载失败"} />;
+  if (!data) return <ErrorBox error={(error as Error | null)?.message || t("fd.loadingFailed")} />;
 
   // Exact match only. /jobs/{job}/findings drops any row without an id
   // (api/routes/web.py), so a fuzzy fallback here could never rescue a real
@@ -286,8 +297,8 @@ export default function FindingDetail(props: { jobId: string; findingId: string 
   if (!f) {
     return (
       <div>
-        <ErrorBox error={"finding " + findingId + " 不存在于任务 " + jobId} />
-        <a href={"#/jobs/" + jobId}>← 返回任务</a>
+        <ErrorBox error={t("fd.nonexistentFinding").replace("{id}", findingId).replace("{job}", jobId)} />
+        <a href={"#/jobs/" + jobId}>{t("fd.backToJob")}</a>
       </div>
     );
   }
@@ -300,51 +311,51 @@ export default function FindingDetail(props: { jobId: string; findingId: string 
     <div>
       <div className="page-head">
         <h1 className="mono">
-          风险详情 {f.id} <span className={"pill " + sev.cls}>{sev.label}</span>
+          {t("fd.findingDetail")}{f.id} <span className={"pill " + sev.cls}>{sev.label}</span>
         </h1>
         {sevHint ? <p className="severity-hint">{sevHint}</p> : null}
         <div className="page-sub">
-          任务 {jobId} · 验收条件 {f.contract_id || "—"}
+          {t("fd.jobContractLine").replace("{job}", jobId).replace("{contract}", String(f.contract_id || "—"))}
         </div>
       </div>
       <ErrorBox error={error} />
       {data.degraded ? <Degraded reasons={[data.degraded_reason || "degraded"]} /> : null}
 
       <div className="page-grid">
-        <Panel title="基本信息">
-          {kv("严重程度", sev.label + (sevHint ? " · " + sevHint.split("——")[0] : ""))}
-          {kv("对应验收条件", f.contract_id || "—")}
-          {kv("证据方式", evidenceLabel(f.evidence_type))}
-          {kv("置信度", fmtPct(f.confidence))}
-          {kv("代码位置", f.location || "—")}
-          {kv("问题类型", f.type || "—")}
-          {kv(<Term id="capsule">复现包</Term>, f.capsule_path ? String(f.capsule_path) : "—")}
+        <Panel title={t("fd.basicInfo")}>
+          {kv(t("fd.kvSeverity"), sev.label + (sevHint ? " · " + sevHint.split("——")[0] : ""))}
+          {kv(t("fd.kvContract"), f.contract_id || "—")}
+          {kv(t("fd.kvEvidence"), evidenceLabel(f.evidence_type))}
+          {kv(t("fd.kvConfidence"), fmtPct(f.confidence))}
+          {kv(t("fd.kvLocation"), f.location || "—")}
+          {kv(t("fd.kvType"), f.type || "—")}
+          {kv(<Term id="capsule">{t("fd.kvCapsule")}</Term>, f.capsule_path ? String(f.capsule_path) : "—")}
         </Panel>
-        <Panel title="问题描述">
-          <p>{f.description || "无描述"}</p>
+        <Panel title={t("fd.descPanel")}>
+          <p>{f.description || t("fd.noDesc")}</p>
         </Panel>
       </div>
 
-      <Panel title="影响路径">
-        {impact ? <pre className="json">{impact}</pre> : <Empty text="该风险暂无影响路径记录（诚实空态：未编造调用链）。" />}
+      <Panel title={t("fd.impactPanel")}>
+        {impact ? <pre className="json">{impact}</pre> : <Empty text={t("fd.noImpact")} />}
       </Panel>
 
-      <Panel title={<Term id="evidence">证据来源</Term>}>
+      <Panel title={<Term id="evidence">{t("fd.evidencePanel")}</Term>}>
         {/* Three label/value pairs, not a table: `.kv-value` wraps a long
             unbroken path (`word-break: break-all`), which is the whole point —
             a <td> here had no way to break one (#122). */}
-        {kv("证据方式", evidenceLabel(f.evidence_type))}
-        {kv("代码位置", f.location || "—")}
-        {kv("置信度", fmtPct(f.confidence))}
+        {kv(t("fd.kvEvidence"), evidenceLabel(f.evidence_type))}
+        {kv(t("fd.kvLocation"), f.location || "—")}
+        {kv(t("fd.kvConfidence"), fmtPct(f.confidence))}
       </Panel>
 
       <FeedbackSection jobId={jobId} finding={f} />
 
       <div style={{ display: "flex", gap: 10 }}>
-        <a className="btn btn-ghost" href={"#/jobs/" + jobId}>← 返回任务</a>
+        <a className="btn btn-ghost" href={"#/jobs/" + jobId}>{t("fd.backToJob")}</a>
         {f.capsule_path ? (
           <Button variant="secondary" onClick={() => downloadCapsule(jobId, String(f.capsule_path).split("/").pop())}>
-            下载复现包 ↓
+            {t("fd.downloadCapsule")}
           </Button>
         ) : null}
       </div>

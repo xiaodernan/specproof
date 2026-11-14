@@ -68,9 +68,21 @@ mvn -o -B -ntp test      # services/config-server, native profile against repo c
 [INFO] BUILD SUCCESS                         Total time: 00:37 min
 ```
 
-That is three of four services re-run on this machine this round — gateway 81/81, discovery 1/1,
-config 1/1; **control-plane was not re-run** (12 `*Test.java` classes on disk, not executed now),
-don't extrapolate the three into the fourth.
+**control-plane — real run on this machine (2026-11-15)**:
+
+```text
+mvn -o -B -ntp test   # services/control-plane; H2 embedded + localhost Redis 6379 + RabbitMQ 5672 reachable
+[INFO] Tests run: 51, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS                     Total time: 01:14 min
+```
+
+Landmarks: `ControlPlaneOfflineResilienceTests` · `ControlPlanePrometheusEndpointTests` ·
+`OutboxRelayServiceTest` 3/3 · `RedisJobReadCacheTest` & `InMemoryJobReadCacheTest` (real Redis reads) ·
+`JobCacheBreakerPressureTest`. A replicator stack trace from Eureka (unavailable registry, offline) is
+expected noise — the suite stays green for the right reason; it is not hidden by that noise.
+
+**That is all four Spring Cloud services on this machine, re-run this round:
+gateway 81/81 · discovery-server 1/1 · config-server 1/1 · control-plane 51/51 = 134 tests green.**
 
 ## 4. Honest limits / 诚实边界
 
