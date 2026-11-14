@@ -2,6 +2,8 @@ import { useState, type FormEvent } from "react";
 import { createVerification, prepareDemoRepo, type ApiError, type VerificationRequest } from "../api";
 import { DEMO_VERIFY, DEMO_VERIFY_REPO_NOTE } from "../demo";
 import { Breadcrumbs, Button, ErrorBox, Input, Term } from "../ui";
+import { useI18n } from "../i18n";
+import { NEW_VERIFICATION_BY_LOCALE, type NewVerificationCopy } from "./newVerification.copy";
 import "../styles/verification.css";
 import "./onboarding.css";
 
@@ -9,8 +11,9 @@ const initial: VerificationRequest = {
   repo_path: "", spec_path: "", base_ref: "main", head_ref: "HEAD", depth: "FAST",
 };
 
-// 演示案例：值从环境变量注入，缺省时顶部快捷横幅隐藏；页面底部仍保留
-// 内置相对路径的填充按钮（本地一键体验见 scripts/prepare_demo_repo.ps1）。
+// Demo coordinates default to whatever the host wire know as demo; when unset
+// the demo paragraph and fill button degrade honestly instead of offering a
+// button that cannot work.
 const demoEnv = (import.meta as ImportMeta & {
   env?: Record<string, string | undefined>;
 }).env ?? {};
@@ -22,13 +25,10 @@ const DEMO = {
 };
 const demoAvailable = Boolean(DEMO.repo && DEMO.spec);
 
-// 把后端错误翻译成对用户友好的中文提示。零依赖轻量模式下网页版 Verify
-// 需要 MySQL/Redis，缺失时后端返回 503 PROVIDER_UNAVAILABLE——这里给出可操作的
-// 下一步（改用 CLI 或启动依赖服务），而不是把英文堆栈直接抛给用户。
-function describeSubmitError(e: unknown): string {
+function describeSubmitError(e: unknown, c: NewVerificationCopy): string {
   const err = e as { status?: number; code?: string; message?: string };
   if (err?.status === 503 || err?.code === "PROVIDER_UNAVAILABLE") {
-    return "验证服务暂时不可用：网页版需要 MySQL / Redis 等后端服务。若你在使用免 Docker 的轻量模式，请改用命令行 `specproof verify`，或先启动这些服务后重试。";
+    return c.error503;
   }
   // A transport failure (backend down, wrong API base, offline, CORS) surfaces
   // as a TypeError with no status/code — the browser's raw "Failed to fetch"
@@ -37,9 +37,9 @@ function describeSubmitError(e: unknown): string {
     err?.status === undefined &&
     /failed to fetch|networkerror|load failed|err_network|econn|timed out|timeout/i.test(err?.message || "")
   ) {
-    return "无法连接到验证服务，任务未提交。请确认后端已启动、地址填写正确（见「模型连接 / 设置」中的 API 地址），然后重试。";
+    return c.errorNetwork;
   }
-  return err?.message || "任务创建失败，请检查服务连接后重试。";
+  return err?.message || c.errorFallback;
 }
 
 function readPrefill(search: string): VerificationRequest | null {
@@ -56,6 +56,8 @@ function readPrefill(search: string): VerificationRequest | null {
 }
 
 export default function NewVerification() {
+  const { locale } = useI18n();
+  const c = NEW_VERIFICATION_BY_LOCALE[locale];
   // The route hash may carry ?repo=&spec=&base=&head= prefill params
   // (e.g. from the Guide page's demo button). Parsed once on mount.
   const [prefill] = useState<VerificationRequest | null>(() => {
@@ -94,28 +96,29 @@ export default function NewVerification() {
     setError(null);
   };
 
-  const submit = async (event: FormEvent) => {    event.preventDefault();
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
     if (submitting) return;
     const payload: VerificationRequest = {
       repo_path: form.repo_path.trim(), spec_path: form.spec_path.trim(),
       base_ref: form.base_ref.trim(), head_ref: form.head_ref.trim(), depth: "FAST",
     };
     const nextErrors: typeof errors = {};
-    if (!payload.repo_path) nextErrors.repo_path = "请填写执行服务可访问的 Git 仓库路径。";
-    if (!payload.spec_path) nextErrors.spec_path = "请填写描述预期行为的需求文件路径。";
-    if (!payload.base_ref) nextErrors.base_ref = "请填写用于比较的基准分支或提交。";
-    if (!payload.head_ref) nextErrors.head_ref = "请填写待检查的分支或提交。";
-    if (payload.base_ref && payload.base_ref === payload.head_ref) nextErrors.head_ref = "请选择与基准不同的版本，才能检查代码变化。";
+    if (!payload.repo_path) nextErrors.repo_path = c.repoRequired;
+    if (!payload.spec_path) nextErrors.spec_path = c.specRequired;
+    if (!payload.base_ref) nextErrors.base_ref = c.baseRequired;
+    if (!payload.head_ref) nextErrors.head_ref = c.headRequired;
+    if (payload.base_ref && payload.base_ref === payload.head_ref) nextErrors.head_ref = c.headSameAsBase;
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
     setSubmitting(true);
     setError(null);
     try {
       const result = await createVerification(payload);
-      if (!result.job_id) throw new Error("服务未返回任务编号，请刷新验证记录，确认是否已创建后再重试。");
+      if (!result.job_id) throw new Error(c.noJobId);
       window.location.hash = "#/jobs/" + encodeURIComponent(result.job_id);
     } catch (e) {
-      setError(describeSubmitError(e));
+      setError(describeSubmitError(e, c));
       setSubmitting(false);
     }
   };
@@ -133,15 +136,15 @@ export default function NewVerification() {
       fillDemo();
       setPrepareStatus(
         result.created
-          ? "已创建演示仓库（" + result.refs.join(" / ") + "），演示案例已填入左侧表单。"
-          : "演示仓库已存在，演示案例已填入左侧表单。"
+          ? c.createdOk(result.refs.join(" / "))
+          : c.alreadyPresent,
       );
     } catch (e) {
       const err = e as ApiError;
       if (err?.status === 401) {
-        setPrepareError("需要先配置 API 密钥（见「模型连接 / 设置」）才能创建演示仓库。");
+        setPrepareError(c.needApiKey);
       } else {
-        setPrepareError(err?.detail || err?.message || "演示仓库创建失败，请稍后重试。");
+        setPrepareError(err?.detail || err?.message || c.prepareFailed);
       }
     } finally {
       setPreparing(false);
@@ -150,19 +153,16 @@ export default function NewVerification() {
 
   return (
     <div className="verification-page">
-      <Breadcrumbs items={[{ label: "验证记录", href: "#/jobs" }, { label: "新建验证" }]} />
+      <Breadcrumbs items={[{ label: c.breadcrumbJobs, href: "#/jobs" }, { label: c.breadcrumbNew }]} />
       <div className="page-head verification-heading">
-        <div><span className="verification-eyebrow">START A VERIFICATION</span><h1>这次改动，符合需求吗？</h1>
-        <p className="verification-description">选择代码的两个版本，再提供需求文件。SpecProof 会检查改动，并把结论与可追溯的<Term id="evidence">证据</Term>放在一起。</p></div>
+        <div><span className="verification-eyebrow">{c.eyebrow}</span><h1>{c.title}</h1>
+        <p className="verification-description">{c.description}</p></div>
       </div>
       <div className="verification-layout">
-        <form className="verification-form" onSubmit={submit} noValidate aria-label="新建验证">
+        <form className="verification-form" onSubmit={submit} noValidate aria-label={c.demoFormAria}>
           {demoAvailable && (
             <div className="demo-fill-banner" role="note">
-              <span>
-                第一次使用？点一下，把内置演示案例（含故意引入的权限回归）填入表单，
-                提交后即可在任务详情里看到真实的验收结论和证据。
-              </span>
+              <span>{c.demoBannerBody}</span>
               <Button
                 type="button"
                 size="sm"
@@ -178,51 +178,51 @@ export default function NewVerification() {
                   setDemoFilled(true);
                 }}
               >
-                用演示案例填充
+                {c.demoBannerButton}
               </Button>
             </div>
           )}
           <fieldset disabled={submitting}>
             <section className="verification-form-section">
-              <div className="verification-section-title"><span>01</span><div><h2>选择项目</h2><p>路径由执行服务读取，请使用服务端可访问的路径。</p></div></div>
-              <Input label="Git 仓库路径" required value={form.repo_path} onChange={(e) => update("repo_path", e.target.value)} placeholder="例如 /workspace/my-service" maxLength={512} error={errors.repo_path} hint="仓库需已存在于执行服务所在环境，且包含要比较的提交。" autoComplete="off" />
-              <Input label="需求文件路径" required value={form.spec_path} onChange={(e) => update("spec_path", e.target.value)} placeholder="例如 /workspace/my-service/spec.md" maxLength={1024} error={errors.spec_path} hint="建议填写绝对路径。文件中写明改动必须满足的行为和验收条件。" autoComplete="off" />
+              <div className="verification-section-title"><span>01</span><div><h2>{c.section01Title}</h2><p>{c.section01Body}</p></div></div>
+              <Input label={c.repoLabel} required value={form.repo_path} onChange={(e) => update("repo_path", e.target.value)} placeholder={c.repoPlaceholder} maxLength={512} error={errors.repo_path} hint={c.repoHint} autoComplete="off" />
+              <Input label={c.specLabel} required value={form.spec_path} onChange={(e) => update("spec_path", e.target.value)} placeholder={c.specPlaceholder} maxLength={1024} error={errors.spec_path} hint={c.specHint} autoComplete="off" />
             </section>
             <section className="verification-form-section">
-              <div className="verification-section-title"><span>02</span><div><h2>确定比较范围</h2><p>从基准版本到待检查版本，定位本次代码变化。</p></div></div>
+              <div className="verification-section-title"><span>02</span><div><h2>{c.section02Title}</h2><p>{c.section02Body}</p></div></div>
               <div className="verification-ref-grid">
-                <Input label="基准版本" required value={form.base_ref} onChange={(e) => update("base_ref", e.target.value)} placeholder="main" maxLength={255} error={errors.base_ref} hint="通常为 main，也可使用提交 SHA。" />
-                <Input label="待检查版本" required value={form.head_ref} onChange={(e) => update("head_ref", e.target.value)} placeholder="HEAD" maxLength={255} error={errors.head_ref} hint="通常为 HEAD 或功能分支名。" />
+                <Input label={c.baseLabel} required value={form.base_ref} onChange={(e) => update("base_ref", e.target.value)} placeholder={c.basePlaceholder} maxLength={255} error={errors.base_ref} hint={c.baseHint} />
+                <Input label={c.headLabel} required value={form.head_ref} onChange={(e) => update("head_ref", e.target.value)} placeholder={c.headPlaceholder} maxLength={255} error={errors.head_ref} hint={c.headHint} />
               </div>
             </section>
           </fieldset>
           <ErrorBox error={error} />
-          <div className="verification-submit"><Button type="button" variant="ghost" onClick={fillDemo} disabled={submitting}>填入演示案例</Button><span>使用当前可用的快速验证模式</span><Button type="submit" variant="primary" size="lg" loading={submitting}>{submitting ? "正在创建验证…" : "开始验证 →"}</Button></div>
+          <div className="verification-submit"><Button type="button" variant="ghost" onClick={fillDemo} disabled={submitting}>{c.demoFill}</Button><span>{c.submitNote}</span><Button type="submit" variant="primary" size="lg" loading={submitting}>{submitting ? c.submitting : c.submit}</Button></div>
         </form>
         <aside className="verification-guide">
-          <span className="verification-eyebrow">WHAT YOU GET</span><h2>从“看起来没问题”<br />到有证据的判断。</h2>
+          <span className="verification-eyebrow">WHAT YOU GET</span><h2>{c.benefitsTitle}</h2>
           <ol className="verification-benefits">
-            <li><strong>需求逐条对应</strong><p>看到每条<Term id="contract">验收条件</Term>的检查结果，以及尚未覆盖的部分。</p></li>
-            <li><strong>问题有据可查</strong><p>查看<Term id="finding">风险发现</Term>、影响位置与可用的复现证据。</p></li>
-            <li><strong>评审更有依据</strong><p>用验证报告支持代码评审；证据不足会明确标注。</p></li>
+            <li><strong>{c.benefitContractsStrong}</strong><p>{c.benefitContractsBefore}<Term id="contract">{c.benefitContractsTerm}</Term>{c.benefitContractsAfter}</p></li>
+            <li><strong>{c.benefitFindingsStrong}</strong><p>{c.benefitFindingsBefore}<Term id="finding">{c.benefitFindingsTerm}</Term>{c.benefitFindingsAfter}</p></li>
+            <li><strong>{c.benefitJudgesStrong}</strong><p>{c.benefitJudgesBody}</p></li>
           </ol>
-          <div className="verification-example"><strong>需求可以这样写</strong><p>未登录用户调用 <code>POST /orders</code> 时应返回 401，且不得创建订单。</p><span>明确条件、预期结果和禁止行为，比“优化订单功能”更容易验证。</span></div>
+          <div className="verification-example"><strong>{c.exampleTitle}</strong><p>{c.exampleBodyBefore}<code>{c.exampleBodyCode}</code>{c.exampleBodyAfter}</p><span>{c.exampleTail}</span></div>
           <div className="demo-prefill">
-            <strong>想立刻看到效果？</strong>
-            <p>项目自带一个演示仓库：改动前的版本权限检查完整，改动后的版本移除了邮箱修改接口的权限检查。提交验证后，预期结论为 <strong>发现风险</strong>（<code>BLOCKED</code>）— 你会看到具体风险、代码位置和证据。</p>
+            <strong>{c.prefillTitle}</strong>
+            <p>{c.prefillBodyBefore}<strong>{c.prefillStrong}</strong>{c.prefillBodyAfter}<code>{c.prefillBodyCode}</code>{c.prefillBodyTail}</p>
             <div className="demo-prefill-row">
-              <Button type="button" size="sm" onClick={fillDemo}>填入演示案例</Button>
+              <Button type="button" size="sm" onClick={fillDemo}>{c.prefillFill}</Button>
               <Button type="button" size="sm" variant="secondary" onClick={prepareDemo} disabled={preparing}>
-                {preparing ? "正在准备…" : "一键创建演示仓库"}
+                {preparing ? c.preparing : c.prepareDemo}
               </Button>
-              {demoFilled ? <span className="demo-prefill-status" role="status">已填入左侧表单，直接点「开始验证」</span> : null}
+              {demoFilled ? <span className="demo-prefill-status" role="status">{c.prefillPrepared}</span> : null}
             </div>
             {prepareStatus ? <span className="demo-prefill-status" role="status">{prepareStatus}</span> : null}
             {prepareError ? <span className="demo-prefill-error" role="alert">{prepareError}</span> : null}
             <code className="demo-prefill-code">{DEMO_VERIFY_REPO_NOTE}</code>
           </div>
-          <p className="verification-note">当前验收主要依赖已有 Java / Spring 检查器；不支持的需求会标记覆盖不足。提交后需由执行服务处理。验证耗时取决于改动范围、模型服务和项目环境。</p>
-          <a href="#/guide">查看完整使用指南 ↗</a>
+          <p className="verification-note">{c.note}</p>
+          <a href="#/guide">{c.openGuide}</a>
         </aside>
       </div>
     </div>

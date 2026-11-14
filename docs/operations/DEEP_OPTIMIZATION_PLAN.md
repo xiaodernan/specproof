@@ -34390,3 +34390,32 @@ EN/USER_GUIDE_EN.md = 英文新手路径（#1699）；MCP_GUIDE*.md = 机器发�
 
 * 本号完成 **Login**；剩余 JobDetail / NewVerification / Guide / Settings 仍中文原生；
 * 英文版"欢迎故事"（walkthrough 三段）是**新写**的英文，与中文等长对齐，不互相惜字如金。
+
+## #1711 旧页面双语化第十批：NewVerification 逐页本地化（`newVerification.copy.ts`）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `apps/web/src/pages/newVerification.copy.ts`：`NewVerificationCopy` 双版——
+  面包屑、眼眉/标题/副描述、演示横幅（env 演示坐标可用时才显示；预算默认埋点走
+  `DEMO_VERIFY_REPO_NOTE` 不翻译）、01/02 两个表单分区（仓库/需求文件/基准/待检四项的
+  label+placeholder+hint+必填错误）、利益三条（含两个 `<Term>` 术语悬浮）、
+  典型例子（`POST /orders` 示例）、**演示仓库预设**：想立刻看到效果 / BLOCKED 停在括号深处 /
+  填入/准备按钮 / 准备中 loading / **`needApiKey`（401 →「需要先配置 API 密钥」原字）** /
+  **createdOk(refs) →「已创建演示仓库（…）」原字** / **alreadyPresent →「演示仓库已存在」原字** /
+  errorFallback / noJobId；
+* 全部连接错误分支（503→**「免 Docker 的轻量模式」**原字、network-transport、fallback）；
+* zh 侧逐字保留 NewVerification.test.tsx 锁死的全部字面（11/11 通过）——
+  **包括测试里「免 Docker 的轻量模式」这个专门被锁住的措辞（不是「带 Docker」）**；
+* 编组方式：benefits 三条按 JSX 结构拆分（Strong/Before/Term/After 四段，含 `<Term id="contract">验收条件`
+  与 `<Term id="finding">风险发现`），预设段落的 BLOCKED code 片段拆成
+  prefillBodyCode/After/Tail 三段，括号位置由 locale 拥有，不会出现中式括号；
+* 验迹：NewVerification.test.tsx **11/11**；vitest 全量 **486/486**；`npm run build` 绿（index 263.58 kB / gzip 89.47 kB）；
+  tsc 净；ledger 45/45；`USER_GUIDE.md`/`EN/USER_GUIDE_EN.md` §4 已把 新建验证 移入已本地化清单。
+
+### 二、诚实边界
+
+* 本号完成 **NewVerification**（新建验收页）；剩余中文原生：JobDetail（41KB，最大单页）/ Guide / Settings/ModelSettings；
+* `NewVerificationCopy` 与 `DEMO_VERIFY` 演示内容常量的本机 env 注入点不动；
+* 英文版的"样例"段改写为：「when an anonymous user calls POST /orders…」，与中文同构。
