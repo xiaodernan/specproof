@@ -26,11 +26,11 @@ import {
 } from "../ui";
 import { InboxIcon, MoonIcon, SunIcon } from "../ui/icons";
 import { ControlRoomPreview } from "./ControlRoomPreview";
-import { SHORTCUT_GROUPS } from "../ui/shortcuts";
+import { SHORTCUT_GROUPS, type ShortcutText } from "../ui/shortcuts";
 
 interface ShortcutRow {
-  group: string;
-  label: string;
+  group: ShortcutText;
+  label: ShortcutText;
   keys: string[];
 }
 
@@ -42,8 +42,8 @@ function makeShortcutColumns(locale: "zh" | "en"): Column<ShortcutRow>[] {
   const loc = (zh: string, en: string): string => (locale === "zh" ? zh : en);
   return [
 
-  { key: "group", header: loc("分组", "Group") },
-  { key: "label", header: loc("功能", "Function") },
+  { key: "group", header: loc("分组", "Group"), render: (row) => <span>{row.group[locale]}</span> },
+  { key: "label", header: loc("功能", "Function"), render: (row) => <span>{row.label[locale]}</span> },
   {
     key: "keys",
     header: loc("按键", "Keys"),

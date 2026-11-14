@@ -44,7 +44,7 @@ describe("ShortcutHelp", () => {
     const dialog = screen.getByRole("dialog");
     expect(dialog).toBeTruthy();
     for (const group of SHORTCUT_GROUPS) {
-      expect(screen.getAllByText(group.title).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(group.title.zh).length).toBeGreaterThan(0);
     }
     // The focus contract: the panel takes focus so keyboard users land inside.
     expect(document.activeElement).toBe(dialog.querySelector(".ui-shortcuts-panel"));

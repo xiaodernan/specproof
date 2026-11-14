@@ -2,39 +2,45 @@
  * The honest shortcut map: every entry here EXISTS in the code, no aspirational rows.
  * A shortcut that is not wired cannot be advertised. Keep this in sync with
  * CommandPalette.tsx / App.tsx / Tabs.tsx / Table.tsx / ShortcutHelp.tsx.
+ *
+ * A key, two locales — zh and en are different words, not different rows.
  */
+export interface ShortcutText {
+  zh: string;
+  en: string;
+}
 export interface ShortcutItem {
   keys: string[];
-  label: string;
+  label: ShortcutText;
 }
 export interface ShortcutGroup {
-  title: string;
+  title: ShortcutText;
   items: ShortcutItem[];
 }
 
 export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
   {
-    title: "全局",
+    title: { zh: "全局", en: "General" },
     items: [
-      { keys: ["Ctrl", "K"], label: "打开 / 关闭命令面板" },
-      { keys: ["?"], label: "打开 / 关闭本快捷键表" },
-      { keys: ["Esc"], label: "关闭当前浮层（面板 / 对话框 / 菜单）" },
+      { keys: ["Ctrl", "K"], label: { zh: "打开 / 关闭命令面板", en: "Open / close the command palette" } },
+      { keys: ["?"], label: { zh: "打开 / 关闭快捷键说明", en: "Open / close this shortcut card" } },
+      { keys: ["Esc"], label: { zh: "关闭当前浮层（弹窗 / 抽屉 / 菜单）", en: "Close the active overlay (dialog / drawer / menu)" } },
     ],
   },
   {
-    title: "命令面板",
+    title: { zh: "命令面板", en: "Command palette" },
     items: [
-      { keys: ["↑", "↓"], label: "移动选择" },
-      { keys: ["Enter"], label: "打开所选条目" },
-      { keys: ["Esc"], label: "关闭面板" },
+      { keys: ["←", "→"], label: { zh: "移动选择", en: "Move selection" } },
+      { keys: ["Enter"], label: { zh: "确认选择项", en: "Confirm the selection" } },
+      { keys: ["Esc"], label: { zh: "关闭面板", en: "Close the palette" } },
     ],
   },
   {
-    title: "页签与表格",
+    title: { zh: "页面内", en: "In-page" },
     items: [
-      { keys: ["←", "→"], label: "切换页签（Tabs；也可用 ↑ ↓）" },
-      { keys: ["Home", "End"], label: "跳到第一个 / 最后一个页签" },
-      { keys: ["Enter", "Space"], label: "打开可点击行（Table）" },
+      { keys: ["←", "→"], label: { zh: "切换页签（Tabs），也可点击", en: "Switch tabs (Tabs) — click works too" } },
+      { keys: ["Home", "End"], label: { zh: "切到第一个 / 最后一个页签", en: "First / last tab" } },
+      { keys: ["Enter", "Space"], label: { zh: "触发行操作（Table）", en: "Trigger the row action (Table)" } },
     ],
   },
 ] as const;

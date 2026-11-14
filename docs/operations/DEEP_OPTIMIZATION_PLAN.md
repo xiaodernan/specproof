@@ -35539,3 +35539,34 @@ CJK 残留全面清查：详情页无面向用户的原生中文字面量（注�
 
 * 第次登记**不外推**：134/134 是本机观察，不是可用性承诺；
 * portfolio 仍等 `PORTFOLIO_TOKEN`；有收据不做超收据声明。
+
+## #1750 快捷键小册双语收工 —— 快捷键表自己也会两门语言了；ui-kit 与 ShortcutHelp 的消费面改对
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `apps/web/src/ui/shortcuts.ts`：`SHORTCUT_GROUPS` 的 `title`/`item.label` 从「中文单面」改为 `{ zh, en }` 双语形态
+  （全局/命令面板/页面内分组；9 条条目全部配英文标签；保留「每个键都是真实 handler 的链接的文档」契约）；
+* `apps/web/src/ui/ShortcutHelp.tsx`：硬编码中英拼凑的标题/副标/关闭钮/快捷键脚注 → i18n key（`ui.shortcuts.*` ×6 ×2 locale）；
+  对话渲染路径与键值表渲染均按 `const { locale } = useI18n()` 解析——shortcuts 层无用户面的中英混排残留；
+* 消费面两处联动：
+  - `ui-kit/UiKit.tsx` —— `SHORTCUT_ROWS` 保留 `{group,label}` 为 ShortcutText，两列（group/label）改本地 locale 渲染；
+  - `ui/__tests__/ShortcutHelp.test.tsx` —— `group.title` → `group.title.zh`（harness pin zh）；
+* `strings.ts` 新增 6 个词条；i18n parity 仍双向对称。
+* 全量 CJK sweep 复查：页面侧残余中英双语并置（出厂设计的 `loc(zh, en)` 标签对）如实保留、不在本提交翻动；CommandPalette 约 30 处同此口径；
+
+### 二、实证
+
+| 命令 | 结果 |
+|---|---|
+| `npx tsc --noEmit` | 0 错误 |
+| `npx vitest run` | **497/497 绿**（63 文件） |
+| `npm run build` | ✅ built in 366ms |
+| ledger 四件套 | 45/45 绿 |
+
+### 三、诚实边界
+
+* CommandPalette 约 30 个 `loc("中文", "English")` 双语标签**保留**——那是本应用的双语呈现模式（中文标签 + 英文副行），非语言切换缺陷，列入「待评审」而不是「已翻」；
+* Agent 控制台 240 行级 CJK、ui-kit 剩余内部快捷键也已列入 sweep，本提交只收工 `ui/shortcuts.ts + ShortcutHelp.tsx + ui-kit 快捷键消费面`；
+* 全量 `pytest tests/unit` 未跑完。 E2E 未跑。

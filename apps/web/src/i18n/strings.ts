@@ -71,6 +71,14 @@ const zh = {
   "footer.tagline": "SpecProof · 为交付提供可核验的证据",
   "footer.startLink": "从这里开始",
 
+  // ── shortcut help ─────────────────────────────────────────────
+  "ui.shortcuts.ariaLabel": "快捷键",
+  "ui.shortcuts.title": "快捷键",
+  "ui.shortcuts.sub": "除 Ctrl K 之外，这些按键在你手边的页面里都是真的",
+  "ui.shortcuts.closeAria": "关闭",
+  "ui.shortcuts.close": "关闭",
+  "ui.shortcuts.palette": "命令面板",
+
   // ── finding detail page ─────────────────────────────────────────
   "fd.rateUnavailable": "无法计算（还没有人投票）",
   "fd.perms403": "权限不足（HTTP 403{code}）—— 后端给出的原因：{detail}",
@@ -494,6 +502,14 @@ const en: Record<keyof typeof zh, string> = {
   "topbar.theme.toDark": "Switch to dark theme",
   "footer.tagline": "SpecProof · verifiable evidence for every delivery",
   "footer.startLink": "Start here",
+
+  // ── shortcut help ─────────────────────────────────────────────
+  "ui.shortcuts.ariaLabel": "Keyboard shortcuts",
+  "ui.shortcuts.title": "Keyboard shortcuts",
+  "ui.shortcuts.sub": "Beyond Ctrl K — every key here is wired to a real handler",
+  "ui.shortcuts.closeAria": "Close",
+  "ui.shortcuts.close": "Close",
+  "ui.shortcuts.palette": "Command palette",
 
   // ── finding detail page ─────────────────────────────────────────
   "fd.rateUnavailable": "Cannot be computed (nobody has voted yet)",
