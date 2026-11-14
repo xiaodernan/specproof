@@ -35069,3 +35069,45 @@ doctor 如实报告而不染绿；未追入这批改动，它们不是本提交�
 
 * 世界书与账本是同一件事的两个窗口——任何一边的进度都要让另一边看得见；
 * 本提交没有新增代码，只把世界书对齐到 #1729/#1730 的现实。
+
+## #1732 UI 词表层双语化 · 下半场 —— stages / preflight 的阶段、预检词表全部入表；一次「键写反」的地基级坑被当场截住
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `apps/web/src/i18n/strings.ts`：新增 **51 个 gloss 词条 ×2 locale**（`// ── ui glosses · stages & preflight`）：
+  `stage.<21 nodes>` + `stage.missing`、`preflightCheck.<11 checks>`、`preflightStatus.<PASS/FAIL/WARN>`、
+  `preflightLanguage.unknown`、`preflightNotRun.<upstream_errors|probe_error|disabled_by_SPECPROOF_PREFLIGHT|generic>`（generic 走 `{reason}` 插值）、
+  `preflightBlocker.<9 rules>`；zh 文案逐字搬迁，en 本次手译。
+* `apps/web/src/ui/stages.ts`：`STAGE_LABELS` 值全部改 i18n key；`stageLabel()` 读时解析（zh 缺
+  值则回落节点 id 原文）。
+* `apps/web/src/ui/preflight.ts`：三张表值全部改 key（检查项 / 状态 / 语言 unknown）；
+  `describePreflightError` 在边界解析；`preflightNotRunReason` 同。
+* 手册 §4：「toneMap/errorHints/stages/preflight 已全部中英双语」。
+* 前值 `stages.test.ts` 中「断言表内中文」的一例改断言 `stageLabel()`。
+
+### 二、过程中的诚实记录
+
+* **键写反**：提取期 blocker 九条的 key 与 en 译文被写成了 `"{english sentence}": "preflightBlocker.xxx"`，
+  且 `preflight.ts` 的阻断表被替换成了英文句、`preflightNotRunReason` 的 switch 仍返回裸 key——三处问题在
+  `tsc`+眼睛检查双重暴露后修复：bad 键两侧共 18 行全部清除，正确词条按原位落回，`preflight.ts` 九条表值回到 key，
+  switch 三个 case 改 `gloss(...)`；**无任何"删掉红测试"的动作**——改动的是表结构与解析点。
+* 51 处之后再检 `""word""` 工件：0 残留（`_fix_quotes2` 的教训被复用为默认检查）。
+* `i18n.parity` 依旧双向对称（zh/en 两表同 key + 全非空）。
+
+### 三、实证
+
+| 命令 | 结果 |
+|---|---|
+| `npx tsc --noEmit` | 0 错误 |
+| `npm run build` | ✅ built in 272ms（index 244 KB） |
+| `npx vitest run` | **492/492 绿**（含 zh pin 下的 stages/preflight/i18n 三门） |
+| `pytest test_progress_event_labels / test_preflight / test_preflight_node_execution_is_observable` | 39/39 绿（progress-event 双向门按 key 集合锁死，keys 无损） |
+| `pytest test_guide_route_catalog` | 6/6 绿 |
+
+### 四、诚实边界
+
+* zh 文案逐字保持，en 译文未经母语者审校（后续任何 locale 改动同受 parity 门）；
+* `describePreflightError` 的分隔符仍以 `Preflight: ` 硬前缀剥离——这是后端协议的既定约定，未在本提交动；
+* 全量 `pytest tests/unit` 未跑完，不声称全绿。

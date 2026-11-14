@@ -39,7 +39,7 @@ describe("stageLabel — translate internal node ids for humans, honestly", () =
     expect(stageLabel("lease")).toContain("租约");
     // A gloss must not pretend these are a step of the pipeline.
     for (const id of ["terminal", "cancel_checkpoint", "lease"]) {
-      expect(STAGE_LABELS[id], id).toContain("不是某个执行阶段");
+      expect(stageLabel(id), id).toContain("不是某个执行阶段");
     }
   });
 });
