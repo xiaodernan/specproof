@@ -36566,3 +36566,22 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * gateway 无 broker e2e（RabbitMQ 实连）仍未在本轮重跑；
 * Spring 车道的"生产 SLA"不由这批测试保证；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1789 卷二十七《验明正身 / Verification Within Verification》—— 铁证反复重验自己的仪轨
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `docs/world/SPECROOF_WORLD.md` + `EN/SPECROOF_WORLD_EN.md`——**卷二十七《验明正身》**（中英对称）：
+  27.1 为什么重验是铁证的本质｜27.2 **仪轨：每次 master 合入后必跑的六件仪**（chronicle 重建 1,589 / repoStats 2,714 files · LOC 485,951 · commits 2,430 / 日历 365 格现推 / 世界书 33 节 / guide gatekeeper 51/51 / i18n 双表对齐）｜
+  27.3 **本卷的新证词**：#1771 bbox QA · #1779 stress 冷启动如实 · #1783 Lua 七案 · #1786 MQ 15/15 & gateway 84/84 · #1788 Spring 137/137 · #1787 日历现推 · #1751 Sc 滚轮修复；
+  27.4 誓言：**铁证不怕被检验，铁证怕的是不检验**；
+* `worldbook.json` 重建：**34 节**；chronicle/repoStats 重跑（本节自带重建）；
+* 本节不是新功能——它是**把本会话全部仪轨本身写进世界书的一卷**——主线的自我证明成为史。
+
+### 二、诚实边界
+
+* 本节无运行时变更（build 仅更新 worldbook.json / chronicle.json / repoStats.json）；
+* 27.3 所列实证数字以提交时测得为准，主线继续走时它们会"褪色"——对不上就重推，不替数字打圆场；
+* 全量 `pytest tests/unit` 仍未跑完。

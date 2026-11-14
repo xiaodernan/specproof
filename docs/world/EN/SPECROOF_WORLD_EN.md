@@ -1148,4 +1148,44 @@ the moment the next volume is written, its lamp lights again.
 **The Gate and the Wire are one discipline: in both directions, every passerby is counted, and every datum lands in its own box.** The Wall does not inspect content — it inspects the name; outside the six, every name goes into the same cell: unknown.
 
 ---
+---
+
+## Volume XXVII · Verification Within Verification（卷二十七 · 验明正身）
+
+> Iron evidence is not a one-time stamp — it is **a rite repeated**. This volume says not how hard the evidence is,
+> but how it proves itself, again and again. SpecProof runs seven scripts: chronicle rebuild, repo census, calendar,
+> ledger gates, the guide route gatekeeper, the epic ledger, the world bible — their one job is to make the system reconcile with itself after every merge.
+
+### 27.1 Why re-verification is the essence of iron evidence
+
+- A verification performed once is a seal; performed twice, it earns the name of official history;
+- Official history owns one iron law: **every line must be re-readable in git log** — whatever cannot be found there, however well it sounds, never tallies;
+- Any system that proclaims "evidence first" but will not re-prove itself after every merge is spending its past to buy its present — debt, not law;
+- SpecProof's answer: the chronicle is always rebuilt, the census is always fresh, the calendar is always derived, the volumes never fall behind. **Re-verification is a product feature.**
+
+### 27.2 The rite: six instruments re-run after every master merge
+
+| Instrument | Script | Effect |
+|---|---|---|
+| Chronicle rebuild | `scripts/build_chronicle.py` | `chronicle.json`: `## #NNNN` sections → 1,589 entries (#130 → #1788) |
+| Repo census | `scripts/build_repo_stats.py` | `repoStats.json`: tracked files 2,714 · LOC 485,951 · commits 2,430 |
+| Calendar | `scripts/build_calendar.py` | `calendarData.json`: 365 days of per-day commit history |
+| World bible shelf | `scripts/build_worldbook.py` | `worldbook.json`: 33 sections (zh/en) |
+| Guide gatekeeper | `pytest test_guide_route_catalog` | every route the manual advertises is really mounted (51/51) |
+| i18n alignment | vitest `src/i18n` | both tables align key-for-key — no English residue in zh, no Chinese residue in en |
+
+### 27.3 This volume's new testimony (all real)
+
+- **#1771**: Atlas QA by `getBBox` math: no island crosses the frame, no label collides with a dot, the compass N stays inside the dial;
+- **#1779**: stress_smoke — cold round 144/144 timed out → rounds 2–4 all green (p50≈525ms); **not a product crash** — this host's WSL2/loopback floor of 150–500ms is not production;
+- **#1783**: Lua divide-by-zero fix — `redis:7-alpine` container, seven cases green; even NaN refill no longer crosses the wire as an exception;
+- **#1786**: MQ tag-bomb sealed — `mvn -o` offline: `GatewayMqEvent*Test` 15/15, full gateway **84/84**;
+- **#1788**: Full Spring-lane re-verification — gateway 84 + discovery 1 + config 1 + control-plane 51 = **137/137 green**;
+- **#1787**: The Evidence Calendar, derived — 2,429 commits / 60 active days / busiest day 622 (#1694–#1704 merge wave) / longest streak 14 days.
+
+### 27.4 This volume's vow
+
+**Iron evidence does not fear being examined; it fears not being examined.** The rite observes no calendar days; whoever dodges re-verification is passing off "we did it once" as "it is true now" — SpecProof does not sell that junk.
+
+---
 
