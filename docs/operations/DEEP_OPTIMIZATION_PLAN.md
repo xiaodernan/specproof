@@ -35720,3 +35720,19 @@ verdict: BUDGET-BLOWN worst err=100%
 * 压测车间**未**撞线上 MySQL/Redis/任何第三方服务（配置为闭合端口 8124 = 没"误撞"的可能）；
 * `/health` 语义原样（degraded 仍是 degraded，不会伪装 ok）；只把两臂的时间轴并行。
 * 全量 `pytest tests/unit` 未跑完。
+
+## #1756 CHANGELOG 六次登记 —— 2026-11-15 第六张收据（压力测试车间 + /health 并行化进账）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `CHANGELOG.md` 第六张收据：覆盖 `a504661` → `b0bb993`（#1750–#1755）——
+  滚轮默认 ON、quickcheck 层双语、隔离压力车间 360/360、前门触顶曲线、/health 并行化；如实写下 134/134 是本机观察不构成背书。
+* `scripts/sync_portfolio.py` 本地重跑：`world_size: 49.3 KB`、`page_count: 25`。
+
+### 二、诚实边界
+
+* 本号仍不推 portfolio——仍等 `PORTFOLIO_TOKEN`；至多证明重建不炸；
+* 收据里明说「Agent 控制台 ~240 行中文原生、新卷未浏览器目验」——不跳不补不改口径；
+* ledger 四件套 45/45 绿（本节入账前已跑）。

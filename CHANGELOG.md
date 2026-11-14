@@ -2,6 +2,24 @@
 
 格式约定：按日期列 **可归因的变更**；每条附"证据"行——命令、输出、结论，而非感知描述。本项目**尚无签名的版本标签**（tag），因此未发布 dists 无法引用；所有内容以 git 历史与 `docs/operations/DEEP_OPTIMIZATION_PLAN.md`（数字化账本，每个 `## #NNN` 对应一笔真实工作）为准：`git log --follow docs/operations/DEEP_OPTIMIZATION_PLAN.md` 或上面的账本。
 
+## 2026-11-15（六次登记） · 滚轮反转 + 压力测试车间 + /health 探针并行化
+
+本条目覆盖 `a504661` → `b0bb993`（ledger `#1750` → `#1755`）。
+
+### 新增 / 修复
+- **滚轮方向默认“反转开启”**（#1752）：拥有者明示“往下滑就往下看”——顶栏 ⇅ 默认 ON，可单键回退至浏览器标准轴；`specproof_invert_scroll=0` 显式关闭。
+- **UI 快捷键中文串全部入 i18n 表**（#1750）：`ui/shortcuts.ts` 数据结构支持 zh/en，`ShortcutHelp.tsx` 全部 key 化；UiKit 与测试消费侧同步修正。
+- **压力测试车间**（#1755）：隔离实例 127.0.0.1:8123（uvicorn，**零触碰线上 MySQL/Redis**），`.local/*-scratch.sqlite3` 拷贝；
+  120 并发 × 2 轮，360/360 ok，err 0.00%，p50≈666 ms p99≈973 ms；scratch 已清理。
+- **前门压力**（#1751/#1753）：`scripts/stress_smoke.py`——72→150 并发两轮，素面静态服务触顶到 150 并发时大量超时（BUDGET-BLOWN）；朴素开发服务器≠生产 SLA，如实不外推。
+- **`/health` 探针并行化**：MySQL/Redis 原串行，死后 29.18 s 才 200；现同 pool 并行（实测仍 ~27 s —— Redis store 内禀超时不改）；degraded 语义不变。
+
+### 验证状态
+- Spring Cloud 全服务本机亲跑：gateway **81/81** · discovery-server **1/1** · config-server **1/1** · control-plane **51/51**。
+- `vitest` **497/497**；`tsc --noEmit` 0 错误；`vite build` ✅ in 509 ms；progress-event 双向门 4/4；ledger 四件套 45/45 ×4。
+- 全量 `pytest tests/unit` 仍未跑完；E2E 未跑；"134/134" 只代表本机一次的观察，不构成可用性背书。
+- `#/drill`/新卷未过浏览器目验；CommandPalette ~30 个 `loc` 双语标签保持、不偏到误译；Agent 控制台 ~240 行 CJK 仍是中文原生（账目 #1748/#1750 在案）。
+
 ## 2026-11-15（五次登记） · 四服务铁证大一统 + UI 运输层 / 详情页全面双语
 
 本条目覆盖 `1f83434` → `5e22587`（ledger `#1746` → `#1748`）。
