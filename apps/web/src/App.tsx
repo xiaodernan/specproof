@@ -67,6 +67,18 @@ const NAV: NavItem[] = [
   { path: "health", labelKey: "nav.health", icon: "health", groupKey: "group.admin" },
 ];
 
+function NotFoundPage(): JSX.Element {
+  const { t } = useI18n();
+  return (
+    <div className="product-empty">
+      <ProductIcon name="guide" size={36} />
+      <h1>{t("app.notFoundTitle")}</h1>
+      <p>{t("app.notFoundBody")}</p>
+      <a className="btn btn-primary" href="#/dashboard">{t("app.notFoundCta")}</a>
+    </div>
+  );
+}
+
 function renderRoute(route: string): JSX.Element {
   // Query params (e.g. #/jobs/new?repo=...) belong to the page, not routing.
   const seg = route.replace(/^#/, "").split("?")[0].split("/").filter(Boolean);
@@ -94,7 +106,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "billing") return <Billing />;
   if (seg[0] === "usage") return <Usage />;
   if (seg[0] === "audit") return <Audit />;
-  return <div className="product-empty"><ProductIcon name="guide" size={36} /><h1>没有找到这个页面</h1><p>链接可能已更新，你可以回到工作台继续。</p><a className="btn btn-primary" href="#/dashboard">返回工作台</a></div>;
+  return <NotFoundPage />;
 }
 
 function Workspace() {
@@ -149,19 +161,19 @@ function Workspace() {
     item.roles == null || principal == null || roleSetAllows(principal.roles, item.roles));
 
   return <div className="shell product-shell">
-    <a className="skip-link" href="#main-content" onClick={e => { e.preventDefault(); contentRef.current?.focus(); }}>跳至主要内容</a>
-    {menuOpen && <button className="nav-backdrop" aria-label="关闭导航" onClick={() => setMenuOpen(false)} />}
+    <a className="skip-link" href="#main-content" onClick={e => { e.preventDefault(); contentRef.current?.focus(); }}>{t("skip.link.main")}</a>
+    {menuOpen && <button className="nav-backdrop" aria-label={t("nav.backdrop")} onClick={() => setMenuOpen(false)} />}
     <aside className={"sidebar" + (menuOpen ? " sidebar-open" : "")} id="workspace-navigation">
-      <a className="brand" href="#/dashboard" aria-label="SpecProof 工作台"><span className="brand-mark"><ProductIcon name="shield" size={23} /></span><span><span className="brand-name">SpecProof<span className="brand-dot">.</span></span><span className="brand-sub">让每一次交付，有据可依</span></span></a>
-      <div className="workspace-selector"><span className="workspace-avatar">W</span><span><strong>我的工作空间</strong><small>代码变更验收平台</small></span><ProductIcon name="verify" size={16} /></div>
-      <nav aria-label="主导航 Primary navigation">
+      <a className="brand" href="#/dashboard" aria-label={t("brand.ariaLabel")}><span className="brand-mark"><ProductIcon name="shield" size={23} /></span><span><span className="brand-name">SpecProof<span className="brand-dot">.</span></span><span className="brand-sub">{t("brand.sub")}</span></span></a>
+      <div className="workspace-selector"><span className="workspace-avatar">W</span><span><strong>{t("workspace.my")}</strong><small>{t("workspace.product")}</small></span><ProductIcon name="verify" size={16} /></div>
+      <nav aria-label={t("nav.primaryAria")}>
         {["group.workspace", "group.evidence", "group.admin"].map((groupKey) => <div className="nav-group" key={groupKey}><div className="nav-group-label">{t(groupKey)}</div>{nav.filter(item => item.groupKey === groupKey).map(item => <a key={item.path} href={"#/" + item.path} aria-current={active === item.path ? "page" : undefined} className={"nav-item" + (active === item.path ? " nav-active" : "")}><ProductIcon name={item.icon} size={18} /><span className="nav-label">{t(item.labelKey)}</span>{item.path === "agent" && <span className="nav-tag">CRAFT</span>}</a>)}</div>)}
       </nav>
-      <div className="sidebar-guide"><ProductIcon name="guide" /><strong>第一次使用 SpecProof？</strong><p>从一个变更开始，了解完整验收流程。</p><a href="#/guide">阅读上手指南 <span aria-hidden="true">↗</span></a></div>
-      <div className="sidebar-foot"><TenantSwitcher /><div className="account-row"><span className="account-avatar">{hasKey ? "SP" : "?"}</span><span><strong>{hasKey ? "当前会话" : "访客"}</strong><small>{hasKey ? "凭据已配置" : "连接后开始验收"}</small></span><Button variant="ghost" size="sm" onClick={async () => { const idpUrl = await logout(); setPrincipal(null); setHasKey(false); if (idpUrl) { window.location.href = idpUrl; } else { window.location.hash = "#/login"; } }}>{hasKey ? "退出" : "连接"}</Button></div></div>
+      <div className="sidebar-guide"><ProductIcon name="guide" /><strong>{t("sidebar.guideTitle")}</strong><p>{t("sidebar.guideBody")}</p><a href="#/guide">{t("sidebar.guideCta")} <span aria-hidden="true">↗</span></a></div>
+      <div className="sidebar-foot"><TenantSwitcher /><div className="account-row"><span className="account-avatar">{hasKey ? "SP" : "?"}</span><span><strong>{hasKey ? t("session.current") : t("session.guest")}</strong><small>{hasKey ? t("session.currentHint") : t("session.guestHint")}</small></span><Button variant="ghost" size="sm" onClick={async () => { const idpUrl = await logout(); setPrincipal(null); setHasKey(false); if (idpUrl) { window.location.href = idpUrl; } else { window.location.hash = "#/login"; } }}>{hasKey ? t("session.logout") : t("session.connect")}</Button></div></div>
     </aside>
-    <div className="workspace-main"><header className="workspace-topbar"><div className="topbar-left"><button className="icon-button mobile-menu" aria-label="打开导航" aria-expanded={menuOpen} aria-controls="workspace-navigation" onClick={() => setMenuOpen(!menuOpen)}><ProductIcon name={menuOpen ? "close" : "menu"} /></button><span className="topbar-workspace">工作空间</span><span className="breadcrumb-separator">/</span><strong>{label}</strong></div><div className="topbar-actions"><button className="command-trigger" onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }))}><SearchIcon /><span>搜索页面与操作</span><Kbd>Ctrl K</Kbd></button><a className="topbar-help" href="#/guide">使用帮助</a><button className="icon-button" aria-label={resolved === "dark" ? "切换浅色主题" : "切换深色主题"} onClick={toggle}>{resolved === "dark" ? <SunIcon size={18} /> : <MoonIcon size={18} />}</button><button type="button" className="icon-button" onClick={toggleLocale} aria-label={t("topbar.switchLocale")} title={t("topbar.switchLocale")}>{locale === "zh" ? "EN" : "中"}</button></div></header>
-      <main className="content" id="main-content" tabIndex={-1} ref={contentRef}><ErrorBoundary key={active}><Suspense fallback={<Spinner />}>{renderRoute(route)}</Suspense></ErrorBoundary><footer className="workspace-footer"><span>SpecProof · 为交付提供可核验的证据</span><a href="#/guide">从这里开始 <span aria-hidden="true">↗</span></a></footer></main>
+    <div className="workspace-main"><header className="workspace-topbar"><div className="topbar-left"><button className="icon-button mobile-menu" aria-label={t("topbar.menu")} aria-expanded={menuOpen} aria-controls="workspace-navigation" onClick={() => setMenuOpen(!menuOpen)}><ProductIcon name={menuOpen ? "close" : "menu"} /></button><span className="topbar-workspace">{t("topbar.workspace")}</span><span className="breadcrumb-separator">/</span><strong>{label}</strong></div><div className="topbar-actions"><button className="command-trigger" onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }))}><SearchIcon /><span>{t("topbar.searchPages")}</span><Kbd>Ctrl K</Kbd></button><a className="topbar-help" href="#/guide">{t("topbar.helpLink")}</a><button className="icon-button" aria-label={resolved === "dark" ? t("topbar.theme.toLight") : t("topbar.theme.toDark")} onClick={toggle}>{resolved === "dark" ? <SunIcon size={18} /> : <MoonIcon size={18} />}</button><button type="button" className="icon-button" onClick={toggleLocale} aria-label={t("topbar.switchLocale")} title={t("topbar.switchLocale")}>{locale === "zh" ? "EN" : "中"}</button></div></header>
+      <main className="content" id="main-content" tabIndex={-1} ref={contentRef}><ErrorBoundary key={active}><Suspense fallback={<Spinner />}>{renderRoute(route)}</Suspense></ErrorBoundary><footer className="workspace-footer"><span>{t("footer.tagline")}</span><a href="#/guide">{t("footer.startLink")} <span aria-hidden="true">↗</span></a></footer></main>
     </div>
   </div>;
 }

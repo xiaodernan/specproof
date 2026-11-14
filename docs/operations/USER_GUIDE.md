@@ -94,10 +94,10 @@ VERDICT: BLOCKED
 
 ### 2.5 打开 `#/epic` — 史诗
 
-六卷竹简 —— 每卷锚死 git 真实提交：卷一（铁证的铸造史）、卷五（史官守夜：#1645、#1668、#1672 真实账本）。**中文版 22.3KB**。
+六卷竹简 —— 每卷锚死 git 真实提交：卷一（铁证的铸造史）、卷五（史官守夜：#1645、#1668、#1672 真实账本）。**中文版 37.0KB（截至 #1725）**。
 英文版同构见 `docs/world/EN/SPECROOF_WORLD_EN.md`。
 
-### 2.6 打开 `#/mcp` —— 给 AI Agent 当现场法官
+### 2.6 在命令行用 MCP —— 给 AI Agent 当现场法官（`#/mcp` 不是界面页面）
 
 ```bash
 specproof mcp tools          # 列出 7 个工具
@@ -143,8 +143,8 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/audit` | 审计轨迹 | 每一步 audit_logs 写入，不丢任何 |
 | `/health` | 服务状态 | 6 依赖延迟分布 + 60 面板 SLO 告警触发 |
 | `/settings` | 模型连接 | 切换 OpenAI 兼容网关（DeepSeek / wkapi / 任意 / Azure / OpenAI） |
-| `/mcp` | MCP 适配 | 给外部 AI agent 用的工具目录 + stdio |
-| `/admin/identity` | 租户与权限 | RBAC、访问控制、审计 |
+| `/agent` | AI 开发者（SpecCraft） | 让 AI 结对把活干完——生成、自修复、失败复盘，全程留痕 |
+| `/identity` | 团队与权限 | RBAC、访问控制、审计（admin 角色可见） |
 | `/ui-kit` | 设计系统 | 全 Aurora 组件对照 |
 | `/epic` | 史诗 | 中文创世记，每卷锚死 git 哈希 |
 | `/tour` | 巡览 | 新手交互式走廊，六盖一齐验讫 |
@@ -154,7 +154,11 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/museum` | 铁证博物馆 | 十二件实证展品，每件锚到账本真实条目 |
 | `/usage` | 缓存健康 | 真 hit_rate + 计费链条 |
 | `/guide` | 上手指南 | 从 clone 到第一个 BLOCKED 的 4 步 |
-| `/readme` | 推荐读物 | 本仓库的阅读者地图 |
+| `/login` | 连接 | API key / Bearer —— 无 key 时每个页面都回到这里 |
+
+> 两点说明：
+> - **MCP 工具不在界面里**：命令行 `specproof mcp tools`（§2.6）+ 文档 `docs/operations/MCP_GUIDE.zh.md`；界面没有 `#/mcp` 页；
+> - `#/findings/<job_id>/<finding_id>` 是深链页面——在任务详情里点 Finding 进入；`/ui-kit` 是懒加载路由。
 
 ---
 

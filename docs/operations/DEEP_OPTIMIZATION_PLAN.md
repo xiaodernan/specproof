@@ -34859,3 +34859,50 @@ UI 层词表 i18n 是下一桩独立工程。
 
 - 本号目的不是造假"英文官方版本"，而是给只读英文的开源/海外读者一个完整指南；
 - 沿用原中文版的全部边界与警告——排除臆想、不承诺 auto-push 能力。
+
+## #1726 说明书与界面对齐 —— 指南里消失的「幽灵页面」被清掉了，外壳 26 个中文串移进 i18n 表
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、诱因
+
+用户手册 (`USER_GUIDE.md`/`USER_GUIDE_EN.md`) 的 §3「模块目录」里挂着三条**应用里根本不存在的路由**：
+
+| 幽灵路由 | 现实 |
+|---|---|
+| `/mcp` | 界面没有这个页面——MCP 只在 CLI (`specproof mcp ...`) 与 `docs/operations/MCP_GUIDE*.md` 里 |
+| `/admin/identity` | 真实路由是 `/identity` |
+| `/readme` | 没有任何「推荐读物」页面 |
+
+新人照着指南点，必撞 404。同时，`App.tsx` 的**外壳**（skip-link、退出、工作空间选择器、侧栏引导块、
+顶栏搜索、主题钮、页脚）散落着一整片硬编码中文——英文模式下整壳仍然是中文，与「全内容中英切换」的承诺不符。
+
+### 二、交付
+
+* 两本指南 §3 表：`/mcp`→`/agent`（AI 开发者 SpecCraft）、`/admin/identity`→`/identity`、`/readme`→`/login`；
+  新增正文指向：MCP 在 CLI 与文档，`#/findings/<job>/<finding>` 是深链、`/ui-kit` 懒加载；
+  §2.6 标题改为「在命令行 / In the CLI」，不再暗示 `#/mcp` 页面存在；
+* 世界书体积两处过期断言 22.3KB → 37.0KB（截至 #1725 实测值）；
+* `App.tsx` 外壳逐段本地化：skip-link、nav-backdrop、brand 副标、工作空间选择器、主导航 aria、
+  侧栏引导（标题/正文/CTA）、会话区（当前会话/访客/凭据已配置/连接后开始验收/退出/连接）、
+  顶栏（菜单钮/工作空间/搜索页操作/使用帮助/主题钮两枚 aria）、页脚两枚文案、404 回落整页
+  ——共 26 个 key ×2 locale，全部进 `i18n/strings.ts`，parity 门 11/11 绿；
+* 404 回落抽成 `NotFoundPage` 组件（renderRoute 是模块级函数取不到 hook，原本直接嵌中文）；
+* **新增 `tests/unit/test_guide_route_catalog.py`**：从 `App.tsx` 解析 NAV 常数 + 手挂的懒路由，
+  对两本指南断言：每条真实路由都必须被列出、三个死路由必须不出现、中英两表逐项对称、findings 深链必须被记录。
+  当前 6 项断言全部绿。
+
+### 三、实证
+
+| 命令 | 结果 |
+|---|---|
+| `npx vitest run src/i18n` | 11/11 绿（含 parity） |
+| `python -m pytest tests/unit/test_guide_route_catalog.py` | 6/6 绿 |
+| `npm run build`（tsc --noEmit + vite build） | ✅ built in 917ms |
+
+### 四、诚实边界
+
+* 本号只覆盖**外壳**与指南；各页面正文的逐字翻译情况此前已逐页落地（#1702–#1721），本号不重复声明；
+* 「49 页应用」口径沿用指南既有说法——指南 §3 列 23 条路由 + 深链；不重新承诺页数；
+* 全量 `pytest tests/unit` 本机内存受限仍未跑完；本号只交新增 gate 与账本四件套；
+* i18n parity 锁住 key 集合，但不锁住文案质量——英文文案由本号手写，未经母语者审校。

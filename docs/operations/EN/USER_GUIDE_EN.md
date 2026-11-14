@@ -93,9 +93,9 @@ Every scroll has a Case File cover — repository / change / verdict / the iron 
 
 ### 2.5 `#/epic` — the Chronicles
 
-Six scrolls, every anchor a real `git` commit hash — a verifiable epic. Anchors: #1645, #1668, #1672 are real. **The Chinese book runs 22.3KB**; the English edition mirrors it at `docs/world/EN/SPECROOF_WORLD_EN.md`.
+Six scrolls, every anchor a real `git` commit hash — a verifiable epic. Anchors: #1645, #1668, #1672 are real. **The Chinese book runs 37.0KB as of #1725**; the English edition mirrors it at `docs/world/EN/SPECROOF_WORLD_EN.md`.
 
-### 2.6 `#/mcp` — tools for external AI agents
+### 2.6 MCP in the CLI — tools for external AI agents (`#/mcp` is not an in-app page)
 
 ```bash
 specproof mcp tools          # print the 7 tools
@@ -141,8 +141,8 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/audit` | Audit Trail | every audit_logs write, nothing dropped |
 | `/health` | Service Status | 6-dependency latency distribution + 60 SLO alert triggers |
 | `/settings` | Model Connection | switch any OpenAI-compatible gateway (DeepSeek / wkapi / custom / Azure / OpenAI) |
-| `/mcp` | MCP Adapter | the tool catalogue + stdio for external AI agents |
-| `/admin/identity` | Team & Access | RBAC, access control, audit |
+| `/agent` | AI Developer (SpecCraft) | let AI pair on the work — generate, self-repair, review, with a paper trail |
+| `/identity` | Team & Access | RBAC, access control, audit (admin role only) |
 | `/ui-kit` | Design System | the full Aurora component wall |
 | `/epic` | Chronicles | bilingual genesis; every anchor a real commit hash |
 | `/tour` | Grand Tour | interactive onboarding corridor; six stamps seal 「验讫」 |
@@ -152,7 +152,11 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/museum` | Evidence Museum | twelve exhibits, each pinned to a real ledger entry |
 | `/usage` | Cache Health | truthful hit_rate + billing chain |
 | `/guide` | Onboarding Guide | from clone to your first BLOCKED in 4 steps |
-| `/readme` | Recommended Reading | this repository's reader map |
+| `/login` | Connect | API key / Bearer — no key, every page returns here |
+
+> Two notes:
+> - **MCP tools are not in the UI**: CLI `specproof mcp tools` (§2.6) + the docs at `docs/operations/MCP_GUIDE.md`; there is no `#/mcp` page;
+> - `#/findings/<job_id>/<finding_id>` is a deep link — opened from a Finding in Job Detail; `/ui-kit` is a lazy route.
 
 ---
 
