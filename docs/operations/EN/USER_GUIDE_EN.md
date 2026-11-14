@@ -41,6 +41,18 @@ Open `http://127.0.0.1:5173/` — the sidebar carries 18 first-level entries:
 
 > No `.env` needed either — the tour works without one. To connect a real LLM, ask for `.local/llm.json`.
 
+### 1.2.1 30-second self-check: demo doctor
+
+```bash
+python scripts/demo_doctor.py          # human-readable report
+python scripts/demo_doctor.py --json   # machine-readable
+```
+
+Six checks (demo repo present / `base` and `head-v1` resolvable / both tags point at different
+commits / diff scope sane / `demo/requirement.txt` names an evidence family / working tree clean) —
+only then proceed to §1.3; a broken demo disproves nothing. An uncommitted demo tree is a WARN
+(`--strict-clean` turns it into a failure).
+
 ### 1.3 The first real verification (10 minutes)
 
 ```bash

@@ -34928,3 +34928,40 @@ UI 层词表 i18n 是下一桩独立工程。
 * 六块空地**一条都没动代码**——本提交交的只有地图；每条「做完长什么样」是验收标准，不是已成状态；
 * `#/epic` 应用内仍展六卷原文，未追卷十五；
 * 卷十五没有新造提交号、新造哈希、新造数据——引用的提交（#1722/#1723/#1724/#1726）均真实存在于本仓库。
+
+## #1728 偿还卷十五欠条之一 —— Demo doctor：一条命令自检演示仓（#1727 空地的第一铲子）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `scripts/demo_doctor.py`——六个检查、零 Docker / 零网络 / 零 LLM：
+  1. demo 仓存在且是 git 工作树（否则 exit 2）
+  2. `base` / `head-v1` 可解析
+  3. 二者不同提交
+  4. `base..head-v1` 差异非空且 < 5000 行
+  5. `demo/requirement.txt` 存在、非空、提及证据族（AUTH/UNIQUE/TOKEN/COMPAT/EVENT）
+  6. 工作树干净（默认 WARN；`--strict-clean` 转 FAIL）
+  支持 `--json` 机读报告（{exit, checks:[{check,status,detail}]}）。
+* `tests/unit/test_demo_doctor.py`——2 项 gate：JSON 形状 + 本 checkout 无硬失败（demo 缺失时静默跳过）。
+* 两本用户手册 §1.2.1 增加「30 秒自检：demo doctor」，中文/英文对照写入；`test_guide_route_catalog` 6/6 仍绿。
+
+### 二、实测（本机，2026-11-14）
+
+| 项 | 结果 |
+|---|---|
+| 1-demo-repo | PASS（本机 D:\面试项目\specproof-reference\demo\spring-backend） |
+| 2-tags-resolve | PASS（base=3194fb6a，head-v1=c13d122e） |
+| 3-tags-differ | PASS |
+| 4-diff-scope | PASS（1 行改动——恰是 head-v1 拿掉的那行 @PreAuthorize） |
+| 5-requirement | PASS（19 行，证据族 AUTH/COMPAT/EVENT/TOKEN/UNIQUE） |
+| 6-clean-tree | **WARN**（3 项未提交改动，demo 工作树不干净）——`--strict-clean` 下 exit 1 |
+
+**本提交之前就存在的事实**：demo 工作树本就脏（`pom.xml`、`UserService.java`、`src/test/.../probe/` 未跟踪），
+doctor 如实报告而不染绿；未追入这批改动，它们不是本提交的对象。
+
+### 三、诚实边界
+
+* doctor **不跑** `specproof verify`——它检查的是演示仓的静态完整性，不替代端到端验证；
+* 全量 pytest 仍未跑完；本号只跑 `test_demo_doctor`（2/2）+ `test_guide_route_catalog`（6/6）+ 账本四件套；
+* 6-clean-tree 在本机必然 WARN——这正是它的作用：把「演示工作树是脏的」从隐蔽事实变成账目事实。

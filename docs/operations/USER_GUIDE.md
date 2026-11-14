@@ -40,6 +40,17 @@ docker compose -f compose.phase0.yml up -d --wait
 
 > 没有 .env 也能看 —— 验收不需要 .env 才能视察；需要 `.local/llm.json` 才能跑真实 LLM。
 
+### 1.2.1 30 秒自检：demo doctor
+
+```bash
+python scripts/demo_doctor.py          # 人读输出
+python scripts/demo_doctor.py --json   # 机器可读
+```
+
+六个检查（演示仓存在 / `base`、`head-v1` 可解析 / 指向不同提交 / 差异范围合理 /
+`demo/requirement.txt` 提及证据族系 / 工作树干净）——全绿再往下走；
+任何一条红：先修好 demo 再跑 §1.3，别相信一个坏演示。工作树未提交只警告（`--strict-clean` 可强制转红）。
+
 ### 1.3 跑一遍真实验收（10 分钟）
 
 ```bash
