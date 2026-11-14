@@ -946,7 +946,7 @@ Every number came from this repository — none was invented or padded. Whatever
 ### 22.1 Why an endless world must ship a chart
 
 - Endless evidence means endless ways to be lost; lost means patience dies first, then leaving — both are enemies of iron evidence;
-- Nobody landing in SpecProof should have to memorize 24 entries first. They need a chart: three islands, twenty-four halls, three expedition routes;
+- Nobody landing in SpecProof should have to memorize 25 entries first. They need a chart: three islands, twenty-four halls, three expedition routes;
 - **A map does not replace exploration — it is the porch over the threshold**: the one who reads the map is the one who dares the plains;
 - This volume is anchored to two commits: **#1770** (the Atlas, `#/atlas` — SPECROOF ATLAS, landed) and **#1771** (Atlas verification: `getBBox` math QA — compass, scale bar and caption all inside the frame).
 

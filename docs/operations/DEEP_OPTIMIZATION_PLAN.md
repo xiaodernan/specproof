@@ -36193,3 +36193,22 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 本节是**文字层**交付，不改运行时；
 * worldbook.json 现为 30 节，而 #1774 条目中写的「29 节」是该次交付时的真值，本节前后一致可考；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1776 portfolio 数据刷新 + 两处 24→25 入口订正 + 世界书重建
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、事实
+
+* `scripts/sync_portfolio.py` 重跑：`artifacts/portfolio-data/`（.github-sync.json / latest.md / products.json）全部重建——
+  `world_size: 63.0 KB; page_count: 32`（gitignored，只服务本地 portfolio 车道；真正推送仍需 PORTFOLIO_TOKEN）；
+* 世界书卷二十二（zh/en）各 1 处订正：「24 个入口 / 24 entries」→ **25**（`#/worldbook` 世界书入口 #1774 之后侧栏已达 25）；
+  卷二十二的 22.2「24 halls」不变——群岛厅数本来就是 24，与侧栏入口数不是一回事，保留原貌；
+* `worldbook.json` 重建：30 节保持不变（订正后 book 体量随之更新）；
+* `chronicle.json` / `repoStats.json` 重跑。
+
+### 二、诚实边界
+
+* artifacts/ 不入库（.gitignore），本节**不**声称 portfolio 已更新——推送器仍只在 PORTFOLIO_TOKEN 存在时运行；
+* 订正世界书两处数字**非** append-only 账本，账本未动（本条除外）——世界书是活文档，这是它与账本的分工；
+* 全量 `pytest tests/unit` 仍未跑完。
