@@ -34473,3 +34473,41 @@ EN/USER_GUIDE_EN.md = 英文新手路径（#1699）；MCP_GUIDE*.md = 机器发�
 * 本号完成 **模型连接（agent 双入口共用的服务器配置页，`/settings` 与 `/agent/settings` 同指 `ModelSettings.tsx` → `AgentSettings`）**；
 * 剩余中文原生：**仅剩 JobDetail**（41KB 最大单页，含 34KB 测试，下一轮独立立项）；
 * `key_hint` 后端字段是原生串，zh 手写"未设置"。
+
+## #1714 旧页面双语化第十三批（终）：JobDetail 逐页本地化（`jobDetail.copy.ts`）——双语主干 100%
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `apps/web/src/pages/jobDetail.copy.ts`（约 190 key，双版）：
+  STATUS_HELP 十五种状态（标题/正文成对，zh 逐字保留 JobDetail.test.tsx 锁死字面）、
+  DEPTH_LABELS（FAST/STANDARD/DEEP）、DEEP_CLASSIFICATION_LABELS（stable/flaky/single_run/no_runs/contaminated）、
+  INVOICE_LABELS（draft/issued/paid/void）、严重度/验收条件/证据方式/置信度/描述/复现列表头（findingColumns 按 locale 构造）、
+  返回任务列表/刷新/重试/任务不存在（404）/验证记录-验证详情 面包屑、
+  覆盖横幅（本次验收结论未能确认/覆盖不足暂不能确认/checkFailed 与「本次已形成 N 项检查」合成如原设计——**空格位置保留，pins 才能逐字匹配**）、
+  AI 解读面板（解读/重新解读/不是判决/正在解读…/AI 解读不可用/interrupt/解读本次验收提示/缓存命中/模型直出）、
+  证据折叠（复现/材料/个帧/本次没有生成复现包）、任务信息（路径/refs/需求文件/重试次数/创建时间/更新时间/最近执行错误）、
+  执行进度面板（执行阶段 · /实时更新中/正在连接进度/执行已结束/等待进度事件）、
+  风险发现面板（发现需要处理的问题/空态/「风险扫描结果暂时无法读取」）、
+  合并证书（签名声明/签名文件/证书内容/**无 Ed25519 签名文件=如实呈现**原文）、
+  发票面板（发票/状态/合计/行项目/无行项目/issue draft/paid/catch subtitle）、
+  capsule 面板（复现包下载 · 评审链接/复制 Markdown 摘要/复制史诗纪要/链接说明）；
+* `JobDetail.tsx` 全量结构化改写：
+  STATUS_HELP / DEPTH_LABELS / DEEP_CLASSIFICATION_LABELS / INVOICE_LABELS / findingColumns 全部改为 locale 构造（`buildStatusHelp` 等）；
+  所有可见串走 `c.*`；**en 词表全文（190 条新英文）**；
+* 诚实边界：loadError 502/503/network 等由 `describePipelineError`/`terminalStageNote`（ui/errorHints，中文词表）驱动——**本页编辑不动词表本体**；
+* 本次特有坑（如实记账）：
+  * 混合 default-fallback 与 `useI18n`——测试直挂页时回落 zh，保证测试可解行；
+  * banner 的「N 项检查」从中文序列拆成 `{runStepsInline}`，空格归 zh 字符串，en 直接带前导空格，pins 逐字匹配；
+  * py 里的「了解支持的验收方式」≠「了解支持的验收方案」（pinned）——**已按测试字节对齐**；
+* 验迹：JobDetail.test.tsx **31/31**；vitest 全量 **486/486**；`npm run build` 绿（index 262.74 kB / gzip 89.10 kB）；tsc 净；ledger 45/45。
+
+### 二、意义
+
+**截至本提交，旧页面主干 100% 走表**（Dashboard/Health/Jobs/Eval/Contracts/Matrix/Audit/Billing/Login/NewVerification/Guide/Settings/JobDetail）。
+
+### 三、仍诚实保留
+
+`ui/toneMap.ts`（严重度/结论/证据类型词表）与 `ui/errorHints.ts`（流水线错误中文词表）仍中文——它们被 `severity_vocabulary_parity` 锁死，
+UI 层词表 i18n 是下一桩独立工程。

@@ -160,7 +160,7 @@ The **language toggle** in the top bar (shows `EN` / `中`) switches at any time
 
 | Already **per-page** localised (switch freely; no Chinese prose residue) | Still **Chinese-native** (UI switches, page body not translated line-by-line) |
 |---|---|
-| All sidebar entries + groups + breadcrumbs + Dashboard (#1702) + Service Health (#1703) + Verifications (#1704) + Effectiveness (#1705) + Contracts (#1706) + Matrix (#1707) + Audit (#1708) + Billing (#1709) + Login (#1710) + New Verification (#1711) + Guide (#1712) + Model Connection (#1713) | Only JobDetail remains Chinese-native |
+| All sidebar entries + groups + breadcrumbs + Dashboard (#1702) + Service Health (#1703) + Verifications (#1704) + Effectiveness (#1705) + Contracts (#1706) + Matrix (#1707) + Audit (#1708) + Billing (#1709) + Login (#1710) + New Verification (#1711) + Guide (#1712) + Model Connection (#1713) + Verification Detail (#1714) | **100% of legacy pages on tables**; shared UI dictionaries stay Chinese (pinned by PARITY gates, scheduled separately) |
 | `/tour` — the six stations, fully bilingual (`pages/tour.copy.ts`) | |
 | `/explorer` — lead, fields, stat cards, evidence list — all via the table | |
 | `/usage` — title, window chips, six cards, the honesty basis sentence (with `{basis}` denominator), legend, empty-ledger copy | |

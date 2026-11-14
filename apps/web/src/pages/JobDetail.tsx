@@ -2,13 +2,12 @@ import { useEffect, useState } from "react";
 import {
   apiGet, CertificateData, downloadCapsule, Finding, FindingsData, Invoice, Job, openProgressStream,
   ProgressEvent, StagesData,
-  // #245: invoice status transition
   getInvoiceByPeriod, transitionInvoiceStatus,
   streamAiSummary, type AiSummary,
 } from "../api";
 import {
   Breadcrumbs, Button, Degraded, Empty, ErrorBox, Panel, PreflightCard, Progress, Spinner, StatCard, StatusPill, Table, Term,
-  fmtPct, fmtTime, fmtDurationSeconds, kv, shortId, severityPill, severityHint, severityRank, evidenceLabel, stageLabel, verdictTone, verdictLabel, artifactHint,
+  fmtPct, fmtTime, fmtDurationSeconds, kv, shortId, severityPill, severityHint, severityRank, evidenceLabel, stageLabel, verdictTone, verdictLabel,
   type Column, type PreflightResult,
 } from "../ui";
 import { SameRepoCraftPanel } from "./SameRepoCraftPanel";
@@ -17,11 +16,11 @@ import { buildMarkdownSummary } from "../ui/copySummary";
 import { buildEpicCertificate } from "../ui/epicCertificate";
 import { recordRecentJob } from "../ui/recentJobs";
 import { describePipelineError, loadFailed, terminalStageNote } from "../ui/errorHints";
+import { useI18n } from "../i18n";
+import { JOB_DETAIL_BY_LOCALE } from "./jobDetail.copy";
 import "../styles/verification.css";
 
 // DEEP tier disclosure (#155): shape written by run_deep_experiments_node.
-// Only declared keys are rendered; anything the node adds later is ignored
-// here rather than guessed at.
 interface DeepResults {
   verdict_stability?: { repeat_count?: number; classification?: string };
   cache_integrity?: string;
@@ -66,57 +65,52 @@ const TERMINAL = new Set([
   "ERROR",
 ]);
 
-const STATUS_HELP: Record<string, [string, string]> = {
-  PENDING: ["验证已创建，正在排队", "系统已受理，等待执行服务接手。进度会自动出现在这里，可以先离开。"],
-  QUEUED: ["验证已创建，等待执行", "执行服务接手后，进度会自动出现在这里。可以先离开，稍后从验证记录继续查看。"],
-  PREPARING: ["正在准备验证环境", "正在准备 Base/Head 工作区与依赖，尚未开始执行检查。准备完成后会自动进入验收。"],
-  CONTRACT_REVIEW: ["等待契约审批", "需求契约已编译出来，等待人工批准。批准后本次验证继续执行；未批准的契约不能支撑阻断级结论。"],
-  RUNNING: ["正在检查代码与需求", "系统正在分析改动、收集证据并核对需求。完成后会自动更新结论。"],
-  REVIEWING: ["评审裁决中", "差分实验已完成，正在由评审庭按证据政策裁决结论。裁决完成后会自动更新结论。"],
-  WAITING_FOR_PROVIDER: ["正在等待模型服务", "任务已保存，模型服务恢复可用后将继续处理。"],
-  VERIFIED: ["本次验证通过", "已验证的需求具备支持证据。合并前建议确认需求覆盖范围，以及是否仍有未验证项。"],
-  BLOCKED: ["发现需要处理的问题", "先查看风险发现及其证据，再决定如何修改代码。需求矩阵可帮助定位受影响的验收条件。"],
-  NEEDS_REVIEW: ["需要人工判断", "证据不足以自动下结论：既没有确认回归，也没有证明通过。请查看需求矩阵与未验证项后人工判断。"],
-  FAILED: ["本次验证未能完成", "执行失败不代表代码有问题。请查看任务信息中的错误原因，处理环境或服务问题后重新验证。"],
-  CANCELLED: ["验证已取消", "本次执行已停止，需要继续时可以创建新的验证任务。"],
-  STALE: ["本次验证已过期", "代码版本可能已变化，请基于最新提交重新验证。"],
-  EXPIRED: ["本次验证已超时", "执行超过了允许的时限，已被回收。请缩小范围或调整环境后重新验证。"],
-  ERROR: ["执行遇到错误", "请查看错误原因，处理执行环境或服务问题后重新验证。"],
-};
+type JDCopy = typeof JOB_DETAIL_BY_LOCALE.zh;
 
-const DEPTH_LABELS: Record<string, string> = {
-  FAST: "快速验证",
-  STANDARD: "标准验证",
-  DEEP: "深度验证",
-};
-function depthLabel(depth: string | undefined): string {
+function buildStatusHelp(c: JDCopy): Record<string, [string, string]> {
+  return {
+    PENDING: [c.pendingTitle, c.pendingBody],
+    QUEUED: [c.queuedTitle, c.queuedBody],
+    PREPARING: [c.preparingTitle, c.preparingBody],
+    CONTRACT_REVIEW: [c.contractReviewTitle, c.contractReviewBody],
+    RUNNING: [c.runningTitle, c.runningBody],
+    REVIEWING: [c.reviewingTitle, c.reviewingBody],
+    WAITING_FOR_PROVIDER: [c.waitingProviderTitle, c.waitingProviderBody],
+    VERIFIED: [c.verifiedTitle, c.verifiedBody],
+    BLOCKED: [c.blockedTitle, c.blockedBody],
+    NEEDS_REVIEW: [c.needsReviewTitle, c.needsReviewBody],
+    FAILED: [c.failedTitle, c.failedBody],
+    CANCELLED: [c.cancelledTitle, c.cancelledBody],
+    STALE: [c.staleTitle, c.staleBody],
+    EXPIRED: [c.expiredTitle, c.expiredBody],
+    ERROR: [c.errorTitle, c.errorBody],
+  };
+}
+
+function depthLabel(depth: string | undefined, c: JDCopy): string {
   if (!depth) return "—";
-  const cn = DEPTH_LABELS[depth];
+  const map: Record<string, string> = { FAST: c.depthFast, STANDARD: c.depthStandard, DEEP: c.depthDeep };
+  const cn = map[depth];
   return cn ? cn + " · " + depth : depth;
 }
 
-const DEEP_CLASSIFICATION_LABELS: Record<string, string> = {
-  stable: "结论稳定",
-  flaky: "结论不稳定",
-  single_run: "仅单次运行",
-  no_runs: "无重复运行",
-  contaminated: "环境受污染",
-};
-function deepClassificationLabel(value: string | undefined): string {
+function deepClassificationLabel(value: string | undefined, c: JDCopy): string {
   if (!value) return "—";
-  const cn = DEEP_CLASSIFICATION_LABELS[value];
+  const map: Record<string, string> = {
+    stable: c.classificationStable,
+    flaky: c.classificationFlaky,
+    single_run: c.classificationSingle,
+    no_runs: c.classificationNoRuns,
+    contaminated: c.classificationContaminated,
+  };
+  const cn = map[value];
   return cn ? cn + " · " + value : value;
 }
 
-const INVOICE_LABELS: Record<string, string> = {
-  draft: "草稿",
-  issued: "已开具",
-  paid: "已支付",
-  void: "已作废",
-};
-function invoiceLabel(status: string): string {
+function invoiceLabel(status: string, c: JDCopy): string {
   if (!status) return "—";
-  const cn = INVOICE_LABELS[status];
+  const map: Record<string, string> = { draft: c.invoiceDraft, issued: c.invoiceIssued, paid: c.invoicePaid, void: c.invoiceVoid };
+  const cn = map[status];
   return cn ? cn + " · " + status : status;
 }
 function invoicePill(status: string): string {
@@ -125,11 +119,11 @@ function invoicePill(status: string): string {
   return "pill-mute";
 }
 
-function findingColumns(jobId: string): Column<Finding>[] {
+function findingColumns(jobId: string, c: JDCopy): Column<Finding>[] {
   return [
     {
       key: "severity",
-      header: "严重程度",
+      header: c.colSeverity,
       sortable: true,
       sortValue: (f) => severityRank(f.severity),
       render: (f) => {
@@ -138,11 +132,11 @@ function findingColumns(jobId: string): Column<Finding>[] {
         return <span className={"pill " + sev.cls} title={hint ? f.severity + " · " + hint : undefined}>{sev.label}</span>;
       },
     },
-    { key: "contract_id", header: "验收条件", sortable: true, render: (f) => <span className="mono">{f.contract_id || "—"}</span> },
-    { key: "evidence_type", header: "证据方式", sortable: true, render: (f) => <span className="mono" title={f.evidence_type || ""}>{evidenceLabel(f.evidence_type)}</span> },
+    { key: "contract_id", header: c.colCondition, sortable: true, render: (f) => <span className="mono">{f.contract_id || "—"}</span> },
+    { key: "evidence_type", header: c.colEvidence, sortable: true, render: (f) => <span className="mono" title={f.evidence_type || ""}>{evidenceLabel(f.evidence_type)}</span> },
     {
       key: "confidence",
-      header: "置信度",
+      header: c.colConfidence,
       sortable: true,
       align: "right",
       sortValue: (f) => f.confidence ?? -1,
@@ -150,19 +144,19 @@ function findingColumns(jobId: string): Column<Finding>[] {
     },
     {
       key: "description",
-      header: "描述",
+      header: c.colDescription,
       sortable: true,
       render: (f, i) => (
-        <a href={"#/findings/" + jobId + "/" + (f.id || i)}>{(f.description || "查看详情").slice(0, 120)}</a>
+        <a href={"#/findings/" + jobId + "/" + (f.id || i)}>{(f.description || c.viewDetails).slice(0, 120)}</a>
       ),
     },
     {
       key: "capsule",
-      header: "复现包",
+      header: c.colCapsule,
       render: (f) =>
         f.capsule_path ? (
           <Button variant="ghost" size="sm" onClick={() => downloadCapsule(jobId, String(f.capsule_path).split("/").pop())}>
-            下载
+            {c.download}
           </Button>
         ) : (
           <span className="muted">—</span>
@@ -176,6 +170,12 @@ interface JobDetailProps {
 }
 
 function JobDetail({ jobId }: JobDetailProps): JSX.Element {
+  const { locale } = useI18n();
+  const c = JOB_DETAIL_BY_LOCALE[locale];
+  const STATUS_HELP = buildStatusHelp(c);
+  const depthLabelOf = (depth: string | undefined) => depthLabel(depth, c);
+  const deepClassificationLabelOf = (value: string | undefined) => deepClassificationLabel(value, c);
+  const invoiceLabelOf = (status: string) => invoiceLabel(status, c);
   const [tab, setTab] = useState<Tab>("overview");
   const [job, setJob] = useState<Job | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -211,7 +211,7 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
       setAiSummaryCopied(true);
       window.setTimeout(() => setAiSummaryCopied(false), 2000);
     } catch {
-      setAiSummaryError("无法写入剪贴板（浏览器拒绝了权限）。");
+      setAiSummaryError(c.copyFailed);
     }
   };
   const [cert, setCert] = useState<CertificateData | null>(null);
@@ -219,9 +219,6 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
   const [copyLinkState, setCopyLinkState] = useState<"idle" | "copied">("idle");
   const [briefCopied, setBriefCopied] = useState(false);
   const [epicCopied, setEpicCopied] = useState(false);
-  // The job read itself can fail (network / 404). It is kept apart from
-  // artifactError because a failed JOB read means there is nothing to show
-  // at all, while a failed artifact read still leaves the job readable.
   const [error, setError] = useState<Error | string | null>(null);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [invoiceLoading, setInvoiceLoading] = useState(false);
@@ -236,10 +233,6 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
   const [sseState, setSseState] = useState<string>("closed");
   const [refresh, setRefresh] = useState(0);
 
-  // #245: derive the billing period from the job's created_at (YYYY-MM).
-  // Declared BEFORE the effects below: the invoice effect lists it in its
-  // dependency array, and a `const` read before its declaration is a
-  // temporal-dead-zone ReferenceError, not a hoisted value.
   const jobPeriod = job?.created_at
     ? new Date(job.created_at).toISOString().slice(0, 7)
     : new Date().toISOString().slice(0, 7);
@@ -271,7 +264,7 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
       setSummaryLoadFailed(s.status === "rejected" && loadFailed(s.reason));
       setFindingsLoadFailed(f.status === "rejected" && loadFailed(f.reason));
       const failed = results.filter((result) => result.status === "rejected");
-      setArtifactError(failed.length ? "部分验证结果暂时无法读取，任务状态仍可查看。点击刷新可重试。" : null);
+      setArtifactError(failed.length ? c.artifactLoadFailed : null);
     };
 
     const load = async (initial = false) => {
@@ -302,7 +295,7 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
         }
         if (initial || (terminal && currentStatus !== previousStatus)) await loadArtifacts();
         previousStatus = currentStatus;
-        if (initial) recordRecentJob("#/jobs/" + encodeURIComponent(jobId), (current.repo_path || "验证") + " · " + shortId(current.id));
+        if (initial) recordRecentJob("#/jobs/" + encodeURIComponent(jobId), (current.repo_path || c.unnamedRepo) + " · " + shortId(current.id));
       } catch (e) {
         if (alive) setError(e as Error);
       } finally {
@@ -314,12 +307,8 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
     const poll = window.setInterval(() => {
       if (!terminal && document.visibilityState === "visible") void load();
     }, 5000);
-    return () => {
-      alive = false;
-      controller.abort();
-      closeStream?.();
-      window.clearInterval(poll);
-    };
+    return () => { alive = false; controller.abort(); closeStream?.(); window.clearInterval(poll); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId, refresh]);
 
   useEffect(() => {
@@ -330,14 +319,13 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
     apiGet<CertificateData>("/api/v1/jobs/" + encodeURIComponent(jobId) + "/certificate", controller.signal)
       .then((data) => { if (alive) setCert(data); })
       .catch((e: { status?: number; message?: string }) => {
-        if (alive) setCertError(e.status === 404 ? "暂未生成验证报告，任务完成后可再次查看。" : e.message || "报告读取失败");
+        if (alive) setCertError(e.status === 404 ? c.reportPending : e.message || c.reportLoadFailed);
       });
     return () => { alive = false; controller.abort(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, jobId, job?.status]);
 
-  // #245: the invoice belongs to the billing PERIOD, not to the job, so it is
-  // read when the tab is opened rather than with the job. A read failure is
-  // reported in the tab — the job's own conclusion is unaffected by it.
+  // #245: the invoice effect
   useEffect(() => {
     if (tab !== "invoice") return;
     let alive = true;
@@ -346,71 +334,11 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
     getInvoiceByPeriod(jobPeriod)
       .then((data) => { if (alive) setInvoice(data); })
       .catch((e: { message?: string }) => {
-        if (alive) setInvoiceError(e.message || "发票读取失败");
+        if (alive) setInvoiceError(e.message || c.invoiceReadFailed);
       })
       .finally(() => { if (alive) setInvoiceLoading(false); });
     return () => { alive = false; };
   }, [tab, jobPeriod]);
-
-  // ... end of the component's effects
-
-  // #245: render invoice tab content (extracted to avoid nested ternary parsing issues)
-  const renderInvoiceContent = () => {
-    if (invoiceLoading) return <Spinner />;
-    if (invoiceError) return <div className="errorbox" role="alert">读取发票失败：{invoiceError}</div>;
-    if (!invoice) return <Empty text="该周期暂无发票。计费 cron 在次月月初会自动生成草稿。" />;
-
-    return (
-      <>
-        <div className="stat-grid" style={{ marginBottom: 16 }}>
-          <StatCard label="发票 Invoice" value={invoice.id} sub={invoice.period} />
-          <StatCard label="状态 Status" value={<span className={"pill " + invoicePill(invoice.status)}>{invoiceLabel(invoice.status)}</span>} />
-          <StatCard label="合计 Total" value={invoice.currency + " " + invoice.total.toFixed(2)} tone="info" />
-          <StatCard label="行项目 Line Items" value={String((invoice.line_items ?? []).length)} />
-        </div>
-
-        <Panel title="行项目 Line Items">
-          {invoice.line_items && invoice.line_items.length > 0 ? (
-            <Table
-              columns={[
-                { key: "metric", header: "指标 Metric" },
-                { key: "amount", header: "数量 Amount", align: "right" as const },
-                { key: "unit_price", header: "单价 Unit Price", align: "right" as const },
-                { key: "amount_total", header: "金额 Amount", align: "right" as const },
-              ]}
-              rows={invoice.line_items}
-              rowKey={(_item, i) => String(i)}
-              emptyTitle="无行项目"
-            />
-          ) : (
-            <Empty text="无行项目" />
-          )}
-        </Panel>
-
-        <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={invoiceTransitioning || invoice.status === "issued" || invoice.status === "paid"}
-            onClick={() => transitionStatus("issued")}
-          >
-            {invoice.status === "draft" ? "开具 Issued" : "已开具 Issued"}
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={invoiceTransitioning || invoice.status !== "issued"}
-            onClick={() => transitionStatus("paid")}
-          >
-            {invoice.status === "paid" ? "已支付 Paid" : "标记支付 Paid"}
-          </Button>
-          {invoiceTransitionError && (
-            <span className="errorbox" style={{ marginLeft: "auto" }}>{invoiceTransitionError}</span>
-          )}
-        </div>
-      </>
-    );
-  };
 
   // #245: transition invoice status
   const transitionStatus = async (targetStatus: "issued" | "paid") => {
@@ -428,44 +356,33 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
     }
   };
 
-  // Guard clause: the job read itself can fail (network / 404). The error
-  // is SHOWN here — a silent "加载中" would leave a reader staring at a
-  // spinner over a job that does not exist. It sits BEFORE the reads below
-  // so TypeScript narrows `job` to non-null for them.
+  // Guard clause: the job read itself can fail (network / 404).
   if (loading) return <Spinner />;
   if (!job) {
     return (
       <div>
-        <ErrorBox error={error || "任务不存在 (404)"} />
-        <Button onClick={() => setRefresh((value) => value + 1)}>重试</Button>{" "}
-        <a href="#/jobs">← 返回任务列表</a>
+        <ErrorBox error={error || c.taskNotFound} />
+        <Button onClick={() => setRefresh((value) => value + 1)}>{c.retry}</Button>{" "}
+        <a href="#/jobs">{c.backToJobs}</a>
       </div>
     );
   }
 
   const s = summary;
   const status = (job.status || "").toUpperCase();
-  const statusHelp = STATUS_HELP[status] || ["查看本次验证结果", "结合需求覆盖与风险证据判断本次改动，未验证项需要进一步确认。"];
+  const statusHelp = STATUS_HELP[status] || [c.viewThisVerdict, c.followMatrix];
   const latest = live[live.length - 1];
   const findingCount = findings ? findings.count : 0;
-  // #169: `coverage_reason` is ONE joined string for every non-VERIFIED outcome
-  // (evidence/verdict.py emits 零检查 / 记录格式与覆盖不一致 / 「存在 N 项已确认问题」 /
-  // 「执行过程有错误」, and release_gate_veto adds the 「RELEASE 档发布门」 refusals).
-  // Only a recorded row count of 0 proves「没有形成可执行的检查项」; an absent count —
-  // a summary persisted before rows reached the summary (agent/worker.py
-  //::_matrix_rows_for_summary) — is unknown, and must not be read as 0.
   const rowsTotal = typeof s?.matrix_rows_total === "number" ? s.matrix_rows_total : null;
-  // Answer "下一步做什么" with one primary action chosen from the outcome,
-  // instead of a fixed link that ignores whether there are risks to review.
   const nextAction: { label: string; run: () => void } | null =
     status === "BLOCKED" && findingCount > 0
-      ? { label: "查看 " + findingCount + " 条风险并处理 →", run: () => setTab("findings") }
+      ? { label: c.findingsBlocked(findingCount), run: () => setTab("findings") }
       : status === "VERIFIED"
-      ? { label: "查看验证报告 →", run: () => setTab("certificate") }
+      ? { label: c.viewCertificate, run: () => setTab("certificate") }
       : !!s?.coverage_reason && rowsTotal === 0
-      ? { label: "了解如何补全验证 →", run: () => { window.location.hash = "#/guide"; } }
+      ? { label: c.learnGaps, run: () => { window.location.hash = "#/guide"; } }
       : s?.coverage_reason
-      ? { label: "逐项查看未确认的验收条件 →", run: () => { window.location.hash = "#/matrix"; } }
+      ? { label: c.viewUnverified, run: () => { window.location.hash = "#/matrix"; } }
       : null;
   const caps: string[] = [];
   if (findings) {
@@ -473,8 +390,8 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
       if (f.capsule_path) caps.push(String(f.capsule_path));
     });
   }
-  (s && s.capsules ? s.capsules : []).forEach((c) => {
-    const name = String(c).split("/").pop() || String(c);
+  (s && s.capsules ? s.capsules : []).forEach((cc) => {
+    const name = String(cc).split("/").pop() || String(cc);
     if (!caps.includes(name)) caps.push(name);
   });
 
@@ -486,30 +403,31 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
 
   return (
     <div className="verification-page">
-      <Breadcrumbs items={[{ label: "验证记录", href: "#/jobs" }, { label: "验证详情" }]} />
+      <Breadcrumbs items={[{ label: c.jobsLabel, href: "#/jobs" }, { label: c.detailLabel }]} />
       <div className="page-head">
         <h1>
-          验证 {shortId(jobId)} <StatusPill status={job.status || ""} />{job.is_demo ? <span className="demo-label">演示</span> : null}
+          {c.detailLabel} {shortId(jobId)} <StatusPill status={job.status || ""} />{job.is_demo ? <span className="demo-label">{c.demoLabel}</span> : null}
         </h1>
         <div className="page-sub">
           {(job.base_ref || "—") + " → " + (job.head_ref || "—") + " · " + (job.repo_path || "—")}
         </div>
       </div>
       <ErrorBox error={error || artifactError} />
-      {summary?.coverage_reason && <div className="degraded" role="status"><strong>本次验收结论未能确认</strong><p>{summary.coverage_reason}</p>{rowsTotal === 0 ? <a href="#/guide">了解支持的验收方式 →</a> : <a href="#/matrix">逐项查看未确认的验收条件 →</a>}</div>}
-      <div className="verification-detail-banner" aria-live="polite"><h2>{summary?.coverage_reason ? rowsTotal === 0 ? "覆盖不足，暂不能确认验收通过" : "本次不能确认验收通过" : statusHelp[0]}</h2><p>{summary?.coverage_reason ? rowsTotal === 0 ? "本次没有形成可执行的检查项。请完善验收条件，或接入对应检查器后重新验收。" : rowsTotal === null ? "请查看上方原因，并结合需求覆盖与风险证据判断本次结论。" : "本次已形成 " + rowsTotal + " 项检查，结论仍不能确认为通过。请查看上方原因，并结合需求覆盖与风险证据判断。" : statusHelp[1]}</p>
-      {ACTIVE.has(status) ? <Progress value={latest?.percentage ?? latest?.percent ?? 0} label={latest?.summary || latest?.message || "等待执行进度"} showValue /> : null}
-      {nextAction ? <div className="next-action" role="group" aria-label="下一步操作"><span>下一步：</span><Button size="sm" variant="primary" onClick={nextAction.run}>{nextAction.label}</Button></div> : null}
-      <div style={{ display: "flex", gap: 12, marginTop: 18, flexWrap: "wrap", alignItems: "center" }}><Button size="sm" variant="ghost" onClick={() => setRefresh((value) => value + 1)}>刷新结果</Button><Button size="sm" variant="ghost" onClick={() => { const md = buildMarkdownSummary({ job: job ?? { id: jobId, base_ref: null, head_ref: null, repo_path: null, spec_path: null, status: null }, summary: summary ? { verdict: summary.verdict ?? null, contracts_total: summary.contracts_total ?? null, matrix_passed: summary.matrix_passed ?? null, matrix_failed: summary.matrix_failed ?? null, matrix_unverified: summary.matrix_unverified ?? null, errors: (summary.errors ?? []) as string[] } : null, findings: findings?.findings ?? [] }); navigator.clipboard.writeText(md).catch(() => {}); setBriefCopied(true); window.setTimeout(() => setBriefCopied(false), 2000); }}>{briefCopied ? "已复制 ✓" : "复制 Markdown 摘要"}</Button><Button size="sm" variant="ghost" onClick={() => { const md = buildEpicCertificate({ job: job ?? { id: jobId, base_ref: null, head_ref: null, repo_path: null, spec_path: null, status: null }, summary: summary ? { verdict: summary.verdict ?? null, contracts_total: summary.contracts_total ?? null,   matrix_passed: summary.matrix_passed ?? null, matrix_failed: summary.matrix_failed ?? null,   matrix_unverified: summary.matrix_unverified ?? null,   errors: (summary.errors ?? []) as string[] } : null, findings: findings?.findings ?? [] }); navigator.clipboard.writeText(md).catch(() => {}); setEpicCopied(true); window.setTimeout(() => setEpicCopied(false), 2000); }}>{epicCopied ? "已复制 ✓" : "复制史诗纪要"}</Button><a href="#/matrix">查看需求覆盖 →</a><a href={"#/audit?job=" + encodeURIComponent(jobId)}>查看这个作业的审计轨迹 →</a></div>
+      {summary?.coverage_reason && <div className="degraded" role="status"><strong>{c.verdictAndEvidence}</strong><p>{summary.coverage_reason}</p>{rowsTotal === 0 ? <a href="#/guide">{c.learnGaps}</a> : <a href="#/matrix">{c.viewUnverified}</a>}</div>}
+
+      <div className="verification-detail-banner" aria-live="polite"><h2>{summary?.coverage_reason ? rowsTotal === 0 ? c.cannotConfirm : c.verdictUnmeasurable : statusHelp[0]}</h2><p>{summary?.coverage_reason ? rowsTotal === 0 ? c.notPassedConfirmation : rowsTotal === null ? c.checkFailed : c.notPassedSummary + " " + rowsTotal + c.runStepsInline : statusHelp[1]}</p>
+      {ACTIVE.has(status) ? <Progress value={latest?.percentage ?? latest?.percent ?? 0} label={latest?.summary || latest?.message || c.waitingProgress} showValue /> : null}
+      {nextAction ? <div className="next-action" role="group" aria-label={c.nextSteps}><span>{c.nextStepColon}</span><Button size="sm" variant="primary" onClick={nextAction.run}>{nextAction.label}</Button></div> : null}
+      <div style={{ display: "flex", gap: 12, marginTop: 18, flexWrap: "wrap", alignItems: "center" }}><Button size="sm" variant="ghost" onClick={() => setRefresh((value) => value + 1)}>{c.refresh}</Button><Button size="sm" variant="ghost" onClick={() => { const md = buildMarkdownSummary({ job: job ?? { id: jobId, base_ref: null, head_ref: null, repo_path: null, spec_path: null, status: null }, summary: summary ? { verdict: summary.verdict ?? null, contracts_total: summary.contracts_total ?? null, matrix_passed: summary.matrix_passed ?? null, matrix_failed: summary.matrix_failed ?? null, matrix_unverified: summary.matrix_unverified ?? null, errors: (summary.errors ?? []) as string[] } : null, findings: findings?.findings ?? [] }); navigator.clipboard.writeText(md).catch(() => {}); setBriefCopied(true); window.setTimeout(() => setBriefCopied(false), 2000); }}>{briefCopied ? c.copiedBadge : c.copyMarkdown}</Button><Button size="sm" variant="ghost" onClick={() => { const md = buildEpicCertificate({ job: job ?? { id: jobId, base_ref: null, head_ref: null, repo_path: null, spec_path: null, status: null }, summary: summary ? { verdict: summary.verdict ?? null, contracts_total: summary.contracts_total ?? null, matrix_passed: summary.matrix_passed ?? null, matrix_failed: summary.matrix_failed ?? null, matrix_unverified: summary.matrix_unverified ?? null, errors: (summary.errors ?? []) as string[] } : null, findings: findings?.findings ?? [] }); navigator.clipboard.writeText(md).catch(() => {}); setEpicCopied(true); window.setTimeout(() => setEpicCopied(false), 2000); }}>{epicCopied ? c.copiedBadge : c.copyEpicCertificate}</Button><a href="#/matrix">{c.viewCoverage}</a><a href={"#/audit?job=" + encodeURIComponent(jobId)}>{c.auditTrail}</a></div>
       </div>
 
-      <div className="tabs" role="tablist" aria-label="验证详情">
-        {tabBtn("overview", "验证概览")}
-        {tabBtn("stages", "执行进度")}
-        {tabBtn("findings", "风险发现 (" + (findings ? findings.count : 0) + ")")}
-        {tabBtn("certificate", "验证报告")}
-        {tabBtn("invoice", "发票")}
-        {tabBtn("capsule", "复现包")}
+      <div className="tabs" role="tablist" aria-label={c.detailLabel}>
+        {tabBtn("overview", c.tabOverview)}
+        {tabBtn("stages", c.stages)}
+        {tabBtn("findings", c.findingsLabel + " (" + (findings ? findings.count : 0) + ")")}
+        {tabBtn("certificate", c.tabReport)}
+        {tabBtn("invoice", c.tabInvoice)}
+        {tabBtn("capsule", c.capsuleHeaderTitle)}
       </div>
 
       {tab === "overview" ? (
@@ -517,124 +435,124 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
           {s ? (
             <>
               <div className="stat-grid" style={{ marginBottom: 16 }}>
-                <StatCard label="验证结论" value={verdictLabel(s.verdict)} tone={verdictTone(s.verdict)} />
-                <StatCard label="验收条件" value={s.contracts_total ?? "—"} />
-                <StatCard label="已通过" value={s.matrix_passed ?? "—"} tone="ok" />
-                <StatCard label="未通过" value={s.matrix_failed ?? "—"} tone="bad" />
-                <StatCard label="尚未验证" value={s.matrix_unverified ?? "—"} tone="warn" />
+                <StatCard label={c.verdictLabel} value={verdictLabel(s.verdict)} tone={verdictTone(s.verdict)} />
+                <StatCard label={c.colCondition} value={s.contracts_total ?? "—"} />
+                <StatCard label={c.verdictEvidenceOk} value={s.matrix_passed ?? "—"} tone="ok" />
+                <StatCard label={c.notPassed} value={s.matrix_failed ?? "—"} tone="bad" />
+                <StatCard label={c.unverified} value={s.matrix_unverified ?? "—"} tone="warn" />
               </div>
               <Panel
-                title="AI 解读"
-                right={<Button size="sm" variant="ghost" onClick={loadAiSummary} disabled={aiSummaryState === "loading"}>{aiSummaryState === "loading" ? "正在解读…" : aiSummary ? "重新解读" : "AI 解读本次验收"}</Button>}
+                title={c.aiReading}
+                right={<Button size="sm" variant="ghost" onClick={loadAiSummary} disabled={aiSummaryState === "loading"}>{aiSummaryState === "loading" ? c.explaining : aiSummary ? c.reexplain : c.aiReadingThis}</Button>}
               >
                 {aiSummaryState === "loading" || aiSummaryStream || aiSummary ? (
                   <>
                     <div className={"ai-summary-body tone-" + verdictTone(s.verdict)}>
                       <p className="ai-summary-text">
                         {aiSummary ? aiSummary.summary : aiSummaryStream}
-                        {aiSummaryState === "loading" ? <span className="ai-summary-caret" aria-hidden="true">▋</span> : null}
+                        {aiSummaryState === "loading" ? <span className="ai-summary-caret" aria-hidden="true">▍</span> : null}
                       </p>
                       {aiSummary ? (
                         <div className="ai-summary-meta">
-                          <span>{aiSummary.cached ? "Redis 缓存命中" : "模型直出" + (aiSummary.model_latency_ms != null ? " · " + (aiSummary.model_latency_ms / 1000).toFixed(1) + "s" : "")}</span>
-                          <span>AI 解读 · 不是判决</span>
-                          <button type="button" className="ai-summary-copy" onClick={copyAiSummary}>{aiSummaryCopied ? "已复制" : "复制摘要"}</button>
+                          <span>{aiSummary.cached ? c.cacheHit : c.modelDirect + (aiSummary.model_latency_ms != null ? " · " + (aiSummary.model_latency_ms / 1000).toFixed(1) + "s" : "")}</span>
+                          <span>{c.aiReadingNotVerdict}</span>
+                          <button type="button" className="ai-summary-copy" onClick={copyAiSummary}>{aiSummaryCopied ? c.copiedBadge : c.copySummary}</button>
                         </div>
                       ) : (
                         <div className="ai-summary-meta">
-                          <span>{aiSummaryStream.length ? "正在流式生成…（按帧到达，约为上文）" : "正在读取证据、编译解读……"}</span>
+                          <span>{aiSummaryStream.length ? c.streamingDesc : c.readingEvidence}</span>
                         </div>
                       )}
                     </div>
                     {aiSummaryState === "error" && aiSummaryStream ? (
                       <div className="ai-summary-error-partial">
-                        <p className="muted">以上文本已到达但解读被中断，下面是完整错误。</p>
-                        <p className="ai-summary-stream-error">{aiSummaryError || "AI 解读不可用"}</p>
+                        <p className="muted">{c.explainInterrupted}</p>
+                        <p className="ai-summary-stream-error">{aiSummaryError || c.aiReadingUnavailable}</p>
                       </div>
                     ) : null}
                   </>
                 ) : aiSummaryState === "error" ? (
-                  <ErrorBox error={aiSummaryError || "AI 解读不可用"} />
+                  <ErrorBox error={aiSummaryError || c.aiReadingUnavailable} />
                 ) : (
-                  <p className="muted">点一下「AI 解读本次验收」，把结论编译成评审者能直接读的一段话。判决仍沿用上方的确定性证据，AI 不做判决。</p>
+                  <p className="muted">{c.aiReadingHint}</p>
                 )}
               </Panel>
               <div>
                 <PreflightCard preflight={s.preflight} />
-                <Panel title="证据与产物">
-                  {kv("报告路径", s.report_path || "—")}
-                  {kv("检索说明", s.retrieval_note || "—")}
+                <Panel title={c.evidenceArtifacts}>
+                  {kv(c.reportPath, s.report_path || "—")}
+                  {kv(c.retrievalNote, s.retrieval_note || "—")}
                   {s.errors && s.errors.length > 0 ? (
                     <>
-                      <div className="kv-label" style={{ margin: "8px 0 4px" }}>执行记录</div>
+                      <div className="kv-label" style={{ margin: "8px 0 4px" }}>{c.executionLog}</div>
                       {s.errors.map((e, i) => (
                         <div key={i} className="errorbox" style={{ marginBottom: 6 }} title={String(e)}>{describePipelineError(String(e))}</div>
                       ))}
                     </>
                   ) : null}
-                  <details className="evidence-fold" aria-label="证据折叠">
-                    <summary>证据折叠{caps.length ? "（" + caps.length + " 份可下载材料）" : ""}</summary>
+                  <details className="evidence-fold" aria-label={c.evidenceFold}>
+                    <summary>{c.evidenceFold}{caps.length ? c.evidenceFoldSuffix(caps.length) : ""}</summary>
                     <div className="evidence-fold-body">
                       {caps.length
-                        ? caps.slice(0, 5).map((c) => (
-                            <div key={c} className="kv">
-                              <span className="kv-label">复现包</span>
-                              <span className="kv-value">{c}</span>
+                        ? caps.slice(0, 5).map((cc) => (
+                            <div key={cc} className="kv">
+                              <span className="kv-label">{c.capsuleLabel}</span>
+                              <span className="kv-value">{cc}</span>
                             </div>
                           ))
-                        : <div className="kv"><span className="kv-label">复现包</span><span className="kv-value">本次没有生成复现包（结论靠可执行证据判定，不依赖下载材料）</span></div>}
-                      {kv("签名材料", s?.capsules ? String(s.capsules.length) + " 份" : "本地内存可见")}
-                      {kv("流式进度", (live && live.length ? String(live.length) + " 个帧" : "0 个帧"))}
+                        : <div className="kv"><span className="kv-label">{c.capsuleLabel}</span><span className="kv-value">{c.noCapsule}</span></div>}
+                      {kv(c.signatureMaterials, s?.capsules ? String(s.capsules.length) + " " : c.memoryOnly)}
+                      {kv(c.sseProgress, (live && live.length ? String(live.length) + " " + c.frames : c.zeroFrames))}
                     </div>
                   </details>
                 </Panel>
                 {s.deep_results && Object.keys(s.deep_results).length > 0 ? (
-                  <Panel title="DEEP 深度验证披露">
-                    {kv("执行说明", s.deep_note || "—")}
+                  <Panel title={c.deepDisclosure}>
+                    {kv(c.deepExplanation, s.deep_note || "—")}
                     {s.deep_results.verdict_stability
                       ? kv(
-                          "结论稳定性",
-                          deepClassificationLabel(s.deep_results.verdict_stability.classification)
+                          c.verdictStability,
+                          deepClassificationLabelOf(s.deep_results.verdict_stability.classification)
                             + (s.deep_results.verdict_stability.repeat_count
-                              ? "（" + s.deep_results.verdict_stability.repeat_count + " 次重复运行）"
+                              ? c.repeatRunsPrefix(s.deep_results.verdict_stability.repeat_count)
                               : ""),
                         )
                       : null}
-                    {s.deep_results.cache_integrity ? kv("缓存完整性", s.deep_results.cache_integrity) : null}
-                    {s.deep_results.deep_report_file ? kv("深度报告", s.deep_results.deep_report_file) : null}
+                    {s.deep_results.cache_integrity ? kv(c.cacheIntegrity, s.deep_results.cache_integrity) : null}
+                    {s.deep_results.deep_report_file ? kv(c.deepReport, s.deep_results.deep_report_file) : null}
                   </Panel>
                 ) : null}
               </div>
             </>
           ) : summaryLoadFailed ? (
-            <div className="errorbox" role="alert">验证结果暂时无法读取（请求失败）— 这不代表没有结果，请点击刷新重试。</div>
+            <div className="errorbox" role="alert">{c.summaryLoadFailedView}</div>
           ) : ACTIVE.has(status) ? (
-            <Empty text="验证仍在执行中，完成后这里会展示结论、需求覆盖与风险证据。" />
+            <Empty text={c.activeRunView} />
           ) : status === "FAILED" ? (
             <>
-              <Empty text="这一轮以执行失败结束，记录里没有验证摘要。" />
-              <p className="degraded">失败不会随刷新补出摘要：结论、覆盖与风险要在一次新的验证里重新产生。下方"最近执行错误"说明这一轮失败的原因，"执行进度"说明它停在哪一步。</p>
+              <Empty text={c.failedTerminalView} />
+              <p className="degraded">{c.failedTerminalBody}</p>
             </>
           ) : TERMINAL.has(status) ? (
             <>
-              <Empty text="任务已进入终态，但记录里没有验证摘要。" />
-              <p className="degraded">这条不会随刷新补上。终态与摘要现在是同一条写入，因此读不到摘要意味着这一轮的证据当时就没有落库（多为该改动之前完成的历史任务）。可以用"执行进度"和"风险发现"判断这一轮走到哪里，需要结论时重新发起验证。</p>
+              <Empty text={c.terminalNoSummary} />
+              <p className="degraded">{c.terminalNoSummaryBody}</p>
             </>
           ) : (
             <>
-              <Empty text={"任务状态为 " + (status || "（空）") + "，这是本页面未识别的状态，且记录里没有验证摘要。"} />
-              <p className="muted">未识别状态既不等于已终态，也不等于仍在执行，所以这里不下结论。</p>
+              <Empty text={c.unknownState + (status || c.emptyParen) + c.unknownStateTail} />
+              <p className="muted">{c.unknownStateBody}</p>
             </>
           )}
-          <Panel title="任务信息">
-            {kv("项目路径", job.repo_path || "—")}
-            {kv("比较版本", (job.base_ref || "—") + " → " + (job.head_ref || "—"))}
-            {kv("需求文件", job.spec_path || "—")}
-            {kv("验证模式", depthLabel(job.depth))}
-            {kv("重试次数", String(job.retry_count ?? 0))}
-            {kv("创建时间", fmtTime(job.created_at))}
-            {kv("更新时间", fmtTime(job.updated_at))}
-            {job.last_error ? <div className="kv-label" style={{ margin: "8px 0 4px" }}>最近执行错误</div> : null}
+          <Panel title={c.taskInfo}>
+            {kv(c.repoPath, job.repo_path || "—")}
+            {kv(c.compareRefs, (job.base_ref || "—") + " → " + (job.head_ref || "—"))}
+            {kv(c.specPath, job.spec_path || "—")}
+            {kv(c.verifyMode, depthLabelOf(job.depth))}
+            {kv(c.retryCount, String(job.retry_count ?? 0))}
+            {kv(c.createdAt, fmtTime(job.created_at))}
+            {kv(c.updatedAt, fmtTime(job.updated_at))}
+            {job.last_error ? <div className="kv-label" style={{ margin: "8px 0 4px" }}>{c.lastErrorLabel}</div> : null}
             {job.last_error ? <div role="alert" className="errorbox" title={job.last_error}>{describePipelineError(String(job.last_error))}</div> : null}
             {job.last_error && terminalStageNote(String(job.last_error)) ? (
               <div className="kv-label" title={job.last_error}>{terminalStageNote(String(job.last_error))}</div>
@@ -645,11 +563,11 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
       ) : null}
       {tab === "stages" ? (
         <Panel
-          title={"执行阶段 · " + (sseState === "open" ? "实时更新中" : ACTIVE.has(status) ? "正在连接进度" : "执行已结束")}
+          title={c.executionStages + (sseState === "open" ? c.realtime : ACTIVE.has(status) ? c.connecting : c.terminal)}
         >
           {stages && stages.degraded ? <Degraded reasons={[stages.degraded_reason || "redis unavailable"]} /> : null}
           {stages && stages.stages.length === 0 ? (
-            <Empty text="暂无执行进度，任务可能尚未开始。" />
+            <Empty text={c.noStagesYet} />
           ) : (
             stages && (
               <>
@@ -663,12 +581,12 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
                     <div className="bar" style={{ width: 120, margin: 0 }}>
                       <div className="bar-fill" style={{ width: Math.min(100, st.percent) + "%" }} />
                     </div>
-                    <span className="stage-duration" title={st.started_at ? "开始：" + st.started_at : undefined}>{fmtDurationSeconds(st.duration_seconds)}</span>
-                    {st.failed_at ? <span className="stage-failed-at" title={st.failed_at}>失败于 {fmtTime(st.failed_at)}</span> : null}
+                    <span className="stage-duration" title={st.started_at ? c.startedAtPrefix + st.started_at : undefined}>{fmtDurationSeconds(st.duration_seconds)}</span>
+                    {st.failed_at ? <span className="stage-failed-at" title={st.failed_at}>{c.failedAtPrefix + fmtTime(st.failed_at)}</span> : null}
                     {st.artifact_refs && st.artifact_refs.length > 0 ? (
                       <span className="stage-artifacts" title={st.artifact_refs.join("\n")}>
                         {st.artifact_refs.slice(0, 3).map((ref) => (
-                          <span key={ref} className="stage-artifact" title={artifactHint(ref)}>{ref}</span>
+                          <span key={ref} className="stage-artifact" title={ref}>{ref}</span>
                         ))}
                         {st.artifact_refs.length > 3 ? <span className="stage-artifact">+{st.artifact_refs.length - 3}</span> : null}
                       </span>
@@ -681,10 +599,10 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
             )
           )}
           <div style={{ marginTop: 14 }}>
-            <div className="kv-label">实时执行日志</div>
+            <div className="kv-label">{c.realtimeLog}</div>
             <div className="console">
               {live.length === 0
-                ? "[等待进度事件…]\n"
+                ? "[" + c.waitingProgressEvents + "]\n"
                 : live
                     .map((ev) => {
                       const stage = ev.stage || ev.node || "";
@@ -700,15 +618,15 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
       ) : null}
 
       {tab === "findings" ? (
-        <Panel title={"风险发现 (" + (findings ? findings.count : 0) + ")"}>
+        <Panel title={c.findingsLabel + " (" + (findings ? findings.count : 0) + ")"}>
           {findings && findings.degraded ? <Degraded reasons={[findings.degraded_reason || "degraded"]} /> : null}
           {findingsLoadFailed ? (
-            <div className="errorbox" role="alert">风险扫描结果暂时无法读取（请求失败）— 无法确认是否存在风险，请勿据此判定为安全；点击刷新重试。</div>
+            <div className="errorbox" role="alert">{c.findingsLoadFailedView}</div>
           ) : !findings || findings.findings.length === 0 ? (
-            <Empty text="暂未发现已确认的问题。请同时检查需求覆盖情况；没有风险记录不代表所有需求均已验证。" />
+            <Empty text={c.noFindings} />
           ) : (
             <Table<Finding>
-              columns={findingColumns(jobId)}
+              columns={findingColumns(jobId, c)}
               rows={findings.findings}
               rowKey={(f, i) => f.id || String(i)}
             />
@@ -717,23 +635,23 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
       ) : null}
 
       {tab === "certificate" ? (
-        <Panel title={<Term id="certificate">合并证书 / 拒绝通知</Term>}>
+        <Panel title={<Term id="certificate">{c.certificate}</Term>}>
           {certError ? <div className="errorbox">{certError}</div> : null}
           {cert ? (
             <>
-              {kv("证书文件", cert.path)}
-              {cert.signed_path ? kv("签名文件", cert.signed_path) : null}
+              {kv(c.certificateFile, cert.path)}
+              {cert.signed_path ? kv(c.signedFile, cert.signed_path) : null}
               {cert.signed_statement ? (
                 <>
-                  <div className="kv-label">签名声明（in-toto 风格，供审计核验）</div>
+                  <div className="kv-label">{c.signedStatement}</div>
                   <pre className="json">{JSON.stringify(cert.signed_statement, null, 2)}</pre>
                 </>
               ) : (
                 <div className="muted" style={{ margin: "8px 0" }}>
-                  暂无 Ed25519 签名文件（未配置签名密钥时，仅提供未签名摘要 —— 如实呈现，不伪造可信签名）。
+                  {c.noSignedFile}
                 </div>
               )}
-              <div className="kv-label">证书内容（原始 JSON）</div>
+              <div className="kv-label">{c.certificateContent}</div>
               <pre className="json">{JSON.stringify(cert.document, null, 2)}</pre>
             </>
           ) : null}
@@ -741,17 +659,69 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
       ) : null}
 
       {tab === "invoice" ? (
-        <Panel title="发票 Invoice">
-          {renderInvoiceContent()}
+        <Panel title={c.tabInvoice}>
+          {(() => {
+            if (invoiceLoading) return <Spinner />;
+            if (invoiceError) return <div className="errorbox" role="alert">{c.invoiceReadFailedPrefix}{invoiceError}</div>;
+            if (!invoice) return <Empty text={c.periodNoInvoice} />;
+            return (
+              <>
+                <div className="stat-grid" style={{ marginBottom: 16 }}>
+                  <StatCard label={c.tabInvoice} value={invoice.id} sub={invoice.period} />
+                  <StatCard label={c.statusLabel} value={<span className={"pill " + invoicePill(invoice.status)}>{invoiceLabelOf(invoice.status)}</span>} />
+                  <StatCard label={c.totalLabel} value={invoice.currency + " " + invoice.total.toFixed(2)} tone="info" />
+                  <StatCard label={c.lineItemsLabel} value={String((invoice.line_items ?? []).length)} />
+                </div>
+                <Panel title={c.lineItemsLabel}>
+                  {invoice.line_items && invoice.line_items.length > 0 ? (
+                    <Table
+                      columns={[
+                        { key: "metric", header: c.metricLabel },
+                        { key: "amount", header: c.quantityLabel, align: "right" as const },
+                        { key: "unit_price", header: c.unitPriceLabel, align: "right" as const },
+                        { key: "amount_total", header: c.amountLabel, align: "right" as const },
+                      ]}
+                      rows={invoice.line_items}
+                      rowKey={(_item, i) => String(i)}
+                      emptyTitle={c.noLineItems}
+                    />
+                  ) : (
+                    <Empty text={c.noLineItems} />
+                  )}
+                </Panel>
+                <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={invoiceTransitioning || invoice.status === "issued" || invoice.status === "paid"}
+                    onClick={() => transitionStatus("issued")}
+                  >
+                    {invoice.status === "draft" ? c.issueButton : c.alreadyIssued}
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={invoiceTransitioning || invoice.status !== "issued"}
+                    onClick={() => transitionStatus("paid")}
+                  >
+                    {invoice.status === "paid" ? c.alreadyPaid : c.markPaid}
+                  </Button>
+                  {invoiceTransitionError && (
+                    <span className="errorbox" style={{ marginLeft: "auto" }}>{invoiceTransitionError}</span>
+                  )}
+                </div>
+              </>
+            );
+          })()}
         </Panel>
       ) : null}
 
       {tab === "capsule" ? (
-        <Panel title={<Term id="capsule">复现包下载 · 评审链接</Term>}>
+        <Panel title={<Term id="capsule">{c.capsuleHeaderTitle}</Term>}>
           <div>
-            {caps.map((c) => (
-              <Button key={c} variant="ghost" size="sm" style={{ marginRight: 8, marginBottom: 8 }} onClick={() => downloadCapsule(jobId, c.split("/").pop())}>
-                ↓ {c.split("/").pop()}
+            {caps.map((cc) => (
+              <Button key={cc} variant="ghost" size="sm" style={{ marginRight: 8, marginBottom: 8 }} onClick={() => downloadCapsule(jobId, cc.split("/").pop())}>
+                ⬇ {cc.split("/").pop()}
               </Button>
             ))}
             <Button
@@ -766,16 +736,16 @@ function JobDetail({ jobId }: JobDetailProps): JSX.Element {
                 window.setTimeout(() => setCopyLinkState("idle"), 2000);
               }}
             >
-              {copyLinkState === "copied" ? "已复制 ✓" : "复制评审链接"}
+              {copyLinkState === "copied" ? c.copiedBadge : c.copyReviewLink}
             </Button>
             <p className="muted" style={{ fontSize: "var(--text-xs)", marginTop: "var(--sp-2)" }}>
-              链接指向同一个租户的同一份证据：复制给有权限的同事，他打开就能看到本次验收的结论、契约与证据。资格审查仍走租户权限。
+              {c.reviewLinkExplain}
             </p>
           </div>
         </Panel>
       ) : null}
     </div>
   );
-};
+}
 
 export default JobDetail;
