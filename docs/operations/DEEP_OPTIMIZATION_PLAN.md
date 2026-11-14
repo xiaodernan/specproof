@@ -36142,3 +36142,34 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 回答缓存 TTL 只有 15 分钟——文档更新后回答有窗口内陈旧的可能（问题指纹不含文档指纹）；
 * RAG 问答仍然不是验证（不替代 `specproof verify`）；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1774 铁证书房 `#/worldbook` —— 正史入 App：29 节（序章 + 22 卷 + 附录）逐字可读
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `scripts/build_worldbook.py`（stdlib only，read-only on sources）：解析
+  `docs/world/SPECROOF_WORLD.md` 与 EN 镜像为 `apps/web/src/pages/worldbook.json`——
+  **29 节**（1 序章 + 卷零…卷二十二 + 终章 + 附录甲乙丙丁），zh 28,461 chars / en 60,002 chars，全书 125.7 KB；
+* `apps/web/src/pages/WorldBook.tsx` + `styles/worldbook.css`：
+  - 左栏：书牌（铁证印记）+ 全书搜索（**按 `<mark class="wb-hit">` 高亮、跳过标签本身**）+ 进度条（localStorage `specproof_worldbook_read`，
+    29 节分母，持久化）+ 卷目录（✓ 已读标记）；
+  - 中栏：A4 书页式阅读区（Georgia/'Noto Serif SC' 衬线、暗靛底 + 金发丝线）——正文/表格/代码/引用全部由 `marked` 渲染；
+    命中计数徽标；A−/A/A+ 三档字号（持久化 `specproof_worldbook_font`）；
+  - 随机开一卷（⚄）+ 上/下一卷分页；已读切换按钮；语言随全局 locale 即时切换（中英对照为同一组 29 节）；
+* `marked@^16` 新增依赖（单文件零递归依赖）；ProductIcon 新增 `book`；App.tsx evidence 组一级入口（25 个入口）；
+  `nav.worldbook` ×2 locale；两本 `USER_GUIDE` 补 `/worldbook` 行 + 一级入口 24→25；
+* **file:// 冒烟**（本地临时 bypass 登录门禁 → `vite build --base=./` → 预览）：
+  控制台 **0 error**；`#/worldbook` 挂载成功；29 卷按钮齐、序章/卷一/卷二/卷三均可点开；
+  卷一表格渲染 ✓；搜索 `base_pass_head_fail` → 侧栏收窄到 6 卷、当前卷命中 2 处、`<mark>` 高亮入 DOM ✓；
+  **门禁已原样恢复**——`git diff` 仅含本节新增文件；
+* Build ✅ in 625ms（WorldBook chunk 176 KB / 72.9 KB gz）；tsc 0；i18n parity 11/11。
+
+### 二、诚实边界
+
+* 本节**没有拿到像素截图**（in-app browser 需可见桌面窗口）；目验 = DOM/a11y/JS 交互断言，非肉眼；
+* 世界书的中英两个版本**不是逐字互译**（英译更开阔，属谱系同源）——本页不隐藏这一点，切换 locale 即可对照；
+* 阅读进度仅存本机 localStorage，不跨浏览器/设备；无账号同步（将来若要，必须先过身份层）；
+* 全书搜索是子串匹配，不是语义检索（语义检索请用 `scripts/repo_rag.py`）；
+* 全量 `pytest tests/unit` 仍未跑完。

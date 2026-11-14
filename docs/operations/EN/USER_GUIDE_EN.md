@@ -22,7 +22,7 @@ docker compose -f compose.phase0.yml up -d --wait
 
 ### 1.2 A lap around the whole product (5 minutes)
 
-Open `http://127.0.0.1:5173/` — the sidebar carries 24 first-level entries:
+Open `http://127.0.0.1:5173/` — the sidebar carries 25 first-level entries:
 
 | Group | Entry | What you can do right now | Iron evidence |
 |---|---|---|---|
@@ -159,6 +159,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/manual` | Manual (POCKET CARD) | a printable 30-second cheat sheet baked into the UI |
 | `/census` | Iron Census | repo-side metrics: files, LOC by language, ledger bytes — all derived from git ls-files |
 | `/atlas` | Atlas | The Evidence Archipelago map: three islands x 24 halls + three expedition routes — so newcomers never get lost |
+| `/worldbook` | World Book | 22 volumes + appendices, bilingual, full-text search with highlight, local reading progress |
 | `/billing` | Usage & Billing | real wkapi.pro token spend + hit_rate |
 | `/audit` | Audit Trail | every audit_logs write, nothing dropped |
 | `/health` | Service Status | 6-dependency latency distribution + 60 SLO alert triggers |

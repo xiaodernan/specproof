@@ -40,6 +40,7 @@ const Ide = lazy(() => import("./pages/Ide"));
 const Graph = lazy(() => import("./pages/Graph"));
 const Census = lazy(() => import("./pages/Census"));
 const Atlas = lazy(() => import("./pages/Atlas"));
+const WorldBook = lazy(() => import("./pages/WorldBook"));
 const Manual = lazy(() => import("./pages/Manual"));
 const Chronicle = lazy(() => import("./pages/Chronicle"));
 
@@ -60,6 +61,7 @@ const NAV: NavItem[] = [
   { path: "epic", labelKey: "nav.epic", icon: "guide", groupKey: "group.workspace" },
   { path: "tour", labelKey: "nav.tour", icon: "scroll", groupKey: "group.workspace" },
   { path: "atlas", labelKey: "nav.atlas", icon: "map", groupKey: "group.evidence" },
+  { path: "worldbook", labelKey: "nav.worldbook", icon: "book", groupKey: "group.evidence" },
   { path: "lexicon", labelKey: "nav.lexicon", icon: "guide", groupKey: "group.evidence" },
   { path: "museum", labelKey: "nav.museum", icon: "scroll", groupKey: "group.evidence" },
   { path: "gestures", labelKey: "nav.gestures", icon: "guide", groupKey: "group.evidence" },
@@ -121,6 +123,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "graph") return <Graph />;
   if (seg[0] === "chronicle") return <Chronicle />;
   if (seg[0] === "atlas") return <Atlas />;
+  if (seg[0] === "worldbook") return <WorldBook />;
   if (seg[0] === "census") return <Census />;
   if (seg[0] === "manual") return <Manual />;
   if (seg[0] === "health") return <Health />;
