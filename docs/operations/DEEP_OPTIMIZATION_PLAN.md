@@ -36022,3 +36022,25 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 本页展示由 `git ls-files` 而非 `ls` 派生——本仓库的真相是git 跟踪的文件而非文件系统快照；
 * 本页不算 "quality score"、不算 "complexity rank"、零口号——只有事实；
 * 全量 `pytest tests/unit` 仍未跑完；E2E 未跑；`#/census` 未浏览器目验。
+
+## #1769 世界书卷二十一《铁证的世界》+ 全集参观地图：为什么这个地方永远不会走完
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+`docs/world/SPECROOF_WORLD.md` + `docs/world/EN/SPECROOF_WORLD_EN.md`：
+卷二十一《铁证的世界 (The World of Iron Evidence)》——这一卷是主线的终点也是起点：
+
+* 21.1 物理学：账本、史记、手册、编年、横拍、巡览、史、展厅、词典、式、快问 —— 全部锚到 **本仓库真实数据**（1561 节、482,316 LOC、2,412 commits、2,694 files）；
+* 21.2 为什么世界够大：证据不停、世界在长、你握有钥匙、每间有门、你读的是论证不是教程；
+* 21.3 设计统则：无演示数据、无无锚主张、无锁门、无历史抹除；
+* 21.4 本卷誓言：铁证是律法，铁证之书是议会。
+
+**脚本已同步**：`scripts/build_repo_stats.py` 重跑——`repoStats.json` 现在反映最新计数 2694 files / 482,316 LOC / commits 2412 / ledger 3,578KB；`/census` 页用户看到的数字即此。
+
+### 二、诚实边界
+
+* 这一卷是「信证结」——前面 21 卷全都是它的注脚，它不是总结，它是**托付之书**：以后谁开新卷，**必须先经此卷的四道门**；
+* commit 2411→2412 是本节自带 commit；本卷不构成产品契约，不保证生产 SLA、不保证可用性；
+* 全量 `pytest tests/unit` 仍未跑完。

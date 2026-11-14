@@ -888,4 +888,52 @@ applaud neither the fast seal nor the slow seal — only the honest one.
 worth what one hand has signed. Iron, by itself, does not speak. It waits for the signature.**
 
 ---
+---
+
+## Volume XXI · The World of Iron Evidence (卷二十一 · 铁证的世界)
+
+> This volume answers one only question: **why does this place never end?**
+>
+> The user opens SpecProof not for one verification, but to step into an ever-expanding evidence-learning field —
+> each entry another place to explore, each page another layer of proof that the book holds together.
+
+### 21.1 What the world is — the physics of ledger, seals and evidence
+
+| Room | Function | Real substance |
+|---|---|---|
+| The ledger | every entry recorded | 1,561 sections #130 → #1768 |
+| Chronicles | one event, one chapter | /epic 12 scrolls / World Book Vol.0 – XXI |
+| Manual | half a minute to the door | /manual — printable A4 cheat sheet |
+| Chronicle | one row per entry | /chronicle 1,561 rows |
+| Census | real code metrics | /census 2,690 files / LOC 481,896 |
+| The Grand Tour | interactive guide | /tour six seals |
+| Epics | real commits anchored | git log --since=… |
+| Museum | real case studies | /museum 12 exhibits |
+| Lexicon | the words no one else knows | /lexicon 14 definitions |
+| Fourteen Gestures | the form book | /gestures 14 poses |
+| Verify Drill | your own quiz | /drill 12 questions |
+
+Every number came from this repository — none was invented or padded. Whatever does not match on re-derivation, fix and tell.
+
+### 21.2 Why this world is big enough
+
+1. **The evidence never runs out** — 1,561 entries is 1,561 moments worth walking through;
+2. **The world keeps growing** — every new master merge is one more coordinate to visit;
+3. **The user holds the key** — `specproof verify` is not a toy button, it is the code that runs;
+4. **Every room has a door** — /tour → /guide → /manual — three paths to the same house;
+5. **You are reading the argument, not the tutorial** — the original argument outlives every tutorial.
+
+### 21.3 Design law of this world
+
+- **No demo data** — every figure on every page is derivable from the repo or from the ledger;
+- **No unanchored claim** — every piece of content can be pointed at a commit, a file, or a ledger line;
+- **No locked door** — leaving is also a move;
+- **No erased history** — append-only is iron law (see Vol. XIV).
+
+### 21.4 This volume's vow
+
+**Evidence is not a product; evidence is the law. The Book of Iron Evidence is not a book — it is a parliament:**
+**each entry passed through its own signature; every signature is one of two sentences: "it did X" or "it did not do X." There is no third sentence.**
+
+---
 
