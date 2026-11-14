@@ -34249,3 +34249,27 @@ EN/USER_GUIDE_EN.md = 英文新手路径（#1699）；MCP_GUIDE*.md = 机器发�
 * 严重度/判决等**共享词表**（`severityPill`、`evalVerdictLabel`）归 `ui/toneMap.ts`，不因本页双语而翻译——
   词表 i18n 涉及 `test_severity_vocabulary_parity.py` 与 `test_review_court_policy.py` 双门，单独立项；
 * 本号完成 **Eval**；剩余：JobDetail / Matrix / NewVerification / Guide / Billing / Audit / Settings / Login 仍排队。
+
+## #1706 旧页面双语化第五批：Contracts 逐页本地化（`contracts.copy.ts`）+ `<Term>` 恢复
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `apps/web/src/pages/contracts.copy.ts`：`ContractsCopy` 双版——眼眉/标题/描述、
+  刷新、`quality-brief`（含 `<Term id="contract">` 术语悬浮定义：本页改写时差点把它丢了，
+  已拆成 `briefBodyBefore / briefTerm / briefBodyAfter` 三个片段**完整恢复**）、
+  两个过滤器的 label 与 placeholder、全部状态、清除过滤、读取失败态（「绝不把契约当成空」）、
+  四张 StatCard、矩阵面板标题/注记、两种空态（过滤无匹配 / 全仓无契约）、五列表头、
+  「去创建验收 →」CTA、未提供占位符、`requirementRef` 前缀；
+* `Contracts.tsx` 全量走 `c.*`；`handleClear` 不变；列表与分页逻辑一字未动；
+* 诚实保留：契约状态徽章文本（`contractStatusLabel` / `CONTRACT_STATUS_CN`）与 `checkerLabel`
+  归 `ui/toneMap.ts`，不因本页双语而翻译（与 Health 的「ui 层词表单独立项」一致）；
+* 验迹：vitest 全量 **486/486**（本页无独立用例，回归由总量关住）；`tsc` 净；
+  账本门 45/45。
+
+### 二、诚实边界
+
+* 本页**没有**单测——与 QualityLayout 壳层的其它页面（Matrix 有 Matrix.test.tsx）不同，
+  Contracts 此前无测试覆盖；本提交不伪造覆盖率，列入下一阶段测试补齐清单；
+* 仍为中文原生：JobDetail / Matrix / NewVerification / Guide / Billing / Audit / Settings / Login。
