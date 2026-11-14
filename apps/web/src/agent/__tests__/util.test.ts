@@ -126,18 +126,18 @@ describe("aggregateApprovals", () => {
 
 describe("eventKindLabel", () => {
   it("maps known event types", () => {
-    expect(eventKindLabel("tool_call")).toBe("工具调用 Tool call");
-    expect(eventKindLabel("plan")).toBe("计划 Plan");
+    expect(eventKindLabel("tool_call")).toBe("工具调用");
+    expect(eventKindLabel("plan")).toBe("计划");
     expect(eventKindLabel("unknown")).toBe("unknown");
   });
 });
 
 describe("diff status/mode labels", () => {
   it("maps known diff file statuses with a Chinese gloss", () => {
-    expect(diffFileStatusLabel("added")).toBe("新增 Added");
-    expect(diffFileStatusLabel("modified")).toBe("修改 Modified");
-    expect(diffFileStatusLabel("deleted")).toBe("删除 Deleted");
-    expect(diffFileStatusLabel("renamed")).toBe("重命名 Renamed");
+    expect(diffFileStatusLabel("added")).toBe("新增");
+    expect(diffFileStatusLabel("modified")).toBe("修改");
+    expect(diffFileStatusLabel("deleted")).toBe("删除");
+    expect(diffFileStatusLabel("renamed")).toBe("重命名");
   });
 
   it("passes unknown diff file statuses through verbatim", () => {
@@ -146,8 +146,8 @@ describe("diff status/mode labels", () => {
   });
 
   it("maps known diff modes", () => {
-    expect(diffModeLabel("unified")).toBe("统一视图 unified");
-    expect(diffModeLabel("split")).toBe("分栏视图 split");
+    expect(diffModeLabel("unified")).toBe("统一视图");
+    expect(diffModeLabel("split")).toBe("分栏视图");
   });
 
   it("passes unknown diff modes through verbatim", () => {
@@ -157,22 +157,22 @@ describe("diff status/mode labels", () => {
 
 describe("approval/sse labels", () => {
   it("maps approval decisions and passes unknowns through", () => {
-    expect(approvalDecisionLabel("approve")).toBe("批准 Approve");
-    expect(approvalDecisionLabel("reject")).toBe("拒绝 Reject");
+    expect(approvalDecisionLabel("approve")).toBe("批准");
+    expect(approvalDecisionLabel("reject")).toBe("拒绝");
     expect(approvalDecisionLabel("maybe")).toBe("maybe");
   });
 
   it("maps approval targets and passes unknowns through", () => {
-    expect(approvalTargetLabel("plan")).toBe("计划 Plan");
-    expect(approvalTargetLabel("step")).toBe("步骤 Step");
-    expect(approvalTargetLabel("gate")).toBe("门禁 Gate");
+    expect(approvalTargetLabel("plan")).toBe("计划");
+    expect(approvalTargetLabel("step")).toBe("步骤");
+    expect(approvalTargetLabel("gate")).toBe("门禁");
     expect(approvalTargetLabel("mystery")).toBe("mystery");
   });
 
   it("maps SSE connection states and passes unknowns through", () => {
-    expect(sseStateLabel("connecting")).toBe("连接中 connecting");
-    expect(sseStateLabel("open")).toBe("已连接 open");
-    expect(sseStateLabel("closed")).toBe("已断开 closed");
+    expect(sseStateLabel("connecting")).toBe("连接中");
+    expect(sseStateLabel("open")).toBe("已连接");
+    expect(sseStateLabel("closed")).toBe("已断开");
     expect(sseStateLabel("reconnecting")).toBe("reconnecting");
   });
 });
@@ -201,7 +201,7 @@ describe("gate + accept labels — one vocabulary for both gate lists", () => {
   });
 
   it("names a runtime BLOCKED as a missing certificate, not a failed run", () => {
-    expect(acceptVerdictLabel("VERIFIED")).toEqual({ label: "已签发合并证书 VERIFIED", tone: "ok" });
+    expect(acceptVerdictLabel("VERIFIED")).toEqual({ label: "已签发合并证书", tone: "ok" });
     // The runtime lane can never reach VERIFIED, so BLOCKED is its ordinary
     // outcome; tone "bad" here would accuse passing code of failing.
     expect(acceptVerdictLabel("BLOCKED").tone).toBe("warn");

@@ -67,7 +67,7 @@ describe("AgentPlanReview", () => {
     render(<AgentPlanReview jobId="job-1" />);
     await waitFor(() => expect(screen.getByText("Locate handler")).toBeTruthy());
     expect(screen.getByText("Apply change")).toBeTruthy();
-    expect(screen.getAllByText("待审 Pending").length).toBe(2);
+    expect(screen.getAllByText("待审").length).toBe(2);
   });
 
   it("posts a whole-plan approve decision", async () => {

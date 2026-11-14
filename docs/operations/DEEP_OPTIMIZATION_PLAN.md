@@ -36243,3 +36243,28 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * `scripts/llm_cache_probe.py` 入库：任何人可复现本表（只打印 source/model/token 数，不打印/不写 key）；
 * **本表不是性能承诺**——缓存行为由 provider 决定；wkapi 将来若改前缀策略，cached 数字随之改变；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1778 全站文案不再夹杂：agent 控制台标签 + 史诗纪要中英双语化（细节层清零一批）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付（中文模式下全中文 / 英文模式下全英文 / 不再半中半英）
+
+* `ui/epicCertificate.ts`——**buildEpicCertificate 输出随存储 locale 切换**：`zh → 史诗验收纪要 / 一、卷首 / 二、铁证 / 三、印章`；
+  `en → Certificate of Verification / I · II · III`；Verdict 词表双语（验讫↔Verified 等）；（未提供）↔ Not provided；
+  缺证据时的"不等于「没有缺陷」"整段英文镜；`storedLocale()` 在调用时读取，零调用方改动；
+* `agent/util.ts`——**展示层标签全部单语化**（调用时读 locale，AGENT_STATUS_META 保持 backend STATUS_LABELS 逐字镜像、**未动一字**，
+  pin 仍以 `tests/unit/test_agent_console_terminal_vocabulary_parity.py` 为准）：
+  - 状态/事件/步骤/审批/SSE/diff/门禁/acceptVerdict/unknownNotice/校验错误 —— 全部 `zh|en` 双表，零"半中半英"输出；
+  - GATE_LABELS / GATE_STATUS_LABELS（原纯中文）→ 双语；EVENT_KIND_LABELS、acceptBlockedNotice、acceptVerdictLabel 同；
+  - `agentStatusMeta()` 返回的 label 现在按 locale 取词，hook 不变；
+* 测试同步：`util.test.ts`、`AgentResult.test.tsx`、`AgentPlanReview.test.tsx` 三处旧混合串期望改为单语 zh 期望（16+3+1 处）；
+  UiKit.smoke **偶发瞬红一次，重跑双绿**（与历史 #1750 同现象，如实记账）。
+
+### 二、实测与诚实边界
+
+* `npx vitest run` 全量：**497 个用例**；除 UiKit.smoke 的偶发抖动外全绿（失败→重跑→绿）；
+* **agent 控制台页面内联中文 ~200 行残留未本次消化**（AgentWizard / AgentResult / AgentJobDetail / AgentOverview 等）——
+  仍按「展示层全中文」原则在中文模式可用、英文模式夹杂；标注为欠条（本条只证 util 展示层、史诗纪要出口双语化）；
+* `ui/tour.ts`（大巡览）与 `pages/drillQuestions.ts`（快问）为 **zh/en 双键四元组**，符合本条口径；
+* 全量 pytest tests/unit 本机仍未跑完。

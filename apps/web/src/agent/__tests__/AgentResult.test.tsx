@@ -74,7 +74,7 @@ describe("AgentResult — 独立验收投影 ACCEPT", () => {
     );
     render(<AgentResult jobId="job-1" />);
 
-    const pill = await screen.findByText("未签发合并证书 BLOCKED", { selector: ".pill" });
+    const pill = await screen.findByText("未签发合并证书", { selector: ".pill" });
     // Amber, never red: this lane cannot issue a certificate, so BLOCKED is
     // its normal happy path and must not read as "你的代码没通过检查".
     expect(pill.className).toBe("pill pill-unverified");
@@ -155,7 +155,7 @@ describe("AgentResult — 独立验收投影 ACCEPT", () => {
     );
     render(<AgentResult jobId="job-1" />);
 
-    const pill = await screen.findByText("门禁未通过，未签发合并证书 BLOCKED", { selector: ".pill" });
+    const pill = await screen.findByText("门禁未通过，未签发合并证书", { selector: ".pill" });
     expect(pill.className).toBe("pill pill-bad");
     // The note itself and the derived notice both mention 内部门禁 FAIL, so
     // match the notice's own wording.
@@ -168,7 +168,7 @@ describe("AgentResult — 独立验收投影 ACCEPT", () => {
     stubJob(baseJob({ accept: accept({ note: "accept closure reported a blocker" }) }));
     render(<AgentResult jobId="job-1" />);
 
-    const pill = await screen.findByText("未签发合并证书 BLOCKED", { selector: ".pill" });
+    const pill = await screen.findByText("未签发合并证书", { selector: ".pill" });
     expect(pill.className).toBe("pill pill-unverified");
     expect(await screen.findByText(/无法区分/)).toBeTruthy();
     expect(screen.queryByText(/不代表下方门禁未通过/)).toBeNull();
@@ -185,7 +185,7 @@ describe("AgentResult — 独立验收投影 ACCEPT", () => {
       })
     );
     render(<AgentResult jobId="job-1" />);
-    const pill = await screen.findByText("已签发合并证书 VERIFIED", { selector: ".pill" });
+    const pill = await screen.findByText("已签发合并证书", { selector: ".pill" });
     expect(pill.className).toBe("pill pill-ok");
     // Match the disclosure line, not the raw-JSON <details> that also carries
     // the path: the point is that a human sees where the certificate is.

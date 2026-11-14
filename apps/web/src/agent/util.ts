@@ -1,6 +1,17 @@
 // Pure helpers for the SpecCraft agent console (unit-testable, no DOM).
 
 import { AgentApproval, AgentDiffFile } from "../api";
+import { STRINGS, storedLocale } from "../i18n/strings";
+
+// Console labels are rendered per stored locale — zh mode shows 规划中, en mode
+// shows Planning; never a mixed "规划中 Planning" string on a screen.
+// AGENT_STATUS_META itself stays the verbatim mirror of the backend's
+// STATUS_LABELS (pinned by tests/unit/test_agent_console_terminal_vocabulary_parity.py)
+// and is not rendered directly anymore.
+const isZh = (): boolean => storedLocale() === "zh";
+function gloss(key: string): string {
+  return STRINGS[isZh() ? "zh" : "en"][key] ?? key;
+}
 
 export interface AgentStatusMeta {
   label: string;
@@ -16,8 +27,22 @@ export const AGENT_STATUS_META: Record<string, AgentStatusMeta> = {
   CANCELLED: { label: "已取消 Cancelled", tone: "mute" },
 };
 
+const AGENT_STATUS_GLOSS: Record<string, { zh: string; en: string }> = {
+  PLANNING: { zh: "规划中", en: "Planning" },
+  AWAITING_APPROVAL: { zh: "等待计划审批", en: "Awaiting approval" },
+  EXECUTING: { zh: "执行中", en: "Executing" },
+  COMPLETED: { zh: "已完成", en: "Completed" },
+  FAILED: { zh: "失败", en: "Failed" },
+  CANCELLED: { zh: "已取消", en: "Cancelled" },
+};
+
 export function agentStatusMeta(status: string | undefined): AgentStatusMeta {
-  return AGENT_STATUS_META[status || ""] || { label: status || "UNKNOWN", tone: "mute" };
+  const token = status || "";
+  const tone = AGENT_STATUS_META[token]?.tone ?? "mute";
+  const glossed = AGENT_STATUS_GLOSS[token];
+  if (glossed) return { label: isZh() ? glossed.zh : glossed.en, tone };
+  if (!token) return { label: gloss("ui.unknown"), tone: "mute" };
+  return { label: token, tone: "mute" };
 }
 
 // ── Run phase (the terminal/active split the console pages gate on) ─────────
@@ -75,10 +100,11 @@ export function isAgentTerminal(status: string | undefined): boolean {
  */
 export function agentUnknownNotice(status: string | undefined): string {
   if (agentRunPhase(status) !== "unknown") return "";
-  return (
-    `这一轮上报的状态「${status || "空"}」不在本页的词表里：` +
-    "无法判断它是否已经结束，因此这里既不按“仍在执行”处理，也不按“已终态”处理。"
-  );
+  return isZh()
+    ? `这一轮上报的状态「${status || "空"}」不在本页的词表里：` +
+      "无法判断它是否已经结束，因此这里既不按“仍在执行”处理，也不按“已终态”处理。"
+    : `The status “${status || "unknown"}” reported this round is not in this page's vocabulary: ` +
+      "whether it has ended cannot be determined — it is treated neither as “still running” nor as “terminal”.";
 }
 
 // ── New-job wizard ──────────────────────────────────────────────────────────
@@ -146,14 +172,14 @@ export function clearWizardDraft(): void {
 }
 
 export function validateRepoStep(draft: WizardDraft): string | null {
-  if (!draft.repo_path.trim()) return "仓库路径不能为空 Repo path required";
-  if (draft.repo_path.trim().length > 1024) return "仓库路径过长 (≤1024)";
+  if (!draft.repo_path.trim()) return isZh() ? "仓库路径不能为空" : "Repo path is required";
+  if (draft.repo_path.trim().length > 1024) return isZh() ? "仓库路径过长 (≤1024)" : "Repo path too long (≤1024)";
   return null;
 }
 
 export function validateSpecStep(draft: WizardDraft): string | null {
-  if (!draft.spec_text.trim()) return "需求规格不能为空 Spec text required";
-  if (draft.spec_text.length > 200000) return "需求规格过长 (≤200000 字符)";
+  if (!draft.spec_text.trim()) return isZh() ? "需求规格不能为空" : "Spec text is required";
+  if (draft.spec_text.length > 200000) return isZh() ? "需求规格过长 (≤200000 字符)" : "Spec text too long (≤200,000 chars)";
   return null;
 }
 
@@ -206,72 +232,79 @@ export function aggregateApprovals(
  * it without calling the labeler. Unknown tokens pass through verbatim — an
  * unrecognised kind is still evidence, not a lie.
  */
-export const EVENT_KIND_LABELS: Record<string, string> = {
-  plan: "计划 Plan",
-  tool_call: "工具调用 Tool call",
-  tool_result: "工具结果 Tool result",
-  edit: "编辑 Edit",
-  gate: "门禁 Gate",
-  progress: "进度 Progress",
-  model_output: "模型实时输出",
+const EVENT_KIND_GLOSS: Record<string, { zh: string; en: string }> = {
+  plan: { zh: "计划", en: "Plan" },
+  tool_call: { zh: "工具调用", en: "Tool call" },
+  tool_result: { zh: "工具结果", en: "Tool result" },
+  edit: { zh: "编辑", en: "Edit" },
+  gate: { zh: "门禁", en: "Gate" },
+  progress: { zh: "进度", en: "Progress" },
+  model_output: { zh: "模型实时输出", en: "Model output" },
 };
 
 export function eventKindLabel(type: string): string {
-  return EVENT_KIND_LABELS[type] || type;
+  const g = EVENT_KIND_GLOSS[type];
+  return g ? (isZh() ? g.zh : g.en) : type;
 }
 
+const STEP_STATUS_GLOSS: Record<string, { zh: string; en: string }> = {
+  pending: { zh: "待审", en: "Pending" },
+  approved: { zh: "已批准", en: "Approved" },
+  rejected: { zh: "已拒绝", en: "Rejected" },
+};
 export function stepStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    pending: "待审 Pending",
-    approved: "已批准 Approved",
-    rejected: "已拒绝 Rejected",
-  };
-  return labels[status] || status;
+  const g = STEP_STATUS_GLOSS[status];
+  return g ? (isZh() ? g.zh : g.en) : status;
 }
 
+const APPROVAL_DECISION_GLOSS: Record<string, { zh: string; en: string }> = {
+  approve: { zh: "批准", en: "Approve" },
+  reject: { zh: "拒绝", en: "Reject" },
+};
 export function approvalDecisionLabel(decision: string): string {
-  const labels: Record<string, string> = {
-    approve: "批准 Approve",
-    reject: "拒绝 Reject",
-  };
-  return labels[decision] || decision;
+  const g = APPROVAL_DECISION_GLOSS[decision];
+  return g ? (isZh() ? g.zh : g.en) : decision;
 }
 
+const APPROVAL_TARGET_GLOSS: Record<string, { zh: string; en: string }> = {
+  plan: { zh: "计划", en: "Plan" },
+  step: { zh: "步骤", en: "Step" },
+  gate: { zh: "门禁", en: "Gate" },
+};
 export function approvalTargetLabel(target: string): string {
-  const labels: Record<string, string> = {
-    plan: "计划 Plan",
-    step: "步骤 Step",
-    gate: "门禁 Gate",
-  };
-  return labels[target] || target;
+  const g = APPROVAL_TARGET_GLOSS[target];
+  return g ? (isZh() ? g.zh : g.en) : target;
 }
 
+const SSE_STATE_GLOSS: Record<string, { zh: string; en: string }> = {
+  connecting: { zh: "连接中", en: "connecting" },
+  open: { zh: "已连接", en: "open" },
+  closed: { zh: "已断开", en: "closed" },
+  error: { zh: "连接错误", en: "error" },
+};
 export function sseStateLabel(state: string): string {
-  const labels: Record<string, string> = {
-    connecting: "连接中 connecting",
-    open: "已连接 open",
-    closed: "已断开 closed",
-    error: "连接错误 error",
-  };
-  return labels[state] || state;
+  const g = SSE_STATE_GLOSS[state];
+  return g ? (isZh() ? g.zh : g.en) : state;
 }
 
+const DIFF_FILE_STATUS_GLOSS: Record<string, { zh: string; en: string }> = {
+  added: { zh: "新增", en: "Added" },
+  modified: { zh: "修改", en: "Modified" },
+  deleted: { zh: "删除", en: "Deleted" },
+  renamed: { zh: "重命名", en: "Renamed" },
+};
 export function diffFileStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    added: "新增 Added",
-    modified: "修改 Modified",
-    deleted: "删除 Deleted",
-    renamed: "重命名 Renamed",
-  };
-  return labels[status] || status;
+  const g = DIFF_FILE_STATUS_GLOSS[status];
+  return g ? (isZh() ? g.zh : g.en) : status;
 }
 
+const DIFF_MODE_GLOSS: Record<string, { zh: string; en: string }> = {
+  unified: { zh: "统一视图", en: "Unified view" },
+  split: { zh: "分栏视图", en: "Split view" },
+};
 export function diffModeLabel(mode: string): string {
-  const labels: Record<string, string> = {
-    unified: "统一视图 unified",
-    split: "分栏视图 split",
-  };
-  return labels[mode] || mode;
+  const g = DIFF_MODE_GLOSS[mode];
+  return g ? (isZh() ? g.zh : g.en) : mode;
 }
 
 // ── Craft gate labels ───────────────────────────────────────────────────────
@@ -280,27 +313,31 @@ export function diffModeLabel(mode: string): string {
 // from craft/gates.py, so one vocabulary must serve both. Unknown names and
 // statuses pass through verbatim — an unrecognised gate is still evidence.
 
-export const GATE_LABELS: Record<string, string> = {
-  run_test: "相关测试",
-  run_build: "项目构建",
-  run_typecheck: "类型检查",
-  security: "敏感信息检查",
-  self_verify: "改动自检",
+const GATE_GLOSS: Record<string, { zh: string; en: string }> = {
+  run_test: { zh: "相关测试", en: "Related tests" },
+  run_build: { zh: "项目构建", en: "Project build" },
+  run_typecheck: { zh: "类型检查", en: "Type check" },
+  security: { zh: "敏感信息检查", en: "Secrets scan" },
+  self_verify: { zh: "改动自检", en: "Self verification" },
 };
 
-export const GATE_STATUS_LABELS: Record<string, string> = {
-  passed: "通过",
-  failed: "未通过",
-  skipped: "未执行",
-  error: "执行出错",
+const GATE_STATUS_GLOSS: Record<string, { zh: string; en: string }> = {
+  passed: { zh: "通过", en: "Passed" },
+  failed: { zh: "未通过", en: "Failed" },
+  skipped: { zh: "未执行", en: "Skipped" },
+  error: { zh: "执行出错", en: "Error" },
 };
 
 export function gateLabel(gate: string): string {
-  return GATE_LABELS[gate] || gate || "未命名门禁";
+  const g = GATE_GLOSS[gate];
+  if (g) return isZh() ? g.zh : g.en;
+  return gate || (isZh() ? "未命名门禁" : "Unnamed gate");
 }
 
 export function gateStatusLabel(status: string): string {
-  return GATE_STATUS_LABELS[status] || status || "状态未知";
+  const g = GATE_STATUS_GLOSS[status];
+  if (g) return isZh() ? g.zh : g.en;
+  return status || (isZh() ? "状态未知" : "Unknown status");
 }
 
 /** Pill class for one gate status: only `passed` is green. */
@@ -339,10 +376,16 @@ export function acceptBlockedMeaning(
 
 export function acceptBlockedNotice(meaning: AcceptBlockedMeaning): string {
   if (meaning === "gate_failed")
-    return "此通道的 BLOCKED 来自内部门禁 FAIL：有门禁未通过（见下方逐条结果与关联发现），因此未签发合并证书。";
+    return isZh()
+      ? "此通道的 BLOCKED 来自内部门禁 FAIL：有门禁未通过（见下方逐条结果与关联发现），因此未签发合并证书。"
+      : "This channel's BLOCKED comes from an internal gate FAIL: at least one gate did not pass (see the per-gate results and linked findings below), so no merge certificate was issued.";
   if (meaning === "closure_deferred")
-    return "此通道的 BLOCKED 表示门禁摘要已通过，但尚未签发合并证书（完整闭包需 git base/head 与签名密钥，由 craft accept 执行）。它不代表下方门禁未通过。";
-  return "此通道的 BLOCKED 表示尚未签发合并证书，但投影里没有可用来判断原因的门禁摘要：本页无法区分“门禁未通过”与“闭包尚未执行”，请以上方说明或命令行为准。";
+    return isZh()
+      ? "此通道的 BLOCKED 表示门禁摘要已通过，但尚未签发合并证书（完整闭包需 git base/head 与签名密钥，由 craft accept 执行）。它不代表下方门禁未通过。"
+      : "This channel's BLOCKED means the gate summary passed but no merge certificate was issued yet (the full closure needs git base/head and signing keys, performed by craft accept). It does NOT mean a gate below failed.";
+  return isZh()
+    ? "此通道的 BLOCKED 表示尚未签发合并证书，但投影里没有可用来判断原因的门禁摘要：本页无法区分“门禁未通过”与“闭包尚未执行”，请以上方说明或命令行为准。"
+    : "This channel's BLOCKED means no merge certificate was issued, but the projection carries no gate summary to judge the cause: this page cannot tell “a gate failed” from “the closure has not run yet” — defer to the notes above or the command line.";
 }
 
 /**
@@ -359,12 +402,14 @@ export function acceptVerdictLabel(
   gatesOverall?: string
 ): AcceptVerdictMeta {
   const v = verdict || "";
-  if (v === "VERIFIED") return { label: "已签发合并证书 VERIFIED", tone: "ok" };
+  if (v === "VERIFIED")
+    return { label: isZh() ? "已签发合并证书" : "Merge certificate issued", tone: "ok" };
   if (v === "BLOCKED") {
     if (acceptBlockedMeaning(gatesOverall) === "gate_failed")
-      return { label: "门禁未通过，未签发合并证书 BLOCKED", tone: "bad" };
-    return { label: "未签发合并证书 BLOCKED", tone: "warn" };
+      return { label: isZh() ? "门禁未通过，未签发合并证书" : "Gate failed — no merge certificate", tone: "bad" };
+    return { label: isZh() ? "未签发合并证书" : "No merge certificate", tone: "warn" };
   }
-  if (v === "ERROR") return { label: "验收过程出错 ERROR", tone: "bad" };
-  return { label: v || "无结论", tone: "mute" };
+  if (v === "ERROR")
+    return { label: isZh() ? "验收过程出错" : "Verification errored", tone: "bad" };
+  return { label: v || (isZh() ? "无结论" : "No verdict"), tone: "mute" };
 }
