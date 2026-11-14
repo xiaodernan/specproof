@@ -33993,3 +33993,36 @@ SpecProof 被交给这个问题；它 **没用 LLM 看完、没用置信度投�
 * 英文原生文档的中文版由人工逐节对照产出，不是机翻摘要；
 * 旧页面的中文文案迁移是**逐页工程量**（34 页），本号按"读者量 × 改动风险"排序推进，
   不假装一轮做完。
+
+## #1697 双语第二批 —— ARCHITECT_CLAUDE.md 逐段中英并列 + SWE-bench 榜中文摘要
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、用户诉求
+
+"原生英文的内容也得全部翻译为中文。"
+
+### 二、交付
+
+* `docs/ARCHITECT_CLAUDE.md`：**逐条中英并列**——真相之源 / 当前执行规则 / 动手之前 /
+  工程要求（含 MySQL Outbox + RabbitMQ 至少一次投递 + 幂等消费者、Redis 定位、MongoDB 定位、
+  MinIO、高严重级发现必须有可执行证据、自动写码须人批准且绝不直接推默认分支）/
+  密钥 / 验证 / 完成报告 / 产品纪律——每个英文条目下面紧跟中文，不再单独留一份英文孤岛；
+* `docs/eval/SWE_BENCH_LEADERBOARD.md`：补「中文说明」——快照日期、来源、180 份提交、
+  resolved % 前 15 名、`—` = 该站点未上报成本（**不是 0**）、表格是数据不翻译、
+  快照日期不代表最新排名。
+
+### 三、翻译进度（实况，不夸大）
+
+| 文档 | 状态 |
+|---|---|
+| `docs/ARCHITECT_CLAUDE.md` | ✅ 逐段中英并列（本号） |
+| `docs/eval/SWE_BENCH_LEADERBOARD.md` | ✅ 中文摘要（本号） |
+| `CLAUDE.md` | ✅ 逐段中英并列（#1696） |
+| `MCP_GUIDE.md` ↔ `MCP_GUIDE.zh.md` | ✅ 成对（#1695） |
+| `docs/eval/MUTATION_PLAN.md` · `docs/eval/baseline-report.md` · `docs/eval/SEG1_FIX_NOTES.md` · `docs/eval/replay-results*.md` · `docs/eval/retrieval-bench.md` · `docs/eval/llm-baseline*.md` · `docs/eval/mutation-results.md` · `docs/eval/experiment-class-coverage.md` · `docs/architecture/*.md`（DATA_DICTIONARY 等） · `docs/p1/*.md` | ⬜ 下一批，按改动风险排序逐个补 |
+
+### 四、诚实边界
+
+* 本号只做两份文件；eval/architecture 下其余英文文档**仍是英文孤岛**，本账本不假装它们已翻译；
+* 表格类文件只加中文摘要，不逐单元格翻译——数据是数据，说明是说明。

@@ -24,3 +24,10 @@
 | 15 | Harness AI | Claude Sonnet 4 | 74.8 | — | 2025-07-31 |
 
 > 165 further submission(s) are below the top 15.
+
+## 中文说明
+
+> 本页是 2026-08-19 抓取的 **SWE-bench Verified** 榜（来源 swebench.com，180 份提交、按 resolved % 取前 15 名）。
+> 原始产物：`swebench-leaderboard-raw.json`。
+> 「—」表示该站点未上报成本（不是 0）。表后 165 份提交排名在前 15 名之后。中文说明为摘要；
+> 表格本身是数据，不翻译。快照日期是抓取时刻，不代表最新排名。
