@@ -641,3 +641,90 @@ Every plot of open land has a name; every name has a "what done looks like."
 That is the whole secret between "a vast world" and "one real commit at a time."
 
 **Volume XV keeps no good news — it keeps IOUs, the map, and the relay baton.**
+---
+
+## Volume XVI · The Twelve Iron Scales (卷十六 · 十二把铁秤)
+
+> Volume XV said: iron that never gets checked lies to itself. This volume records exactly one thing —
+> the road from "it claims to be bilingual" to "the locale toggle actually switches it",
+> and the twelve questions that walked this repository to its own exam.
+
+### 16.1 Two kinds of bilingual
+
+**Token bilingual**: BENCHMARK, `BLOCKER` — a token is code; code accepts no translation, only bytes.
+**Gloss bilingual**: `"ui.unknown"`, `"severity.BLOCKER.hint"` — a gloss is text; text answers to locale, to the toggle.
+SpecProof has spoken the first kind since 2026-09 (contracts / schemas / payloads in English); this round
+delivered the second: `toneMap.ts` (#1730), `errorHints.ts` (#1730), `stages.ts` (#1732),
+`preflight.ts` (#1732) — 147 keys, zh verbatim, en hand-translated, `i18n.parity` locking both tables in both directions.
+
+### 16.2 Ghost routes and the ledger's honesty (#1726)
+
+The guide once sent a newcomer into three rooms that never existed: `/mcp`, `/admin/identity`, `/readme`.
+Follow the table, knock on the door, get a 404 — a guide that lies is poison upstream of the code.
+This volume establishes: **every route the guide lists must exist; every route that does not exist must leave
+the guide; and `tests/unit/test_guide_route_catalog.py` stands guard forever** — six assertions on the same net.
+
+A side note for the keeper: the App shell (skip-link, session area, top bar, footer, 404) used to carry a wall
+of hardcoded Chinese — English mode rendered a Chinese shell anyway, and "everything bilingual" quietly lost on this front.
+
+### 16.3 Self-check for the people (#1728)
+
+Volume XV called the demo doctor "the demo repo's signature". It is now a command:
+`python scripts/demo_doctor.py` — zero Docker, zero network, zero LLM, six static checks,
+`--json` for machines, `--strict-clean` for a red candle on a dirty tree.
+It is cast from two things: a demo repo pinned by tags (`base`, `head-v1`) and a working tree you must not whitewash.
+Three uncommitted changes stay WARN on this machine — craft's ration is not code; it is honesty.
+
+### 16.4 The great gloss migration (#1730 · #1732)
+
+The glosses in `toneMap.ts` / `errorHints.ts` are no longer Chinese literals; they are i18n keys,
+resolved at render time by `storedLocale()`. The three Python gates (severity / evidence / accept parity) now read
+the i18n table; the assertions about "不阻断" (must-read-no-blocking) keep their meaning without keeping
+their old location.
+
+One record for the record: **the key-and-English-text inversion** — during extraction, the nine blocker keys
+were written as `"ENGLISH SENTENCE": "preflightBlocker.xxx"`, nine bogus lines on each side, eighteen in total,
+caught twice over by tsc and by eyes; the fix removed no test — table structure, resolution points and boundaries
+changed, the bad lines were deleted, the good keys were restored verbatim.
+The red is not covered; the red is written down here.
+
+One owed debt discharged: `verdict_channel_parity` was red **at the master baseline** — `api/ai_summary.py`
+writes a `verdict` field claimed by no channel. This round declared it truthfully as a **carrier** for `job_summary`
+(owner + opaque, the same pattern as notify/templates.py) — and the gate is green for real.
+
+### 16.5 The twelve iron scales (#1733)
+
+`#/drill`: twelve questions, each a doorway back into the repository.
+Not prose trivia — "what is `base_pass_head_fail`" is not rhetoric, it is the declared domain of `evidence_kinds.py`;
+"wkapi reported ~96.5% hit rate — and what was it" is not gossip, it is the 4224 constant measured in #1723;
+"the gate went red — may we merge 'having considered it'" is not a values question, it is you, the button, the iron.
+Wrong answers replay: a missed-question review strip with the teacher's note attached; the ones you cannot unsee.
+Four seals: Apprentice → Journeyman → Evidence Knight → Iron Verdict Master; the best score lives on your machine,
+`specproof_drill_v1` is one cold account, not a promise. 497/497 vitest green is the seal's insurance.
+
+### 16.6 The keeper's transit table: this round's chain (#1726 → #1734)
+
+| Commit | One line |
+|---|---|
+| #1726 | Ghost routes cleared + 26 shell keys into the table + guide-catalog gate born |
+| #1727 | Volume XV «The Unfinished Road» — the final word became a ledger |
+| #1728 | Demo doctor: six static checks on the demo repo, zero Docker |
+| #1729 | `/epic` Scroll VI, «The Unfinished Road» — seven scrolls, zh and en |
+| #1730 | Gloss migration, first half: toneMap/errorHints into the table + verdict_channel_parity baseline-red gone green for real |
+| #1731 | Vol. XV debt wall synced (epic & gloss boxes checked off) |
+| #1732 | Gloss migration, second half: stages/preflight into the table; the inversion incident, recorded verbatim |
+| #1733 | `#/drill`: twelve iron scales, four seals, 497/497 green |
+| #1734 | CHANGELOG brought current; portfolio-sync re-run parses |
+
+### 16.7 This volume's vow
+
+**A tongue has two colours; evidence has one.**
+
+Tokens may stay cold; glosses must stay warm — warm in whichever language the button speaks.
+The iron does not care about ESLint's palette, nor about the colour of a fig leaf — it only knows
+*whether*, and *whether not*.
+A quiz can be failed; evidence cannot. The drill examines the former; this book, the repository and every
+signed certificate examine the latter.
+
+---
+
