@@ -1,7 +1,7 @@
 import type { Locale } from "../i18n/strings";
 
 /**
- * The English edition of the Epic page's eleven scrolls.
+ * The English edition of the Epic page's twelve scrolls.
  *
  * The Chinese edition lives inline in `Epic.tsx` (it is the original text of
  * the book); the English edition is kept beside it so both languages can be
@@ -222,6 +222,23 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "史官的两条法律（卷十九）", value: "《它做了 X》or《它没做 X》——没有第三句；编年史不是永动机，改变即重跑 build_chronicle.py（不自动）" },
     ],
   },
+  {
+    num: "卷十二",
+    title: "袖中手札",
+    en: "The Pocket Manual",
+    era: "2026-11 · 至今",
+    verses: [
+      "袖子里不装剑，装一张纸——一张写清「出门前必须知道」的纸。",
+      "证据不先于人，人就会先决定；手札不先于门，客人才忘自己正走向哪里。",
+      "手札不是小册子，是「这一次我没忘」。",
+    ],
+    details: [
+      { label: "说明书页 #/manual（#1766）", value: "SPECROOF POCKET CARD 在 App 内复现——A4 printable white paper + 金横杆 + 中英双语；打印即合格上路纸卡" },
+      { label: "手札三件套（#72、#1702 以来）", value: "#/guide（按部就班） · #/tour（六盖印通关） · #/manual（一张纸）——不是替代，是同章的三节" },
+      { label: "口袋卡就是化人为律音", value: "不是教学幻灯——五件进门事实 + 三个不要 + 五条命令（全部本仓真实）——读完，它记在你的手上，不在你的脑子里" },
+      { label: "纸卡有一个秘密", value: "它永远折叠在你的口袋里——但它永远知道你昨天读了哪一本书，今天还没读哪一条律" },
+    ],
+  },
 ];
 
 export const CLOSING_ZH = [
@@ -412,6 +429,23 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "chronicle.json (#1760)", value: "≈260 KB, one row per entry — number, title, first meaningful sentence; starts at #130 (the keeper does not write for themselves)" },
       { label: "Chronicle page #/chronicle (#1760)", value: "vertical-ink timeline, searchable across title/body/#NNNNN — honest by construction; merge an entry and the page lies the moment you stop paying attention" },
       { label: "The keeper's two laws (Vol. XIX)", value: "Either it did X or it did not X — nothing else; the chronicle is not a perpetual machine: changing the ledger obliges a re-run of build_chronicle.py" },
+    ],
+  },
+  {
+    num: "Scroll 12",
+    title: "The Pocket Manual",
+    en: "卷十二 · 手札",
+    era: "2026-11 · today",
+    verses: [
+      "A sleeve does not hold a sword; it holds one folded page — the page that says what you must know before the door opens.",
+      "If evidence does not precede decision, decisions precede evidence, but the pocket manual precedes both: it is the preamble to the threshold.",
+      "The card is not a tutorial — it is a permanent small reminder that you came, you read, you did not forget.",
+    ],
+    details: [
+      { label: "The Manual page #/manual (#1766)", value: "SPECROOF POCKET CARD inside the app — A4 printable paper, gold hairline, bilingual; print and go" },
+      { label: "The Triad (since #72, #1702)", value: "#/guide (ordered path) + #/tour (six stamps) + #/manual (one page) — not alternatives, but three verses of the same poem" },
+      { label: "A card, not a slide deck", value: "five things on the way in + three do-nots + five repo commands — read once, keep it close, never taught again" },
+      { label: "The secret of the card", value: "it always folds into the pocket; it always knows which page you stopped reading yesterday" },
     ],
   },
 ];

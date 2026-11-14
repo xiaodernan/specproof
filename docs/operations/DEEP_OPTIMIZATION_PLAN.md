@@ -35979,3 +35979,23 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 内容与 POCKET_CARD_MD 略重复——手册把同一批事实用双语+App原生形式呈现，两者如有漂移立刻违纪
 * `#/manual` 仍未浏览器目验；print layout 美学以 CSS 验证，不是人眼；但 `@media print` 与 `.print-area` 为事实代码，纸版看起来就该长这样；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1767 /epic 追第十二卷 ——「袖中手札」：把口袋卡带上史诗
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `apps/web/src/pages/epic.copy.ts`：`SCROLLS_ZH/SCROLLS_EN` 同增
+  `卷十二 · 袖中手札` / `Scroll 12 · The Pocket Manual`（2026-11 · 至今）——锚点：
+  #1766（说明书 `/manual` 落地——A4 印刷纸卡 + 中英双语，嵌入 App 原生路由）+
+  三件套论述（#/guide / #/tour / #/manual）+「纸卡不会重教你；它只确认你这一次没忘」的诗眼
+* 两本用户手册 §2.5/模块表：十一卷→十二卷；世界书中文版 56.0KB（截至 #1766）；
+* `the Epic page's twelve scrolls`；引文标题更新；EN 对应"Scroll XII is the newest: #1766"；
+* Build ✅ in 670ms；i18n parity 11/11 仍绿。
+
+### 二、诚实边界
+
+* 本提交不改动验证管线、不加 API、不加 Docker——史诗是文字层，不用执行一个字；
+* 史诗卷十二的"手札带着走"是美学隐喻，不声称任何物理卡片存在（除非打印——print 路线已铺在 print.css）；
+* 全量 `pytest tests/unit` 仍未跑完。
