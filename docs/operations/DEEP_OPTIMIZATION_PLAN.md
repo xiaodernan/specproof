@@ -36542,3 +36542,27 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * `git log --since` 的时区以提交者 author-date 为准；clock skew 未校正；
 * 365→现推值可重跑；**file:// 冒烟无像素截图**；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1788 Spring Cloud 车道全量复验：137/137 离线绿（gateway 84 · discovery 1 · config 1 · control-plane 51）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、实测（2026-11-15 · 本机 · `mvn -o` 离线 · MAVEN_OPTS=-Xmx700m）
+
+| 模块 | 命令 | 结果 |
+|---|---|---|
+| services/gateway | `mvn -o test`（#1783/#1786 同机） | **84 tests, 0 failures, BUILD SUCCESS** |
+| services/discovery-server | `mvn -o test` | **1/1 · 0 failures**（28.2s，现场重跑） |
+| services/config-server | `mvn -o test` | **1/1 · 0 failures**（24.7s，现场重跑） |
+| services/control-plane | `mvn -o test` | **51/51 · 0 failures, BUILD SUCCESS** |
+
+**合计：137/137 绿。** 目标补偿：此前账本宣称"gateway 81/81、discovery 1/1、config 1/1、control-plane 51/51"——
+本轮把 gateway 修进 84（+3 个 MQ cardinality pin），并在本机现场把四个模块全部重跑了一遍。
+
+### 二、诚实边界
+
+* **离线（`-o`）**意味着只验证"此前缓存在本机的 `.m2` 能编译的世界"，**不验证**全新机器上的在线依赖可分发性、版本可解析性；
+* discovery/config-server 的 1 个测试均为 `@SpringBootTest` 冒烟（含启用 InstrumentRegistry 的积件），不含多实例/真实网络拓扑断言；
+* gateway 无 broker e2e（RabbitMQ 实连）仍未在本轮重跑；
+* Spring 车道的"生产 SLA"不由这批测试保证；
+* 全量 `pytest tests/unit` 仍未跑完。
