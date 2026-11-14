@@ -36044,3 +36044,30 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 这一卷是「信证结」——前面 21 卷全都是它的注脚，它不是总结，它是**托付之书**：以后谁开新卷，**必须先经此卷的四道门**；
 * commit 2411→2412 是本节自带 commit；本卷不构成产品契约，不保证生产 SLA、不保证可用性；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1770 证据群岛 `#/atlas` —— 三岛舆图：无限开放世界，但不再让人迷路
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `apps/web/src/pages/Atlas.tsx` + `atlas.copy.ts` + `styles/atlas.css`：
+  **SpecProof 世界舆图**——把 24 个一级入口画成三座岛：
+  - **工作台高原**（5 厅 · 青）：dashboard / jobs / agent / epic / tour ——「每天出入的大门」；
+  - **证据平原**（13 厅 · 靛）：lexicon / museum / gestures / matrix / explorer / contracts / eval / drill / ide / graph / chronicle / census / manual ——「十三间铁证大厅」；
+  - **治理海岸**（6 厅 · 琥珀）：identity / billing / usage / audit / settings / health ——「真实运维海岸线」；
+* SVG 手绘岛屿（ hatch 纹理 + 双发框 + 罗盘玫瑰 + 提交刻度比例尺 `0/1,000/2,000/2,413 commits` + 虚线航道），
+  岛屿/厅点全部可点可 Tab 可 Enter，右侧面板展开该岛全部厅（图标 + 一话 + 直达链接）；
+* **三条探险路线**卡片：快速上岸 90 秒（tour→manual）／证据考察 25 分钟（epic→chronicle→census）／验收实战 10 分钟（jobs/new→matrix→FindingDetail）；
+* **活体地标** 7 格：tracked files 2,694 · LOC 482,346 · commits 2,413 · 账本条目 1,570 · 账本 3,580 KB · 中文/英文铁证之书 58.4/58.3 KB —— 全部由 `scripts/build_repo_stats.py` 现推，本页零人造数；
+* `build_repo_stats.py` 同步新增 **`ledger_sections`** 字段（与 chronicle 同一 `^## #\d+` 正则口径，避免口径漂移——首次朴素 `startswith` 计数出 1,589，与 chronicle 的 1,570 不一致，已修正并重测：1,570/1,570）；
+* `ProductIcon` 新增 `map` 图标；App.tsx `#/atlas` evidence 组一级入口（24 个入口）；
+  `nav.atlas` ×2 locale（世界舆图／Atlas）；两本 `USER_GUIDE` 路由表补 `/atlas` 行；
+* Build ✅ in 863ms（Atlas chunk 18.45 KB / 7.94 KB gz）；tsc 0；i18n parity 11/11；guide catalog + ledger 四件套 51/51。
+
+### 二、诚实边界
+
+* **岛屿轮廓是美学装置，不是地理测量**——24 个厅的坐标是手工排布的可读性优先布局，不声称代表任何"距离"；
+* 舆图随主线生长而褪色（同 chronicle/census 命运）：`repoStats.json` 需要 `build_repo_stats.py` 重跑；
+* 本页未经浏览器目验（§ledger 一贯口径）；打印无意义（非纸媒页）；
+* 全量 `pytest tests/unit` 仍未跑完。

@@ -159,6 +159,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/chronicle` | 编年史 | 1560 条真实账本条目，一拉到底，永远在长 |
 | `/manual` | 说明书（SPECROOF POCKET CARD） | 嵌入 App 的30 秒手札：5 件 / 3 不要 / 5 命令 / 报告词表，可打印可阅读 |
 | `/census` | 铁样寨地 | 自研本仓的统计：文件数／LOC／语言 Top 14／账本字节数，全程 git ls-files 派生 |
+| `/atlas` | 世界舆图 | SpecProof 证据群岛地图：三座岛（工作台高原/证据平原/治理海岸）× 24 个厅 + 三条探险路线，防止新人迷路 |
 | `/billing` | 用量与账单 | 真 wkapi.pro 实测 token + hit_rate |
 | `/audit` | 审计轨迹 | 每一步 audit_logs 写入，不丢任何 |
 | `/health` | 服务状态 | 6 依赖延迟分布 + 60 面板 SLO 告警触发 |
