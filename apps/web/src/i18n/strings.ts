@@ -27,6 +27,7 @@ const zh = {
   "nav.tour": "巡览",
   "nav.ide": "铁匠工坊",
   "nav.graph": "验收之流",
+  "nav.chronicle": "编年史",
   "nav.lexicon": "铁证词典",
   "nav.museum": "铁证博物馆",
   "nav.gestures": "验收官十四式",
@@ -55,6 +56,14 @@ const zh = {
   "graph.title": "验收之流",
   "graph.subtitle": "THE RIVER OF IRON",
   "graph.lead": "你在每一个 SpecProof job 里看到的那些节点，是如何从 requirement 走到 capsule 的。这一页，就是那条河。",
+
+  // ── chronicle · 编年史 ──────────────────────────────────────
+  "chronicle.title": "SpecProof 编年史",
+  "chronicle.subtitle": "THE BOOK THAT GROWS",
+  "chronicle.lead": "记录 {total} 条真实提交——从 #{first} 到 #{last}——书没有被写完，史官仍笔动不辍。任何一条都能查到、能验、能对照。",
+  "chronicle.searchLabel": "搜索编年史",
+  "chronicle.placeholder": "搜索条目、净荷、编号… (支持 1759，#1759)",
+  "chronicle.noResult": "书页变成灰…",
   "nav.jobDetail": "验收详情",
 
   // ── groups ─────────────────────────────────────────────────────
@@ -488,6 +497,7 @@ const en: Record<keyof typeof zh, string> = {
   "nav.tour": "Grand Tour",
   "nav.ide": "The Forge",
   "nav.graph": "The River",
+  "nav.chronicle": "Chronicle",
   "nav.lexicon": "Iron Lexicon",
   "nav.museum": "Evidence Museum",
   "nav.gestures": "Fourteen Gestures",
@@ -516,6 +526,14 @@ const en: Record<keyof typeof zh, string> = {
   "graph.title": "The River of Iron",
   "graph.subtitle": "THE RIVER OF IRON",
   "graph.lead": "The nodes you meet inside every SpecProof job, from the requirement to the capsule. This page is the river they run.",
+
+  // ── chronicle · 编年史 ──────────────────────────────────────
+  "chronicle.title": "The SpecProof Chronicle",
+  "chronicle.subtitle": "THE BOOK THAT GROWS",
+  "chronicle.lead": "{total} real ledger entries from #{first} to #{last} — the book is never finished; the keeper is still writing. Every line is checkable, every line is real.",
+  "chronicle.searchLabel": "Search the chronicle",
+  "chronicle.placeholder": "Search entries, payloads, numbers… (try 1759 / #1759)",
+  "chronicle.noResult": "Nothing etched here yet.",
   "nav.jobDetail": "Verification detail",
 
   "group.workspace": "Workspace",

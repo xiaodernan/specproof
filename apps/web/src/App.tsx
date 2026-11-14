@@ -38,6 +38,7 @@ const Drill = lazy(() => import("./pages/Drill"));
 const Explorer = lazy(() => import("./pages/Explorer"));
 const Ide = lazy(() => import("./pages/Ide"));
 const Graph = lazy(() => import("./pages/Graph"));
+const Chronicle = lazy(() => import("./pages/Chronicle"));
 
 type NavItem = {
   path: string;
@@ -65,6 +66,7 @@ const NAV: NavItem[] = [
   { path: "drill", labelKey: "nav.drill", icon: "verify", groupKey: "group.evidence" },
   { path: "ide", labelKey: "nav.ide", icon: "hammer", groupKey: "group.evidence" },
   { path: "graph", labelKey: "nav.graph", icon: "matrix", groupKey: "group.evidence" },
+  { path: "chronicle", labelKey: "nav.chronicle", icon: "scroll", groupKey: "group.evidence" },
   { path: "identity", labelKey: "nav.identity", icon: "team", groupKey: "group.admin", roles: IDENTITY_ROLES },
   { path: "billing", labelKey: "nav.billing", icon: "billing", groupKey: "group.admin", roles: BILLING_ROLES },
   { path: "usage", labelKey: "nav.usage", icon: "chart", groupKey: "group.admin" },
@@ -111,6 +113,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "drill") return <Drill />;
   if (seg[0] === "ide") return <Ide />;
   if (seg[0] === "graph") return <Graph />;
+  if (seg[0] === "chronicle") return <Chronicle />;
   if (seg[0] === "health") return <Health />;
   if (seg[0] === "billing") return <Billing />;
   if (seg[0] === "usage") return <Usage />;

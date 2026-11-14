@@ -35824,3 +35824,24 @@ LangGraph 是本产品的发动机，而发动机的形状一直不是产品的�
 * 本卷没有引入任何新的"假 cloud IDE"表述——任何将来的营销吹嘘云 IDE 者都将失败卷十八的第一条教义；
 * `/epic` 第十卷内容为 epic 所发生事件的抄写总结——不是运行时的快照；
 * 全量 `pytest tests/unit` 仍未跑完；UiKit.smoke 首次全套中有一次瞬时抖动（隔离单跑全绿），不是人为修改结果。E2E 未运行。
+
+## #1760 编年史 `#/chronicle` —— 1560 节真实账本条目的索引（本产品的第二眼睛）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `apps/web/src/pages/Chronicle.tsx` + `chronicle.json` + `styles/chronicle.css` ——
+  通过 `scripts/_chronicle.py` 解析 DEEP_OPTIMIZATION_PLAN.md 中 1560 个 `## #` 段落，生成**静态 JSON**（~259 KB）；
+  Chronicle 页：搜索过滤（标题/正文/编号），左侧竖线 + 条目编号罗列，纯静态、无运行时计算；
+* App.tsx 新增 `#/chronicle` evidence group 一级入口；`nav.chronicle` ×2 locale，`chronicle.*` ×6 keys ×2 locale；
+* 用户手册 §3 补 `/chronicle`（20 页→21 页口径）；guide gate 同步绿；
+* vite build ✅ in 586ms，Chronicle chunk 261 KB lazy；
+  vitest 497/497 保留；guide gate 51/51。
+
+### 二、诚实边界
+
+* **`chronicle.json` 与账本是快照**——谁合 master 新节目后，本页必须经 `scripts/_chronicle.py` 重新生成
+  （脚本本次未入仓脚本目录，下一次收据时人为再跑一次；不自动化声称）；
+* 任何条目右侧都跟账本原文一致——没有润色、没有翻译、没有 "被优化"；本产品不说话假话；
+* 全量 `pytest tests/unit` 仍未跑完；E2E 未跑；`#/chronicle` 未浏览器目验。

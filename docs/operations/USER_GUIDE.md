@@ -156,6 +156,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/drill` | 验收快问（闪电问答） | 12 道速测——每题都锚真实文件与真实账本；答完揭晓称号 |
 | `/ide` | 铁匠工坊 | 真实锚点 + 抄板 + 炉边便笺，本机落盘 |
 | `/graph` | 验收之流 | 18 个 LangGraph 节点逐一拆解：从需求到 capsule | 
+| `/chronicle` | 编年史 | 1560 条真实账本条目，一拉到底，永远在长 |
 | `/billing` | 用量与账单 | 真 wkapi.pro 实测 token + hit_rate |
 | `/audit` | 审计轨迹 | 每一步 audit_logs 写入，不丢任何 |
 | `/health` | 服务状态 | 6 依赖延迟分布 + 60 面板 SLO 告警触发 |

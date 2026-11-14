@@ -1,0 +1,22 @@
+/* ── SpecProof Chronicle · 编年史 ───────────────────────────────── */
+
+.chronicle-page { max-width: 1200px; margin: 0 auto; }
+.chronicle-page h1 { margin: 8px 0 12px; letter-spacing: -.03em; }
+.chronicle-en { font-size: .42em; letter-spacing: .22em; color: var(--accent-text); vertical-align: .3em; margin-left: .35em; }
+.chronicle-page .page-sub { color: var(--color-text-2); line-height: 1.85; max-width: 760px; }
+
+.chronicle-search { display: flex; align-items: center; gap: 16px; margin: 22px 0 24px; position: relative; }
+.chronicle-filter { flex: 1; background: var(--color-surface-2, rgba(255,255,255,.03)); border: 1px solid var(--color-border-strong, var(--color-border)); color: var(--color-text); padding: 14px 18px; border-radius: var(--radius-lg); font-size: var(--text-lg); outline: none; }
+.chronicle-filter:focus { border-color: var(--accent-text); }
+.chronicle-count { position: absolute; right: 22px; color: var(--color-text-3); font: 13px var(--font-mono); }
+
+.chronicle-list { list-style: none; padding: 0 0 60px; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.chronicle-item { border-left: 2px solid var(--color-border); padding-left: 18px; margin-left: 32px; position: relative; }
+.chronicle-item::before { content: ""; position: absolute; left: -9px; top: 8px; width: 15px; height: 15px; border-radius: 50%; background: var(--color-surface); border: 2px solid color-mix(in srgb, var(--accent-text) 55%, transparent); box-shadow: 0 0 8px color-mix(in srgb, var(--accent-text) 20%, transparent); }
+.chronicle-row { padding: 10px 0 14px; display: grid; grid-template-columns: 72px 1fr; gap: 16px; }
+.chronicle-num { font: 12px/1.4 var(--font-mono); color: var(--accent-text); text-align: right; padding-top: 3px; }
+.chronicle-body { min-width: 0; }
+.chronicle-title { font-size: var(--text-md); color: var(--color-text); line-height: 1.45; }
+.chronicle-snippet { font-size: var(--text-sm); color: var(--color-text-3); margin-top: 4px; line-height: 1.65; }
+
+.chronicle-empty { color: var(--color-text-3); padding: 60px 0; text-align: center; }
