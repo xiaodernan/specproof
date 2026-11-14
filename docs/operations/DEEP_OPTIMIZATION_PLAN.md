@@ -36071,3 +36071,26 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 舆图随主线生长而褪色（同 chronicle/census 命运）：`repoStats.json` 需要 `build_repo_stats.py` 重跑；
 * 本页未经浏览器目验（§ledger 一贯口径）；打印无意义（非纸媒页）；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1771 舆图目验（有限）：本地 file:// 冒烟 + 罗盘/比例尺/题词入框
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、事实
+
+* 用户机上的 in-app browser 无法截图（`browser.screenshot` 报 "Screenshot needs a visible tab"），但能跑 `evaluate` / `snapshot`；
+  因此 `#/atlas` 本轮做了**有限目验**：
+  1. 临时（本地未提交）关闭 `App.tsx` 的登录门禁、`vite build --base=./`、`browser.preview` 打开 `dist/index.html`；
+  2. 页面成功渲染、控制台 **0 error**；无障碍树读到侧栏新增「世界舆图」入口与路由名"世界舆图 · SpecProof"；
+  3. 用 `getBBox()` 实测：北境高原 island bbox `[62,81 → 1123,237]` / 证据平原 `[27,273 → 1113,476]` / 治理海岸 `[51,522 → 1104,645]`；
+     三岛与两行子标签（工作台高原 y 201–221 / 证据平原 y 445–465 / 治理海岸 y 619–639）均落在岛内，且不与任何厅点相撞；
+  4. 罗盘（`N` 落在表盘内）、比例尺（y ≈ 652–673，全部高于内发框 680）、题词（移至顶部左缘 y=15）——三件均不越框；
+  5. **门禁已原样恢复**：`git diff` 只剩 `Atlas.tsx`；`tsc --noEmit` = 0；`npm run build` ✅ in 593ms。
+* 记录冒烟产物：`D:\面试项目\_atlas_map_preview.html`（静态 SVG 预览，Review 窗格可读图）。
+
+### 二、诚实边界
+
+* **没有拿到一张像素截图**——本轮目验 = DOM/a11y/bbox 数学，不是肉眼；罗盘/比例尺/题词的最终观感以用户机为准；
+* 登录门禁为本地临时关闭、**未提交**；dist/ 被 .gitignore，任何本地 dist 与主线源码无关；
+* file:// 加载的 SPA 无法触达 `/api/*`，所有验收请求均失败——本页为纯静态证据即不受影响；
+* 全量 `pytest tests/unit` 仍未跑完。

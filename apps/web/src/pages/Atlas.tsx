@@ -157,30 +157,30 @@ export default function Atlas() {
               </g>
             ))}
 
-            {/* compass rose, top-right margin */}
-            <g className="atlas-compass" transform="translate(1102,50)" aria-hidden="true">
+            {/* compass rose, top-right margin — N engraved inside the dial */}
+            <g className="atlas-compass" transform="translate(1102,56)" aria-hidden="true">
               <circle r="26" fill="#081726" stroke="#d4af37" strokeOpacity="0.8" strokeWidth="1.4" />
               <circle r="19" fill="none" stroke="#d4af37" strokeOpacity="0.35" strokeWidth="0.7" />
-              <path d="M 0 -18 L 4.6 0 L 0 5 L -4.6 0 Z" fill="#d4af37" />
-              <path d="M 0 18 L 4.2 4 L 0 8.5 L -4.2 4 Z" fill="#d4af37" fillOpacity="0.35" />
-              <text y="-28.5" textAnchor="middle" className="atlas-compass-n">N</text>
+              <line x1="-13" y1="0" x2="13" y2="0" stroke="#d4af37" strokeOpacity="0.55" strokeWidth="0.9" />
+              <path d="M 0 -17 L 4.6 0 L 0 4.6 L -4.6 0 Z" fill="#d4af37" />
+              <text y="15.5" textAnchor="middle" className="atlas-compass-n">N</text>
             </g>
 
             {/* scale bar — anchored to the real commit count */}
-            <g className="atlas-scale" transform="translate(56,658)" aria-hidden="true">
+            <g className="atlas-scale" transform="translate(56,656)" aria-hidden="true">
               <rect x="0" y="0" width="70" height="4.5" fill="#d4af37" fillOpacity="0.85" />
               <rect x="70" y="0" width="70" height="4.5" fill="#d4af37" fillOpacity="0.45" />
               <rect x="140" y="0" width="70" height="4.5" fill="#d4af37" fillOpacity="0.85" />
               {[0, 70, 140, 210].map((x) => <line key={x} x1={x} y1="-4" x2={x} y2="9" stroke="#d4af37" strokeWidth="1.4" />)}
-              <text x="0" y="20" className="atlas-scale-num">0</text>
-              <text x="70" y="20" textAnchor="middle" className="atlas-scale-num">1,000</text>
-              <text x="140" y="20" textAnchor="middle" className="atlas-scale-num">2,000</text>
-              <text x="210" y="20" textAnchor="end" className="atlas-scale-num">{stats.git_commit_count.toLocaleString()}</text>
-              <text x="105" y="35" textAnchor="middle" className="atlas-scale-cap">{zh ? "提交刻度" : "commits"}</text>
+              <text x="0" y="16.5" className="atlas-scale-num">0</text>
+              <text x="70" y="16.5" textAnchor="middle" className="atlas-scale-num">1,000</text>
+              <text x="140" y="16.5" textAnchor="middle" className="atlas-scale-num">2,000</text>
+              <text x="210" y="16.5" textAnchor="end" className="atlas-scale-num">{stats.git_commit_count.toLocaleString()}</text>
+              <text x="222" y="4.6" className="atlas-scale-cap">{zh ? "提交" : "COMMITS"}</text>
             </g>
 
-            {/* engraved caption, bottom centre */}
-            <text x="580" y="672" textAnchor="middle" className="atlas-engrave">THE EVIDENCE ARCHIPELAGO · EST. #130 · MMXXVI</text>
+            {/* engraved caption, top-left margin */}
+            <text x="48" y="15" className="atlas-engrave">THE EVIDENCE ARCHIPELAGO · EST. #130 · MMXXVI</text>
           </svg>
         </div>
 
