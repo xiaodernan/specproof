@@ -34118,3 +34118,32 @@ README 顶部新增一行章节追加在开场白之后、八卦细节之前：
 README = 入口；USER_GUIDE = 六十分钟完整走完；TOUR_MANUAL = 游戏玩法（#1694）；
 EN/USER_GUIDE_EN.md = 英文新手路径（#1699）；MCP_GUIDE*.md = 机器发声（#1695）。
 四本说明书在一个入口列表里互相指向，不制造新的孤岛。
+
+## #1701 世界书补卷 — 卷十一·两道门（EN 同步补齐 Scroll 9/10/追加词典 C/D + 终章移正位）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、为什么（重要、原先未被发现的一处断档）
+
+英文版《铁证之书》早前被标为“英文全文闭合”（#1683），但逐节核对时发现它**缺 卷九（印章与窗）、卷十（读者抵达之前）**，
+且「Final Scroll · The Unfinished」被错误地放在 Scroll 8 之前——叙事顺序在英文版是乱的。
+本号把这些**记事本式的断档全部补回**：
+
+* EN 书按顺序**补齐**：`Scroll 9 · The Seal and the Window`（中文原文逐节人读翻译：卸下装备/开窗人/十四手势/对话不是义务/「证据先于人，人负责证物」）、
+  `Appendix C · The Fourteen Gestures`、`Appendix D · Final Word`、`Scroll 10 · Before the Reader Opens This Book`；
+* EN 书整体重排：**Final Scroll 挪到全书末尾**（之前它夹在 Scroll 8 前面）；
+* **新写 卷十一 · 两道门（Scroll 11 · The Two Doors）**：
+  第一扇门 = 双语门（`strings.ts` 一个 key 两 locale、parity 门站岗、「能切 ≠ 都翻了」如实写进正文、原生英文档也全部出中文）；
+  第二扇门 = 橱窗（`xiaodernan.github.io`；本仓库只生产 `artifacts/portfolio-data/`；pull-model、低频、无凭据、不推送——producer owns facts; the window owns the wearing）；
+* 中文书同步：卷十一在「终章 · 未完」之前；两书结构此刻完全一致（卷零→卷十一 + 附录 A–D + 终章/Final Scroll）。
+
+### 二、验迹
+
+* 两书大纲逐行核对一致（`Select-String '^## '`，中文 18 节 ↔ 英文 18 节，一一对应）；
+* 账本四件套 45/45 绿。
+
+### 三、诚实边界
+
+* EN 版 Scroll 9/Final Word/Scroll 10 是对中文的**人工对译**，不是机翻；少数原中文术语（如「验讫」「铁」）保留在引号内，因其是产品 UI 字面；
+* 卷十一是新增章节——中文版先行、英文版随后，章节结构与锚点一致；它不是关于验收内核的新事实，而是关于世界在门之内、之外两处的话语；
+* 双语门目前覆盖的页面矩阵见 `USER_GUIDE.md §4` 实况表；旧页面仍按批次推进。

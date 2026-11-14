@@ -164,20 +164,6 @@ hand that prints red**.
 
 All unfinished stories are finished inside this book; the ones we know are in the map.
 
-## Final Scroll · The Unfinished
-
-Every victory, defeat, ledger, and scroll in this book lands on one answer:
-
-> **The iron verifies itself.**
-
-Roadmap open items: `PRODUCT_ROADMAP.md` §§1.3 (demo self-check), 1.6 (verify kernel decoupling),
-4.2 (counterexample quality policy), 5.3 (observability default-on), 5.4 (deployment shape),
-6.1 (IDE/CI integration). Each written there, all named, none hidden.
-
-*This book does not finish; its scrolls accumulate. You are reading at its current edge.
-The next leaf is one commit away.*
-
-
 ---
 
 ## Scroll 8 · The Chronicler's Vigil
@@ -235,3 +221,210 @@ the directory first, the details second, and the proof that "it exists" third.
 
 **This book remains open.**
 
+---
+
+## Scroll 9 · The Seal and the Window
+
+> This scroll, if true, is the acceptance officer's inner monologue; if false, it is still a door a fan may enter.
+> Verification is not a thing you pick up in your hands — it is first laying yourself down into the role, then laying down what the other party handed you.
+
+### 9.1 Unlearning all your equipment is a technique
+
+Whoever comes to verify lays down their weapons before entering the door. The officer who does not lay down their weapons is not here to verify — they are here to copy someone else's conclusion. So SpecProof's dictionary has no "QA" in it — it has only "acceptance officer".
+
+The QA engineer's habit says "nothing wrong here." The officer's habit says "this was found; what was not found gets written down too, waiting for you to check."
+
+One kind of thing, once verified, you can see whether it is broken. Another kind, you cannot see whether it is broken — it does not fake evidence and does not hide the retreat. The officer never says "as if nothing is wrong"; they say only "the baseline passes; the head fails, because —".
+
+### 9.2 The one who opens the window
+
+A window is open, looking at other people's code. You see, you record, you do not laugh, you do not cry. Officers do not laugh. When they laugh, it carries no feeling: "The evidence for that block is this cell here." Like the verdict read in court, sentence by sentence, torn open for evaluation — no decoration.
+
+So SpecProof's front end — all those StatCards, badges, seals, timelines — stands between the officer and the emotion, pasting a "I am calm" face onto every reader of the judgement.
+
+Emotion does not enter the crystal of code; but the reader reads through the window seam.
+
+### 9.3 The fourteen gestures (a.k.a. the officer's fourteen faces)
+
+The best way through this contemplation: imagine yourself an officer and watch your hands. All fourteen should have one page of evidence they can point to.
+
+| Posture | Face | Iron evidence |
+|---|---|---|
+| Stare straight | SEALED — the face the seal lands on | `VERIFIED` (evidence sufficient) |
+| Provoke | BLOCKED — brows pushed apart linearly, corners of the mouth drawn in | `BLOCKED` (replayable evidence found) |
+| Probe | UNDER REVIEW — corner of the eye slightly narrowed, pen held in the fingertips | `NEEDS_REVIEW` (a human must pull in) |
+| Gaze far | STALE — head raised, goose-necked ear | `STALE` (too old; nobody re-verifies) |
+| Cold smile | HALF-SMILE — cheeks tight, jaw locked | `CANCELLED` (before you win, it concedes) |
+| Close the door | IRON DOOR — someone pulls and it will not move | `ERROR` (tunnel terminates) |
+| Silent writing | I HAVE WRITTEN — the hundred lines enter your muscle memory | `FAILED` (the run never finished) |
+| Wave away | NOT DONE | `EXPIRED` (done once; now forgotten) |
+| Annotate | WHOSE | `VERIFIED` with a 「reviewed」 seal on top — read, and signed |
+| Forgive | WAIT A MOMENT | `STALE` re-stamped — you may speak again; find the right spot and verify once more |
+| Push the door | A GENTLE PUSH | `ERROR` re-stamped — you stop your own hand; it is echoing |
+| Turn off the lamp | GOOD NIGHT | `FAILED` re-stamped — no opening tonight; the lamp stays off |
+| Lay down the pen | THE CASE IS CLOSED | the `VERIFIED` button falls into place; nobody knocks on your desk again |
+| Still alive | A HABIT | the reverse of `STALE` — "nobody handles it does not mean it is dead" |
+
+Every gesture maps to one way evidence really dies; every death is a state the product itself supports.
+
+### 9.4 Conversation is not a duty
+
+The officer does not report to the vendor. The officer speaks to the iron. If there is no iron, the officer does not write the iron's name — they say "I did not see".
+
+"I did not see" is not cowardice; it is dignity.
+
+SpecProof wrote that dignity into its settings:
+
+- every `evidence_type` is required;
+- every `contract_id` is required;
+- every `execution_surface` is required;
+- every `unverified` is counted into the report honestly.
+
+Better an empty cell, than a wrinkled sheet of paper.
+
+### 9.5 If a full scroll existed
+
+Without "code is law", and without "the right to review is a right" — those words are too humble. SpecProof adds one sentence:
+
+**"Evidence comes before people; people are responsible for the evidence."**
+
+The evidence exists before the person — it exists between the runs, before the merge, before the consensus. People only read the evidence, and then decide whether to accept it. That is all.
+
+---
+
+## Appendix C · The Fourteen Gestures (Brief Table)
+
+| # | Gesture | Maps to Report Verdict | Maps to Capsule Behaviour | One line |
+|---|---|---|---|---|
+| 1 | Stare straight | VERIFIED | full coverage, per-row PASS | Stamped and done |
+| 2 | Provoke | BLOCKED | contains iron evidence that truly blocks the merge (base_pass_head_fail) | No |
+| 3 | Probe | NEEDS_REVIEW | missing evidence / at least one unverified cell | Pull once more |
+| 4 | Gaze far | STALE | old code nobody asks about — tech debt sedimented | Do not open your mouth yet |
+| 5 | Cold smile | CANCELLED | the submission was withdrawn; the iron cannot find its bearer | Waved away |
+| 6 | Silent writing | FAILED | verification execution crashed; nothing to pick | No whole fruit to pick |
+| 7 | Wave away | EXPIRED | verified once; too long ago, nobody verifies now | Past its shelf life |
+| 8 | Close the door | ERROR | the door closed itself; nobody closed it | It neither receives nor greets |
+| 9 | Annotate | VERIFIED | you wrote it; you read it; you stamp it | The persona of annotating |
+| 10 | Forgive | NEEDS_REVIEW | you softened once; look again | The lamp-off key is handed to you |
+| 11 | Push the door | ERROR | confirm the door will not move (it closed itself) | Pin your hand down |
+| 12 | Turn off the lamp | FAILED | no more acting — the road ended | A lamp decided by fate |
+| 13 | Lay down the pen | VERIFIED | the 「验讫」 seal falls; three years unmoved | The desk is empty |
+| 14 | Still alive | STALE | nobody asks, it is not dead | The fire still burns |
+
+Each gesture corresponds to **one button** + **one counter** + **one iron file**. SpecProof is not a book about how to verify; it is a letter that says: *when you face an accepted change, you know what the current acceptance officer looks like* — each one rendered by the bits on the disk.
+
+---
+
+## Final Word · Appendix D
+
+> Iron evidence is neither easy to mint as coin, nor easy to print as paper. Iron is struck — one vertical, one horizontal — and only then does it exist.
+> The officer does not mint iron; evidence is executed, executed out. The officer only watches, does not decide whether what was seen should be gripped by the face as faith — only records.
+>
+> The smiling officer who saw one failure in person still needs to begin from the start next time.
+> Every verification returns the same mould to the furnace, to test whether the hammer can strike the smallest chip and the largest — and inside those two chips sit all the unknowns, and the people who can expose them.
+>
+> Evidence comes before people; people are responsible for the evidence.
+
+---
+
+## Scroll 10 · Before the Reader Opens This Book
+
+> This scroll is not a scroll of the book — it is the preface prepared for whoever will read it later.
+> If you have read Scrolls 0 through 9, you already know what the differential is, what the matrix is, where the evidence begins.
+> Those are common sense. Scroll 10 speaks of the phenomenon before common sense — when the whole history had not begun; when nobody yet had the word "verification" — how they treated the code.
+>
+> Those people were not lazy. They were honest. They did not know evidence could flow out of a machine.
+
+### 10.1 The parts you probably did not read
+
+SpecProof does not prove itself the moment you stop reading. When you turn this book from the first character to the last, and you arrive here — every solid number, every morning decision, every row of iron ever written — has already washed over your eyes.
+
+*This is SpecProof's final trick — it is not trying to become the default in the AI code-acceptance industry.*
+*It only asks that, when you turn one page, you remember what iron evidence is, what evidence is, what verification is.*
+
+### 10.2 Sixty seconds
+
+If you read only one page:
+
+* Verification is not an ML model; it is a process stage.
+* In 60 seconds you cannot become a verification master; but you can remember three words:
+  * **Differential** — comparing two runs, two answers, two refs.
+  * **Matrix** — rows are contracts, columns are evidence; every cell is one judgement.
+  * **Seal** — making a judgement a transferable entity.
+* In 60 seconds you cannot unsee it. It will follow you. The next time you open a pull request, you will look at the matrix list beneath it without thinking.
+
+That is all of SpecProof. It tries to be your habit; it would rather sit inside the most exhausted hour of your day, at a quality checkpoint you do not resent — than become the tool you avoid.
+
+### 10.3 The officer does not come to teach you to write code
+
+The officer persuades you no longer to think "maybe I can write it a bit worse."
+The officer says "I can not. Today's code cannot be accepted."
+The officer says "Today I did not see."
+The officer says "Your problem is here — base_pass_head_fail — iron — you cannot get around it."
+
+SpecProof is not the completer; it is the witness that makes nobody comfortable.
+
+This chapter is not in this book. It is on your own screen. You only need to press 「New verification」, and place your hands on the keyboard — it sits before your eyes; every time you glance at it, you will remember: **someone once asked me whether I would become an acceptance officer. I chose.**
+
+### 10.4 The next time you boot up
+
+Next time someone asks you which tool you use for code verification — give them this repository. **Do not say 「SpecProof」. Paste the path. Let the `tests/` speak for you; let them fall in love with the differential on their own.**
+
+### 10.5 The last words of this book
+
+> Five billion lines of code have been written. Written without anybody verifying in advance; when disasters happen the rescue is people, and the evidence and the iron are the price everyone pays.
+> When the differential finishes and the matrix unfolds before you — the first 「New verification」 you ever pressed has already been cast; it simply, quietly, loves you.
+>
+> Do not thank the book. The book is only an empty space holding a heap of code — so that our successors may catch it.
+
+---
+
+
+## Scroll 11 · The Two Doors
+
+> This scroll is not about verification, nor about evidence — it is about **exits**.
+> After ten scrolls standing inside the house, the officer finally understood one thing: a door that can only be pushed from the inside — and can really only be pushed from the inside — is not a door, it is a wall. A door must open in both directions: toward the resident, toward the passer-by.
+
+### 11.1 Before the first door: two streets
+
+One street is written in Chinese, one in English. Both lanes are equally deep and equally bright; but the sign the passerby sees is **not the same sign** — that is not a defect. The defect would be one sign written in two languages so nobody can read it whole. Scroll 11 sets this rule:
+
+> **Inside the door: one shopfront, one language — in two languages, in two worlds; two kinds of guests walk through the same door and see nothing but their own letters.**
+
+In `apps/web/src/i18n/strings.ts`, that rule is written as a table: **one key, two locales, nothing else.** Every Chinese sentence in the table has its English twin line by line; the table has no third form. The Chinese guest cannot see the English, the English guest cannot see the Chinese, and a parity gate stands watch in `tests` — if either side loses a key, the gate goes red in front of everyone. Nobody may walk in and see a half-existing world.
+
+### 11.2 Native English, must also be Chinese
+
+The Genesis was written in Chinese because the chronicler spoke Chinese first. The English edition of this book came later — not as a translation, but as **a second wall, English, raised on the same house**: Scroll 0 through Scroll 10, one by one, paired. Native-English operations documents follow the same rule now: `CLAUDE.md` bilingual paragraph by paragraph, `ARCHITECT_CLAUDE.md` bilingual likewise, `MCP_GUIDE.zh.md` section for section. **Native-English content also has been translated into Chinese** — not because Chinese is superior, but because inside the door, both languages are native.
+
+The honest boundary already wrote: **you can switch ≠ everything is translated.** Legacy page bodies are still Chinese-native, and the English docs have queues that are pushed batch by batch — none of that is lied about in this book. Scroll 11 puts the honest boundary inside the body: the door being open does not mean every hall is already bilingual; what is not furnished yet is hung with an honest card reading 「Chinese exhibit」, or worse, the fog is never allowed in.
+
+### 11.3 The second door: the shop window
+
+This scroll also speaks of a more public door — the window on the street. `xiaodernan.github.io` is the acceptance officer's shop window; what hangs in the window is **this repository's newest achievement**, never last month's photograph.
+
+> The window updates automatically — but nothing is pushed by hand from this repository. SpecProof produces exactly one fact material: `artifacts/portfolio-data/` (`.github-sync.json`, `latest.md`, `products.json`); the portfolio pulls it on its own schedule, or a human taps sync. This repository never pushes anything to the portfolio repository, never ships credentials, never fabricates on the spot.
+> Big versions hang new pieces only, at low frequency — so the window is always worth a look, never loyal to volume.
+
+The window does not manage: it displays, it does not decide for the portfolio what to hang or when to change — **producer owns facts; the window owns the wearing.** That is the second courtesy of the door itself.
+
+### 11.4 After the gates open
+
+After both doors are open, nothing inside the room changes — the differential still runs, the matrix still lists, the seal still falls. What changed is the lamp in the room, and the number of people on the street who know this door exists.
+
+The next time someone asks: **"This world has Chinese and English too — the room, the street — which do you look at first?"** — the officer will say: "Push a door, either one. The iron inside the door is the same furnace."
+
+---
+
+## Final Scroll · The Unfinished
+
+Every victory, defeat, ledger, and scroll in this book lands on one answer:
+
+> **The iron verifies itself.**
+
+Roadmap open items: `PRODUCT_ROADMAP.md` §§1.3 (demo self-check), 1.6 (verify kernel decoupling),
+4.2 (counterexample quality policy), 5.3 (observability default-on), 5.4 (deployment shape),
+6.1 (IDE/CI integration). Each written there, all named, none hidden.
+
+*This book does not finish; its scrolls accumulate. You are reading at its current edge.
+The next leaf is one commit away.*
