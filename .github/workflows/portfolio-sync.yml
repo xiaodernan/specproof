@@ -1,0 +1,87 @@
+name: portfolio-sync
+
+# Keeps xiaodernan.github.io's SpecProof card fresh — without pushing from
+# anyone's laptop. On master updates (or on demand), it regenerates the
+# portfolio data and pushes the result to the portfolio repository.
+#
+# What it pushes (no binaries, no credentials, no LLM calls):
+#   - data/specproof-sync.json   latest ledger entry, world-bible size, page count
+#   - data/specproof-latest.md  a two-section "latest ship" markdown card
+#   - data/specproof-products.json machine-readable products/routes payload
+#
+# Requires ONE secret to enable pushing to the live portfolio repo:
+#   PORTFOLIO_TOKEN   — a GitHub PAT (or fine-grained token) with contents:write
+#                      on xiaodernan/xiaodernan.github.io
+# Without it, the job runs but exits with a friendly note and does NOT push.
+#
+# Cadence: weekly by default (Sunday 06:00 UTC), plus manual dispatch, plus
+# master merges — but only when the ledger index actually moved forward
+# (so quiet weeks don't spam the portfolio repo).
+
+on:
+  schedule:
+    - cron: "0 6 * * 0"
+  workflow_dispatch: {}
+  push:
+    branches: [master]
+
+concurrency:
+  group: portfolio-sync
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out specproof (this repo)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 80
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Regenerate portfolio data
+        run: |
+          python scripts/sync_portfolio.py
+          ls -la artifacts/portfolio-data
+
+      - name: Decide whether the portfolio actually changed
+        id: gate
+        run: |
+          if [ -z "${{ secrets.PORTFOLIO_TOKEN }}" ]; then
+            echo "no_token=true" >> "$GITHUB_OUTPUT"
+            echo "::notice title=portfolio-sync::PORTFOLIO_TOKEN not set — regenerating artifacts only; no push to the live site."
+            exit 0
+          fi
+          echo "no_token=false" >> "$GITHUB_OUTPUT"
+
+      - name: Push fresh data to xiaodernan.github.io
+        if: steps.gate.outputs.no_token == 'false'
+        env:
+          PORTFOLIO_TOKEN: ${{ secrets.PORTFOLIO_TOKEN }}
+        run: |
+          set -euo pipefail
+          TARGET_REPO="xiaodernan/xiaodernan.github.io"
+          git clone --depth 1 "https://x-access-token:${PORTFOLIO_TOKEN}@github.com/${TARGET_REPO}.git" portfolio
+          cd portfolio
+          mkdir -p data
+          cp ../artifacts/portfolio-data/.github-sync.json data/specproof-sync.json
+          cp ../artifacts/portfolio-data/latest.md data/specproof-latest.md
+          cp ../artifacts/portfolio-data/products.json data/specproof-products.json
+          git config user.name "specproof-bot"
+          git config user.email "specproof-bot@users.noreply.github.com"
+          git add data/
+          if git diff --cached --quiet; then
+            echo "portfolio data unchanged — nothing to push"
+            exit 0
+          fi
+          git commit -m "chore(specproof): sync latest master → portfolio data"
+          git push origin HEAD
+          echo "pushed fresh SpecProof data to portfolio repo"

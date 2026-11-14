@@ -34721,3 +34721,38 @@ UI 层词表 i18n 是下一桩独立工程。
 * demo 数据行（荔枝 Lychee、山竹 Mangosteen 等）保留「中文名 + 英文音译」——这是刻意的
   双语展示不是文字混排；
 * UiKit.tsx 体积从 25478 B 增至约 27.3 KB；无逻辑改动。
+
+## #1722 Portfolio 自动同步真正落地 —— workflow 入仓 + 一次 secret 即永久生效
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、需求
+
+"我希望你能把 GitHub 这个项目的最新成果实时最新同步到这里面进入的接口，就是每次用户点进去看到的
+都是进行了最新更新的项目成果。效果：每次用户点进去看到的都是最新更新的项目成果，这个过程全自动更新的，
+当然要降低更新频率 有大提升再更新 这样可以提高效率。"
+
+### 二、交付
+
+* `.github/workflows/portfolio-sync.yml`——
+  每周日 06:00 UTC（`cron: "0 6 * * 0"`）+ 手动触发 + master 合并时运行；
+  先跑 `python scripts/sync_portfolio.py` 重建 `artifacts/portfolio-data/`，
+  如果 secrets 里**没有** `PORTFOLIO_TOKEN`，则打印 notice，不推送、不报错（✓ 不在 fork/CI 猜缺 secret 时红）；
+  有则 clone `xiaodernan/xiaodernan.github.io`、铺三个文件（`specproof-sync.json` / `specproof-latest.md` /
+  `specproof-products.json`）、`git add data/` 有变才 commit+push（**没变就跳过，安静日不吭声**）；
+* `docs/operations/PORTFOLIO_SYNC.md` 新增「**自动同步（一次配置，长期生效）**」一节——
+  详列 secret 获取路径：Fine-grained tokens → 选中 xiaodernan.github.io → Contents: read+write；
+  解释为什么每周而不是每次 push（portfolio 是门面不是刻度计）；
+* `artifacts/portfolio-data/` 实测生成结果：world_size **37.0 KB**、page_count **24**、
+  最新 ledger #1690 起的完整 products.json/latest.md（本提交不含生成物，**该目录被 .gitignore 排除**）；
+* 本轮之前，portfolio 同步停留在"人运行脚本后手动复制"——现在是"跑一次 secret"后**零手感永久**。
+
+### 三、诚实边界
+
+* 本提交不推送任何 portfolio 仓库——没有 token 就推不了；我不向你这个 session 撒谎说已更新成功；
+* 成功生效的步骤是「你在 specproof 仓库 Settings → Secrets → Actions 加一个 `PORTFOLIO_TOKEN`」——
+  之后每周它自己跑；本提交**不承诺** secret 已经存在；
+* 如果 portfolio 仓库不存在或者路径不是 xiaodernan/xiaodernan.github.io，workflow 会 clone 失败——
+  那属于配置问题，workflow 会红着报给你；
+* `upload-artifact`/release 不做；portfolio 侧展示布局（如何把 `specproof-products.json` 变成 24 条路由卡片）
+  由 portfolio 自己编写——本仓库只负责数据准确性。

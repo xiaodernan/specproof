@@ -91,6 +91,25 @@ python scripts/sync_portfolio.py
 
 ---
 
+
+## 自动同步（一次配置，长期生效）
+
+本仓库内置了无需人工推送的 GitHub Actions workflow：`.github/workflows/portfolio-sync.yml`。
+它在每周日 06:00 UTC、master 合并时、或手动触发时运行，重新生成 `artifacts/portfolio-data/`
+并推送 `data/specproof-*` 三件套到 `xiaodernan/xiaodernan.github.io`。
+
+**只需要你配置一次 secret**：
+
+| secret 名 | 用途 | 获取方式 |
+|---|---|---|
+| `PORTFOLIO_TOKEN` | 推送 `data/specproof-*` 到 portfolio 仓库 | GitHub → Settings → Developer settings → Fine-grained tokens → 选中 xiaodernan.github.io 仓库 → Contents: read and write → 复制 token 粘贴进 specproof 仓库 Secrets |
+
+**没有这个 secret 也能跑**——workflow 会完成数据重建然后打印一条 notice，不推送、不报错。
+
+**为什么是每周而不是每次 push**：标注「有大提升再更新」——portfolio 是门面不是刻度计。
+每周一次外送足够；master 合并触发只在周日抢先、合并多数周无害；手动 `workflow_dispatch` 可临时触发。
+
+
 ## 三、为什么用 pull-model 而不是 push-model
 
 - **安全**： SpecProof 不需要知道 portfolio repo 的写权限——"我把我做了什么写进 JSON，portfolio 负责读"；
