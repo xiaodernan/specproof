@@ -489,6 +489,7 @@ const zh = {
   "usage.callsOnly": "调用次数",
   "usage.hitRateLegend": "命中率（null = 网关未上报 → 折线断档，不画假点）",
   "usage.generatedAt": "生成于",
+  "usage.prefixNote": "cached_tokens 含网关的静态前缀缓存（#1777 实测：短 prompt 恒等命中）——数字偏高 ≠ 你的消息被缓存了",
   "usage.emptyTitle": "缓存健康",
   "usage.emptyText":
     "账本尚无记录——等真实 LLM 调用跑一批后，这里会开始累计命中率、流式占比与延迟；空账本不编造任何数字。",
@@ -969,6 +970,7 @@ const en: Record<keyof typeof zh, string> = {
   "usage.callsOnly": "Calls",
   "usage.hitRateLegend": "Hit rate (null = gateway reported nothing → the line breaks; no fake point is drawn)",
   "usage.generatedAt": "Generated at",
+  "usage.prefixNote": "cached_tokens include the gateway's static-prefix cache (measured #1777: short prompts always hit) — a high rate ≠ your messages were cached",
   "usage.emptyTitle": "Cache Health",
   "usage.emptyText":
     "The ledger holds no records yet — after a batch of real LLM calls it will accumulate hit rate, streaming share and latency; an empty ledger invents nothing.",

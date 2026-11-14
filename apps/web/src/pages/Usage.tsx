@@ -222,6 +222,7 @@ export default function Usage() {
             {interp(t("usage.basis"), { basis: `${data.hit_basis_calls} / ${data.calls}` })}
             {locale === "zh" ? " 错误率 " : " Error rate "}{fmtPct(data.error_rate)} · {locale === "zh" ? " 流式占比 " : " Streaming share "}{fmtPct(data.streamed_ratio)}
           </p>
+          <p className="muted usage-basis-note usage-prefix-note">{t("usage.prefixNote")}</p>
 
           <Panel title={t("usage.streamShare")}>
             <div className="usage-meter" aria-label={t("usage.streamAria")}>

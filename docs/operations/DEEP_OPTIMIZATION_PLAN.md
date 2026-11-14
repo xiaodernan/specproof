@@ -36465,3 +36465,24 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 报纸不替代任何索引——它是浏览器前门的另一面，不是证据本身；
 * 未经像素截图；目验 = DOM/a11y/JS 交互断言 + console 0 error；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1785 /usage 页面加一行诚实话：cached_tokens 含网关静态前缀缓存（#1777 实测）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、事实与改动
+
+* `apps/web/src/pages/Usage.tsx`（CACHE HEALTH 页）新增一行 `usage.prefixNote`：
+  「cached_tokens 含网关的静态前缀缓存（#1777 实测：短 prompt 恒等命中）——数字偏高 ≠ 你的消息被缓存了」/
+  "cached_tokens include the gateway's static-prefix cache (measured #1777: short prompts always hit) — a high rate ≠ your messages were cached"；
+* strings.ts 双语各 1 键 `usage.prefixNote`；页面在 basis 注记下直接显示；`usage.basis` 既有"仅统计网关上报了 cached_tokens 的调用"保留不动——本行是**唯一新增的声音**；
+* 起因：本机实测（#1777，2026-11-15，wkapi.pro / gpt-6-sol）——短 prompt 与长 prompt 的 `cached_tokens` 均 ≈ 4,224/3,968，
+  这个数字是 wkapi 计费模型里**静态前缀**被缓存的可见部分，不是用户消息命中的比例；页面此前只讲"报告了 cached_tokens 的调用"，
+  但没说清楚"报告了 ≠ 你的请求被缓存了"，故补这一行；
+* Usage 测试 6/6 绿；i18n parity 11/11；tsc 0；build ✅ in 2.23s。
+
+### 二、诚实边界
+
+* 本行不改变任何 API 请求、不改变网关、不改变 /usage 指标定义（命中率口径不动，仅多一句注解）；
+* 「含静态前缀」是结论性的透明说明，不是解决方案——真正的省 token 仍在 #1773（RAG L2 精确缓存）与 #1781（draft/diagnose 语义缓存，需 SPECPROOF_PROVIDER_POLICY=1）；
+* 全量 `pytest tests/unit` 仍未跑完。
