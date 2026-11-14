@@ -34196,3 +34196,33 @@ EN/USER_GUIDE_EN.md = 英文新手路径（#1699）；MCP_GUIDE*.md = 机器发�
 * 本号完成 **Health + 其派生模块** 两页中的一页（Health）并改完全链；Jobs / JobDetail / Matrix 等仍排队；
 * `buildHealthCategories` 的第三参数默认 `zh`（保持旧调用方行为），组件里显式传 `locale`；
 * 开发注释里仍有少量中文——注释不是产品内容，不阻塞；产品可见的所有字符串均已双语。
+
+## #1704 旧页面双语化第三批：Jobs 逐页本地化（`jobs.copy.ts`）+ USER_GUIDE §4 实况同步
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `apps/web/src/pages/jobs.copy.ts`：`JobsCopy` 接口 + zh/en 双版——
+  眼眉行 / 主标题 / 描述 / 新建按钮 / 四格统计标签 / 面板标题 / 搜索与状态筛选
+  （aria-label、placeholder）/ 全部状态 / 刷新 / 新鲜度提示 / 未命名仓库 / 空态三件套
+  （错误 / 无匹配 / 首次）/ 清除过滤 / 新建首验证按钮 / 五列表头 / 查看链接 /
+  演示标签 / 状态未知 / 分页（共 N 条 + 上一页/下一页）；
+* `Jobs.tsx`：`useI18n()` + `JOBS_BY_LOCALE[locale]`；
+  `repoName()` 从模块级函数搬进组件（需要 locale 的「未命名仓库」标签），
+  与 module-scope 注释一并改为英文；表格 header 全部走 c；
+  空态 h3/p/清除过滤/创建首次验证 全部走 c；分页与 freshness 时间戳走 c；
+* **单测锁住的产品语义词原样保留**：「项目 / 验证编号」（Jobs.test 的排序断言）、
+  「从第一次验证开始」、「创建第一次验证」——与 Health 里的「3 项已上报」「降级中」同一原则：
+  先尊重锁死的契约，再按批推进双语，不为了"全英文"破坏既有红绿证据；
+* `USER_GUIDE.md` §4 / `EN/USER_GUIDE_EN.md` §4：已本地化清单新增 Dashboard（#1702）与 Service Health（#1703），
+  仍中文原生清单去掉这三页（Dashboard/Health/Jobs —— Jobs 本提交），英文手册镜像同步；
+* 验迹：Jobs.test.tsx 9/9；vitest 全量 **486/486**；`npm run build` 绿（index 258.73 kB / gzip 87.96 kB）；
+  tsc 净；ledger 45/45。
+
+### 二、诚实边界
+
+* 状态徽章文本（`StatusPill`/`statusLabel`/`JOB_STATUSES`）由共享 UI 层 `ui/toneMap.ts` 拥有，
+  与 `test_severity_vocabulary_parity.py` 锁死的词表绑定——**本页不翻译它们**，矩阵整体的
+  UI 层 i18n 归为下一阶段（整个 `ui/toneMap.ts` 需要 locale 参数化 + parity 门重新配平）；
+* 本号完成 **Jobs**（验证列表页）；Matrix / Contracts / Eval / Billing / Audit / Settings 仍排队。

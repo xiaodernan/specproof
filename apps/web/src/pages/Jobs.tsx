@@ -2,16 +2,20 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, type Job, type JobsPage } from "../api";
 import { Button, ErrorBox, JOB_STATUSES, Panel, Spinner, StatusPill, statusLabel, Table, fmtTime, shortId } from "../ui";
 import "../styles/verification.css";
+import { useI18n } from "../i18n";
+import { JOBS_BY_LOCALE } from "./jobs.copy";
 
 const PAGE_SIZE = 25;
 const ACTIVE = new Set(["QUEUED", "RUNNING", "PENDING", "WAITING_FOR_PROVIDER", "FAILED"]);
 
-/** 仓库路径 → 展示名（取最后一段目录名）。 */
-function repoName(job: Job): string {
-  return (job.repo_path || "未命名项目").replace(/[\\/]$/, "").split(/[\\/]/).pop() || "未命名项目";
-}
-
+/** Display name for a job: the last path segment of repo_path. */
 export default function Jobs() {
+  const { locale } = useI18n();
+  const c = JOBS_BY_LOCALE[locale];
+  const repoName = (job: Job): string => {
+    const fromPath = (job.repo_path || "").replace(/[\/]$/, "").split(/[\/]/).pop();
+    return fromPath || c.unnamedRepo;
+  };
   const [jobs, setJobs] = useState<Job[]>([]);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<Error | string | null>(null);
@@ -103,32 +107,32 @@ export default function Jobs() {
   return (
     <div className="verification-page">
       <div className="page-head verification-heading">
-        <div><span className="verification-eyebrow">VERIFICATION HISTORY</span><h1>每次变更，都有依据。</h1><p className="verification-description">跟进代码验证，查看需求覆盖与风险证据。执行中的任务会自动更新。</p></div>
-        <Button variant="primary" size="lg" onClick={() => { window.location.hash = "#/jobs/new"; }}>＋ 新建验证</Button>
+        <div><span className="verification-eyebrow">{c.eyebrow}</span><h1>{c.title}</h1><p className="verification-description">{c.description}</p></div>
+        <Button variant="primary" size="lg" onClick={() => { window.location.hash = "#/jobs/new"; }}>{c.newButton}</Button>
       </div>
-      <div className="verification-summary" aria-label="当前页任务概况">
-        <div><strong>{total}</strong><span>符合筛选的验证</span></div>
-        <div><strong>{summary.active}</strong><span>本页进行中</span></div>
-        <div><strong>{summary.verified}</strong><span>本页通过</span></div>
-        <div><strong>{summary.attention}</strong><span>本页需关注</span></div>
+      <div className="verification-summary" aria-label={c.summaryAria}>
+        <div><strong>{total}</strong><span>{c.summaryMatched}</span></div>
+        <div><strong>{summary.active}</strong><span>{c.summaryActive}</span></div>
+        <div><strong>{summary.verified}</strong><span>{c.summaryVerified}</span></div>
+        <div><strong>{summary.attention}</strong><span>{c.summaryAttention}</span></div>
       </div>
       <ErrorBox error={error} />
-      <Panel title="验证记录" right={<div className="verification-toolbar">
-        <input className="ui-input" aria-label="搜索验证" type="search" maxLength={256} placeholder="搜索项目、分支或任务编号" value={textFilter} onChange={(e) => setTextFilter(e.target.value)} />
-        <select className="ui-select" aria-label="验证状态" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); setCursors({}); }}>
-          <option value="ALL">全部状态</option>{JOB_STATUSES.map((value) => <option key={value} value={value}>{statusLabel(value)}</option>)}
+      <Panel title={c.panelTitle} right={<div className="verification-toolbar">
+        <input className="ui-input" aria-label={c.searchAria} type="search" maxLength={256} placeholder={c.searchPlaceholder} value={textFilter} onChange={(e) => setTextFilter(e.target.value)} />
+        <select className="ui-select" aria-label={c.statusAria} value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); setCursors({}); }}>
+          <option value="ALL">{c.allStatuses}</option>{JOB_STATUSES.map((value) => <option key={value} value={value}>{statusLabel(value)}</option>)}
         </select>
-        <Button variant="ghost" size="sm" loading={refreshing} onClick={() => setRefresh((value) => value + 1)}>刷新</Button>
+        <Button variant="ghost" size="sm" loading={refreshing} onClick={() => setRefresh((value) => value + 1)}>{c.refresh}</Button>
         {lastLoadedAt ? (
-          <span className="verification-freshness" title="这一页的数据最后一次读取的时间">
-            更新于 {new Date(lastLoadedAt).toLocaleTimeString()}
+          <span className="verification-freshness" title={c.freshnessTitle}>
+            {c.freshnessLabel} {new Date(lastLoadedAt).toLocaleTimeString()}
           </span>
         ) : null}
       </div>}>
         {loading ? <Spinner /> : jobs.length === 0 ? (
-          <div className="verification-empty"><span aria-hidden="true">◎</span><h3>{error ? "暂时无法读取验证记录" : query || statusFilter !== "ALL" ? "没有找到符合条件的验证" : "从第一次验证开始"}</h3>
-            <p>{error ? "请确认服务连接，稍后点击刷新重试。" : query || statusFilter !== "ALL" ? "换个关键词，或清除筛选条件查看全部记录。" : "准备一个 Git 仓库和需求文件，比较两个版本，了解代码改动是否满足预期。"}</p>
-            {query || statusFilter !== "ALL" ? <Button onClick={() => { setTextFilter(""); setQuery(""); setStatusFilter("ALL"); setPage(1); setCursors({}); }}>清除筛选</Button> : !error ? <Button variant="primary" onClick={() => { window.location.hash = "#/jobs/new"; }}>创建第一次验证 →</Button> : null}
+          <div className="verification-empty"><span aria-hidden="true">◎</span><h3>{error ? c.errorReadTitle : query || statusFilter !== "ALL" ? c.queryEmptyTitle : c.firstEmptyTitle}</h3>
+            <p>{error ? c.errorCopy : query || statusFilter !== "ALL" ? c.queryEmptyCopy : c.firstEmptyCopy}</p>
+            {query || statusFilter !== "ALL" ? <Button onClick={() => { setTextFilter(""); setQuery(""); setStatusFilter("ALL"); setPage(1); setCursors({}); }}>{c.clearFilters}</Button> : !error ? <Button variant="primary" onClick={() => { window.location.hash = "#/jobs/new"; }}>{c.emptyAction}</Button> : null}
           </div>
         ) : <div className="verification-table-wrap">
           <Table
@@ -137,7 +141,7 @@ export default function Jobs() {
             columns={[
               {
                 key: "repo",
-                header: "项目 / 验证编号",
+                header: c.thRepo,
                 sortable: true,
                 sortValue: (job) => repoName(job),
                 render: (job) => (
@@ -145,14 +149,14 @@ export default function Jobs() {
                     <a className="verification-repo" href={"#/jobs/" + encodeURIComponent(job.id)} title={job.repo_path}>
                       {repoName(job)}
                     </a>
-                    {job.is_demo ? <span className="demo-label">演示</span> : null}
+                    {job.is_demo ? <span className="demo-label">{c.demoLabel}</span> : null}
                     <span className="verification-job-id">{shortId(job.id)}</span>
                   </>
                 ),
               },
               {
                 key: "refs",
-                header: "比较版本",
+                header: c.thRefs,
                 render: (job) => (
                   <span className="mono">
                     {job.base_ref || "—"} <span className="muted">→</span> {job.head_ref || "—"}
@@ -161,9 +165,9 @@ export default function Jobs() {
               },
               {
                 key: "status",
-                header: "验证状态",
+                header: c.thStatus,
                 sortable: true,
-                sortValue: (job) => statusLabel(job.status) || "状态未知",
+                sortValue: (job) => statusLabel(job.status) || "c.statusUnknown",
                 render: (job) => (
                   // The pill already renders the canonical label; a second
                   // plain-text label is redundant and was allowed to drift.
@@ -172,7 +176,7 @@ export default function Jobs() {
               },
               {
                 key: "updated",
-                header: "更新时间",
+                header: c.thUpdated,
                 sortable: true,
                 sortValue: (job) => job.updated_at || job.created_at || "",
                 render: (job) => <span className="muted">{fmtTime(job.updated_at || job.created_at)}</span>,
@@ -182,15 +186,15 @@ export default function Jobs() {
                 header: "",
                 align: "right",
                 render: (job) => (
-                  <a href={"#/jobs/" + encodeURIComponent(job.id)} aria-label={"查看验证 " + shortId(job.id)}>
-                    查看 →
+                  <a href={"#/jobs/" + encodeURIComponent(job.id)} aria-label={c.ariaView + shortId(job.id)}>
+                    {c.viewLink}
                   </a>
                 ),
               },
             ]}
           />
         </div>}
-        {total > PAGE_SIZE ? <div className="verification-pagination"><span>共 {total} 条验证</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || refreshing} onClick={() => setPage((value) => value - 1)}>上一页</Button><span>{page} / {pages}</span><Button variant="ghost" size="sm" disabled={!nextCursor || refreshing} onClick={() => { if (!nextCursor) return; setCursors((prev) => ({ ...prev, [page + 1]: nextCursor })); setPage((value) => value + 1); }}>下一页</Button></div></div> : null}
+        {total > PAGE_SIZE ? <div className="verification-pagination"><span>{c.paginationTotal(total)}</span><div><Button variant="ghost" size="sm" disabled={page <= 1 || refreshing} onClick={() => setPage((value) => value - 1)}>{c.previousPage}</Button><span>{page} / {pages}</span><Button variant="ghost" size="sm" disabled={!nextCursor || refreshing} onClick={() => { if (!nextCursor) return; setCursors((prev) => ({ ...prev, [page + 1]: nextCursor })); setPage((value) => value + 1); }}>{c.nextPage}</Button></div></div> : null}
       </Panel>
     </div>
   );
