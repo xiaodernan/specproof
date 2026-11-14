@@ -35358,3 +35358,27 @@ verdict: CONSISTENT
 * 17.1 是 temperature=0 单次实测的一手观察，不上升为统计承诺；
 * #1740 的 runner 行为本号未见红见绿，只验过本机的 demo doctor exit codes；卷十七照实写了这些；
 * 工件路径如 `docs/world/…` 均真实；提交号/账本号（#1723/#1740/#1741）均为本仓库真实账本。
+
+## #1743 `/epic` 追第九卷 ——「两种语言的验收」进史诗页（中英九卷对齐）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `apps/web/src/pages/epic.copy.ts`：`SCROLLS_ZH` 新增 `卷八 · 两种语言的验收`、
+  `SCROLLS_EN` 新增 `Scroll 8 · The Two-Tongued Verdict`（2026-11 · 至今）——锚死 #1741（gpt-6-sol 两语同答 BLOCKER，zh cached 3981 vs en None）、
+  #1741 纪律（探针不定罪、#1723 准入制）、#1740（`specproof` 手册承诺入 CI，`fetch-depth: 0` 守两 tag）；
+  Epic 数据驱动渲染，页面代码未动。
+* 两本用户手册 §2.5/§模块表：八卷 → 九卷；EN §2.5 改 Scroll VIII 锚点 #1740–#1742；书体积标注 50.5KB（#1742）。
+
+### 二、实证
+
+| 命令 | 结果 |
+|---|---|
+| `npm run build` | ✅ built in 456ms |
+| `npx vitest run` | 497/497 绿（Epic 无独立单测；中英数据对称 9/9） |
+
+### 三、诚实边界
+
+* 未改 `Epic.tsx` 一行代码；未做浏览器目验——视觉未核对；
+* 卷八条目如实不夸大：#1741 是 temperature=0 单次观察，书里保留了原始 token 数字并自贬为「活案底」而非契约。

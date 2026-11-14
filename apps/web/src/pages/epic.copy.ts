@@ -1,7 +1,7 @@
 import type { Locale } from "../i18n/strings";
 
 /**
- * The English edition of the Epic page's eight scrolls.
+ * The English edition of the Epic page's nine scrolls.
  *
  * The Chinese edition lives inline in `Epic.tsx` (it is the original text of
  * the book); the English edition is kept beside it so both languages can be
@@ -171,6 +171,23 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "幽灵路由清零", value: "/mcp、/admin/identity、/readme 从两本手册消失；guide-route-catalog gate 永世锁死（#1726）；#1732「键写反」事件如实入史" },
     ],
   },
+  {
+    num: "卷八",
+    title: "两种语言的验收",
+    en: "The Two-Tongued Verdict",
+    era: "2026-11 · 至今",
+    verses: [
+      "对用户说两种语言，对机器也说两种语言，对账本只说真话。",
+      "缓存不是承诺——它会翻旗；红灯不是心情——它是颜色。",
+      "机器签名先看 tag 在不在；承诺先立锁，再谈合并。",
+    ],
+    details: [
+      { label: "同题同答", value: "#1741：gpt-6-sol.zh→BLOCKER(4749 tokens, cached 3981)，en→BLOCKER(4727 tokens, cached None)；CONSISTENT——双语 UI 不是想象的双重承诺" },
+      { label: "探针不作 gate", value: "双语一致性只结账不定罪：不一致只会入账 divERGENT，绝不把观测升为判决（与 #1723 同款纪律）" },
+      { label: "CI 守手册承诺", value: "#1740：.github/workflows/demo-doctor.yml；master push/PR；fetch-depth:0 保住 base/head-v1 tag——浅克隆会把真闸门变假警报" },
+      { label: "缓存的活案底", value: "同一轮探针 zh cached=3981 vs en cached=null——#1723 的按语仍然成立：命中率是表，不是契约" },
+    ],
+  },
 ];
 
 export const CLOSING_ZH = [
@@ -310,6 +327,23 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "The twelve scales", value: "#/drill, Verify Drill (#1733): 12 questions anchored to the real declared domains and ledgers; four seals; 497/497 vitest green" },
       { label: "Baseline red → real green", value: "verdict_channel_parity was red on master itself — api/ai_summary.py declared as a job_summary carrier (owner + opaque); green for real (#1730)" },
       { label: "Ghost routes cleared", value: "/mcp, /admin/identity, /readme removed from both guides; the route-catalog gate stands guard (#1726); the key-inversion incident (#1732) written verbatim into the book" },
+    ],
+  },
+  {
+    num: "Scroll 8",
+    title: "The Two-Tongued Verdict",
+    en: "卷八 · 两种语言的验收",
+    era: "2026-11 · today",
+    verses: [
+      "Speak to the user in two languages; speak to the machine in two languages; speak to the ledger only in the truth.",
+      "Caching is never a promise — it flips its flag at will; a red light is not a mood — it is a colour.",
+      "The gate checks the tags before it trusts you; a promise gets a lock before a merge.",
+    ],
+    details: [
+      { label: "Same sentence, same verdict", value: "#1741: gpt-6-sol zh→BLOCKER (4749 tokens, cached 3981); en→BLOCKER (4727 tokens, cached None); CONSISTENT — bilingual UI is not an imagined double promise" },
+      { label: "The probe is not a gate", value: "divergence would only land in the ledger as DIVERGENT — observation, never verdict (#1723's discipline)" },
+      { label: "CI guards the manual's promises", value: "#1740: .github/workflows/demo-doctor.yml; master push/PR; fetch-depth:0 keeps base/head-v1 tags — a shallow clone would hollow this gate into an alarm" },
+      { label: "A living exhibit of the cache", value: "same probe run, zh cached=3981 vs en cached=null — #1723 holds: the hit rate is a surface, never a contract" },
     ],
   },
 ];
