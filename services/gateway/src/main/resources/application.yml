@@ -353,6 +353,12 @@ management:
   health:
     redis:
       enabled: false
+    # RabbitMQ is likewise an OPTIONAL bus on the edge (the W190 mq-events
+    # path is default-off; the AMQP health indicator fails whenever no broker
+    # answers 5672 even though the edge needs none). A downed broker is a
+    # degraded capability, not an outage — the same reasoning as Redis above.
+    rabbit:
+      enabled: false
   server:
     # The management endpoints live on their OWN port, bound to loopback by
     # default. On the edge port the actuator would publish the upstream

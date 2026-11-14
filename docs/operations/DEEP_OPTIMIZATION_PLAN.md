@@ -33220,3 +33220,61 @@ AI 解读面板在真实 LLM 往返下：正文完整流入、按钮永远停在
   `origin/feature/interview-hardening`（2032 落后）、`origin/feature/p1-reliability-kernel`（2295）、
   `origin/release/p0.5-verified-v1`（2308）——都严格是 master 的祖先，**没有任何内容 master 未吸收**；
   是否删除远程分支引用需要明确指示，本号未删。
+
+## #1674 微服务冒烟第二回合：配置中心 + 注册中心 + 网关全链路实证（含诚实记账）
+
+**记录基准**：本节只追加；master = 本提交。前一回合记录在 #1673（gateway 首次启动失败）。
+
+### 一、四个 Spring Cloud 服务全部离线构建通过（零下载）
+
+| 服务 | 角色 | 结果 |
+|---|---|---|
+| `config-server` (Spring Cloud Config, native) | 集中配置 | `mvn -o package` 绿，`/actuator/health` → **UP** |
+| `discovery-server` (Eureka Server) | 服务注册 | `mvn -o package` 绿，`server.port=8769`（8761 被另一项目 Docker 占用），`/actuator/health` → **UP** |
+| `gateway` (Spring Cloud Gateway WebFlux) | 边缘网关 | `mvn -o package` 绿（`gateway-0.1.0.jar`） |
+| `control-plane` (业务服务) | 两个可部署单元 | 构建沿用既有（`services/control-plane` 已离线 51/51） |
+
+### 二、网关启动、注册、代理、断路器、刷新见证人——五件事全部真实跑通
+
+1. **启动**：`java -Xmx500m -jar gateway-0.1.0.jar --server.port=8120 --eureka.client.service-url.defaultZone=http://localhost:8769/eureka/`
+   → `Started GatewayApplication in 32.7s`，路由表 6 条加载完整；
+2. **Eureka 注册**：registry `localhost:8769` 的 `/eureka/apps` 返回
+   `SPECPROOF-GATEWAY/host.docker.internal:specproof-gateway:8120` 状态 **UP**；
+   应用侧日志 `DiscoveryClient_SPECPROOF-GATEWAY - registration status: 204`；
+3. **反向代理（catch-all）**：`GET http://127.0.0.1:8120/health` → **200** +
+   `{"status":"ok","mysql":true,"redis":true,...}`——网关真的路由到了 Python FastAPI（agent runtime, 8012），
+   不是返回固定桩；
+4. **断路器（EdgeCircuitBreaker）**：向死掉的 control-plane upstream（`127.0.0.1:9999`）
+   连打 12 次 `GET /api/v1/tenants`，前 4 次 `"state":"closed"`，第 5 次起 `"state":"open"`——
+   Resilience4j 断路器在真实流量下翻开；Prom 同时出现 `resilience4j_circuitbreaker_state`
+   系列；
+5. **/actuator/refresh 热刷新 + 见证人**：POST `application/json` body → **200**，随后 Prom 出现
+   `specproof_edge_config_refresh_events_total **1.0**`（刷新事件见证人计数 +1，从 0 到 1）。
+
+### 三、Prometheus 抓取实录（21674 字节，路由/刷新/线程池全量）
+
+- `specproof_edge_config_refresh_events_total 1.0`
+- `spring_cloud_gateway_routes_count 6.0`
+- `resilience4j_circuitbreaker_state{name="specproof-control-plane",state="closed"} 1.0`
+- `jvm_threads_live_threads 33.0`、`executor_pool_max_threads`、`process_uptime_seconds` 等全量 JVM 指标。
+
+### 四、健康端点诚实叙事（不做"全绿"粉饰）
+
+`/actuator/health` → **DOWN**，唯一 DOWN 组件是 `routeTableIsomorphismGate`，
+details: `duplicatePaths=[], missingServices=[api, control-plane], registryAvailable=true,
+referencedServices=[api, control-plane]`。
+
+**这正是该门在当前拓扑下说真话的行为**：agent runtime（Python, service-id `api`）与 control-plane 都没有注册到 Eureka——
+路由表引用了它们，注册表里却没有 → 边缘拒绝"健康"。其他 7 个组件（clientConfigServer / discoveryComposite / diskSpace / ping / reactiveDiscoveryClients / refreshScope / ssl）全是 UP。
+
+顺带修复：`management.health.rabbit.enabled=false`——RabbitMQ 是 OPT-IN 总线（mq-events 默认关闭），
+broker 不通不应把 /health 打成 DOWN，与文件中 Redis 的既有禁用模式同构。
+
+### 五、环境事实（影响结论的边界）
+
+- 宿主机剩余内存 ≈700MB–4.8GB 之间波动（其他项目的 Docker 容器常驻：careeros / football / nexus 等）；
+  本次 Java 进程从 0 起步，网关第一次启动（≈316MB 空闲）直接 **malloc failed → JVM abort → 本会话前面 HS_ERR 崩溃**；
+  第二次（剩余 ≈1.7GB）成功；
+- python light api（agent runtime）在毫无征兆的情况下进程消失（疑似宿主机调度 OOM kill——本号无权处置其他项目的进程，只做记录）；
+  随后断路器在 8012 不通时把 /health 的 503 变成 `circuit-open`——**断路器的保护能力在生产姿态下得到证实**；
+- 本号**未删除、未修改任何他项目 Docker 容器**。
