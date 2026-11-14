@@ -377,3 +377,87 @@
   .tour-progress-fill, .tour-station { transition: none; }
   .tour-station-done .tour-seal, .tour-sealed-stamp { transform: none; }
 }
+
+
+/* ── 案件档案 · The Case File ────────────────────────────────
+   书记官把验收印在红章里的感觉：初见验讫两字便知真假。 */
+.case-explorer-page { display: grid; gap: var(--sp-5); max-width: 980px; }
+.case-en {
+  font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--color-text-3);
+}
+.case-verdict-block { display: flex; gap: var(--sp-6); align-items: flex-start; }
+.case-seal {
+  flex: none; width: 120px; height: 120px; border-radius: 12px;
+  display: grid; place-items: center;
+  font-family: "Noto Serif CJK SC", "Songti SC", "SimSun", serif;
+  font-size: 54px; font-weight: 800; transform: rotate(-6deg);
+  background: linear-gradient(160deg, #e9e9e9 0%, #c4c4c4 88%);
+  color: #555; box-shadow: inset 0 0 0 3px rgba(255,255,255,.5), 0 6px 18px rgba(0,0,0,.35);
+  letter-spacing: 0; border: 1px solid rgba(0,0,0,.15);
+}
+.case-seal-verified {
+  background: linear-gradient(160deg, #dc2626 0%, #b91c1c 55%, #991b1b 100%);
+  color: #ffedd5; border-color: transparent;
+  box-shadow: inset 0 0 0 3px rgba(255,237,213,.35), 0 6px 22px rgba(185,28,28,.45);
+}
+.case-seal-blocked {
+  background: linear-gradient(160deg, #dc2626 0%, #b91c1c 55%, #991b1b 100%);
+  color: #ffedd5;
+  box-shadow: inset 0 0 0 3px rgba(255,237,213,.35), 0 6px 22px rgba(185,28,28,.45);
+}
+.case-seal-pending {
+  background: linear-gradient(160deg, #f59e0b 0%, #d97706 100%);
+  color: #fffbeb;
+  box-shadow: inset 0 0 0 3px rgba(255,251,235,.4), 0 6px 22px rgba(217,119,6,.45);
+}
+.case-meta { display: grid; gap: var(--sp-2); flex: 1; }
+.case-meta-row { display: grid; grid-template-columns: 84px 1fr; gap: var(--sp-3); align-items: baseline; }
+.case-meta-key { color: var(--color-text-3); font-size: var(--text-sm); font-weight: var(--fw-500); }
+.case-meta-val {
+  font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-text-2);
+  word-break: break-all; background: var(--color-surface-2); padding: 3px 7px; border-radius: 4px;
+  border: 1px solid var(--color-border); display: inline-block;
+}
+.case-evidence-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--sp-3);
+}
+.case-evidence {
+  display: grid; grid-template-columns: 56px 1fr; gap: var(--sp-3);
+  border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  background: var(--color-surface-2); padding: var(--sp-3);
+}
+.case-evidence-letter {
+  width: 44px; height: 44px; border-radius: 6px; display: grid; place-items: center;
+  font-family: "Noto Serif CJK SC", "Songti SC", serif; font-size: 22px; font-weight: 800;
+}
+.tier-铁 .case-evidence-letter { background: linear-gradient(160deg, #dc2626, #991b1b); color: #fff7ed; }
+.tier-半铁 .case-evidence-letter { background: linear-gradient(160deg, #b45309, #92400e); color: #fff7ed; }
+.tier-静 .case-evidence-letter { background: linear-gradient(160deg, #57534e, #292524); color: #e7e5e4; }
+.tier-坏 .case-evidence-letter { background: linear-gradient(160deg, #f43f5e, #be123d); color: #fff1f2; }
+.tier-文 .case-evidence-letter { background: linear-gradient(160deg, #0891b2, #164e63); color: #ecfeff; }
+.tier-? .case-evidence-letter { background: var(--color-surface-3); color: var(--color-text-3); }
+.case-evidence-head { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-1); }
+.case-evidence-contract {
+  font-family: var(--font-mono); font-size: var(--text-xs); font-weight: var(--fw-700);
+  color: var(--accent-text); letter-spacing: 0.05em;
+}
+.case-evidence-type { font-size: var(--text-xs); color: var(--color-text-2); line-height: 1.5; }
+.case-evidence-desc { font-size: var(--text-xs); color: var(--color-text-2); line-height: 1.7; margin-top: var(--sp-2); }
+.case-verdict-tally {
+  font-size: var(--text-sm); line-height: 1.8; color: var(--color-text-2);
+  border-top: 1px dashed var(--color-border-strong); padding-top: var(--sp-3); margin-top: var(--sp-4);
+}
+.case-capsule-list { display: flex; gap: var(--sp-2); flex-wrap: wrap; align-items: center; }
+.case-capsule {
+  font-size: var(--text-2xs); background: var(--color-surface-2);
+  border: 1px solid var(--color-border); padding: 4px 10px; border-radius: var(--radius-full);
+  font-family: var(--font-mono);
+}
+.case-report-path { margin-top: var(--sp-2); width: 100%; }
+.case-report-path code { font-size: var(--text-xs); color: var(--color-text-2); }
+@media (max-width: 900px) {
+  .case-verdict-block { flex-direction: column; gap: var(--sp-4); }
+  .case-seal { width: 96px; height: 96px; font-size: 44px; }
+}

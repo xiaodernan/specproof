@@ -30,6 +30,7 @@ const ModelSettings = lazy(() => import("./pages/ModelSettings"));
 const Guide = lazy(() => import("./pages/Guide"));
 const Epic = lazy(() => import("./pages/Epic"));
 const Tour = lazy(() => import("./pages/Tour"));
+const Explorer = lazy(() => import("./pages/Explorer"));
 
 type NavItem = {
   path: string;
@@ -46,6 +47,7 @@ const NAV: NavItem[] = [
   { path: "epic", label: "史诗", icon: "guide", group: "工作空间" },
   { path: "tour", label: "巡览", icon: "scroll", group: "工作空间" },
   { path: "matrix", label: "需求覆盖", icon: "matrix", group: "质量与证据" },
+  { path: "explorer", label: "案件档案", icon: "contracts", group: "质量与证据" },
   { path: "contracts", label: "验收规则", icon: "contracts", group: "质量与证据" },
   { path: "eval", label: "效果评测", icon: "chart", group: "质量与证据" },
   { path: "identity", label: "团队与权限", icon: "team", group: "管理", roles: IDENTITY_ROLES },
@@ -64,6 +66,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "guide") return <Guide />;
   if (seg[0] === "epic") return <Epic />;
   if (seg[0] === "tour") return <Tour />;
+  if (seg[0] === "explorer") return <Explorer />;
   if (seg[0] === "login") return <Login />;
   if (seg[0] === "agent") return <AgentApp seg={seg} />;
   if (seg[0] === "identity") return <IdentityApp seg={seg} />;

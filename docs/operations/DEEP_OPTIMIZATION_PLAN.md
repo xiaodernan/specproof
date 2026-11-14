@@ -33447,3 +33447,34 @@ broker 不通不应把 /health 打成 DOWN，与文件中 Redis 的既有禁用�
 - **稳定前缀纪律让缓存被利用**：同根 2270 字符前缀 + 不同变量 → 75%–84% 命中——这是 `#1668` 重排的根本意义；`_JUNIT_GENERATION_PROMPT` 的生产场景（每次必换变量、前缀恒定）恰是 wkapi 命中率最稳的场景。
 - **`_parse_usage` 映射成功**：`cached_tokens` → `prompt_cache_hit_tokens` 账本的链路与 `#1664` 同口径。
 - 在本节添加时 HEAD 为 `c75a0ef`——本节不修改任何代码路径；新脚本 `scripts/probe_cache_efficiency.py` 可随时复现全套实测（真机、不断言、只记录）。
+
+## #1680 全新模块「案件档案 · The Case File」——把一次验收装订成红印验讫的案卷
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、用户诉求
+"前端做得特别漂亮、特别好用的新功能和新模块"+"宏观史诗叙事、细节里藏魔鬼"
+
+### 二、交付
+
+* 新页 `apps/web/src/pages/Explorer.tsx`「案件档案 · The Case File」，路由 `#/explorer`，侧栏「案件档案」（质量与证据，contracts 图标）；
+* 卷首 = 红印「验讫」印章（真实印章配色：#dc2626/#b91c1c 红印），120px 厚红方圆；任何 verdict 都会落到印章上，字段全部来源于服务器返回；
+* 卷中 = 仓库 / base→head / 开卷日期 / 案卷号 四行铁证原文；
+* 验收条件 2 项（1 通过 / 1 未通过 / 0 未验证）—— StatCard×4，全部原值；
+* 「铁证清单」— findings 逐条装帧：每条发现配一个 44×44 铁/半铁/静/坏/文 五级徽章（及未知 `?`）：
+  * 铁 · base_pass_head_fail / differential_execution / runtime_diff / differential_diff；
+  * 半铁 · probe_differential；
+  * 静 · static_analysis / constitution_check / java_source_diff / source_diff；
+  * 坏 · checker_failed；文 · self_test_diff / manual_review；
+  * 缺省（未提供）→ `?` 自带徽章位 + 静证级；绝不伪造"铁证"奖给静证；
+* 每页底端 = 「此案 {N} 项铁证 · {M} 项静证 · 共 {T} 桩发现。此案被判为「验讫／受阻／待议」，执行轨迹：{status}。AI 在本案中没有作决定，证据替它开口」；
+* 「案卷索取」= 复现包清单 + 报告路径;
+* **绝不用 LLM 编造叙事**：句子全部由服务器真实返回的数字编译而成，缺字段一律显式（未提供）；`unwrap()` 统一处理 `/jobs/{id}` 的 `{ job: ... }` 包装与 `/jobs/{id}/summary` 的 `{ summary: ... }` 包装；
+* 两主题皆齐（light #ea parchment / dark deep-forest 同一红印）。
+
+### 三、验迹
+
+* typecheck 干净；vitest 473/473（57 文件）；vite build 绿；
+* 浏览器实测 fixture 样例：job `e2e00000…001`，verdict 验讫，1 桩铁证（AUTH-02 × runtime_diff MAJOR）；
+* 亮暗双主题全页截图（`shots/explorer-page.png` / `explorer-page-dark.png`）目检过关；
+* 侧栏点击链路（工作区→质量与证据→案件档案）由 Playwright 走通。
