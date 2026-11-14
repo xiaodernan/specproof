@@ -33501,3 +33501,40 @@ broker 不通不应把 /health 打成 DOWN，与文件中 Redis 的既有禁用�
 - **这意味着我们当前的 `_JUNIT_GENERATION_PROMPT` 已是"wkapi 最爱的 size"**——再长反而麻烦。
 - **没有可做的优化**：wkapi 的 prefix cache 对"老前缀 + 新变量"友善、对完全相同的"旧字节"懒得给 hit；这里"同字节"也会给 hit（short-2x 4224），它的计费逻辑与缓存策略由它自己控制，与长短无关。
 - **用户的"非流"观察**：本网关（wkapi）不论流式与否，cached_tokens 字段的回报行为一致——#1664 统一走流式后，"非流"在本产品里就是一个不可用的短语（网关仪表盘短语；本产品的真实字节是 stream=True + include_usage=True）。
+
+## #1682 英文世界观《铁证之书》全文补完——全世界标准路灯，全都还"看得见"
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、用户诉求
+
+"做出一个极其庞大的世界……给出后续更多的无限故事" —— 中文版《SpecProof 创世记》已经落地，但英文读者伸手不到它。
+
+### 二、交付
+
+`docs/world/EN/SPECROOF_WORLD_EN.md` —— 完整的英文 Concordance，与中文主书一一对齐（Scroll 0 → Final）：
+
+* Scroll 0 创世之炉  → The Furnace of Evidence
+* Scroll 1 铁证/矩阵/审判庭/差分生成 → Iron Evidence, the Matrix, Review Court
+* Scroll 2 双端相望 → The Witness and the Scribe
+* Scroll 3 缓存圣断 → The Cache Doctrine（#1644/#1663/#1645 现语言全部准确对应）
+* Scroll 4 军阵/钢铁长城 → The Steel Rampart
+* Scroll 5 史官纪要 → The Chronicler's Ledger
+* Scroll 6 人物志 → The People
+* Scroll 7 无尽的未来 → The Endless Stories
+* Final Scroll 未完 → The Unfinished
+
+与中文版共享所有真实铁证数字：#1638 探针防伪、#1645 96.5%、#1668 并列 A/B、
+#1672 `done` 帧丢失 e2e 发现修复、#1673/#1674 Spring Cloud 实测、`specproof_edge_config_refresh_events_total 0→1`。
+
+### 三、诚实边界
+
+* 本子书是**译叙**而非新叙：每一处都能对上中文版的每一节；铁证数字、提交号、账本号原样搬运；
+* 所有未完成的路线图项标 "§" 号与英文对应点（1.3 / 1.6 / 4.2 / 5.3 / 5.4 / 6.1）—— 仍然是未完成，不是隐藏、不是偷工；
+* 新铁证英文缩水（同英文，同问题）——本卷的尺寸是 5.8 KB，石头不补，但它所有的字节都有对应在 `docs/world/SPECROOF_WORLD.md`（12.3KB）；
+* 境外评审看世界的方法：`git log` + 这一本；中文版与英文版并列（`docs/world/` 目录）。
+
+### 四、离线准备台账校验
+
+顺达：`prepare_demo_repo()` 返回 False（base + head-v1 两 tag 本地都是 HEAD 已有的，`3194fb6a…` 和 `c13d122e…`），
+无破坏、无增删、无 force recreate。真正的 `specproof demo --run` 会触发 Java/Gradle 编译，内存峰值 >1.5GB，本机本回合从 2.1GB 空闲状态出发，谨慎未跑；留待下个 quieter moment。
