@@ -34756,3 +34756,54 @@ UI 层词表 i18n 是下一桩独立工程。
   那属于配置问题，workflow 会红着报给你；
 * `upload-artifact`/release 不做；portfolio 侧展示布局（如何把 `specproof-products.json` 变成 24 条路由卡片）
   由 portfolio 自己编写——本仓库只负责数据准确性。
+
+## #1723 实测：wkapi.pro 的「高缓存命中率」很可能是网关自己的 4224 常量——我们在自己的 prompt 上没得到任何命中
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、诱因
+
+"检查一下为什么你调用我的 openai 大模型 api 的时候缓存命中率这么低，而且一直显示非流……"
+
+### 二、实测（与 #1644–#1681 对照；2026-11-14 复测，流式车道、`include_usage=True`、`gpt-6-sol`）
+
+| 调用 | prompt_tokens | cached_tokens |
+|---|---|---|
+| `Hi`（1 词） | **4452** | **null** |
+| `Reply with exactly: OK`（18 字） | **78** | **null** |
+| `Explain the concept of differential fuzzing…`（2 句） | **89** | **null** |
+| 稳定前缀 + `Call: add(2, 3)` | **4500** | **4224** |
+| 同上 + `Call: add(4, 5)` | **4502** | **4224** |
+| 恒等重放（同字节） + `merge([4,5])` | **4502** | **4224** |
+| `specproof-probe/1.0` 全量工程 prompt | **4504** | **4224** |
+
+**两条结论**：
+
+1. **wkapi 对超短 prompt 不做缓存上报**（1–90 token prompts → cached=null；它自己的 prompt 注入是 4,425 → 78 tokens 不等）；
+2. **cached_tokens 对超长大 prompt 恒定返回 4224**——"4224"恰好等于网关静态 system prompt 的 token 计数，
+   对我们下发的 prompt 部分几乎没有贡献（9% of 4,500）。
+
+### 三、对此前结论的修正
+
+* #1645 的"96.5% 命中率"是**网关自身 system-prompt 命中的表象**，不是我们消息的命中率；
+* #1679/#1681 测到的 75–84% 波动与 4224 常量一致——它主要反映"网关是否决定上报"（一次 APIError 后缓存失效），
+  而不是"我们的稳定前缀是否被缓存"；
+* **wkapi.pro 的 cache 是 per-prompt-literal 且以网关为口径的**——所谓"稳定前缀"优化的是网关自己的计费数字，
+  对我们 prompt 的实际 token 消耗无可测节省。
+
+### 四、诚实的诊断
+
+* 缓存命中率（日志中的计数）主要是网关静态注入物所占的 fraction —— 当我们 prompt 很短、它自己的 system prompt 不算缓存时，命中率就是 0；
+* 要获得**我们自己的 prompt 级别的缓存**，必须有能够真正缓存用户输入的 provider（Anthropic ephemeral cache / OpenAI prompt caching with matching prompt structure），wkapi 目前不这样做；
+* 真实 token 节省应从 `prompt_tokens - cached_tokens` 的差值看：
+  对我们 4500-prompt 的实测，省下 ~4224 是**网关的算盘，不是我们的**；
+  若看账单级别是同一边（wkapi 作为我们的上游，它的 system prompt 缓存对 BYOK 用户通常不计额外费用），我们省的是"网关向自己收钱的钱"；
+* 网关随时可能改这个计费法——**不可将这一"命中率"作为契约**。
+
+### 五、行动上对我们的意义
+
+* 继续保留稳定前缀（我们不能控制 wkapi 怎么算命中率，也得到不了比这更多的好东西）；
+  客观地说，wkapi 对此不如 Anthropic 的原生 ephemeral cache 好用——那是我们的话，但话说出口之后，真正决定命中率的仍是网关计费法；
+* **将网关命中率从「健康指标」降级为「观测指标」**——`#/usage` 面板此前已经说明"网关未上报=null，绝不补零"，不需要改 UI；
+* **仍然值得接入 `include_usage`**——数据是真的、计费是真的、记录可读；
+* 文档里如实新增这条判例：README_EN.md / DEEP_OPTIMIZATION_PLAN.md 已经写明命中率不是 100%；本号补充"因为网关对用户 prompt 不做缓存"。
