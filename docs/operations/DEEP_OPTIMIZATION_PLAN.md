@@ -35905,3 +35905,28 @@ LangGraph 是本产品的发动机，而发动机的形状一直不是产品的�
 * 本提交未改动任何 node_modules；未改 Epic 页面渲染逻辑（Scroll 数据同格式平移）；
 * `#/epic` 第十一卷和世界书卷十九互为脚注，互不对不了号——写错了就是文档漂移，不是bug跟它重生；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1764 口袋卡里所有命令行经手的都是仓库里真的 —— 连一个幻灯片里假的都不留
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、诱因
+
+用户手册的口袋卡里残留了两个没法在本机验证的 URL：
+`curl http://127.0.0.1:8081/health`（指向 career-os 这个非 SpecProof 服务）
+和 `curl http://127.0.0.1:8090/actuator/health`（8090 在本机刚才连不上）。
+**文档说了只会让它看见实测——口袋卡里也不许有幽灵端点**。
+
+### 二、交付
+
+* `docs/operations/POCKET_CARD.md` 与 `docs/operations/EN/POCKET_CARD.en.md` 对账：去掉两个无法在任何 SpecProof 仓库中运行验证道的 `curl`；
+  五条命令全部换成本仓库真实存在且可运行的：demo_doctor、build_chronicle.py、账本四件套、provider_smoke、sync_portfolio；
+  "出事的时候"章替换为 demo_doctor + `npm --prefix apps/web run build` + 诚实 pytest 边界；
+* 保留「注释都是真的不去修饰」的铁律口径：`#1723`（wkapi 缓存真相）、`specproof_invert_scroll`（#1751/#1752) 的注脚依旧在册；
+* POCKET_CARD 本身就是说明书最小单位（30 秒，A4 单面，双语对）——没有第三种可能。
+
+### 三、诚实边界
+
+* POCKET_CARD 的形状与长期双语对齐规则被固定（单一页面 zh+en 一个收件夹）；本号没新增条目、没删条目，只对替换的两条 curl 负全部责任；
+* `specproof` 作为全局包名本号未做安装线上验证——`--no-llm` 那条命令是 `docs/operations/USER_GUIDE.md` §1.3 的既定 canon，卡里继续引用它，不声称已跑；
+* 全量 `pytest tests/unit` 仍未跑完。
