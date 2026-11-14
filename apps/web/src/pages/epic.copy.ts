@@ -1,7 +1,7 @@
 import type { Locale } from "../i18n/strings";
 
 /**
- * The English edition of the Epic page's six scrolls.
+ * The English edition of the Epic page's seven scrolls.
  *
  * The Chinese edition lives inline in `Epic.tsx` (it is the original text of
  * the book); the English edition is kept beside it so both languages can be
@@ -137,6 +137,23 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "不装绿", value: "被并轨车道锁住的部分直接接手；无法证伪的一律标注边界，绝不伪装成功" },
     ],
   },
+  {
+    num: "卷六",
+    title: "未完的路",
+    en: "The Unfinished Road",
+    era: "2026-11 · 至今",
+    verses: [
+      "欠条不是羞耻，是地图；地图上的每一块空地都有名字。",
+      "门面不撒谎，数据不充值；每周日 06:00，展柜才挪动一寸。",
+      "史官把没做完的写在墙上——全量测试没跑绿，也不许粉饰。",
+    ],
+    details: [
+      { label: "未竟的卷", value: "世界书卷十五落地（#1727）：六块空地逐条写「做完长什么样」，终章从此有了下一页" },
+      { label: "门面的约定", value: "portfolio-sync 每周外送 data/specproof-* 三件套（#1722）；没有 PORTFOLIO_TOKEN 就只重建不推送" },
+      { label: "真相的一课", value: "wkapi 的 96.5% 缓存命中率是网关 4224 常量计费，降级为观测指标（#1723）；provider_smoke 真跑 7/7 PASS（#1724）" },
+      { label: "地基的自检", value: "demo doctor 六项静态检查，工作树脏则如实 WARN（#1728）；指南幽灵路由清零并有 gate 锁死（#1726）" },
+    ],
+  },
 ];
 
 export const CLOSING_ZH = [
@@ -242,6 +259,23 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "Append-only ledger", value: "docs/operations/DEEP_OPTIMIZATION_PLAN.md — #1620 → #1674, each entry carrying the command, the output and the date" },
       { label: "Four gates on the ledger", value: "IDs unique · numbering unique · queue pointers resolve · evidence claims are true" },
       { label: "Red lights kept", value: "the failing counts are recorded, not hidden — a red light is this town's manners" },
+    ],
+  },
+  {
+    num: "Scroll 6",
+    title: "The Unfinished Road",
+    en: "卷六 · 未完的路",
+    era: "2026-11 · today",
+    verses: [
+      "An IOU is not a shame — it is a map; every blank on it carries a name.",
+      "The showcase tells no lies. Sundays 06:00 UTC, the vitrine inches forward.",
+      "The keeper writes the unfinished on the wall — the full test suite has not run green here, and nobody may paint over that.",
+    ],
+    details: [
+      { label: "The unfinished map", value: "World book Vol.XV landed (#1727): six open plots, each with its 'what done looks like' — the final word finally has a next page" },
+      { label: "The showcase deal", value: "portfolio-sync ships data/specproof-* weekly (#1722); without PORTFOLIO_TOKEN it rebuilds and never pushes" },
+      { label: "The truth about the meter", value: "wkapi's '96.5% hit rate' was the gateway's 4224-token constant — downgraded to an observational metric (#1723); provider_smoke really ran, 7/7 PASS (#1724)" },
+      { label: "The foundation check", value: "demo doctor: six static checks, an honest WARN on a dirty demo tree (#1728); ghost routes in the guide cleared and held by a gate (#1726)" },
     ],
   },
 ];

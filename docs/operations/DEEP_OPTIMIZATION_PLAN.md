@@ -34965,3 +34965,27 @@ doctor 如实报告而不染绿；未追入这批改动，它们不是本提交�
 * doctor **不跑** `specproof verify`——它检查的是演示仓的静态完整性，不替代端到端验证；
 * 全量 pytest 仍未跑完；本号只跑 `test_demo_doctor`（2/2）+ `test_guide_route_catalog`（6/6）+ 账本四件套；
 * 6-clean-tree 在本机必然 WARN——这正是它的作用：把「演示工作树是脏的」从隐蔽事实变成账目事实。
+
+## #1729 `/epic` 偿还欠条 —— 应用内史诗页新增第七卷「未完的路」（中/英七卷对齐）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `apps/web/src/pages/epic.copy.ts`：
+  - `SCROLLS_ZH` 新增 `卷六 · 未完的路`（2026-11 · 至今）：三卷谶语（欠条是地图 / 门面不撒谎 / 史官把没做完的写在墙上），
+    四条验迹明细锚死 #1727（卷十五）/ #1722（portfolio-sync 每周外送）/ #1723（wkapi 4224 常量降级）/ #1724（provider_smoke 7/7 PASS）/ #1728（demo doctor）/ #1726（幽灵路由清零 + gate 锁死）；
+  - `SCROLLS_EN` 新增 `Scroll 6 · The Unfinished Road`，逐条对照（含 "The showcase tells no lies. Sundays 06:00 UTC"）。
+* 两本用户手册：/epic 行改为七卷竹简；§2.5 锚点改为 Scroll VI（#1722–#1728）；书体积标注 43.2KB（#1727）；
+  EN §2.5 "Six scrolls" → "Seven scrolls" 并补 Scroll VI 提交锚点。
+* `/epic` 页面代码 `Epic.tsx` 未改——SCROLLS_BY_LOCALE 驱动，新增卷自动渲染；
+  中英尾声（CLOSING_*）保持原样，尾声仍成立：路线图上未静声的未竟之目一条没少。
+
+### 二、诚实边界
+
+* 本提交**未跑 Epic 的人眼渲染**（无浏览器截图）；证据是 `tsc --noEmit` + `vite build` 绿 + 中英数据结构对称（7/7）——
+  不声称「页面已肉眼验过」；
+* 第一版插入错位：卷六最初被误插进 `CLOSING_ZH`（string[] 数组里塞对象，build 立即红）——
+  已修复并复验为 7 卷/3 尾声原位恢复；红灯过程留在此号，不粉饰；
+* i18n 表未改（本页文案全部走 `epic.*` 既有 key 与 copy.ts 双语数据）；parity 11/11 绿；
+* 全量 pytest 仍未跑完；四件套 + guide gate 不在本提交重复声明（见 #1726/#1728）。

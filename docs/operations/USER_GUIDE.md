@@ -35,7 +35,7 @@ docker compose -f compose.phase0.yml up -d --wait
 | 管理 | 审计轨迹 | 看每一步 audit_logs 写入链路 | 合规 |
 | 管理 | 模型连接 | 切换 OpenAI 兼容网关的真实 key | — |
 | 管理 | 服务状态 | 健康 (mysql/redis/rabbitmq/minio) + 延迟分布 | — |
-| —— | 史诗 | 六卷竹简式 SpecProof 创世记 | 全部锚定真实提交 |
+| —— | 史诗 | 七卷竹简式 SpecProof 创世记 | 全部锚定真实提交 |
 | —— | 巡览 | 新用户交互预演（六桩） | 你按了才算数 |
 
 > 没有 .env 也能看 —— 验收不需要 .env 才能视察；需要 `.local/llm.json` 才能跑真实 LLM。
@@ -105,7 +105,7 @@ VERDICT: BLOCKED
 
 ### 2.5 打开 `#/epic` — 史诗
 
-六卷竹简 —— 每卷锚死 git 真实提交：卷一（铁证的铸造史）、卷五（史官守夜：#1645、#1668、#1672 真实账本）。**中文版 37.0KB（截至 #1725）**。
+七卷竹简 —— 每卷锚死 git 真实提交：卷一（铁证的铸造史）、卷五（史官守夜：#1645、#1668、#1672）、卷六（未完的路：#1722、#1723、#1724、#1726、#1727、#1728 真实账本）。**中文版 43.2KB（截至 #1727）**。
 英文版同构见 `docs/world/EN/SPECROOF_WORLD_EN.md`。
 
 ### 2.6 在命令行用 MCP —— 给 AI Agent 当现场法官（`#/mcp` 不是界面页面）
@@ -184,7 +184,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/tour` — 六卷站整篇双语（`pages/tour.copy.ts`） | |
 | `/explorer` — 导语/字段/StatCard/铁证清单全量走表 | |
 | `/usage` — 标题/窗口芯片/六张卡/诚实口径句（含 `{basis}` 分母插值）/图例/空账本文案 | |
-| `/epic` — 中文六卷原文 + 英文六卷 + 双语尾声（`pages/epic.copy.ts`） | |
+| `/epic` — 中文七卷原文 + 英文七卷 + 双语尾声（`pages/epic.copy.ts`） | |
 | `/lexicon` — 十四条目逐条中英双语（term/gloss/iron/anchor） | |
 
 **原生英文的文档也全部有中文**：`CLAUDE.md` 逐段中英并列（#1696）、`ARCHITECT_CLAUDE.md` 逐段中英并列（#1697）、请查阅 `MCP_GUIDE.zh.md` 等成对手册。
