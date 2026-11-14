@@ -33538,3 +33538,25 @@ broker 不通不应把 /health 打成 DOWN，与文件中 Redis 的既有禁用�
 
 顺达：`prepare_demo_repo()` 返回 False（base + head-v1 两 tag 本地都是 HEAD 已有的，`3194fb6a…` 和 `c13d122e…`），
 无破坏、无增删、无 force recreate。真正的 `specproof demo --run` 会触发 Java/Gradle 编译，内存峰值 >1.5GB，本机本回合从 2.1GB 空闲状态出发，谨慎未跑；留待下个 quieter moment。
+
+## #1683 英文《铁证之书》完整闭合 — Scroll 8 + Appendix A/B addendum
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、用户诉求
+
+"做出一个极其庞大的世界，给出后续更多的无限故事" 也要求英文读者伸手可及。#1676 的英文基石必须补齐，否则全球的读者都是被挡在门槛外的无辜旁观者。
+
+### 二、交付
+
+`docs/world/EN/SPECROOF_WORLD_EN.md` 增补 3 节（Scroll 8 + Appendix A + Appendix B），使英文版与中文版**句句对应**：
+
+* **Scroll 8 · The Chronicler's Vigil**：以「清晨→黄昏」一张实录表收录 2026-11-14 全线推进（#1675/#1676/#1677 五项成果 + Spring Cloud 离线实锤 + usage-ledger 接手收尾）；「井底与天星」三条——看住没人看的角落 / 不编造 / 邀请下一位史官，与中文卷八字字对应；
+* **Appendix A · The Equation**：`验收者之道 = 差分之火 × 契约之法 × 矩阵之镜 × 史官之手` → `Acceptance of the Known = Diff-Race × Contract Law × Matrix Mirror × Chronicler's Hand` ——以及 "(AI writes code) → (Differential) → (Matrix) → (Human signs)" 这一条实物方程式被钉在两份文档里；
+* **Appendix B · The Successors**：明示本书不结卷——`#1680` `#1700` `#1800` 起仍在编，以及「目录先、细节再、缝边法规」的纪律。
+
+### 三、诚实边界
+
+* 英文版与中文版落差补齐以后：**no more gaps**。全球读者无需中文许可即可得全量正史；
+* 本书无新增世界观设定——本节是**补齐**而非扩容，避免两种语言下出现"两个人写了同一本书却各自不同"；
+* 图片生成（epic-seal-banner / tour-gate-banner）尝试过，但被系统侧 balance 拒了——如实记一笔，未伪装。

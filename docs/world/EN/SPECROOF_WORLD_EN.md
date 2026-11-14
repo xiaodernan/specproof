@@ -176,3 +176,62 @@ Roadmap open items: `PRODUCT_ROADMAP.md` §§1.3 (demo self-check), 1.6 (verify 
 
 *This book does not finish; its scrolls accumulate. You are reading at its current edge.
 The next leaf is one commit away.*
+
+
+---
+
+## Scroll 8 · The Chronicler's Vigil
+
+> This scroll was written by the chronicler in real time. It is not a story about the past;
+> it is the night's own chronicle, dated 2026-11-14 — the day SpecProof learned to write itself into its own product.
+
+### 8.1 The march of one afternoon
+
+| Time | Event |
+|---|---|
+| Morning | 「史诗 · The Chronicles of SpecProof」 landed (`#1675`) — a six-scroll bamboo-manuscript page, serif Chinese, jade medallions, red seal 「验讫」 — iron-clad anchors from this repo as 「史官细则」 footnotes |
+| Dawn | 「铁证之书 · SpecProof 创世记」 world bible began (`#1676`); this book is the sequel |
+| Midday | Interactive 「巡览 · The Grand Tour of SpecProof」 landed (`#1677`) — six stations, each requiring you to touch the real product and stamp each one by hand; six seals render 「验讫」 |
+| Afternoon | Spring Cloud full chain built and booted offline: config-server UP, discovery-server UP, gateway registered itself and proxied to the agent runtime; circuit breaker tripped on a dead upstream after 5 calls; `/actuator/refresh` witness meter went 0.0 → 1.0 |
+| Dusk | The parallel lane's token-level LLM usage ledger was taken over; three red test contracts rewritten honestly as doc-string contracts; 17/17 green |
+
+### 8.2 The Bottomless Well and the Stars
+
+Three iron teachings this night:
+
+1. **Watch the corners no one watches** — even RabbitMQ's health indicator, a signal nobody asked about, was noted honestly. #1674.
+2. **Do not invent** — every "it happened" is anchored to a commit hash; what could not be produced is marked "not yet complete", never "done".
+3. **Invite the next chronicler** — the world bible is never finished; it is continuously added to.
+
+### 8.3 Why the world matters
+
+SpecProof is a story about a human who must verify an AI's work. The protagonist is the person,
+not the model. A product whose identity is wrapped in myth conveys its values through ornamentation —
+and ornamentation that lies is worse than none. Every metaphor in this book rests on real code,
+real commits, real tests.
+
+> He who would verify must first verify himself; he who would enter history must first show iron;
+> before iron, scepticism is wisdom, faith is truthfulness, doubt is courage.
+
+---
+
+## Appendix A · The Equation
+
+```
+验收者之道 = 差分之火 × 契约之法 × 矩阵之镜 × 史官之手
+SpecProof  = (AI writes code) → (Differential execution) → (The Matrix) → (Human signs)
+```
+
+This is not allegory — `experiments/differential.py`, the contract compiler, `apps/web/src/pages/Matrix.tsx`,
+and the 「史诗纪要」 button are the four concrete terms of the same equation.
+
+---
+
+## Appendix B · The Successors
+
+If you are reading this, the chronicler has already begun. Scrolls `#1680`, `#1700`, `#1800` …
+will become new panels, new gates, new verification modules. Each will have roots in this book:
+the directory first, the details second, and the proof that "it exists" third.
+
+**This book remains open.**
+
