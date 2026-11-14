@@ -34446,3 +34446,30 @@ EN/USER_GUIDE_EN.md = 英文新手路径（#1699）；MCP_GUIDE*.md = 机器发�
 * en 版「术语表」是英文**新写**，七条 def 为本次定稿，不宣称是机器翻译；
 * `ONBOARDING_STEPS`（id/evidence/title/basis）与 `ui/glossary.ts`（词条中文本体）本页渲染侧做了双语映射——
   状态机与词表被 unit 测试锁死，未改那两个模块。
+
+## #1713 旧页面双语化第十二批：模型连接 Settings 页逐页本地化（`agentSettings.copy.ts`）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `apps/web/src/agent/pages/agentSettings.copy.ts`：`AgentSettingsCopy` 双版——
+  AI CONNECTION 眼眉/标题/intro、凭据说明（"连接凭据只保存在本机和你的 SpecProof 工作区"）、
+  403 老板的共享配置面板（"由部署管理员管理"+ 说明 + 返回 AI 开发）、500 加载失败面板、
+  配置面板标题/受管文案/两个 Input 的 label+placeholder+hint、
+  `模型 API Key` 输入（含 configured 覆盖分支）、协议选项、推理强度选项（默认/Low/Medium/High/XHigh/Max）、
+  保存/测试按钮（测试中占位"正在请求模型…"）、
+  **Panel 状态标签与结果 h2 分开**（有未保存更改 / 连接已验证 / 连接测试失败 / 已配置 · 待测试 / 尚未配置
+  ——这与原设计刻意不同：原页面两处文字两套词，单测只对 h2 的"连接测试未通过"计数）、
+  帮助手册（连接不上的三格自查）、连接测试结果区（model · protocol · seconds）、成功/失败尾注；
+* zh 侧逐字保留 AgentSettings.test.tsx 锁死的全部字面（5/5 通过）；
+* 编组方式：面板右状态标签（Panel status）与结果 h2 **同语义不同措辞**，
+  避免原页面让同一句话在两个组件出现（正是这次全量替换暴露的坑）；
+* 诚实保留：DEFAULTS 的 `key_hint: "未设置"`；受管分支（managed = environment）不动；
+* 验迹：AgentSettings.test.tsx **5/5**；vitest 全量 **486/486**；`npm run build` 绿（index 263.58 kB / gzip 89.47 kB）；tsc 净；ledger 45/45。
+
+### 二、诚实边界
+
+* 本号完成 **模型连接（agent 双入口共用的服务器配置页，`/settings` 与 `/agent/settings` 同指 `ModelSettings.tsx` → `AgentSettings`）**；
+* 剩余中文原生：**仅剩 JobDetail**（41KB 最大单页，含 34KB 测试，下一轮独立立项）；
+* `key_hint` 后端字段是原生串，zh 手写"未设置"。

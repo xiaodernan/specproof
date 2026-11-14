@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ApiError, apiGet, apiPost } from "../../api";
 import { Button, ErrorBox, Input, Panel, Spinner } from "../../ui";
+import { useI18n } from "../../i18n";
+import { AGENT_SETTINGS_BY_LOCALE } from "./agentSettings.copy";
 import "./model-settings.css";
 
 interface ModelConfig {
@@ -25,10 +27,12 @@ interface ConnectionResult {
 
 const DEFAULTS: ModelConfig = {
   base_url: "", model: "", reasoning_effort: "max", protocol: "responses",
-  configured: false, key_hint: "未设置", source: "unconfigured",
+  configured: false, key_hint: "", source: "unconfigured",
 };
 
 export default function AgentSettings() {
+  const { locale } = useI18n();
+  const c = AGENT_SETTINGS_BY_LOCALE[locale];
   const [config, setConfig] = useState<ModelConfig>(DEFAULTS);
   const [apiKey, setApiKey] = useState("");
   const [loading, setLoading] = useState(true);
@@ -64,7 +68,7 @@ export default function AgentSettings() {
     event.preventDefault();
     if (pending.current || managed) return;
     if (!config.base_url.trim() || !config.model.trim() || (!config.configured && !apiKey.trim())) {
-      setError("请填写模型服务地址、模型名称和模型服务商提供的 API Key。");
+      setError(c.saveError);
       return;
     }
     pending.current = true;
@@ -75,7 +79,7 @@ export default function AgentSettings() {
         reasoning_effort: config.reasoning_effort, protocol: config.protocol,
       });
       setConfig(updated); setApiKey(""); setDirty(false);
-      setSaved("模型配置已保存。点击测试连接，确认服务能够实际返回内容。");
+      setSaved(c.saved);
     } catch (cause) {
       setError(cause as Error);
     } finally {
@@ -98,36 +102,36 @@ export default function AgentSettings() {
 
   return (
     <div className="model-settings-page">
-      <div className="page-head"><div className="eyebrow">AI CONNECTION</div><h1>模型连接</h1><p className="model-intro">接入你的 AI 模型服务，为开发助手提供实际推理能力。先保存配置，再验证一次真实连接。</p></div>
-      <div className="model-credential-note"><strong>这是模型服务商的 API Key</strong><p>工作区登录密钥用于进入 SpecProof；这里的密钥用于服务端调用 AI。模型密钥保存在部署服务器，保存后不会返回浏览器。</p></div>
+      <div className="page-head"><div className="eyebrow">{c.eyebrow}</div><h1>{c.title}</h1><p className="model-intro">{c.intro}</p></div>
+      <div className="model-credential-note"><strong>{c.credentialStrong}</strong><p>{c.credentialBody}</p></div>
       {loading ? <Spinner /> : loadError ? (
         loadError instanceof ApiError && loadError.status === 403
-          ? <Panel title="由部署管理员管理"><p className="model-intro">模型连接是整个部署共享的配置。请联系部署管理员设置模型服务；团队访问令牌不能修改共享模型配置。</p><a className="model-return" href="#/agent">返回 AI 开发 →</a></Panel>
-          : <Panel title="暂时无法加载模型配置"><ErrorBox error={loadError} /><Button onClick={() => setReload((value) => value + 1)}>重新加载</Button></Panel>
+          ? <Panel title={c.forbiddenTitle}><p className="model-intro">{c.forbiddenBody}</p><a className="model-return" href="#/agent">{c.forbiddenLink}</a></Panel>
+          : <Panel title={c.loadFailedTitle}><ErrorBox error={loadError} /><Button onClick={() => setReload((value) => value + 1)}>{c.retry}</Button></Panel>
       ) : (
         <div className="model-settings-layout">
-          <Panel title="模型服务配置" right={<span className={"model-status " + (config.configured ? "model-status-set" : "")}>{dirty ? "有未保存更改" : result?.ok ? "连接已验证" : result ? "连接测试失败" : config.configured ? "已配置 · 待测试" : "尚未配置"}</span>}>
-            {managed ? <div className="model-managed">当前配置由部署环境变量管理。如需修改，请联系部署管理员更新配置并重启服务。</div> : null}
+          <Panel title={c.configTitle} right={<span className={"model-status " + (config.configured ? "model-status-set" : "")}>{dirty ? c.dirtyStatus : result?.ok ? c.passStatus : result ? c.failStatus : config.configured ? c.configuredStatus : c.missingStatus}</span>}>
+            {managed ? <div className="model-managed">{c.managedText}</div> : null}
             <form onSubmit={(event) => { void save(event); }}>
               <fieldset disabled={managed || busy !== null} className="model-fields">
-                <Input label="模型服务地址" type="url" placeholder="https://your-model-service.example/v1" value={config.base_url} onChange={(event) => patch({ base_url: event.target.value })} hint="使用服务商提供的接口地址。系统会统一处理 /v1 或完整接口路径。" />
-                <Input label="模型名称" type="text" placeholder="填写服务商实际支持的模型 ID" value={config.model} onChange={(event) => patch({ model: event.target.value })} hint="模型名称需要与服务商提供的 ID 完全一致。" />
-                <Input label="模型 API Key" type="password" autoComplete="off" spellCheck={false} value={apiKey} onChange={(event) => { setApiKey(event.target.value); setDirty(true); setSaved(""); setResult(null); }} placeholder={config.configured ? "已保存；留空保留现有密钥" : "粘贴模型服务商提供的密钥"} hint={config.configured ? "更新其他选项时可以留空，现有密钥会保留。" : "仅用于模型调用，不会写入浏览器本地存储。"} />
+                <Input label={c.urlLabel} type="url" placeholder={c.urlPlaceholder} value={config.base_url} onChange={(event) => patch({ base_url: event.target.value })} hint={c.urlHint} />
+                <Input label={c.modelLabel} type="text" placeholder={c.modelPlaceholder} value={config.model} onChange={(event) => patch({ model: event.target.value })} hint={c.modelHint} />
+                <Input label={c.apiKeyLabel} type="password" autoComplete="off" spellCheck={false} value={apiKey} onChange={(event) => { setApiKey(event.target.value); setDirty(true); setSaved(""); setResult(null); }} placeholder={config.configured ? c.apiKeyPlaceholderConfigured : c.apiKeyPlaceholderMissing} hint={config.configured ? c.apiKeyHintConfigured : c.apiKeyHintMissing} />
                 <div className="model-options">
-                  <div className="ui-field"><label className="ui-label" htmlFor="model-protocol">接口协议</label><select id="model-protocol" value={config.protocol} onChange={(event) => patch({ protocol: event.target.value as ModelConfig["protocol"] })}><option value="responses">Responses API</option><option value="chat_completions">Chat Completions API</option></select><span className="ui-hint">按服务商支持的接口选择。</span></div>
-                  <div className="ui-field"><label className="ui-label" htmlFor="model-reasoning">推理强度</label><select id="model-reasoning" value={config.reasoning_effort} onChange={(event) => patch({ reasoning_effort: event.target.value })}><option value="">模型默认</option><option value="low">Low · 较快</option><option value="medium">Medium · 均衡</option><option value="high">High · 深入</option><option value="xhigh">XHigh · 更深入</option><option value="max">Max · 最大</option></select><span className="ui-hint">高强度可能增加耗时与费用，须由模型支持。</span></div>
+                  <div className="ui-field"><label className="ui-label" htmlFor="model-protocol">{c.protocolLabel}</label><select id="model-protocol" value={config.protocol} onChange={(event) => patch({ protocol: event.target.value as ModelConfig["protocol"] })}><option value="responses">{c.protocolResponses}</option><option value="chat_completions">{c.protocolChat}</option></select><span className="ui-hint">{c.protocolHint}</span></div>
+                  <div className="ui-field"><label className="ui-label" htmlFor="model-reasoning">{c.reasoningLabel}</label><select id="model-reasoning" value={config.reasoning_effort} onChange={(event) => patch({ reasoning_effort: event.target.value })}><option value="">{c.reasoningDefault}</option><option value="low">{c.reasoningLow}</option><option value="medium">{c.reasoningMedium}</option><option value="high">{c.reasoningHigh}</option><option value="xhigh">{c.reasoningXhigh}</option><option value="max">{c.reasoningMax}</option></select><span className="ui-hint">{c.reasoningHint}</span></div>
                 </div>
               </fieldset>
               <ErrorBox error={error} />
               {saved ? <div className="model-save-message" role="status">{saved}</div> : null}
-              <div className="model-buttons">{!managed ? <Button variant="primary" type="submit" disabled={busy !== null} loading={busy === "save"}>保存配置</Button> : null}<Button disabled={!config.configured || dirty || busy !== null} loading={busy === "test"} onClick={() => { void testConnection(); }}>{busy === "test" ? "正在请求模型…" : "测试连接"}</Button></div>
-              <p className="model-action-hint">{dirty ? "配置已更改，请保存后再测试。" : "测试会发起一次小型模型请求，可能产生少量费用；最长等待约 50 秒。"}</p>
+              <div className="model-buttons">{!managed ? <Button variant="primary" type="submit" disabled={busy !== null} loading={busy === "save"}>{c.save}</Button> : null}<Button disabled={!config.configured || dirty || busy !== null} loading={busy === "test"} onClick={() => { void testConnection(); }}>{busy === "test" ? c.testing : c.test}</Button></div>
+              <p className="model-action-hint">{dirty ? c.dirtyHint : c.testHint}</p>
             </form>
           </Panel>
-          <aside className="model-help-panel"><span className="eyebrow">连接检查</span><h2>配置完成 ≠ 模型可用</h2><p>点击测试连接后，服务端会使用已保存的配置发送一次请求。通过测试后，再开始 AI 开发任务。</p><ol><li>确认模型服务地址可访问</li><li>确认 API Key 具有模型权限</li><li>确认模型支持所选协议与推理强度</li></ol><a href="#/guide">查看上手指南 →</a></aside>
+          <aside className="model-help-panel"><span className="eyebrow">{c.helpKicker}</span><h2>{c.helpTitle}</h2><p>{c.helpIntro}</p><ol><li>{c.helpStep1}</li><li>{c.helpStep2}</li><li>{c.helpStep3}</li></ol><a href="#/guide">{c.helpLink}</a></aside>
         </div>
       )}
-      {result ? <section className={"model-test-result " + (result.ok ? "model-test-success" : "model-test-failed")} role="status"><div><h2>{result.ok ? "连接测试通过" : "连接测试未通过"}</h2><p>{result.message}</p><small>{result.model} · {result.protocol === "responses" ? "Responses API" : "Chat Completions API"} · {(result.latency_ms / 1000).toFixed(1)} 秒</small></div>{result.ok ? <a className="ui-btn ui-btn-primary ui-btn-md" href="#/agent/new">开始 AI 开发 →</a> : <span>检查配置后可再次测试</span>}</section> : null}
+      {result ? <section className={"model-test-result " + (result.ok ? "model-test-success" : "model-test-failed")} role="status"><div><h2>{result.ok ? c.resultPassTitle : c.resultFailTitle}</h2><p>{result.message}</p><small>{c.resultMeta(result.model, result.protocol === "responses" ? c.protocolResponses : c.protocolChat, result.latency_ms / 1000)}</small></div>{result.ok ? <a className="ui-btn ui-btn-primary ui-btn-md" href="#/agent/new">{c.resultSuccessCta}</a> : <span>{c.resultFailHint}</span>}</section> : null}
     </div>
   );
 }
