@@ -185,11 +185,11 @@ def test_the_web_glossary_equals_the_declared_domain() -> None:
 
 def test_a_failing_checker_is_never_glossed_as_clean() -> None:
     """`checker_failed` must not read as "checked, nothing found"."""
-    text = TONEMAP.read_text(encoding="utf-8")
-    line = next(
-        (raw for raw in text.splitlines() if raw.strip().startswith("checker_failed:")),
-        "",
-    )
+    # The gloss moved into i18n/strings.ts
+    i18n = REPO / "apps" / "web" / "src" / "i18n" / "strings.ts"
+    text = i18n.read_text(encoding="utf-8")
+    m = re.search(r'"evidence\.checker_failed": "((?:[^"\\]|\\.)*)"', text)
+    line = m.group(1) if m else ""
     assert line, "checker_failed has no gloss at all"
     assert "未验证" in line or "不等于没有问题" in line, (
         f"checker_failed gloss hides that no result was produced: {line}"

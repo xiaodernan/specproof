@@ -64,6 +64,10 @@ EXEMPT: dict[str, str] = {
         "self-contained demo script: its report strings are prose "
         "(\"REGRESSION DETECTED\", \"COMPLIANT (both pass)\") for a human reading "
         "one run, not a value any consumer parses",
+    "scripts/demo_doctor.py":
+        "self-check tool: its PASS/WARN/FAIL words are the doc/demo-repo "
+        "self-test report for a human reading one local run, never a value "
+        "the product reads back as a job-level verdict",
     "scripts/eval_progress_from_reports.py":
         "self-contained diagnostic: it re-derives the evaluation's per-case "
         "verdict from the per-case reports so a running evaluation's progress "

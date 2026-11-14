@@ -1,3 +1,11 @@
+import { STRINGS, storedLocale } from "../i18n/strings";
+
+const locale = (): "zh" | "en" => storedLocale();
+
+function gloss(key: string): string {
+  return STRINGS[locale()][key] ?? key;
+}
+
 // Pure tone mapping for severity and result/evidence status pills.
 //
 // Two independent maps, on purpose: severity (see SEVERITIES below) and
@@ -14,7 +22,7 @@ export interface PillSpec {
   label: string;
 }
 
-const UNKNOWN: PillSpec = { cls: "pill-mute", label: "未知 UNKNOWN" };
+const unknownPill = (): PillSpec => ({ cls: "pill-mute", label: gloss("ui.unknown") });
 
 export interface SeveritySpec {
   rank: number;
@@ -36,12 +44,12 @@ export interface SeveritySpec {
  * same words used for a typo in a payload.
  */
 export const SEVERITIES: Record<string, SeveritySpec> = {
-  BLOCKER: { rank: 0, cls: "pill-bad", label: "BLOCKER", storeable: true, hint: "阻塞问题——必须修复，会阻止本次合并。" },
-  MAJOR: { rank: 1, cls: "pill-major", label: "MAJOR", storeable: true, hint: "重要问题——建议在本次改动内处理。" },
-  MINOR: { rank: 2, cls: "pill-minor", label: "MINOR", storeable: true, hint: "轻微问题——可择机改进。" },
-  NEEDS_CONFIRMATION: { rank: 3, cls: "pill-unverified", label: "NEEDS_CONFIRMATION", storeable: true, hint: "需要人工确认——机器没有给出足够证据，请你判定接受或打回。" },
-  NONE: { rank: 4, cls: "pill-mute", label: "NONE", storeable: false, hint: "不构成风险判定——检查器崩溃或该语言/框架没有检查器，相关验收条件保持未验证（不会因沉默而判为通过）。" },
-  ERROR: { rank: 5, cls: "pill-mute", label: "ERROR", storeable: false, hint: "生成反例时出错——这一条没有可执行的证据。" },
+  BLOCKER: { rank: 0, cls: "pill-bad", label: "BLOCKER", storeable: true, hint: "severity.BLOCKER.hint" },
+  MAJOR: { rank: 1, cls: "pill-major", label: "MAJOR", storeable: true, hint: "severity.MAJOR.hint" },
+  MINOR: { rank: 2, cls: "pill-minor", label: "MINOR", storeable: true, hint: "severity.MINOR.hint" },
+  NEEDS_CONFIRMATION: { rank: 3, cls: "pill-unverified", label: "NEEDS_CONFIRMATION", storeable: true, hint: "severity.NEEDS_CONFIRMATION.hint" },
+  NONE: { rank: 4, cls: "pill-mute", label: "NONE", storeable: false, hint: "severity.NONE.hint" },
+  ERROR: { rank: 5, cls: "pill-mute", label: "ERROR", storeable: false, hint: "severity.ERROR.hint" },
 };
 
 /** Severity values the platform can persist and a reviewer can vote on. */
@@ -55,7 +63,7 @@ export const SEVERITY_STOREABLE: string[] = Object.keys(SEVERITIES).filter(
  */
 export function severityPill(severity?: string | null): PillSpec {
   const spec = SEVERITIES[(severity || "").toUpperCase()];
-  return spec ? { cls: spec.cls, label: spec.label } : { ...UNKNOWN };
+  return spec ? { cls: spec.cls, label: spec.label } : { ...unknownPill() };
 }
 
 /**
@@ -72,18 +80,18 @@ export function severityPill(severity?: string | null): PillSpec {
  * unrecognised value rather than a documented state.
  */
 export const RESULT_STATES: Record<string, { cls: string; caption: string }> = {
-  PASS: { cls: "pill-ok", caption: "检查通过" },
-  FAIL: { cls: "pill-bad", caption: "发现不符" },
-  UNVERIFIED: { cls: "pill-unverified", caption: "证据不足" },
+  PASS: { cls: "pill-ok", caption: "result.PASS.caption" },
+  FAIL: { cls: "pill-bad", caption: "result.FAIL.caption" },
+  UNVERIFIED: { cls: "pill-unverified", caption: "result.UNVERIFIED.caption" },
 };
 
 /** What the page says about a result token this vocabulary does not hold. */
-const RESULT_UNKNOWN_CAPTION = "待确认状态";
+const RESULT_UNKNOWN_CAPTION = "result.unknown.caption";
 
 export function resultPill(result?: string | null): PillSpec {
   const token = (result || "").toUpperCase();
   const spec = RESULT_STATES[token];
-  return spec ? { cls: spec.cls, label: token } : { ...UNKNOWN };
+  return spec ? { cls: spec.cls, label: token } : { ...unknownPill() };
 }
 
 /**
@@ -91,7 +99,8 @@ export function resultPill(result?: string | null): PillSpec {
  * import it instead of writing a second copy of the same vocabulary.
  */
 export function resultCaption(result?: string | null): string {
-  return RESULT_STATES[(result || "").toUpperCase()]?.caption || RESULT_UNKNOWN_CAPTION;
+  const key = RESULT_STATES[(result || "").toUpperCase()]?.caption;
+  return key ? gloss(key) : gloss(RESULT_UNKNOWN_CAPTION);
 }
 
 // 术语对照表：把面向机器的规范枚举/字段翻译成评审者能直接行动的中文说明，
@@ -117,7 +126,8 @@ export function severityRank(severity?: string | null): number {
 }
 
 export function severityHint(severity?: string | null): string | undefined {
-  return SEVERITY_HINT[(severity || "").toUpperCase()];
+  const key = SEVERITY_HINT[(severity || "").toUpperCase()];
+  return key ? gloss(key) : undefined;
 }
 
 /**
@@ -131,12 +141,12 @@ export function severityHint(severity?: string | null): string | undefined {
  * 这里必须先加词，否则门红。
  */
 export const ACCEPT_SEVERITY_CN: Record<string, string> = {
-  CRITICAL: "关键（凭证已泄漏，计入验收阻断）",
-  HIGH: "高危（凭证类发现，与关键同级计入阻断）",
-  MEDIUM: "中危（不阻断验收，交付前应处理）",
-  LOW: "低危（信息性发现，不阻断验收）",
-  BLOCKER: "阻断级（独立验收自身发现的缺省级别）",
-  MAJOR: "重要（契约类发现的缺省级别）",
+  CRITICAL: "acceptSeverity.CRITICAL",
+  HIGH: "acceptSeverity.HIGH",
+  MEDIUM: "acceptSeverity.MEDIUM",
+  LOW: "acceptSeverity.LOW",
+  BLOCKER: "acceptSeverity.BLOCKER",
+  MAJOR: "acceptSeverity.MAJOR",
 };
 
 /**
@@ -151,9 +161,9 @@ export const ACCEPT_SEVERITY_BLOCKING: string[] = ["CRITICAL", "HIGH"];
  * as the scanner wrote it — re-casing an unrecognised value would dress up a
  * guess in the product's own typography. */
 export function acceptSeverityLabel(severity?: string | null): string {
-  if (!severity) return "未记录严重程度";
+  if (!severity) return gloss("acceptSeverity.missing");
   const cn = ACCEPT_SEVERITY_CN[severity.toUpperCase()];
-  return cn ? cn + " · " + severity.toUpperCase() : severity;
+  return cn ? gloss(cn) + " · " + severity.toUpperCase() : severity;
 }
 
 export function acceptSeverityTone(severity?: string | null): "bad" | "mute" {
@@ -172,47 +182,47 @@ export function acceptSeverityTone(severity?: string | null): "bad" | "mute" {
  * English.
  */
 const EVIDENCE_CN: Record<string, string> = {
-  java_source_diff: "Java 源码差分（静态比对改动前后的源码，没有执行任何代码）",
-  constitution_check: "工程规范检查（constitution 规则命中，没有执行任何代码）",
-  static_analysis: "静态分析（源码规则命中，没有执行任何代码）",
+  java_source_diff: "evidence.java_source_diff",
+  constitution_check: "evidence.constitution_check",
+  static_analysis: "evidence.static_analysis",
   // The evidence kind alone says NOTHING about where it ran: a Node repo is
   // executed in the Docker sandbox while an opt-in host run is unsandboxed
   // (#50/#54). The surface is reported in the finding's own description, so
   // this label must not claim either way.
-  self_test_diff: "仓库自带测试差分",
-  base_pass_head_fail: "改前通过、改后失败（本次变更引入的失败，实际执行过）",
-  differential_execution: "差分执行（改前/改后各执行一次的对比证据）",
-  probe_differential: "探针差分（对既有行为下探针再对比，用于确认能否复现）",
+  self_test_diff: "evidence.self_test_diff",
+  base_pass_head_fail: "evidence.base_pass_head_fail",
+  differential_execution: "evidence.differential_execution",
+  probe_differential: "evidence.probe_differential",
   // A crashing checker is a finding, not silence — the label must not read as
   // "checked and clean".
-  checker_failed: "检查器崩溃（这一项没有跑出结果，相关验收条件保持未验证，不等于没有问题）",
+  checker_failed: "evidence.checker_failed",
   // The finding carries no evidence kind at all (capsules and PR comments write
   // "unknown"). Say that plainly rather than dressing it up as a kind of proof.
-  unknown: "未记录证据方式（这条风险没有说明它是凭什么得出的）",
+  unknown: "evidence.unknown",
 };
 
 export function evidenceLabel(t?: string | null): string {
-  if (!t) return "—";
+  if (!t) return gloss("evidence.empty");
   const cn = EVIDENCE_CN[t.toLowerCase()];
-  return cn ? cn + " · " + t : t;
+  return cn ? gloss(cn) + " · " + t : t;
 }
 
 /** 验收条件"检查方式"（checker_type）的中文说明；未知类型原样透传。 */
 const CHECKER_CN: Record<string, string> = {
-  http: "HTTP 接口检查",
-  sql: "数据库 / SQL 检查",
-  redis: "Redis 缓存检查",
-  openapi: "OpenAPI 契约检查",
-  rabbitmq: "消息队列检查",
-  constitution: "工程规范检查",
-  tests: "已有测试用例",
-  "?": "未记录检查方式（这条验收条件没有写明怎么检查）",
+  http: "checker.http",
+  sql: "checker.sql",
+  redis: "checker.redis",
+  openapi: "checker.openapi",
+  rabbitmq: "checker.rabbitmq",
+  constitution: "checker.constitution",
+  tests: "checker.tests",
+  "?": "checker.question",
 };
 
 export function checkerLabel(t?: string | null): string {
-  if (!t) return "尚未指定";
+  if (!t) return gloss("checker.empty");
   const cn = CHECKER_CN[t.toLowerCase()];
-  return cn ? cn + " · " + t : t;
+  return cn ? gloss(cn) + " · " + t : t;
 }
 
 /**
@@ -223,16 +233,17 @@ export function checkerLabel(t?: string | null): string {
  * 漏检也不算检出，是「没看」而不是「看了没问题」）。未知值原样返回，绝不臆造含义。
  */
 const EVAL_VERDICT_CN: Record<string, string> = {
-  PASS: "判定正确",
-  PARTIAL: "部分检出（命中但少于预期数量）",
-  MISS: "漏检（未检出预期问题）",
-  FALSE_POSITIVE: "误报（检出非预期问题）",
-  NOT_RUN: "未运行（流水线中止，未做比较）",
+  PASS: "evalVerdict.PASS",
+  PARTIAL: "evalVerdict.PARTIAL",
+  MISS: "evalVerdict.MISS",
+  FALSE_POSITIVE: "evalVerdict.FALSE_POSITIVE",
+  NOT_RUN: "evalVerdict.NOT_RUN",
 };
 
 export function evalVerdictLabel(v?: string | null): string {
-  if (!v) return "—";
-  return EVAL_VERDICT_CN[v.toUpperCase()] ?? v;
+  if (!v) return gloss("evalVerdict.empty");
+  const key = EVAL_VERDICT_CN[v.toUpperCase()];
+  return key ? gloss(key) : v;
 }
 
 /**
@@ -244,13 +255,14 @@ export function evalVerdictLabel(v?: string | null): string {
  * 绝不臆造一个"正常"的措辞去掩盖真实状态。
  */
 const HEALTH_STATUS_CN: Record<string, string> = {
-  OK: "正常",
-  DEGRADED: "降级",
+  OK: "healthStatus.OK",
+  DEGRADED: "healthStatus.DEGRADED",
 };
 
 export function healthStatusLabel(s?: string | null): string {
-  if (!s) return "未知";
-  return HEALTH_STATUS_CN[s.toUpperCase()] ?? s;
+  if (!s) return gloss("healthStatus.unknown");
+  const key = HEALTH_STATUS_CN[s.toUpperCase()];
+  return key ? gloss(key) : s;
 }
 
 /**
@@ -261,15 +273,15 @@ export function healthStatusLabel(s?: string | null): string {
  * 未知值原样透传，缺失返回空串（由调用方决定不渲染，而不是显示一个假的"安全"）。
  */
 const EXECUTION_SURFACE_CN: Record<string, string> = {
-  docker_sandbox: "容器沙箱执行",
-  local_host_no_sandbox: "本机执行 · 无沙箱",
-  unconfirmed: "执行面未确认",
+  docker_sandbox: "execSurface.docker_sandbox",
+  local_host_no_sandbox: "execSurface.local_host_no_sandbox",
+  unconfirmed: "execSurface.unconfirmed",
 };
 
 export function executionSurfaceLabel(s?: string | null): string {
   if (!s) return "";
   const cn = EXECUTION_SURFACE_CN[s];
-  return cn ? cn + " · " + s : s;
+  return cn ? gloss(cn) + " · " + s : s;
 }
 
 /**
@@ -294,10 +306,10 @@ export function dependencyInstallLabel(s?: string | null): string {
   // A combined disclosure names both sides ("base: …; head: …") — it cannot
   // be compressed into one label, so it passes through verbatim.
   if (s.includes("; head:") || s.includes("; base:")) return s;
-  if (s.includes("offline npm ci")) return "沙箱内离线安装依赖 (npm ci)";
-  if (s.includes("offline pip install")) return "沙箱内离线安装依赖 (pip)";
-  if (s.includes("skipped")) return "依赖已就绪，未执行安装";
-  if (s.includes("not applicable")) return "不适用 (宿主流程)";
+  if (s.includes("offline npm ci")) return gloss("dep.npmOffline");
+  if (s.includes("offline pip install")) return gloss("dep.pipOffline");
+  if (s.includes("skipped")) return gloss("dep.skipped");
+  if (s.includes("not applicable")) return gloss("dep.notApplicable");
   return s;
 }
 
@@ -309,17 +321,17 @@ export function dependencyInstallLabel(s?: string | null): string {
  * 看不出后端究竟返回了什么。
  */
 export const CONTRACT_STATUS_CN: Record<string, string> = {
-  APPROVED: "已批准",
-  PROPOSED: "待审核",
-  REJECTED: "已驳回",
-  REVOKED: "已撤销",
+  APPROVED: "contractStatus.APPROVED",
+  PROPOSED: "contractStatus.PROPOSED",
+  REJECTED: "contractStatus.REJECTED",
+  REVOKED: "contractStatus.REVOKED",
 };
 
 export function contractStatusLabel(status?: string | null): string {
   const s = (status || "").toUpperCase();
-  if (!s) return "—";
+  if (!s) return gloss("contractStatus.empty");
   const cn = CONTRACT_STATUS_CN[s];
-  return cn ? cn + " · " + s : s;
+  return cn ? gloss(cn) + " · " + s : s;
 }
 
 /**
@@ -328,16 +340,16 @@ export function contractStatusLabel(status?: string | null): string {
  * head/base/not_attributed/none/unknown 词汇。未知值原样透传。
  */
 export const MATRIX_ATTRIBUTION_CN: Record<string, string> = {
-  head: "本次变更引入",
-  base: "改前既有",
-  not_attributed: "无法归因",
-  none: "无需归因",
-  unknown: "归因未知",
+  head: "attribution.head",
+  base: "attribution.base",
+  not_attributed: "attribution.not_attributed",
+  none: "attribution.none",
+  unknown: "attribution.unknown",
 };
 
 export function attributionLabel(attribution?: string | null): string {
   const s = (attribution || "").trim().toLowerCase();
-  if (!s) return "—";
+  if (!s) return gloss("attribution.empty");
   const cn = MATRIX_ATTRIBUTION_CN[s];
-  return cn ? cn + " · " + s : s;
+  return cn ? gloss(cn) + " · " + s : s;
 }

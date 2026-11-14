@@ -63,6 +63,8 @@ beforeEach(() => {
   loadFeedback.mockReset();
   postFeedback.mockReset();
   localStorage.clear();
+  // keep the zh-default from test-setup.ts after the clear
+  localStorage.setItem("specproof_locale", "zh");
   // Default: a job nobody has reviewed yet, in the exact shape the route
   // returns ({job_id, rows, stats}).
   loadFeedback.mockResolvedValue(feedbackData([], null));

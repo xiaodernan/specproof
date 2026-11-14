@@ -11,5 +11,6 @@ export default defineConfig({
     // globals:true lets @testing-library/react auto-register cleanup
     // (afterEach) so renders never leak between tests.
     globals: true,
+    setupFiles: ["./src/test-setup.ts"],
   },
 });

@@ -198,10 +198,14 @@ def test_medium_and_low_say_they_do_not_block() -> None:
     assert {"MEDIUM", "LOW"} <= declared - blocking, (
         f"MEDIUM/LOW must be non-blocking; blocking set is {sorted(blocking)}"
     )
-    text = TONEMAP.read_text(encoding="utf-8")
+    # The glosses moved into i18n/strings.ts (zh stays the source of truth
+    # for the Chinese copy the contract was written against).
+    i18n = REPO / "apps" / "web" / "src" / "i18n" / "strings.ts"
+    i18n_text = i18n.read_text(encoding="utf-8")
 
     def gloss(token: str) -> str:
-        return next((raw for raw in text.splitlines() if raw.strip().startswith(f'{token}: "')), "")
+        m = re.search(r'"acceptSeverity\.' + re.escape(token) + r'": "((?:[^"\\]|\\.)*)"', i18n_text)
+        return m.group(1) if m else ""
 
     for token in ("MEDIUM", "LOW"):
         assert "不阻断" in gloss(token), f"{token} gloss must say it does not block acceptance"

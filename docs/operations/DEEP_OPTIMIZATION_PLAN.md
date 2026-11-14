@@ -34989,3 +34989,64 @@ doctor 如实报告而不染绿；未追入这批改动，它们不是本提交�
   已修复并复验为 7 卷/3 尾声原位恢复；红灯过程留在此号，不粉饰；
 * i18n 表未改（本页文案全部走 `epic.*` 既有 key 与 copy.ts 双语数据）；parity 11/11 绿；
 * 全量 pytest 仍未跑完；四件套 + guide gate 不在本提交重复声明（见 #1726/#1728）。
+
+## #1730 UI 词表层双语化 —— toneMap / errorHints 的中文 gloss 搬家到 i18n 表，英文随现随取；账本里三位「锁死」被拔掉
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、诱因
+
+"parse 两套 locale 对称"是本项目用户手册里公开标注的**最后一块**「UI 层原生中文」区域
+（CLAUDE.md/手册 §4 写着 "ui 词表层中文（PARITY 锁死，单独立项）"）。用户语境：所有项目内容必须中英双语。
+
+### 二、交付
+
+* `apps/web/src/i18n/strings.ts`：
+  - 新增 `storedLocale()` 导出：`localStorage(specproof_locale)` → `navigator.language`（`zh*`→zh，否则 en）→ zh 兜底；server/SSR 不炸；
+  - 新增 **78 个 gloss 词条 ×2 locale**（分组注释 `// ── ui glosses (toneMap / errorHints)`）：
+    6 severity hints + 3 result captions + result.unknown.caption + 6 accept severities + acceptSeverity.missing +
+    9 evidence kinds + evidence.empty + 8 checker + checker.empty + 5 eval verdicts + evalVerdict.empty +
+    2 health status + healthStatus.unknown + 3 execution surfaces + 4 dep-install + 4 contract statuses +
+    contractStatus.empty + 5 attributions + attribution.empty + ui.unknown + 10 pipeline hints + 3 degraded hints + hint.terminalStageFailed；
+  - zh 值**逐字搬迁**自原文件（除 `contractStatus.empty` 源里就是 `""`，补成 `"—"`）；en 为本次手译。
+* `apps/web/src/ui/toneMap.ts`：gloss 层全部改为 i18n key 引用；`SEVERITIES`/`RESULT_STATES`/`EVIDENCE_CN`/… 表**键不变**
+  （Python parity 门按 key 集合锁死，保持原样）；`RESULT_UNKNOWN_CAPTION` 占位改 gloss 解析；`SEVERITY_HINT` 推导不变（token→key），
+  `severityHint()` 调用时解析；`UNKNOWN` 改 `unknownPill()` 每次现取（原模块级 const 在 import 时就冻结 locale，测试里随手改不动）。
+* `apps/web/src/ui/errorHints.ts`：PIPELINE/DEGRADED 两表值 = i18n key，在 `describePipelineError` / `describeDegradedReason`
+  两处边界解析为 locale 文案（行内 hint 保持 regex+key 配对，不移动匹配器）。
+* `apps/web/vitest.config.ts` + 新 `src/test-setup.ts`：测试默认 pin zh（jsdom 的 navigator.language 是 en-US，会把旧断言全推成英文）；
+  toneMap.test.ts 修好 zh pin 并新增「English locale glosses」一例（断言 en 文案真实可读）；FindingDetail.test.tsx 在 `localStorage.clear()` 后补 pin zh。
+* Python 三门改读 i18n/strings.ts：
+  - `test_accept_severity_parity.py::test_medium_and_low_say_they_do_not_block`（断言 MEDIUM/LOW 文案含「不阻断」、阻断档
+    含「阻断」——现在从 zh 表取）；
+  - `test_evidence_vocabulary_parity.py::test_a_failing_checker_is_never_glossed_as_clean`（同上）；
+  - `test_verdict_channel_parity.py`：`EXEMPT` 增加 `scripts/demo_doctor.py`（带理由：doc/demo 自检报告，非产品词典生产者）。
+* **顺带偿还一笔欠债**：`verdict_channel_parity` 在 master 基线上就是红的（api/ai_summary.py:73/100 写入 `verdict` 字段却**不被任何通道声明**）。
+  本号把它如实登记为 `job_summary` 通道的**搬运工**（owner+opaque+注释，与 notify/templates.py 同模式）——从「基线红」到「真绿」，不改断言语义。
+* 两本用户手册 §4：「ui 词表层中文（PARITY 锁死，单独立项）」→「ui 词表层 toneMap/errorHints 已全部中英双语（#1730）」；
+  preflight / stages 仍为中文单独记账。
+
+### 三、实证
+
+| 命令 | 结果 |
+|---|---|
+| `npx tsc --noEmit` | 0 错误 |
+| `npm run build`（tsc + vite） | ✅ built in 341ms（index 268→245 KB） |
+| `npx vitest run` | **492/492 绿**（含新增 en 例） |
+| severity/evidence/accept/matrix/verdict-channel/feedback parity + demo_doctor + guide catalog | 44/44 绿 |
+| 账本四件套 | 45/45 绿（#1690→入本号前已跑） |
+
+### 四、过程中的诚实记录（红了就写红了，不粉饰）
+
+* 双引号假象：key 值被写成 `""key""`（51 处）——tsc 之前的快速检查 grep 发现并当场修复；
+* 首个匹配错位：`contractStatus.empty` 的默认 `if (!s) return ""` 正则命中的是**executionSurfaceLabel**，
+  把 `contractStatus.empty`  wiring 进了执行面函数——build/测试红后定位并恢复 `return ""`；`contractStatusLabel` 补回正确 key 引用；
+* 模块级 `UNKNOWN` const 把 locale 冻在 import 时刻——改 `unknownPill()` 惰性解析后，zh/en 切换测试都成立；
+* 函数首个匹配先替 EVIDENCE 后替 CHECKER，二者语义对上了才错开源；executionSurface 与 contractStatus 两枚 `if (!s)` 撞了——**第二次** Red 暴露并已按上一号修好；
+* 全量 `pytest tests/unit` 仍未跑完（内存），不声称全绿；Python 词表 parity 系列已实跑绿。
+
+### 五、诚实边界
+
+* toneMap/errorHints 的**注释**仍是中文（写给维护者看，不是 UI 文案）；`preflight.ts`（describePreflightError）与 `stages.ts`（stageLabel）仍为中文——它们是同宗债务但没在本提交偿还；
+* zh 文案逐字保持；en 译文未经母语者审校；
+* `ui/index.ts` 继续导出 `SEVERITY_HINT` 等符号（类型不变），其值现在是 i18n key 映射——**对外行为零变化**（无消费者按值读）。

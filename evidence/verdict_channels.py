@@ -83,6 +83,9 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             "integrations/notify/templates.py",
             "ops/drills.py",
             "scripts/seed_demo.py",
+            # carrier: forwards `summary.get("verdict")` into the AI-summary
+            # packet and the digest material — never chooses the word
+            "api/ai_summary.py",
         ),
         scale=frozenset({"VERIFIED", "BLOCKED", "NEEDS_REVIEW", "FAILED"}),
         witnesses={"NEEDS_REVIEW": "integrations/notify/templates.py:23"},
@@ -91,6 +94,9 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             "integrations/notify/templates.py",
             "ops/drills.py",
             "scripts/seed_demo.py",
+            # carrier: forwards `summary.get("verdict")` into the AI-summary
+            # packet and the digest material — never chooses the word
+            "api/ai_summary.py",
         ),
         note=(
             "The 验证结论 headline. `_terminal_status_from_state` returns "
@@ -105,7 +111,9 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             "「something IS wrong」 from 「the evidence does not settle it」 — "
             "both are fail-closed, but they call for different people to act, "
             "and the headline must not send a reader hunting for a bug that may "
-            "not exist."
+            "not exist. `api/ai_summary.py` forwards this headline verbatim into "
+            "the AI-summary packet; it never chooses it, which is why it sits in "
+            "`opaque` and not in `owners`."
         ),
     ),
     "report_verdict": VerdictChannel(

@@ -1,4 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
+
+// These cases pin the zh locale: glosses now resolve from the i18n table and
+// jsdom's navigator.language is en-US by default.
+beforeEach(() => {
+  window.localStorage.setItem("specproof_locale", "zh");
+});
+afterAll(() => {
+  window.localStorage.removeItem("specproof_locale");
+});
 import { resultPill, resultCaption, severityPill, severityHint, severityRank, acceptSeverityLabel, acceptSeverityTone, ACCEPT_SEVERITY_BLOCKING, evidenceLabel, checkerLabel, contractStatusLabel, dependencyInstallLabel, healthStatusLabel, attributionLabel, executionSurfaceLabel, executionSurfaceTone, SEVERITIES, SEVERITY_STOREABLE } from "../toneMap";
 
 // The severity vocabulary is reconciled against the MySQL ENUM, the HTTP
@@ -326,5 +335,24 @@ describe("dependencyInstallLabel — how the workspace's dependencies came to ex
   it("returns empty for absent data so callers skip rendering", () => {
     expect(dependencyInstallLabel(undefined)).toBe("");
     expect(dependencyInstallLabel("")).toBe("");
+  });
+});
+
+
+describe("English locale glosses", () => {
+  beforeEach(() => {
+    window.localStorage.setItem("specproof_locale", "en");
+  });
+  afterAll(() => {
+    window.localStorage.setItem("specproof_locale", "zh");
+  });
+
+  it("glosses severities, results and unknowns in English", () => {
+    expect(severityHint("BLOCKER")).toMatch(/merge/);
+    expect(resultCaption("PASS")).toBe("Check passed");
+    expect(severityPill("bogus").label).toBe("Unknown");
+    expect(evidenceLabel("base_pass_head_fail")).toContain("fails after");
+    expect(evidenceLabel("base_pass_head_fail")).toContain("base_pass_head_fail");
+    expect(healthStatusLabel("degraded")).toBe("Degraded");
   });
 });
