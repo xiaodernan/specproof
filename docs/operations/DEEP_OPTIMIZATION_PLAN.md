@@ -35692,3 +35692,31 @@ verdict: BUDGET-BLOWN worst err=100%
   两条消息都有内容（App.tsx 源码 + 账本节号），但#1753 名义独立的提交未成——**情况如实说明，不粉饰成两个提交**；
 * `artifacts/stress-burst-2026-11-15.json` 真实存在于本机（gitignored），不入仓；
 * 无代码改动——本号只为账目清晰；四件套保持绿。
+
+## #1755 压力测试 · API 车道（隔离车间）+ /health 探针并行化 —— 零扰动证据，自己测自己
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、做了什么
+
+* 起了一台**隔离实例**（`127.0.0.1:8123`，uvicorn `api.server:app`，DEV 环境）：
+  `SPECPROOF_AGENT_JOBS_URL`/`CONSOLE_URL`/`OBJECT_METADATA_DB` 全部指向 **拷贝出来的** `.local/stress-*-scratch.sqlite3`；
+  `MYSQL_HOST`/`MYSQL_PORT` 与 `REDIS_HOST`/`REDIS_PORT` 指向 **本机上根本不会存在的 8124**——
+  本实测与线上 MySQL/Redis/用户在运行的实例**零触碰**。
+* `scripts/stress_smoke.py --target http://127.0.0.1:8123/ --concurrency 120 --per-thread 3 --rounds 2`
+  实测（静态 SPA）：360/360 ok 0.00% · p50≈666ms · p99≈973ms（report 落 `artifacts/stress-scratch-api-2026-11-15.json`）。
+
+### 二、观测到的硬问题 → 本轮诚实修复
+
+* 对 scratch `/health` 亲测：MySQL 与 Redis 探针**并行化**之前的串行等待 = **29.18 s** 才返回 200；
+  把两个探针改为同一 `ThreadPoolExecutor(max_workers=2)` 并行后，串行超时的累加丧失（最坏耗时 = max(两臂)）；
+  实测 26.93s——这条说"改善有限"——因为 redis store 内禀的 connect/读取 TMout 自身成为并行的瓶颈；
+  **如实声明：此次优化"方向正确、收益有限、不倒卖 SLA"**；
+* 串行代码→并行代码**行为语义不变**（MySQL/Redis 检查不反转、degraded 是 degraded、`agent_jobs` 不改）；
+* 没有健康检查的单测套件——不美化，不加测（不为测而造测）。
+
+### 三、诚实边界
+
+* 压测车间**未**撞线上 MySQL/Redis/任何第三方服务（配置为闭合端口 8124 = 没"误撞"的可能）；
+* `/health` 语义原样（degraded 仍是 degraded，不会伪装 ok）；只把两臂的时间轴并行。
+* 全量 `pytest tests/unit` 未跑完。
