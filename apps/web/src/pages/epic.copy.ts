@@ -1,7 +1,7 @@
 import type { Locale } from "../i18n/strings";
 
 /**
- * The English edition of the Epic page's seven scrolls.
+ * The English edition of the Epic page's eight scrolls.
  *
  * The Chinese edition lives inline in `Epic.tsx` (it is the original text of
  * the book); the English edition is kept beside it so both languages can be
@@ -154,6 +154,23 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "地基的自检", value: "demo doctor 六项静态检查，工作树脏则如实 WARN（#1728）；指南幽灵路由清零并有 gate 锁死（#1726）" },
     ],
   },
+  {
+    num: "卷七",
+    title: "十二把铁秤",
+    en: "The Twelve Iron Scales",
+    era: "2026-11 · 至今",
+    verses: [
+      "舌头有两种颜色时，铁证只有一种颜色——按下去，该响就响。",
+      "错题不是终点，错题回炉才是练武的真火。",
+      "从「它声称双语」到「toggle 一按就换脸」，中间隔着 147 个词条和一次不删测试的修表。",
+    ],
+    details: [
+      { label: "147 个词条", value: "toneMap/errorHints（#1730）+ stages/preflight（#1732）全部随 locale 解析；i18n parity 双向锁两表对称" },
+      { label: "十二把铁秤", value: "#/drill 验收快问（#1733）：12 题锚真实声明域与账本；四阶封印；497/497 vitest 全绿" },
+      { label: "基线红到真绿", value: "verdict_channel_parity 在 master 上本就是红的——api/ai_summary.py 登记为 job_summary 搬运工（owner+opaque），从此真绿（#1730）" },
+      { label: "幽灵路由清零", value: "/mcp、/admin/identity、/readme 从两本手册消失；guide-route-catalog gate 永世锁死（#1726）；#1732「键写反」事件如实入史" },
+    ],
+  },
 ];
 
 export const CLOSING_ZH = [
@@ -276,6 +293,23 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "The showcase deal", value: "portfolio-sync ships data/specproof-* weekly (#1722); without PORTFOLIO_TOKEN it rebuilds and never pushes" },
       { label: "The truth about the meter", value: "wkapi's '96.5% hit rate' was the gateway's 4224-token constant — downgraded to an observational metric (#1723); provider_smoke really ran, 7/7 PASS (#1724)" },
       { label: "The foundation check", value: "demo doctor: six static checks, an honest WARN on a dirty demo tree (#1728); ghost routes in the guide cleared and held by a gate (#1726)" },
+    ],
+  },
+  {
+    num: "Scroll 7",
+    title: "The Twelve Iron Scales",
+    en: "卷七 · 十二把铁秤",
+    era: "2026-11 · today",
+    verses: [
+      "When a tongue has two colours, evidence has one — press the button, the tone is the truth.",
+      "A missed question is never the end; the re-forge review is where the craft is actually learned.",
+      "From “it claims to be bilingual” to “the toggle switches it” lies 147 keys and one repair that deleted no test.",
+    ],
+    details: [
+      { label: "147 keys", value: "toneMap/errorHints (#1730) + stages/preflight (#1732) — glosses resolve per locale; i18n parity locks both tables in both directions" },
+      { label: "The twelve scales", value: "#/drill, Verify Drill (#1733): 12 questions anchored to the real declared domains and ledgers; four seals; 497/497 vitest green" },
+      { label: "Baseline red → real green", value: "verdict_channel_parity was red on master itself — api/ai_summary.py declared as a job_summary carrier (owner + opaque); green for real (#1730)" },
+      { label: "Ghost routes cleared", value: "/mcp, /admin/identity, /readme removed from both guides; the route-catalog gate stands guard (#1726); the key-inversion incident (#1732) written verbatim into the book" },
     ],
   },
 ];
