@@ -3245,3 +3245,51 @@ Each is anchored: **git show / python scripts / locked JSON / markdown body**.
 3. **the token is yours** — no `PORTFOLIO_TOKEN` will ever be minted from this repo or placed into your settings.
 
 ---
+## Volume LXXXV · The Steganographic Line（卷八十五 · 隐写的一行）
+
+> A secret is a line of fine bytes — one who sees it but cannot decipher it
+> leaves the page with only a feeling it was there.
+> This volume is about something much simpler: the full skeleton of what
+> portfolio-sync would-not-push until you say so — and it happens to already fit in 4 KB.
+
+### 85.1 Struck live (2026-11-15T19:21Z)
+
+| Exhibit | Value |
+|---|---|
+| `scripts/sync_portfolio_dryrun.py` (new) | **3 files · 5,863 bytes total** (`.github-sync.json` 1,389 B · `latest.md` 512 B · `products.json` 3,928 B) |
+| Secret surface | **zero** — no token/keys/env in any emitted file; artifacts/ is git-ignored |
+| Live sync status | "nothing pushed yet — this is a dry run" — never fakes a push |
+| `sync_portfolio.py` real bug fixed | "latest ledger entry" now resolves to the latest section (was reporting #1870 of four commits ago) |
+
+### 85.2 Dashboard gained one line — struck this month
+
+At the very top of #/dashboard, above the quick-start strip:
+`struck this month: 576/576 · 100.0% · not extrapolated` + CTA to the monthly census at #/gazette.
+Every digit comes straight from `evidence.json` — **zero network, zero LLM inference**.
+
+### 85.3 The key that is the quiet part
+
+PORTFOLIO_TOKEN is the only door that opens portfolio-sync for real, and this repository
+will never mint it for anyone nor inherit it silently. It exists only in Settings → Secrets;
+this book does not bring it into existence, nor grant it to any maintainer — not a hire, not a gift.
+
+### 85.4 House rules
+
+1. **seeing the shape is not the same as pushing it** — preview ≠ push; preview is cheap, push is a door that stays open;
+2. **this page does not wait for a push** — only your hands mint that key;
+3. **this volume ships zero key material** — sync is local+dry-run; the gate that pushes needs a real human route you set;
+4. **no new promises** — one link at line 05 on your showcase is all that's real; this book will not crowd it, nor rewrite its paint.
+
+### 85.5 The ship-of-Evidence one door remains open
+
+```
+artifacts → sync_portfolio_dryrun.py → preview.json (git-ignored)
+     ↓
+Settings → Secrets → PORTFOLIO_TOKEN → portfolio-sync.yml  Sunday 06:00Z
+     ↓
+xiaodernan.github.io  index-id-05 · systems tile
+```
+
+The tile keeps its spot. Even if the images change, the link stays.
+
+---

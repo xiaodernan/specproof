@@ -3370,3 +3370,52 @@ DEBTS_OPEN.md 新增 M2（weekly evidence Δ）的机器完成度——本卷之
 3. **等一等 Token**——本条永远不替代「你亲自去 Settings 加 Token」那一步。
 
 ---
+## 卷八十五 · 隐写的一行（The Steganographic Line）
+
+> 暗号是一行细字节串——没钥匙的人看懂了也不说破，
+> 多数真理都是这么传的。本卷写的是：
+> 「压缩后 A 4 K B 的 JSON——没 token 也完全看得见它的骨」。
+> 同步功能里真正的秘密，已经被翻到了这里。
+
+### 85.1 直敲记录（2026-11-15T19:21Z）
+
+| 件 | 值 |
+|---|---|
+| `scripts/sync_portfolio_dryrun.py`（新） | **3 条展品·5,863 字节**（`.github-sync.json` 1,389 B · `latest.md` 512 B · `products.json` 3,928 B） |
+| 密钥传播面 | **零**——产物里没有任何 token/keys/env；gitignore 已盖住 artifacts/ 前缀 |
+| 最近一次自动同步 | 「本轮未跑——这是 dry run」——它不真推，也不假推 |
+| `sync_portfolio.py` 修了一个真 bug | 「`latest_ledger_entry` 首个匹配→最后一个匹配」——否则内容显示 `#1870`（上世纪，差四个提交） |
+
+### 85.2 Dashboard 新增一整行「本月实敲」
+
+位置：`#/dashboard` 顶部 quickstart 之上 · 如实显示
+`本月实敲：576/576 req · 100.0% · 不外推` · CTA `月度体检表 →`（`#/gazette`）。
+
+这一行的数据全部从 `docs/evidence/data/…` 链到内存 `evidence.json`——
+**没有任何网络接口、没有 LLM 推断、没有外推**。它就是一条数据字段直达的字符串。
+
+### 85.3 隐写的密钥
+
+portfolio-sync 如果想推出去，必须依赖 PORTFOLIO_TOKEN——本仓库从不私自 mint 它。
+**这条不能偷、不能派生、不能 merchantability**——它只在 Settings → Secrets 里存在。
+本卷不给任何人这东西——它不归我。
+
+### 85.4 本卷家规
+
+1. **看得见是形式，推一个才叫推**——预览≠推，预览≠推挨不得；
+2. **本页没在等生产 sync**——只有 your hands can mint that key；
+3. **本页登记的压力增量**：pre-commit hook 无变更；sync 本地跑+预览跟 CI 推同一段 generator——连续完整。
+
+### 85.5 至此 ship of Evidence 链路一目了然
+
+```
+artifacts → sync_portfolio_dryrun.py → preview.json (gitignored)
+     ↓
+Settings → Secrets → PORTFOLIO_TOKEN → portfolio-sync.yml weekly Sun 06:00Z
+     ↓
+xiaodernan.github.io  index-id-05 · systems tile
+```
+
+你的瓦片永远是 systems tile。值变了，链接不变。
+
+---

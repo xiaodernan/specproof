@@ -39098,3 +39098,37 @@ draft#2    → 0.00s · 5600/14  (重复命中)
 * URL `xiaodernan.github.io/` 当前响应正常 200 · 字节 39,237；
 * Volume LXXXIV《墙上的里程 · The Miles on the Wall》入册（zh/en 对称）→ worldbook **91 卷**（本轮 +1）；chronicle 1,675 节；
 * court 永不缓存；「密码 123 全员进管理员」永久否决；Court Lock 机器墙🔒 锁 #4D 未动（4117d2b0ca5fb23a）。
+
+## #1875 《隐写的一行》：portfolio dry-run 真敲 · sync_portfolio.py 一个实际 bug 修正 · Dashboard「本月实敲」条落地 · Volume LXXXV
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、dry-run 真敲（gitignored artifacts）
+
+`scripts/sync_portfolio_dryrun.py`（新增）：
+`python scripts/sync_portfolio_dryrun.py`
+→ `sync_portfolio.py` 退 0 · `.github-sync.json` 1,389 B / `latest.md` 512 B / `products.json` 3,928 B ⇒ **5,863 B** · `preview.json` (`artifacts/portfolio-data-dryrun/`) · **0 推** · `PORTFOLIO_TOKEN` 未设
+
+**`artifacts/` 已被 .gitignore 封住；推送从未发生。**
+
+### 二、顺手修的真 bug
+
+* `scripts/sync_portfolio.py`：`_ledger_first_heading()` 只拿 `text[-6000:]` 里第一个 `## #N` 匹配——4 个提交前的 entry（`#1870`）顶替了最新的 entry（`#1874`）。
+  顺着本世界书重查官方 edit（`tail` pattern self-checked）——已修：扫 `finditer`，取 **最后一个** match；2026-11-15T19:21Z 复敲 → `latest_ledger_entry` 拿到 `#1874`。
+  **这种 bug 不是cosmetic——是「会推上个人主页并把仓库最新刻度缩进 4 个提交前」级别。**
+
+### 三、Dashboard 挂入「本月实敲」一条（#/dashboard 顶端 quickstart 之上）
+
+| 资产 | 值 |
+|---|---|
+| 证据件 | 3 |
+| 请求数 | **576 / 576 · 2xx/3xx** |
+| 比例 | **100.0%**（不是这栏文案画出的，是这一行现场 `evidence.json` 累计出来的） |
+| UI | **533/533** · build ✅ 951ms · tsc 0。
+
+### 四、诚实边界
+
+* 仍未推 portfolio；**是否同意每周推送，只由 `PORTFOLIO_TOKEN` 触发**——本仓库从来不 mint；
+* sync_portfolio.py 只 read-out + re-write artifacts (gitignored) · **无网络 · 无 token · 无 profile 路径**；
+* Volume LXXXV《隐写的一行 · The Steganographic Line》入册 → worldbook **92 卷**（本轮 +1）；chronicle 1,676 节；
+* court 永不缓存 · 「密码 123 全员进管理员」永久否决。

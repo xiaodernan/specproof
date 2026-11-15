@@ -48,7 +48,8 @@ def _ledger_first_heading() -> str:
     text = (ROOT / "docs" / "operations" / "DEEP_OPTIMIZATION_PLAN.md").read_text(encoding="utf-8")
     # Latest entry is appended at EOF — take the tail and scan for the last ## number heading.
     tail = text[-6000:]
-    m = re.search(r"\n## (#\d+[^\n]+)", tail)
+    matches = list(re.finditer(r"\n## (#\d+[^\n]+)", tail))
+    m = matches[-1] if matches else None
     return m.group(1) if m else "(none)"
 
 
