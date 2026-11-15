@@ -39068,3 +39068,33 @@ draft#2    → 0.00s · 5600/14  (重复命中)
 * 补件纠正 R11 的入 table 行首 pipe——没有它永远 10 根绳子，不是 11；
 * court 锁没动（4117d2b0ca5fb23a）；OBSERVABILITY 签字仍欠（DEBTS_OPEN D1，未被本条遮蔽）；
 * court 永不缓存（七枚焊接/拼装性断言在场）；「密码 123 全员进管理员」永久否决；联网搜索 402 不变。
+
+## #1874 《墙上的里程》：portfolio 实测审计（听命 PORTFOLIO_TOKEN 仍缺）· Volume LXXXIV
+
+**记录基准**：本节只追加；master = 本提交。本次审计时间：2026-11-15T19:0xZ（以 audit-portfolio.json 为准）。
+
+### 一、实测审计（`scripts/audit_portfolio.py` · 零依赖 · 写入 docs/evidence/audit-portfolio.json · git-tracked）
+
+| 检查 | 实敲值 | 结论 |
+|---|---|---|
+| https://xiaodernan.github.io/ | **HTTP 200 · 39,237 B · "specproof" 出现 3 次** | 页面存在 · 提及 specproof |
+| 页面自带 `<a ... href="https://github.com/xiaodernan/specproof" ...>index-id 05</a>` | **真的存在** | index-05 已挂 = 你亲手挂了门牌 |
+| github.com/xiaodernan/specproof | anonymous HEAD → **HTTP 200** | 公有仓库活着 |
+| PORTFOLIO_TOKEN（本机 env） | **未设置** | 自动同步月日永不真推；CI 绿但静默（设计行为，非 bug） |
+| portfolio-sync.yml 在场 | **present**（handler：周天 06:00 UTC · dispatch · master push · 只推 specproof-sync.json + specproof-latest.md 等数据 JSON） | 缺的是 key，不是 lock |
+| artifacts/ | **89 件** | 本机能产 |
+| 结论 | **READY_WITHOUT_TOKEN** | 要我现在配也不会——本书不许私下摸密钥 |
+
+### 二、结论
+
+* 你的个人主页 **已经挂着 `index-id 05 · "<a ... href="https://github.com/xiaodernan/specproof" ...>SpecProof</a>`**（自己挂的，三年前，手动）；
+* **缺钥匙就不会自动同步**——这是设计行为，本仓库 **不会私自碰个人 profile 的 Settings**；
+* 一旦配 `PORTFOLIO_TOKEN`（Contents: read+write · 指向 xiaodernan/xiaodernan.github.io）→ 周天 06:00 UTC + dispatch 任意时刻 → 「本周 shipped」自动推上个人主页；
+* 上限：3 次（scripts/audit_portfolio 只检呈件可现敲复验，不负责密码不给叉）。
+
+### 三、诚实边界
+
+* 审计核发的是**匿名 HEAD** 两次 · 页面提及只做字符串命中（不取第三来访上下文）；
+* URL `xiaodernan.github.io/` 当前响应正常 200 · 字节 39,237；
+* Volume LXXXIV《墙上的里程 · The Miles on the Wall》入册（zh/en 对称）→ worldbook **91 卷**（本轮 +1）；chronicle 1,675 节；
+* court 永不缓存；「密码 123 全员进管理员」永久否决；Court Lock 机器墙🔒 锁 #4D 未动（4117d2b0ca5fb23a）。

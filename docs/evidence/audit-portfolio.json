@@ -1,0 +1,38 @@
+{
+ "version": 1,
+ "generated_utc": "2026-11-15T19:18:36+00:00",
+ "verdict": "READY_WITHOUT_TOKEN",
+ "checks": [
+  {
+   "id": "https://xiaodernan.github.io/ reachable",
+   "ok": true,
+   "detail": "HTTP 200, 42905 bytes"
+  },
+  {
+   "id": "github.com/xiaodernan/specproof exists (anonymous HEAD)",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "id": "page mentions specproof (spot-check copy)",
+   "ok": true,
+   "detail": "page contains 'specproof'"
+  },
+  {
+   "id": "PORTFOLIO_TOKEN env var set on this host",
+   "ok": false,
+   "detail": "NOT SET — sync never pushes; workflow stays green"
+  },
+  {
+   "id": "portfolio-sync.yml present in repo",
+   "ok": true,
+   "detail": "present"
+  },
+  {
+   "id": "artifacts/ folder at build time",
+   "ok": true,
+   "detail": "artifacts/ exists (89 file(s))"
+  }
+ ],
+ "anchor": "scripts/audit_portfolio.py · .github/workflows/portfolio-sync.yml"
+}

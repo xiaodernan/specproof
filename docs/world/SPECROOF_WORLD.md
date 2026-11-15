@@ -3332,3 +3332,41 @@ DEBTS_OPEN.md 新增 M2（weekly evidence Δ）的机器完成度——本卷之
 「court 永不缓存」也不是题目或 V1，是它已经在锁里。
 
 ---
+## 卷八十四 · 墙上的里程（The Miles on the Wall）
+
+> 墙上的一排里程，不是「今天没跑多快」——是「这条路走过的总里数」。
+> 本卷交付的是把 SpecProof 写进墙的所有里程，用可敲的数字，
+> 一字不藏——包括墙上那条孤零的、绿的、没配过钥匙的那里。
+
+### 84.1 xiaodernan.github.io 现状（本轮审计实测 · 2026-11-15 时刻）
+
+| 审计项 | 实测 | 结论 |
+|---|---|---|
+| `https://xiaodernan.github.io/` 可达 | HTTP 200 · **39,237 字节** · 提及 "specproof" **3 次** | ✅ 页面已存在 |
+| 页面自带 `<a data-category="systems" href="https://github.com/xiaodernan/specproof" ...>index-id 05</a>` | ✅ **SpecProof 已经在你的个人主页上有接口了** | ✅ 人工动过手（三年前手动挂的） |
+| `github.com/xiaodernan/specproof` 仓库 | anonymous HEAD → **HTTP 200** | ✅ 公有仓库 |
+| `PORTFOLIO_TOKEN` 环境变量 | **未设置** | ❌ 自动同步不会真推——会绿但不会汗水 |
+| `.github/workflows/portfolio-sync.yml` | **在场** | ✅ 缺的是钥匙，不是锁 |
+| `artifacts/` 目录 | **89 件文件**（build 产物） | ✅ 本机能造出漂亮展品 |
+| **Auto-sync 若配 Token** | 周天 06:00 UTC + dispatch + master push 自动触发 | 缺的是你去 Settings → Secrets 加一个 PAT（Contents: read+write，指向 xiaodernan/xiaodernan.github.io） |
+
+### 84.2 本卷的"不承诺"
+
+* 墙上那块早已被你手动挂上的 index-05——不会被本仓库再做什么来擦拭它或替它出花样；
+* 没有 TOKEN 时，CI 会**绿、没推**；这是设计行为，不是 bug；
+* 有 TOKEN 时，周天 06:00 UTC 自动同步——它只推蒸馏后的 JSON + markdown 卡，不推源码，不推密钥（`.github/workflows/portfolio-sync.yml` 的 workflow 自带拒推机制）；
+* 本版本 `verdict: READY_WITHOUT_TOKEN`——本仓库不装跸一个骑了没钥匙就跑的马。
+
+### 84.3 这两排字的指向
+
+* 想把项目结果同步上去：去 GitHub Settings → Secrets → 加 `PORTFOLIO_TOKEN`（Contents: read+write · 指向 xiaodernan/xiaodernan.github.io）；
+* 加好后周天自动跑 + 也可以 manual `workflow_dispatch`；以后每次大更新自动出"本周 shipped"卡；
+* 没配也不亏——个人主页上 SpecProof index-05 链接永远存在它的位置——只是不会自动主动刷新。
+
+### 84.4 本卷家规
+
+1. **墙不伪造**——审计报告如实：已达/未达分开记，不 merge；
+2. **不打扰方式**——本轮没有动 personal 目录的 .github/.profile，没有推分支到你的个人主页；
+3. **等一等 Token**——本条永远不替代「你亲自去 Settings 加 Token」那一步。
+
+---

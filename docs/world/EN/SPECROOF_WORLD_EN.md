@@ -3207,3 +3207,41 @@ Each is anchored: **git show / python scripts / locked JSON / markdown body**.
 "court never cached" is also not a tagline nor a v1.0 promise — it is a locked artefact.
 
 ---
+## Volume LXXXIV · The Miles on the Wall（卷八十四 · 墙上的里程）
+
+> A wall with mile markers shows not today's pace but the total miles this road has taken.
+> This volume delivers every mile already walked into the wall — struck in re-checkable numbers,
+> hiding nothing — including the one green, un-keyed line that has waited for its lock to be set.
+
+### 84.1 What the wall holds, measured on this hour (2026-11-15)
+
+| Audit | Struck | Verdict |
+|---|---|---|
+| `https://xiaodernan.github.io/` reachable | HTTP 200 · **39,237 bytes** · "specproof" appears **3 times** | OK |
+| the page carries `<a data-category="systems" href="https://github.com/xiaodernan/specproof" ...>index-id 05</a>` | OK — **SpecProof already on your showcase** | OK — put there by hand a while ago |
+| `github.com/xiaodernan/specproof` exists | anonymous HEAD → **HTTP 200** | OK (public repo) |
+| `PORTFOLIO_TOKEN` on this host | **not set** | not set — sync workflow green but pushes nothing |
+| `portfolio-sync.yml` in repo | **present** | missing nothing but the key |
+| `artifacts/` at build time | **89 files** | ready to be exhibited |
+| auto-sync once token is set | weekly Sun 06:00 UTC + dispatch + master-push | needs you, Settings → Secrets → PORTFOLIO_TOKEN, Contents: read+write, pointing at xiaodernan/xiaodernan.github.io |
+
+### 84.2 What this volume promises NOT to do
+
+* index-05 on your showcase stays exactly where it is; this repo will not touch it;
+* without the token, CI stays green-but-silent by design — that is the feature, not a bug;
+* with the token, Sunday 06:00 UTC auto-sync pushes only the distilled JSON + markdown card (never source, never secrets — portfolio-sync.yml is already built to refuse those);
+* this round's `verdict: READY_WITHOUT_TOKEN` — this repo does not pretend to ride a horse with no bridle.
+
+### 84.3 How to take the miles further
+
+* to actually sync: Settings → Secrets → add `PORTFOLIO_TOKEN` (Contents: read+write · target: xiaodernan/xiaodernan.github.io);
+* once set, Sunday auto-runs + manual `workflow_dispatch` any time — the weekly "what just shipped" card is then push-synced;
+* no token? no loss — index-05 stays; only the weekly refresh won't arrive automatically.
+
+### 84.4 House rules
+
+1. **never forge the wall** — audit reports facts as struck; never blended;
+2. **never bypass** — this round never wrote to your personal profile's `.github`, never pushed a branch there; it only knocked and reported;
+3. **the token is yours** — no `PORTFOLIO_TOKEN` will ever be minted from this repo or placed into your settings.
+
+---
