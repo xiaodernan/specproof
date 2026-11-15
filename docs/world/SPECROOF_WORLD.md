@@ -2908,3 +2908,37 @@ CSS：screen 不显示 · print 才显示 · 边纸不属于卡里
 本卷成了历史。在这之前，它是照在墙上的那三行字。**不是诗，是户型图。**
 
 ---
+## 卷七十三 · 长夜灯半（The Midnight Lamplighter）
+
+> 灯半之前是灭，灯半之后是亮——谁也不替谁管熄。
+> 本卷把「这个项目此刻离活着还有多远」装成一盏灯——
+> 挂在舆图最显眼的位置：不是为了提醒谁，是为了让谁都别再问。
+
+### 73.1 长夜灯（挂 #/atlas）
+
+| 灯 | 实测（2026-11-15T17:43Z） | 灯色 |
+|---|---|---|
+| 真·fleet 遥测 · OBSERVABILITY.md 签字 | **awaiting-signature** | 琥珀（缓慢脉动） |
+| 每周一敲门 · weekly-stress.yml | **merged** | 玉绿 |
+| 端口 8000 · 此刻谁在答 | **port-free**（URLError 拒绝连接） | 灰 |
+
+三盏灯和 #/last-call 的欠签行共享**同一只 json**（`unsigned.json`）——
+**一次敲，到处亮**；不问、不查、不编——审计于本机，灯就是灯。
+
+### 73.2 长夜的家规
+
+1. **不造第二只眼睛**——WeeklyVoyage 和 MidnightLamp 同源于 unsigned.json；
+2. **琥珀可以脉动**——只有"等待你签字"那盏允许呼吸灯（reduce-motion 关闭）；其余两盏永不动；
+3. **悬停显示全局态**——title 完整显示 status 值和 detail；点击本灯 = 跳 #/gazette；
+4. **灯不是 SLO**——它没有任何 SLA 承诺——"灯半亮了"只是记账，不是服务。
+
+### 73.3 航程图（至 #1858）
+
+```
+scripts/audit_unsigned.py        → unsigned.json（live 敲）
+     ↓  同源import
+#/last-call：欠签 live chips（#1857）
+#/atlas：**长夜灯 ×3**（本卷 · #1858）
+```
+
+---

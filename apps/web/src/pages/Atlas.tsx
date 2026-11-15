@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useI18n, type Locale } from "../i18n";
 import { ATLAS_REGIONS, EXPEDITIONS, type AtlasRegionId } from "./atlas.copy";
 import stats from "./repoStats.json";
+import MidnightLamp from "./MidnightLamp";
 import { ProductIcon } from "../ui/ProductIcon";
 import "../styles/atlas.css";
 
@@ -229,6 +230,9 @@ export default function Atlas() {
           ))}
         </div>
       </section>
+
+      {/* ── The Midnight Lamps: the audit's three lights ── */}
+      <MidnightLamp />
 
       {/* ── Live landmarks: real numbers, re-derivable ── */}
       <section className="atlas-landmarks">

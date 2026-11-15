@@ -2782,3 +2782,37 @@ If one day a shadow lit — ① a rack boots specproof-app, ② a human signs OB
 this volume becomes history. Until that day, it stays as three lines of print on the wall. **Not a poem — a floor plan.**
 
 ---
+## Volume LXXIII · The Midnight Lamplighter（卷七十三 · 长夜灯半）
+
+> Before the mid lamp is dark; after it, it is light — neither one asks the other to change.
+> This volume folds "how far this project is from being alive right now" into one lamp —
+> hung on the most visible coordinate of the Atlas: not to warn anybody, but so nobody has to ask.
+
+### 73.1 The Midnight Lamp (anchored at #/atlas)
+
+| Lamp | Struck live (2026-11-15T17:43Z) | Colour |
+|---|---|---|
+| real fleet telemetry · OBSERVABILITY.md sign-off | **awaiting-signature** | amber (slow pulse) |
+| the Monday knock · weekly-stress.yml | **merged** | jade |
+| port 8000 · who answers right now | **port-free** (URLError, refused) | grey |
+
+The three lamps and the #/last-call unsigned row drink from **the same JSON** (`unsigned.json`) —
+**one strike lights everywhere**; not polled, not cached, not fabricated — audited on this host, a lamp is a lamp.
+
+### 73.2 House rules of the midnight
+
+1. **no second eye** — WeeklyVoyage and MidnightLamp share one `unsigned.json`;
+2. **only amber may pulse** — that lamp's glow is reserved for "awaiting your signature"; the other two never move;
+3. **title carries full text** — hover reveals the complete status + detail;
+4. **a lamp is not an SLO** — no service commitment whatsoever; "half-lit" is a ledger, not a promise of service.
+
+### 73.3 The chart (through #1858)
+
+```
+scripts/audit_unsigned.py        → unsigned.json (live struck)
+     ↓  same import
+#/last-call: unsigned live chips (#1857)
+#/atlas:    **The Midnight Lamps ×3** (this volume · #1858)
+```
+
+---

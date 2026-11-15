@@ -38720,3 +38720,28 @@ python scripts/live_lane_probe.py
 * Volume LXXII《灯影千重 · The Many Shadows of the Lamp》入册（zh/en 对称）→ 世界书 **79 卷**（本轮 +1）；chronicle 1,662 节；
 * UI 533/533 stays · gate 51/51 stays · court 永不缓存；
 * lexicon.test 通过（14→15 条不钉死数量）；「密码 123 全员进管理员」永久否决。
+
+## #1862 《长夜灯半》：#/atlas 新增「长夜灯 · The Midnight Lamps」三盏（同源 unsigned.json）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、改动
+
+* 新组件 `apps/web/src/pages/MidnightLamp.tsx` — 挂 `#/atlas`（活体地标之前）：
+  * 三盏灯**与 WeeklyVoyage 共享同一只 `unsigned.json`**（同源 import，一次敲处处亮，零重复审计）；
+  * 灯：`signature-block-found`/amber（等待签字，琥珀缓慢脉动 · reduce-motion 关闭）/ `merged`玉绿 / `port-free`灰 / `other-project-answering`红；
+  * hover title = 完整 status + detail（不截断）；
+* `auditLights.css` — 暗金描边·new · 只有「等签字」允许呼吸 · 其余两盏永不动；
+* Atlas.tsx 仅 +2 行（import + <MidnightLamp />）；
+* UI **533/533** · build 8.68s（本机高负荷时长）· tsc 0。
+
+### 二、它缝补了什么
+
+用户第六节说「巨大而不迷路」——本轮把"这个项目此刻离活着还有多远"挂在世界地图上最显眼的一块布，**不许在走迷宫时不知道东边有没有灯**。
+
+### 三、诚实边界
+
+* 三盏灯的审计是**构建期戳记**（本次 = 2026-11-15T17:43Z）；
+* 灯不是 SLO、不是欠条豁免、不是签字——它是没有填写的签字行的等效视觉，仅此而已；
+* Volume LXXIII《长夜灯半 · The Midnight Lamplighter》入册（zh/en 对称）→ 世界书 **80 卷**（本轮 +1）；chronicle 1,663 节；
+* court 永不缓存；「密码 123 全员进管理员」永久否决；OBSERVABILITY 签字仍欠（琥珀灯就是那件事）。
