@@ -2107,3 +2107,38 @@ Every notice card tells the truth: these seven "downs" are not failures — they
 These words are not forgotten — they are deliberately left blank. Blank, until a human signs.
 
 ---
+## Volume LV · The Quiet Ensemble（卷五十五 · 无声的合奏）
+
+> The score is written, the parts are printed — but the orchestra has not assembled.
+> This volume writes down the scene of a "seemingly performing ensemble" where the players are missing — not to hide the absent, but to name every empty chair.
+
+### 55.1 Three made it onto the stage; seven chairs stand empty
+
+| Present | Section | Evidence |
+|---|---|---|
+| prometheus | self-reference | localhost:9090/metrics · up (container's own self-check) |
+| rabbitmq | double bass | rabbitmq:15692/metrics/per-object · up (plugin enabled by the image) |
+| local-host-api | concertmaster | 192.168.1.5:8000/metrics · up (entered in #1843) |
+
+The seven absentees, see #1841 for the full ledger: api / worker / outbox-relay / notify-relay / invoice-cron / otel-collector / specproof-edge — every one of them an honest "lookup … no such host", an honest down.
+
+### 55.2 A snapshot is not a broadcast — but it must be true
+
+This volume nails down one house rule: build-time numbers must never dress as live telemetry.
+
+The Morning Gazette (#/gazette) now carries a column called THE LIVE LANE:
+seven cells, every number from the 2026-11-16 probing session — liveness suite, SPA 200, 48/48 zero errors, counter 5→55, no-key 503, Prometheus 3/10 up, outbound search 402.
+Each cell is labelled "build-time snapshot"; it reports precisely what the live lane knows, and nothing more.
+
+### 55.3 Whose hand holds the baton
+
+The tempo comes from git: commit → build_repo_stats / build_chronicle → JSON → page.
+The one never beating time: Alertmanager (receiver = null) — it sends nothing, and this book forbids it from pretending it ever did.
+The one who may never mount the podium: the "password 123" baton — RBAC fail-closed, banned by the hall.
+
+### 55.4 The day the symphony will actually be performed
+
+Not the day the grid is filled — the day every cell can say "who knocked at what hour, at what minute."
+Until then, this score stays on the stand: **no fake players in empty chairs, no attendance marks for the absent.**
+
+---

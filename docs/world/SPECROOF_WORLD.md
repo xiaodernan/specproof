@@ -2234,3 +2234,38 @@ zh 与 en 的缓存计数不一样这一事件不属于一致性实验的成功�
 这些字不是被忘了——是被刻意留空。等真人签字那天，空白处才会落字。
 
 ---
+## 卷五十五 · 无声的合奏（The Quiet Ensemble）
+
+> 乐曲写下了，乐谱印好了，但乐团没到齐。
+> 这一卷为「看起来合奏、其实还差人」的场景写谱——不是遮住缺的人，是把每个缺席的音位标出名字。
+
+### 55.1 台上来了三位，其余七位缺席
+
+| 到场者 | 声部 | 实证 |
+|---|---|---|
+| prometheus | 自述 | localhost:9090/metrics · up（容器自带自检） |
+| rabbitmq | 低音部 | rabbitmq:15692/metrics/per-object · up（插件随镜像启用） |
+| local-host-api | 领奏 | 192.168.1.5:8000/metrics · up（#1843 入 scrape） |
+
+缺席七位（说明牌见 #1841 账本备查）：api / worker / outbox-relay / notify-relay / invoice-cron / otel-collector / specproof-edge —— 全部 lookup no such host，全部如实 down。
+
+### 55.2 快照不是直播——但快照要真
+
+本卷同时钉死这条家规：build-time 的数字不能装成 live 的。
+
+铁证晨报（#/gazette）新增「真车道 · THE LIVE LANE」一栏：
+7 块格子的每一个数字都来自 2026-11-16 的实敲——存活三件套、SPA 200、48/48 0 err、计数器 5→55、无钥匙 503、Prometheus 3/10 up、外网搜索 402。
+每格都署明「构建期快照」，不假装是此刻的遥测；活体车道只写它真正知道的事。
+
+### 55.3 指挥棒在谁手里
+
+节奏由 git 给出：提交 → build_repo_stats / build_chronicle → JSON → 页面。
+谁永远不在打节拍：Alertmanager（receiver = null）——它不发通知，本书也不许它假装发过。
+谁永远不能上台：「密码 123」指挥帽——RBAC fail-closed，殿规禁止。
+
+### 55.4 交响曲真正要演奏完的那一天
+
+不是塞满格子的那天，而是每一格都能说出「今天几点几分敲开的」的那天。
+在那天之前，这本曲谱留在台面上：**空位不加假人，缺席不标出勤。**
+
+---

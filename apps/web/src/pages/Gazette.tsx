@@ -122,6 +122,55 @@ export default function Gazette() {
           </ul>
         </aside>
       </div>
+
+      {/* ── The Live Lane: measured, never imagined ─────────── */}
+      <section className="gazette-lane" aria-label={zh ? "真车道 · 2026-11-16 实敲快照" : "The Live Lane (measured 2026-11-16)"}>
+        <div className="gazette-lane-head">
+          <p className="gazette-lane-kicker">{zh ? "真车道 · 2026-11-16 实敲" : "THE LIVE LANE · measured 2026-11-16"}</p>
+          <p className="gazette-lane-sub">{zh ? "构建期快照：本栏每一个数字都可复验，但不冒充实时读数——进程活着才亮，进程退出即如实 down。" : "A build-time snapshot: every figure below is re-checkable, none of it pretends to be live traffic. Up means the process is up; when it exits, Prometheus says down — by design."}</p>
+        </div>
+        <div className="gazette-lane-grid">
+          <div className="gazette-lane-cell">
+            <span className="gazette-lane-k">{zh ? "存活探针" : "LIVENESS"}</span>
+            <strong>{zh ? "/health 三件套全 true" : "/health: suite all true"}</strong>
+            <code>mysql · redis · agent_jobs — 192.168.1.5:8000</code>
+          </div>
+          <div className="gazette-lane-cell">
+            <span className="gazette-lane-k">{zh ? "SPA 直出" : "SPA SHIPS"}</span>
+            <strong>{zh ? "/ 与 /manual → 200" : "/ and /manual → 200"}</strong>
+            <code>1,490 bytes · zh-CN · 服务端 fallback</code>
+          </div>
+          <div className="gazette-lane-cell">
+            <span className="gazette-lane-k">{zh ? "并发压测" : "LOAD BENCH"}</span>
+            <strong>{zh ? "48/48 · 0 err" : "48/48 · 0 err"}</strong>
+            <code>p99 587ms · 此前一组 192 req 亦 0 err</code>
+          </div>
+          <div className="gazette-lane-cell">
+            <span className="gazette-lane-k">{zh ? "计数器入账" : "COUNTER DELTAS"}</span>
+            <strong>{zh ? "5 → 55" : "5 → 55"}</strong>
+            <code>specproof_http_requests_total · 逐请求计入</code>
+          </div>
+          <div className="gazette-lane-cell">
+            <span className="gazette-lane-k">{zh ? "假闭实证" : "FAIL-CLOSED"}</span>
+            <strong>{zh ? "无钥匙 → 503" : "no key → 503"}</strong>
+            <code>/api/v1/llm/usage · /admin/users · /api/v1/health</code>
+          </div>
+          <div className="gazette-lane-cell">
+            <span className="gazette-lane-k">{zh ? "抓取入殿" : "SCRAPE ENTRY"}</span>
+            <strong>{zh ? "local-host-api · up" : "local-host-api · up"}</strong>
+            <code>{zh ? "3/10 · 本次 #1843 入 scrape（另两块匾：prometheus · rabbitmq）" : "3/10 · entry landed in #1843 (plus prometheus and rabbitmq)"}</code>
+          </div>
+          <div className="gazette-lane-cell">
+            <span className="gazette-lane-k">{zh ? "外网取数" : "OUTBOUND FETCH"}</span>
+            <strong>{zh ? "搜索 = HTTP 402" : "search = HTTP 402"}</strong>
+            <code>{zh ? "本栏数字全部来自本机实敲 + git + docker + Prometheus API" : "all figures from local probing + git + docker + the Prometheus API"}</code>
+          </div>
+        </div>
+        <div className="gazette-lane-foot">
+          <span>{zh ? "完整命令与改前/改后两张表：docs/operations/LIVE_PROBE_2026-11-16.md · 编年史 #1843" : "Full commands and before/after tables: docs/operations/LIVE_PROBE_2026-11-16.md · chronicle #1843"}</span>
+          <a className="gazette-pill gazette-lane-cta" href="#/chronicle">{zh ? "读编年史 →" : "Read the chronicle →"}</a>
+        </div>
+      </section>
     </div>
   );
 }

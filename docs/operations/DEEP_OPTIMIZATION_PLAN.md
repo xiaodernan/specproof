@@ -38213,3 +38213,30 @@ python scripts/live_lane_probe.py
 * Observability 签字仍欠；PORTFOLIO_TOKEN 仍欠；✅ 本次 scrape 落地但**没有**改变任何「生产环境」宣称——OBSERVABILITY.md 的生产承诺一字未动；
 * `local-host-api` 会随宿主进程退出变为 down——**不修**，这是 Prometheus 设计语义；
 * 本提交之前 `.env` 仅含 `LLM_*`，**无**任何 API key；`.local/llm.json` 的 sk- 串未入库、未入账、未入提交信息。
+
+## #1844 《铁证晨报》新增「真车道 · THE LIVE LANE」：本仓库第一次把实敲数字嵌进页面（诚实标注为 build-time 快照）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、改动
+
+* `apps/web/src/pages/Gazette.tsx` 新增 full-width `.gazette-lane` 区块（位于 BY THE NUMBERS 之后、页脚之前）：
+  7 格实证：存活三件套（mysql·redis·agent_jobs）· SPA / 与 /manual 200 · 48/48 压测 0 err · `specproof_http_requests_total` 5→55 ·
+  无钥匙 fail-closed 503（llm/usage · admin/users · /api/v1/health）· Prometheus **3/10 up**（本次 #1843 新入的 `local-host-api`）·
+  外网搜索 **HTTP 402**（本环境唯一可用联网通道仍是 wkapi.pro 的 LLM 车道）；
+  页脚 CTA → `#/chronicle`；**每格标注「构建期快照」**——不是实时读数；
+* `apps/web/src/styles/gazette.css` 追加等宽骨架：grid auto-fit minmax(178px,1fr) · 冰蓝（#9ecbff）细线对比金色主栏；
+* worldbook → **62 卷**（Volume LV《无声的合奏 · The Quiet Ensemble》zh/en 对称）；chronicle 1,645 节；gate 51/51；UI **182/182** ✅ 573ms build · tsc 0。
+
+### 二、它到底回答了什么问题
+
+用户三番两次要求「尽可能加入联网搜索得到的真实数据、真实实验数据」——本轮给出**唯一诚实路径**：
+不是把假数据贴上网，而是把本机实敲过的 7 个数字印上报纸，并在每一格写清「这是 2026-11-16 的快照，进程退出它就 down」。
+「真」不是靠文案，是靠每一格都可以被下一位访客重新敲开验证。
+
+### 三、诚实边界
+
+* 快照页**不替代** live dashboard：没有 SSE、没有 websocket、没有自动刷新；
+* 数字来源：2026-11-16 实敲（LIVE_PROBE_2026-11-16.md 存档 + #1843 入 scrape）；
+* 「密码 123 全员进管理员」永久否决；Observability 签字仍欠；PORTFOLIO_TOKEN 仍欠；
+* web 搜索仍 402——本环境的出网闸门状态原样登记，不做美化。
