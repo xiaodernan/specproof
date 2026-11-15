@@ -39132,3 +39132,28 @@ draft#2    → 0.00s · 5600/14  (重复命中)
 * sync_portfolio.py 只 read-out + re-write artifacts (gitignored) · **无网络 · 无 token · 无 profile 路径**；
 * Volume LXXXV《隐写的一行 · The Steganographic Line》入册 → worldbook **92 卷**（本轮 +1）；chronicle 1,676 节；
 * court 永不缓存 · 「密码 123 全员进管理员」永久否决。
+
+## #1876 《链印法约》：audit_graph.py——五盏灯一口气敲完 · CLEAR · Volume LXXXVI
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付物
+
+* `agent/graphs/auditor_graph.py` — 五链节 LangGraph StateGraph：unsigned → court_lock → evidence → scratch_residue → portfolio → verdict → report → END；
+  链节一（unsigned）= four-lit lamps 直敲 · 链节二（court_lock）hashlib 切片校验 → lock 4117…LOCKED · 链节三（evidence）JSON 交叉物准 7 验 · 链节四（scratch）实检 21 件 eval 证据件 · 链节五（portfolio）匿名 HEAD + PORTFOLIO_TOKEN 存在性 yes/no；
+  链节六（verdict）任一出口非零即 CRACKED · 链节七（report）写 `docs/evidence/audit-chain.md`（入库）；
+* `tests/unit/test_audit_graph.py` — **2/2**：full 5-lane 敲通 + report 五行全 · monkeypatch court_lock exit=2 ⇒ CLEAR→CRACKED；
+* `#/audit_graph` 没有页面——**内层图是验证场**，verdict 同态可手敲；
+* 本轮 full-run verdict：**CLEAR · 5/5**（audit 五链全部通过，LOCKED）。
+
+### 二、家规声明
+
+* 五条链节每一步都能单独手敲：`python scripts/audit_unsigned.py` 等；子图不演戏、不偷取数据、verdict 不复算；
+* port-free 不被粉饰为"没事"——它就是 unsigned.json 里的灯色之一；READY_WITHOUT_TOKEN 永远被列入 chain 的报告；
+* CLEAR-WITH-NOTES 出现时读者自己看 DEBTS_OPEN 足迹——不另设状态机。
+
+### 三、诚实边界
+
+* audit_portfolio.py 真敲两个 HTTPS（xiaodernan.github.io HTTP 200 · 匿名 HEAD repo = 200）；
+* Volume LXXXVI《链印法约 · The Mark of the Chain》入册（zh/en 对称）→ worldbook **93 卷**；chronicle 1,677 节；
+* court 永不缓存；Court Lock 不动（4117d2b0ca5fb23a）。

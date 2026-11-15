@@ -3419,3 +3419,46 @@ xiaodernan.github.io  index-id-05 · systems tile
 你的瓦片永远是 systems tile。值变了，链接不变。
 
 ---
+## 卷八十六 · 链印法约（The Mark of the Chain）
+
+> 印章盖上去之前，整条链要链得起来——
+> 这不是展示春天，而是说「每个人、每栏都要从这里缴完税」。
+> 本卷交付的是：**一张五色印章，一口气能敲完。**
+
+### 86.1 审计链子图 `agent/graphs/auditor_graph.py`（#1876 落库）
+
+```
+unsigned → court_lock → evidence → scratch_residue → portfolio → verdict → report → END
+```
+
+五枚链节——正好五盏灯（audit_unsigned 真敲 + audit_court_lock 机器打 + audit_evidence 交叉验证 + audit_scratch_residue 评测残件 + audit_portfolio 对个人主页的匿名可达性）
+
+| 链节 | 读 | 输出 |
+|---|---|---|
+| unsigned | four lit lamps | 4 盏皆绿 → `four-lit lamps live` |
+| court_lock | 4117d2b0ca5fb23a | `LOCKED` |
+| evidence | audit_evidence.py | `CONSISTENT`（七验 · § #1867） |
+| scratch_residue | audit_scratch_residue.py | `intentional evaluation evidence · do not delete, 21 files` |
+| portfolio | audit_portfolio.py | `READY_WITHOUT_TOKEN`（等缺的就是那把钥匙） |
+| **verdict** | 全绿 | **CLEAR** · 任一半红 → **CRACKED** |
+| **report** | `docs/evidence/audit-chain.md` | 一次可访 · 入 git |
+
+本卷落稿时现敲：**CLEAR · 5 lanes · 0 localhost 注入**。
+
+### 86.2 测试（`tests/unit/test_audit_graph.py` · 2/2 ✅）
+
+* **全 lanes 跑通 + report 含五行 + verdict 合法**；
+* **monkeypatch court_lock 到 exit=2 ⇒ 整链翻 CRACKED**——不给护短留活口。
+
+### 86.3 家规
+
+1. **子图不演戏**——它真敲脚本，脚本真写文件，文件真绿/真红；
+2. **`verdict` 只读一次**——在 REPORT 前读一次（看 chain 的样本全片）；
+3. **`CLEAR-WITH-NOTES` 第一次出现即明亮**——READY_WITHOUT_TOKEN 不算 CRACKED，但永远被记进 `audit-chain.md` 的脚印；
+4. **不藏不跳**——`verdict=CLEAR` 不是「完成了」——它是「还没裂」。
+
+### 86.4 为新访客一句话
+
+> **不是做了多少次，是从每个栏里敲都是铁。"**
+
+---

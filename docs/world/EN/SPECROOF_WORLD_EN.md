@@ -3293,3 +3293,46 @@ xiaodernan.github.io  index-id-05 · systems tile
 The tile keeps its spot. Even if the images change, the link stays.
 
 ---
+## Volume LXXXVI · The Mark of the Chain（卷八十六 · 链印法约）
+
+> A stamp must land on a chain that holds —
+> this is not a display of spring, it is a declaration: "every clerk, every ledger, does its tax here, every time."
+> This volume delivers one seal with five faces, and the hammer to strike it whole.
+
+### 86.1 The audit-chain subgraph `agent/graphs/auditor_graph.py` (landed in #1876)
+
+```
+unsigned → court_lock → evidence → scratch_residue → portfolio → verdict → report → END
+```
+
+Five links — matching five lamps (audit_unsigned live · audit_court_lock machine-bar · audit_evidence cross-check · audit_scratch_residue eval-residue review · audit_portfolio's anonymous reachability probe)
+
+| Link | Struck | Output |
+|---|---|---|
+| unsigned | four lit lamps | all green → `four-lit lamps live` |
+| court_lock | 4117d2b0ca5fb23a | `LOCKED` |
+| evidence | audit_evidence.py | `CONSISTENT` (seven cross-checks, § #1867) |
+| scratch_residue | audit_scratch_residue.py | `intentional evaluation evidence · do not delete, 21 files` |
+| portfolio | audit_portfolio.py | `READY_WITHOUT_TOKEN` (the only key missing) |
+| **verdict** | all pass | **CLEAR** · any single red → **CRACKED** |
+| **report** | `docs/evidence/audit-chain.md` | one-look, committed |
+
+Struck at this volume's writing: **CLEAR · 5 lanes · zero leakage.**
+
+### 86.2 Tests (`tests/unit/test_audit_graph.py` · 2/2 ✅)
+
+* full chain + report rows all five + legal verdict enum;
+* monkeypatch court_lock to exit 2 → the whole chain flips **CRACKED** — no courtroom loophole admitted.
+
+### 86.3 House rules
+
+1. **the subgraph never pretends** — it really runs scripts; scripts really write files; files really go green/red;
+2. **`verdict` is read once per pass** — the report freezes that verdict; never re-read mid-fight;
+3. **`CLEAR-WITH-NOTES` shows up honest the moment it appears** — READY_WITHOUT_TOKEN is not CRACKED but it's never erased either;
+4. **no hiding, no skipping** — `verdict=CLEAR` doesn't mean "done"; it means "not cracked yet".
+
+### 86.4 One line for the first visitor
+
+> **Not how many times it was made — but how many links truly hold every single time.**
+
+---
