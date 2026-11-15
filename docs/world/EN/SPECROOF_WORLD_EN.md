@@ -1424,3 +1424,37 @@ With this volume, SpecProof owns its own credential: not an identity given by ot
 After thirty-four volumes, SpecProof's door has a bell that cannot be taken down — not for passers-by, but for itself: knock first to check the bell sounds, then talk about anything else.
 
 ---
+## Volume XXXV · The Demo Room's Door（卷三十五 · 样板间的门）
+
+> There is a permanently locked door in this repository —
+> it is not a hidden showroom; it is **the room every golden case burns in first**;
+> opening it does not entertain you — you will watch 111 cases burn again, one by one, in the same small room.
+
+### 35.1 Facts from inside the room (not promotional copy)
+
+| Item | Figure | Anchor |
+|---|---|---|
+| Total golden cases | **111** | `golden-cases/` (101) + `golden-cases-attribution/` (8) + `golden-cases-crosslang/` (2) |
+| Must be detected | **73** | per-case `ground-truth.json::should_detect` |
+| Severity distribution | BLOCKER 22 · MAJOR 51 · NONE 38 (negative controls) | same |
+| Rebuild script | reruns, deterministic | `scripts/build_golden_scenarios.py` (base/head-v1 tag reproducible repo-wide) |
+| Entry path | one command on your machine | `pwsh scripts/prepare_demo_repo.ps1` / `specproof demo` |
+
+- **are the 111 cases dead fire or living fire**: every case is one commit that walks in, every byte comes from git;
+- **the negative controls (38 NONEs) matter more than the positives**: 38 of them are "nothing to catch, nobody may catch" — an officer brave enough to say "no issue" closes the loop too;
+- **the demo room's door receives no guests** — those who want to see for themselves must knock: the door carries one sentence, "enter, and you will be poked repeatedly".
+
+### 35.2 The four rules of the room
+
+- **every case passes through the sandbox** — base and head are armed separately; `base_pass_head_fail` earns iron-grade first;
+- **every case carries ground truth** — caught = good work; missed = written into the next round; there is no intelligence test here;
+- **every case is auditable** — `git show <hash>:<path>/ground-truth.json` reverses the verdict on demand;
+- **every case is reproducible** — after a rebuild, all 111 still byte-match; rebuildable is the only iron.
+
+### 35.3 The vow of the demo room
+
+**A demo room does not exist for audiences — it exists to catch what you did not see.**
+From volume thirty-five, every door in SpecProof is more than an entry —
+the demo room's door stands where people assume "it's just a demo"; it is the least-knocked door in this repo and its loudest honesty — **if it lies once, the 111 cases in the compendium are void**.
+
+---

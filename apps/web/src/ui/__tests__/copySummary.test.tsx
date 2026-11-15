@@ -45,6 +45,34 @@ describe("buildMarkdownSummary", () => {
     expect(md).not.toContain("null");
   });
 
+  it("produces a Chinese digest with zero EnglishResidue bleeding into the prose", () => {
+    const md = buildMarkdownSummary(
+      {
+        job,
+        summary: {
+          verdict: "VERIFIED",
+          contracts_total: 2,
+          matrix_passed: 2,
+          matrix_failed: 0,
+          matrix_unverified: 0,
+          errors: [],
+        },
+        findings: [
+          { severity: "MAJOR", contract_id: "UNIQUE-01", evidence_type: "static_analysis" },
+        ],
+      },
+      "zh",
+    );
+    expect(md).toContain("## SpecProof 验收");
+    // English-prose-only phrases must not appear in zh output
+    expect(md).not.toContain("Verdict");
+    expect(md).not.toContain("Risk findings");
+    expect(md).not.toContain("not provided");
+    expect(md).not.toContain("Reproduction capsule");
+    // product tokens that must survive both locales
+    expect(md).toContain("#/jobs/verify-abc123");
+  });
+
   it("renders a complete digest in English, not a translated hybrid", () => {
     const md = buildMarkdownSummary(
       {

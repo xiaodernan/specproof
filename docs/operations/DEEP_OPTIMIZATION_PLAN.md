@@ -37160,3 +37160,28 @@ python scripts/stress_smoke.py --target http://127.0.0.1:8000/health --rounds 3 
 * 本轮 agent/tools 页面补的是 "shown to the human while the agent runs" 的文案，证词本身（SSE 帧 / 工具输出）保持原语；
 * 全量 pytest 仍内存受限；chronicle 1,611 节；guide 6/6；gate 51/51；
 * UiKit.smoke 偶发 flake 如来即至，本轮全量 507/507 未红。
+
+## #1811 复制摘要 zh 门禁对称化 + 世界书卷三十五《样板间的门》
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、copySummary.test.tsx +1「zh 不含 en 散文」门禁
+
+* 对称门禁（与 #1803 的 en 残留门禁配对）：zh 输出必须不含下列 en-prose-only 词：`Verdict` / `Risk findings` / `not provided` / `Reproduction capsule`；同时必须含 `#/jobs/verify-abc123`（产品 token 不受 locale 限制），明文 `## SpecProof 验收`；
+* 5/5 绿（3 旧 zh 原语逐字 + 1 en 门禁 + 1 本条新 zh 门禁）。
+
+### 二、Volume XXXV《样板间的门 · The Demo Room's Door》
+
+* 主题 = 本仓库那扇 **永不招来客人** 的门——`demo/spring-backend`（`prepare_demo_repo.ps1` / `pwsh scripts/prepare_demo_repo.ps1` 初始化；base / head-v1 tag 重建）：
+  - 111 金案（BLOCKER 22 / MAJOR 51 / NONE 38）全部先进这扇门烧一遍；
+  - **38 阴性对照**是被误解得最多的数字——它是「这里不需要被抓」的合法阳性答案；
+  - 每一案必经沙箱、必带 ground-truth、可 git show 反查、可重跑重建；
+* 中英双版对称（卷三十五）；worldbook → **42 卷 / 94,710 chars**。
+
+### 三、诚实边界
+
+* 本节只加测试文件，不改 src；51/51 门禁的节奏不变；
+* UiKit.smoke 本轮全量复核（507/507）、与 #1805 一致；
+* 全量 pytest 仍内存受限；Spring 车道 137/137（离线，#1788）；
+* 「联网模拟真实用户数据」立场不变（HTTP 402 / 合成数据如实标注）；
+* 下卷继续：卷三十六 · 沉默的门
