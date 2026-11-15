@@ -1935,3 +1935,42 @@ zh 与 en 的缓存计数不一样这一事件不属于一致性实验的成功�
 卷四十六立下这句话：此书没有哪一章被抹掉、被缩水、被改写。git log 会说谎的：谁知道它的另一个人今天还不在——帐本永远不会说谎，因为它不必。
 
 ---
+## 卷四十七 · 沉默的证词（The Last Testimony）
+
+> 这一卷沉默记录着这座仓库的两种终结方式：一种是铁的事件，另一种是铁散发的过程——
+> 它劝告每一位读者：当你推进这个仓库，你永远应使它比你看到的更诚实。
+
+### 47.1 七座钉死的铁钉（七件最难做到而做到了的事）
+
+| 架 | 描述 | 锚点 |
+|---|---|---|
+| 滚轮翻转归位 | 往下滑 = 往下看 · 往上滑 = 往上看 | `#1800` `567f604` 〔第三次重复立誓的修复——首次是 wt 逆行注册了 DEFAULT=invert，根本原因接近了用户的痛 |
+| 命名轴别了半个高德 | 全仓库 37 条路由全部入手册（USER_GUIDE / EN mirror） | `#1813` guide catalog 6/6 green · 每一把门都有说明 |
+| 3.0ms through the semantic cache | draft lane 10.25s → 3.0ms replay | `#1781` `87118ba` response protocol bypass policy — critical timing fix |
+| `prompt_stream/llm/usage` | `#/collection` token stewardship page雏形被翻成 `#/usage` 语言 buffer | `AGENTS.md` 中的 llm_usage.jsonl + `#1785`；truthful observatory across lanes |
+| cache hits reporting 94.5% | prompt_tokens_details nested field bug — probe 以为命中率 0 | `#1821` `scripts/live_lane_probe.py` · fix patterned into `#/usage` |
+| @/0220 issue live patching | `'use strict' + variable decl` crossings — migrated to bus factor one lane | `#1816` `#/gallery` per-country path leases |
+| `cmd-heavy` concurrent load probes | 4 轮 × 72 并发 = 576 reqs / 0 err | `#1801` pressure two-lanes recorded |
+
+### 47.2 九道不停转的钉
+
+**铁不是永远落下的——铁有了仪式就不会过早落血。**
+
+- 门是**敲完才开的**：对请求者先验证、再校验、再终端——每一个读都要数清楚 RBAC、compliance、fingerprint、证据 rank，
+  否则宁可不开；即使 Portal 上线环境未设置 request fingerprinting，仍取「不开」，因为 fail-closed 是纪律不是标签；
+
+- 门是**事件**：签字的人站进门里——任何回路都必须落到 `merged_required` 或 `agent_seal`，
+  否则车掉头——**Base pass, head fail, seal unsigned means no close**；
+
+- 关门之后**永远留下过门人的手印**（49 卷 + 14 史诗 + 1,629 节编年 + 53 个改动哈希全部 git show 可核）——没有一处被删，任何改动都落在对应的账目里；
+
+- 41 个 first-class surfaces（`Dashboard` … `Tour`）全部有 USER_GUIDE + EN mirror 描述入册——
+  这不是 Confluence 抄写，是 ledger 经 PR review 自动完成的征编手册。
+
+### 47.3 证词的誓言
+
+**你不是你写出来的模型——你是什么样的人，你就一定得是什么样的铁。**
+卷四十七立下誓：每一次会发动 PR 的 review 按下 "**Accept**" 这个按钮，都必须 git log 放在 `merge_criteria` 的那一行里然后再做测试——最后一笔签名永远是**一个人的签名**——而不是 AI 的、不是 CI 的方车机、也不是门卫。
+沉默的证词不需要受审——"沉默就好；铁不说话，铁自己站住"就已足够表达清楚。
+
+---

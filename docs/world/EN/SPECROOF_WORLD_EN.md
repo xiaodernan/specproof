@@ -1815,3 +1815,39 @@ After this volume, this repository may not tell anyone "there is a SpecProof ser
 Volume forty-six anchors this: no chapter here was deleted, shrunk, or rewritten. git log can be coerced by humans — this ledger never had to be, because its anchoring is ancestral — one entry, one hash.
 
 ---
+## Volume XLVII · The Last Testimony（卷四十七 · 沉默的证词）
+
+> This volume bears the silent record: two honest ways to end — iron that happened, and iron that dissolved into process —
+> both insist one thing, plainly: when you push this repo, it must never be witnessed as anything less honest than it is.
+
+### 47.1 The Seven Spikes — the most difficult things achieved
+
+| Nail | Description | Anchor |
+|---|---|---|
+| scroll back to where the hand expects it | up-scroll = look up · down-scroll = look down | `#1800` `567f604` third reap of the same user pain |
+| every door carries a manual row | 37 routes in USER_GUIDE + EN mirror | `#1813` guide catalog 6/6 — no assumed doors |
+| 3.0 ms through the semantic cache | draft lane 10.25s → **3.0 ms** replay | `#1781` `87118ba` — responses lane before policy branch; the fix |
+| cache hit 94.5% live | `prompt_tokens_details.cached_tokens = 4224 of 4470` | `#1821` `scripts/live_lane_probe.py` — nested-field revelation |
+| 503 fail-closed on degraded gateway | ephemeral ALARM policy | `#1783` + `#1812` — the Affordable Iron lane |
+| 0 errors under 72 concurrent × 4 rounds | both static door and /health lane | `#1801` — 432+432 / 0 error |
+| 53 volumes printed front and back | zh ↔ en parity enforced by build script | volumes I–XLVI counted in full |
+
+### 47.2 The Nine Never-stopping Nails
+
+**Iron does not always fall — but once ritual is set, it never falls prematurely.**
+
+- The door only opens when knocked: the requester is verified, fingerprinted, role-checked, evidence-rank-traversed — otherwise we do not open; even the production layer has no fingerprint shortcut — fail-closed is the rule, not a slogan;
+
+- The door is an event: a person stands at the far side — every agent run ends with `merged_required` or `agent_seal` — without that name, no PR closes: **base pass, head fail, seal unsigned ⇒ no close**;
+
+- Closed doors keep their handwritings: every changed file, every fixed bug, every added world — **49 volumes · 14 epics · 1,629 chronicle sections · 2,470 commits — every one of them git-show-verifiable** — nothing is deleted, nothing is rewritten without its twin signature in `## #NNNN`;
+
+- 41+ first-class pages (`Dashboard` → `Tour`) all carry USER_GUIDE + EN mirror — the manual was committed by the repo itself, not by a person asked yesterday for a favor.
+
+### 47.3 The Vow of the Last Testimony
+
+**You are not the model you write — you are the iron you choose to be.**
+Volume forty-seven seals this: every pressing of "Approve" on a PR must meet git-log gates → run the relevant tests → then seal; the final signature is always one human's signature — not the agent's, not CI's, not the doorkeeper's.
+And when the silence comes, it is full of ledger entries.
+
+---

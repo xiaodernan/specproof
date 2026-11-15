@@ -37704,3 +37704,27 @@ no third-party links in reply ✅
 * 卷四十六不是 v1.0，只是「不动的一本书」—— 这是 v0.90.0 之后的叙述式里程碑；
 * 全量 pytest memory-limited；只跑 guide+ledger **51/51**；春车 137/137（#1825）= 离线全绿、无 TLS/生产；
 * 「密码 123」永久否决；PORTFOLIO_TOKEN 仍需你自备；Observability 真实遥测需隐私评审签字。
+
+## #1829 世界书卷四十七《沉默的证词 · The Last Testimony》：七钉 + 九不停转的钉
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、卷四十七入史（54 卷 / 125,003 chars）
+
+* **收录本轮 Swift 真正过了铁的七件**：
+  1. 滚轮方向 `#1800` `567f604`（owner 第三次点名的同一问题，根因是 `invertScroll` 默认 ON）—— 修正完成；
+  2. 全仓 37 路由入手册 + EN mirror（#1813）；
+  3. 语义缓存根因 `responses` 车道提前 return（#1781 `87118ba`）；真实 replay 从 10.25s 降至 3.0ms；
+  4. wkapi 静态前缀缓存 `prompt_tokens_details.cached_tokens = 4,224 / 4,470 = 94.5%`（`#1821 scripts/live_lane_probe.py`，`cached_tokens` 在 details 下而非顶层）——修正嵌套读取；
+  5. Gateway Lua `rate=0/NaN` 除零修复（#1783）· 真容器复验 7 案；
+  6. 压测双车道（static front door 432 req / 0 err · /health 432 req / 0 err · 72 并发 × 2 × 3 轮 · `#1801`）；
+  7. Spring Cloud 车道离线现场复验 **137/137**（`mvn -o` · Java 25.0.1 · `#1825`）；
+* 中英双版对称 zh/en；本轮只改动世界书文档，不再触碰应用源码。
+
+### 二、诚实边界
+
+* 「Agent 自动 Approve」被明确禁止；`agent_seal` 只等真人签名（**Long-Term Plan 禁忌清单第 10 条**）；
+* 本卷是仓库自己的法庭记录，不是任何签发罗盘；
+* 全量 pytest 仍内存受限（guide+ledger 51/51 全绿）；
+* 押注 "**全量纳米单位完成**" 不会因为卷四十七而变成 v1.0——v0.90.0 仍是最后一个公开里程碑 #1822；
+* 「密码 123 全员进管理员」永远不写为任何形式（包括绕过 RBAC 或掩盖 audit trail）。
