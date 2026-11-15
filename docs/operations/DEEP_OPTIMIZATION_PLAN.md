@@ -37357,3 +37357,28 @@ python scripts/stress_smoke.py --target http://127.0.0.1:8000/health --rounds 3 
 * 全量 pytest 内存限制不变（guide+ledger 51/51）；春分轨道 137/137（离线在 #1788）；
 * 「123 密码」永久否决维持；Observability 接入仍需隐私评审签字；
 * **安全提醒入账**：用户把 api key 多次明文粘贴在本会话聊天里；会话文本不做 git，但可存对话。建议把 wkapi.pro 的 gpt-6-sol key 视为**已泄露**——重新签发后，仅在 `.local/llm.json`（untracked）或 shell 环境变量配置，不要再贴进任何聊天窗口（本条只提醒，不改用户配置）。
+
+## #1818 i18n_audit ui-kit 目录整体处置 + 世界书卷三十九《铁的三种语言 · The Three Dialects of the Iron》
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、`scripts/i18n_audit.py` 处置范围扩大
+
+* 从「仅 UiKit.tsx 两件」扩大到整个 `ui-kit/` 目录（ControlRoomPreview 14 条——hero-showcase 数据彻底审完）：
+  - 说明：ui-kit/ 整体 dev-only 设计语言参照帧，demo 数据如 `AUTH-01 邮箱变更认证/EVT-04 事件幂等/BROKER-02 重试去重` 是组件样板，非用户可见面；
+  - 绝不以此为由压桶或跳过其它文件——真实用户面的混入缺陷仍逐桶人眼核（`AgentToolStream` #1810 等）；
+* bucket A：256 → **242**（56 文件），剩余由 zh 三元分支、agent STATUS_META 镜像等组成——承认「假阳性 > 真缺陷，但不为零」。
+
+### 二、Volume XXXIX《铁的三种语言 · The Three Dialects of the Iron》
+
+* 三种语言与三锁：**法**（LONG_TERM_PLAN 禁忌 / court 不缓存 / agent 人签 / fail-closed PermissionDenied）、
+  **证词**（guide 6/6 + ledger 四件套 45/45 = 51/51 与 #1788 Spring 137/137 的签名）、
+  **诗**（世界书 46 卷 / 史诗 14 卷 / #/manual / #/tour × #/gallery 罗列不掉的长卷）三锁一体；
+* 两点钉住：法没有证词就是暴虐，证词没有诗就是残酷，诗没有法就是谎言放香；
+* 中英双版对称；worldbook → **46 卷 / 104,875 chars**。
+
+### 三、诚实边界
+
+* 本节只扩大 EXEMPT 正则、不动用户代码路径；ui-kit 真实 bug 由 PR review + tsc 门禁守，不由 audit 守；
+* 全量 pytest 内存限制不变（guide+ledger 51/51 绿）；UiKit.smoke 已知瞬时 flake 未红；
+* 「密码 123」永久否决维持；Observability 接入需签字；PORTFOLIO_TOKEN 仍欠；`sk-` 历史等应已在 #1817 记录。

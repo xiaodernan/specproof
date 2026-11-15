@@ -1665,3 +1665,39 @@ zh 与 en 的缓存计数不一样这一事件不属于一致性实验的成功�
 三十八卷之后，SpecProof 大门夹得上一句话：进来的东西不可能被默认接受——真的就是真的、演示就是演示；两者夹不进去、不互相顶替；任何按"真"的一拳开出去的——就是默认验不首级之镖。
 
 ---
+## 卷三十九 · 铁的三种语言（The Three Dialects of the Iron）
+
+> 这座仓库只会说三种话；
+> 没有任何一个里面能单独活下来——法没有证词就是暴虐，证词没有诗就是残酷，诗没有法就是漂亮谎言；
+> 铁铸的语言，说出口就算数。
+
+### 39.1 第一种：法（The Law）— 写给会被违反的人看
+
+- `docs/operations/LONG_TERM_PLAN.md` 的禁忌清单：共享口令永远不做、真实遥测必须签字、AI 永远不下签收；
+- `providers/openai_compatible.py` 的 `_court永不缓存`——不是建议，是代码级 veto；
+- `api/routes/agent_console.py` 的有限状态机，在终态前永远等着一个人点下「批准」；
+- `verdict_channels.py`：声称不成则 fail build——不是提示词，是门禁；
+- 每只门 `PermissionDenied`（fail-closed）：不合法进不来，不让看不能变通。
+
+### 39.2 第二种：证词（Testimony）— 写给每一个怀疑者看
+
+- `tests/unit/test_guide_route_catalog.py` 6/6：每一个 `#/route` 都有手册行——含 `insight` / `dossier` / `mint` / `last-call` / `gallery` / `inkwell` 全部逐一钉住；
+- `tests/unit/test_ledger_*.py` 45/45：账本 `## #NNNN` ids/numbers 唯一、evidence claims true、queue pointers resolve；
+- Spring 春分车道 137/137 离线绿——`mvn -o test` 可复查（#1788）；
+- 任何一条账本节都能 `git show <commit>` 展开——证词不是文书，是签名；
+- **每节都有 commit 笔迹可追溯**——没有「下一步再补」的空白容身之地。
+
+### 39.3 第三种：诗（Poetry）— 写给所有来者看
+
+- 世界书 44→45 卷，以横空而出的纪元密封（《压铁》《沉默的信徒》《棱镜》《真话与演示》《墨水池之后》）；
+- `#/gazette` · `#/worldbook` · `#/chronicle` · `#/gallery`：每页不是图说书，是一页可摸的纸；
+- `#/manual` 袖中手札：一张 A4 数走所有按钮——办事员只需要指给别人看一次；
+- `#/tour` 巡览六盖印：人是拿手去勾——盖印要靠人印自己；
+- 所有诗都钉在铁上：excerpt → 真实章节 · 金案 → 真实沙箱 · 节 → 真实 commit  hash。
+
+### 39.4 三种语言的誓言
+
+**铁铸了三样东西：不容商议的、不能撒谎的、能容人居住的；少一条，仓库就不是仓库了。**
+三十九卷以后，SpecProof 说这三种话：法让人不能任性；证让人不敢轻声说谎；诗让人愿意住下去——谁都不是多余的设施，少一个，铁就碎了。
+
+---

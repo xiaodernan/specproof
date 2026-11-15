@@ -1547,3 +1547,39 @@ Volume thirty-seven carries no finale — it only offers a hand toward whoever c
 After Volume thirty-eight, SpecProof's door carries exactly one question-and-answer: anything inside this product was never accepted by default — real is real, demo is demo, and the two never argue with each other; anything that struck the knocking blow with the word "real" on it walked straight into the hall of the unverifiable.
 
 ---
+## Volume XXXIX · The Three Dialects of the Iron（卷三十九 · 铁的三种语言）
+
+> This repository speaks three dialects;
+> none can live alone — law without testimony is tyranny; testimony without poetry is cruelty; poetry without law is a beautiful lie;
+> the language the iron casts, once spoken, stands.
+
+### 39.1 The first: Law (The Law) — written for the person who breaks
+
+- `docs/operations/LONG_TERM_PLAN.md`'s forbidden list: no shared-password backdoor ever; real-fleet telemetry only after sign-off; AI never signs off;
+- `providers/openai_compatible.py` — `court` kinds never touch the cache: not advice, a code-level veto;
+- `api/routes/agent_console.py` — the state machine waits for a human to press Approve;
+- `verdict_channels.py` — any claim that doesn't match is a hard build break, not a prompt;
+- every gate opens on `PermissionDenied`, fail-closed — no workaround, no second opinion.
+
+### 39.2 The second: Testimony (Evidence) — written for every skeptic
+
+- `tests/unit/test_guide_route_catalog.py` 6/6 — every `#/route` carries a manual row, including `insight` / `dossier` / `mint` / `last-call` / `gallery` / `inkwell`, pinned one-by-one;
+- `tests/unit/test_ledger_*.py` 45/45 — every `## #NNNN` ids/numbers unique, evidence claims true, queue pointers resolve;
+- Spring-offline lane 137/137 — `mvn -o test` — reproducing the same green (`.1788`);
+- Every ledger section unfolds into a real commit — testimony is not paperwork, it is a signature;
+- No orphaned claims — every entry pairs with a commit; no placeholder "to be filled next" allowed.
+
+### 39.3 The third: Poetry — written for everyone who comes
+
+- the world book, 44→45 volumes, sealed by epoch (The Forge · The Silent Believers · The Truth · After the Inkwell);
+- `#/gazette` · `#/worldbook` · `#/chronicle` · `#/gallery` — no page is a caption, every page is paper you can touch;
+- `#/manual` — one A4 card any clerk can point at once;
+- `#/tour` — six seals granted by the human's own hand, never a script;
+- All poetry nailed to iron — each excerpt is a chapter; each golden case a real sandbox; each section a real hash.
+
+### 39.4 The vow of the three dialects
+
+**Law made non-negotiable, evidence made unable to lie, poetry made worth living in — lose one and this is no longer a repository.**
+From volume thirty-nine, SpecProof speaks these three: law so people can't act wild, testimony so people don't whisper half-truths, poetry so people want to stay — none is furniture; remove one and the iron shatters.
+
+---
