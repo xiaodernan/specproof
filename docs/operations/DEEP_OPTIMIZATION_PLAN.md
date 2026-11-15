@@ -37382,3 +37382,31 @@ python scripts/stress_smoke.py --target http://127.0.0.1:8000/health --rounds 3 
 * 本节只扩大 EXEMPT 正则、不动用户代码路径；ui-kit 真实 bug 由 PR review + tsc 门禁守，不由 audit 守；
 * 全量 pytest 内存限制不变（guide+ledger 51/51 绿）；UiKit.smoke 已知瞬时 flake 未红；
 * 「密码 123」永久否决维持；Observability 接入需签字；PORTFOLIO_TOKEN 仍欠；`sk-` 历史等应已在 #1817 记录。
+
+## #1819 服务脉搏 `#/pulse`：这个浏览器对它能到达的后端敲一下的回声
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、动机
+
+* 本产品美丽为止从未有一个"让我看这个部署此刻还在不在"的工程——`/health` 接口是现成的、v1 双路、只返回一个 JSON；
+* 本次 **不上报任何遥测进外部系统**：只用**这个浏览器**敲 `/api/v1/health` 并当场渲染 latency / db / llm_ready / embedding / build_sha——没人签收的遥测不被项目接收；
+* 这步把 Observability 反过来搭成了一个循环：应用本身就是被观察的野生动物；观察者坐在烟窗里看一眼，不用上车。
+
+### 二、交付
+
+* `pages/Pulse.tsx` + `styles/pulse.css`：
+  - 顶栏 KICKER + 三格 KPI-style 三格：**当前毫秒**（this browser's probe）/ 状态 + `db=ok/llm ok/embedding ok` / build_sha；
+  - **五连敲击**按钮：400ms 间隔，逐行 `#1..#5 × ms × ok/失败`，末端干机 `ok×5 · 最慢 · 均值`；
+  - **本机脉搏留存**：localStorage `specproof_pulse_v1`（最近 50 次），柱状延迟图；「清空」一键全清；只存本机；
+  - 诚实性页脚：体感 ≠ 舰队；真正船队遥测走 `OBSERVABILITY.md` + OTel/Prom lane（`api/server.py @app.get("/metrics")`）。
+* `App.tsx` 懒加载 + NAV evidence 组（icon `health`）+ 路由分支；`strings.ts` `nav.pulse`（`服务脉搏` / `Service Pulse`）；
+* `USER_GUIDE.md` + EN mirror：各加 `/pulse` 一行；一级入口 **34 → 35**；guide catalog **6/6**；
+* build ✅ 308ms（Pulse chunk 7.8 kB JS / 3.42 kB gzip + CSS 4.55 kB）；tsc 0；vitest **514/514**；chronicle 1,620 节 —— 待重建；
+
+### 三、诚实边界
+
+* 本页**不上传任何东西、没接任何遥测供应商、也不是 SLA**；是这个浏览器看子弹从枪口飞出去的感觉；
+* `specproof_pulse_v1` 只存本机；「清空」是硬删；
+* `/metrics`（OTel lane）是**未经 collector 直接到达**——本页不读它；要走船队，`OBSERVABILITY.md` + 隐私签字必须；
+* 全量 pytest 仍内存受限（guide+ledger 51/51 不声称全绿）；Spring 137/137（离线在 #1788）；'密码 123' 否决不变。
