@@ -1,0 +1,51 @@
+/* ── 引擎 · The Engine ──────────────────────────────────────────────
+   How this repository spends its tokens. Live ledger on this host.
+   Hard steel and brass; nothing invented, nothing smoothed over. */
+
+.engine-page { max-width: 1180px; margin: 0 auto; color: #e6ddb8; }
+
+.engine-mast { padding: 24px 26px 22px; border: 1px solid rgba(224, 191, 110, 0.42); border-radius: 12px; background: radial-gradient(1100px 280px at 12% -25%, rgba(224, 191, 110, 0.17), transparent 60%), linear-gradient(180deg, #1c170f 0%, #12100b 100%); }
+.engine-kicker { font-size: 11px; letter-spacing: 0.42em; color: rgba(224, 191, 110, 0.85); margin: 0 0 10px; font-weight: 600; }
+.engine-mast h1 { font-family: Georgia, "Noto Serif SC", "Songti SC", serif; font-size: clamp(1.9rem, 4.2vw, 2.5rem); margin: 0; color: #f1ead0; line-height: 1.1; letter-spacing: 0.03em; }
+.engine-en { display: block; font-size: 0.2em; letter-spacing: 0.32em; color: rgba(224, 191, 110, 0.8); margin-top: 8px; text-transform: uppercase; }
+.engine-lead { color: #b0a889; line-height: 1.9; margin: 12px 0 0; max-width: 66ch; font-size: 0.9rem; }
+
+.engine-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin-top: 16px; }
+.engine-kpi { border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(255, 255, 255, 0.03); border-radius: 8px; padding: 10px 12px; }
+.engine-kpi-v { font-size: 1.2rem; font-weight: 700; color: #f0e5ab; font-variant-numeric: tabular-nums; margin: 0; line-height: 1.25; }
+.engine-kpi-l { font-size: 9px; letter-spacing: 0.07em; text-transform: uppercase; color: #8d8672; margin: 3px 0 0; line-height: 1.55; }
+@media (max-width: 1120px) { .engine-kpis { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 600px) { .engine-kpis { grid-template-columns: repeat(2, 1fr); } }
+
+.engine-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.engine-panel { border: 1px solid rgba(255, 255, 255, 0.08); background: #15130f; border-radius: 10px; padding: 18px; min-width: 0; }
+.engine-panel h2 { font-size: 0.97rem; margin: 0 0 12px; color: #ece3bb; border-bottom: 1px solid rgba(224, 191, 110, 0.25); padding-bottom: 10px; letter-spacing: 0.02em; }
+
+.engine-panel:first-child { grid-column: span 5; }
+.engine-panel:nth-child(2) { grid-column: span 7; }
+.engine-spark-panel { grid-column: span 12; }
+@media (max-width: 1080px) { .engine-panel:first-child, .engine-panel:nth-child(2), .engine-spark-panel { grid-column: span 12; } }
+
+.engine-latencies { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.engine-latency { border: 1px solid rgba(224, 191, 110, 0.22); background: rgba(224, 191, 110, 0.05); border-radius: 8px; padding: 14px; }
+.engine-latency-v { font-size: 1.5rem; font-weight: 700; color: #f3e6ad; font-variant-numeric: tabular-nums; margin: 0; line-height: 1.2; }
+.engine-latency-l { font-size: 9px; letter-spacing: 0.24em; text-transform: uppercase; color: #8d8672; margin: 4px 0 0; }
+.engine-note { font-size: 10.5px; color: #8d8061; line-height: 1.85; margin: 12px 0 0; }
+
+.engine-bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.engine-bar-row { display: grid; grid-template-columns: 82px minmax(0, 1fr) 32px; gap: 10px; align-items: center; }
+.engine-bar-label { font-family: var(--font-mono); font-size: 11px; color: #f0dfa3; text-align: right; }
+.engine-bar-track { height: 12px; background: rgba(255, 255, 255, 0.05); border-radius: 999px; overflow: hidden; }
+.engine-bar-fill { height: 100%; background: linear-gradient(90deg, #8a6d1f, #e3c25f); border-radius: 999px; }
+.engine-bar-fill-2 { background: linear-gradient(90deg, #3a4a58, #9ecbff); }
+.engine-bar-count { font-size: 11px; color: #f0dfa3; font-variant-numeric: tabular-nums; text-align: right; }
+
+.engine-hours { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px; height: 140px; align-items: end; }
+.engine-hour { display: flex; flex-direction: column; align-items: center; gap: 3px; height: 100%; justify-content: flex-end; }
+.engine-hour-bar { width: 100%; min-height: 3px; background: linear-gradient(180deg, #e3c25f 0%, rgba(227, 194, 95, 0.12) 100%); border-radius: 2px 2px 0 0; }
+.engine-hour-label { font-size: 8px; color: #5e5743; font-family: var(--font-mono); }
+
+.engine-honesty { display: flex; gap: 10px; align-items: flex-start; border: 1px dashed rgba(155, 172, 220, 0.4); background: rgba(155, 172, 220, 0.06); border-radius: 10px; padding: 12px 14px; margin-top: 14px; color: #9aa0b4; line-height: 1.9; font-size: 11.5px; }
+.engine-honesty svg { flex: 0 0 auto; margin-top: 2px; }
+
+@media print { .engine-page { color: #111; } .engine-honesty { border-color: #444; } }

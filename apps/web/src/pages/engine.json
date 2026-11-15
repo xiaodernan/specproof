@@ -1,0 +1,47 @@
+{
+ "version": 1,
+ "source": ".local/llm_usage.jsonl (untracked; this host only)",
+ "calls": 41,
+ "errors": 0,
+ "streamed_ratio": 1.0,
+ "prompt_tokens": 147767,
+ "completion_tokens": 19352,
+ "cached_tokens": 75638,
+ "cached_basis": 26,
+ "cache_hit_rate": 0.5118734223473441,
+ "latency_p50_ms": 14619,
+ "latency_p95_ms": 37824,
+ "latency_max_ms": 72373,
+ "lanes": {
+  "direct": 29,
+  "policy": 12
+ },
+ "kinds": {
+  "(unspecified)": 29,
+  "draft": 6,
+  "court": 6
+ },
+ "hourly_30": [
+  {
+   "calls": 6,
+   "prompt_tokens": 13929,
+   "cached_tokens": 13440
+  },
+  {
+   "calls": 20,
+   "prompt_tokens": 106098,
+   "cached_tokens": 54639
+  },
+  {
+   "calls": 3,
+   "prompt_tokens": 27182,
+   "cached_tokens": 7559
+  },
+  {
+   "calls": 12,
+   "prompt_tokens": 558,
+   "cached_tokens": 0
+  }
+ ],
+ "hourly_30_max_calls": 20
+}

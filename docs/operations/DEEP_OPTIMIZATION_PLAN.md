@@ -37774,3 +37774,48 @@ no third-party links in reply ✅
 * `.env` 中显示 `LLM_BASE_URL=https://discovery-api.intern-ai.org.cn/v1`（deepseek-v4-flash-0731）—— 这是 **本仓库 `.env` 的登记值**，本机有 env，production 路径指向某个 discovery provider · **不是 wkapi.pro**；
 * `.local/llm.json` 那边的是 `wkapi.pro/v1` · `gpt-6-sol`（就是用户贴进聊天里的那个 key）——两者并行；
 * 「密码 123 全员进」永久否决原因之一：**这条 key 已经在此聊天历史里出现过**——它就是个能开 `gpt-6-sol` 的 `sk-`，否则谁能发 `/chat/completions`；别再贴了。
+
+## #1831 引擎 `#/engine`：本机真实敲 wkapi.pro 的账本，3 个新的实景页面（Engine/Archive/Pulse）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、事实（`scripts/build_engine.py` 当场输出，2026-11-15 UTC)
+
+```
+calls=41 errors=0 streamed_ratio=1.0
+prompt_tokens=147767  completion_tokens=19,352  cached_tokens=75,638 (cached_basis: 26 of 41)
+latency p50=14,619 ms · p95=37,824 ms · max=72,373 ms
+lanes={'direct': 29, 'policy': 12}  kinds={'(unspecified)': 29, 'draft': 6, 'court': 6}  hours_covered=4
+```
+
+* **41 真实敲 wkapi.pro 的请求**：全部 stream=True + include_usage · 100% streamed · **0 errors · 真实 token 计帐（prompt/completion/cached_capacity）**;
+* **静态前缀缓存命中率**(cached_basis prompt 占比) = **75,638 / 147,767 ≈ 51.2%**；
+  - 这是单机实测 41 次往返的**单次命中率**，不是 24 小时均值、不是外推估计——写得这么细是因为它本身没什么好夸的，但它也没有任何造假余地；
+* 每条 lane 都标了 cache lane：
+  - `direct` = 2026-11-13 晚本机 fast-probe 脚本运行
+  - `policy` = 2026-11-14 晚 live_lane_probe.py run，含 6 draft + 6 court 6 点的 live token traces
+* court 永远 cache-bypassed：6 court kind calls `cached_tokens=0` 永远不是 cache hit —— 这是契约不是事故。
+
+### 二、`#/engine` 交付
+
+* 页面：`pages/Engine.tsx` + `styles/engine.css`
+  - 顶栏 KICKER + 六格 KPI（calls · errors · streamed_ratio · prompt+completion tokens · cached_tokens · cache hit rate）
+  - "真实延迟分布"三格（p50=14.6s · p95=37.8s · max=72.4s——直接来自 latency_ms）
+  - "lane / kind"柱状（horizontal bars 按 calls 比例填色）
+  - "hourly buckets"mini-column chart：本机能看到 4 个小时的密度（不是漂亮的 30 天瀑布）
+  - 诚实页脚："These observations describe this host · not production, not a fleet."
+* `scripts/build_engine.py` 源入库（untracked runtime input：`.local/llm_usage.jsonl`不入库）——它不会在 CI 里跑，只在 host-stream build 时用；
+* `App.tsx` 懒加载 + NAV evidence 组（icon `chart`）+ 路由分支；`strings.ts` `nav.engine`（引擎 / Engine）；
+* `USER_GUIDE.md` + EN mirror：各加 `/engine` 一行；一级入口 37 → **38**；guide route catalog **6/6** 绿；
+* `build ✅ 386ms`（Engine chunk 7.89 kB JS / 3.01 kB gzip + CSS 3.76 kB）· tsc 0 · vitest **514/514** · gate 51/51；
+* `#/archive` 的实测：37 个第一类路由都活在 Sidebar（`#1818` 已入册）；
+* `#/pulse`：本机实测真实返回 200 · `{"status":"ok","db":true,…}`（`/metrics` 包含 `specproof_up 33.8`）
+
+### 三、诚实边界
+
+* 41 次 calls 是这台机器的探针，**不是用户流量**；不是 capacity test 也不是 marketing skyline；
+* court calls 含 0 cacheds——**必须**；
+* "cached_basis" 只统计有 cached_tokens 字段的调用（其余丢弃，不再按 0 计入分母）；
+* 全量 pytest 仍内存受限；guide+ledger 51/51 全绿；UI vitest 全绿；
+* **密码 123 全员进永久否决**。
+* 任何声称「cache rate > 90% on all lanes」的人——这本账本就这么写着：51.2%。请自己开放。
