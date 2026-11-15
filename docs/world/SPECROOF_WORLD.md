@@ -2178,3 +2178,59 @@ zh 与 en 的缓存计数不一样这一事件不属于一致性实验的成功�
 **`specproof-534-plane`** 就是那条没锚的最后一节车厢——**铁不会跪到断裂，铁认裂痕。**
 
 ---
+## 卷五十四 · 横幅匾额（The Hall of Indicators）
+
+> 一座殿里挂的每一块匾，匾上每一个字，都得能叫得出它的来处。
+> 这一卷不写「展望」、不写「宏愿」——只写 2026-11-16 那一天里，
+> 这台机器上哪几块匾是真亮的，哪几块匾上写的字是从铁皮上敲下来的，哪几块匾从未被点亮过。
+
+### 54.1 两块钟，一个事实
+
+本仓库里有两类数字，它们都叫「真的」，但说的是两种真：
+
+| 类型 | 说的是 | 出处 |
+|---|---|---|
+| 构建期事实 | 截至某个 commit，仓库里一共有多少节、多少卷、多少次提交 | chronicle.json / repoStats.json / worldbook.json |
+| 活体事实 | 此刻这个进程活着没有、敲了几次门、Redis 第一次应答用了多少毫秒 | 192.168.1.5:8000/metrics + Prometheus 抓取 |
+
+这两块钟永远不会互相替代——卷五十二和卷五十三讲的裂缝，本质上就是「构建期的真数」被误读成「活体的真数」的裂口。
+
+### 54.2 2026-11-16 真亮的三块匾
+
+| 匾 | 来处 | 证据 |
+|---|---|---|
+| prometheus 自身 | localhost:9090/metrics | scrape health: up（容器自带自检） |
+| rabbitmq 8443-telemetry | rabbitmq:15692/metrics/per-object | scrape health: up（rabbitmq_prometheus 插件随镜像启用） |
+| **local-host-api** | 192.168.1.5:8000/metrics | 本次新增；docker restart 后 up；specproof_up=67.9s；specproof_http_requests_total 5→55（48 次并发撞门全数计入） |
+
+### 54.3 这台机器上从来没被点亮的七块匾（以及它们的说明牌）
+
+| 匾 | 至今未亮的真正原因 |
+|---|---|
+| api:8000 | 应用栈从未进 compose 网络（本机应用绑 0.0.0.0:8000，不在 phase0 网络里） |
+| worker:9100 | 同上；worker 没跑 |
+| outbox-relay:9101 | relay 没有随任何部署启动过 |
+| notify-relay:9102 | 通知中继不存在 |
+| invoice-cron:9103 | billing profile 未启用 |
+| otel-collector:8889 | OTEL 栈未部署（OBSERVABILITY.md 中为「应用栈接线清单」未完成项） |
+| specproof-edge:8090 | Spring Cloud Gateway 从未以 live 模式跑过——137/137 全部 off-line `mvn -o` |
+
+说明牌一律如实：这七块匾报「down」不是故障，是诚实——比亮着一颗假灯要强得多。
+
+### 54.4 匾额殿的家规
+
+1. **任何匾不写没来处。** 每一个数字必须能说出它是哪个文件、哪条查询、哪个 commit 敲出来的。
+2. **匾坏了就说匾坏了。** down 就是 down，不装饰成「degraded-maybe」。
+3. **新匾入殿要先交来处。** 本次 `local-host-api` 入殿的纪要全文在 docs/operations/LIVE_PROBE_2026-11-16.md，带改前改后两张表。
+4. **主殿不挂「123 密码」匾。** 管理员面板 RBAC fail-closed，本殿永不出这块匾。
+
+### 54.5 匾额殿今天还不敢写的字
+
+- 「Grafana SLO 看板通过验收」——没看过、没跑过、没签。
+- 「Alertmanager 已路由告警」——receiver 是 null，永不发通知。
+- 「告警链全链路 15 分钟内触达人」——从未有过触发过。
+- 「生产环境 mTLS 终结」——卷三十一承诺的东西，依然只存在于条款里。
+
+这些字不是被忘了——是被刻意留空。等真人签字那天，空白处才会落字。
+
+---

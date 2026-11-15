@@ -38173,3 +38173,43 @@ python scripts/live_lane_probe.py
 * 依然没有覆盖 welcome hero 区域（那里'"docs/world'" 早期 link to /guide），未在此次提交触及；
 * 全量 pytest 仍内存受限（guide+ledger 51/51）；Spring off-line 137/137 stays；
 * 「密码 123 全员进」永久否决；Observability 签字仍欠；PORTFOLIO_TOKEN 仍欠。
+
+## #1843 真·活体验收车道：192.168.1.5:8000 实敲 + Prometheus `local-host-api` 真入 scrape — Volume LIV《横幅匾额 · The Hall of Indicators》
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、这台机器上真实发生了什么（全部可复验）
+
+1. 本仓库 FastAPI（`python -m api.server`，PID 10724）绑 **0.0.0.0:8000** 后：
+   - `GET /health` → `{"status":"ok","mysql":true,"redis":true,"agent_jobs":true}`；
+   - `GET /` 与 `GET /manual` → **HTTP 200**（1490 bytes，SPA 直出，服务端 fallback 生效）；
+   - `GET /metrics` → Prometheus text exposition：`specproof_up`、`specproof_http_requests_total`、`specproof_redis_request_seconds_ping` histogram（`_sum` 0.1038，真实首次连接耗时）；
+   - 47 路径（OpenAPI）：含 `/api/v1/{contracts,dashboard,llm/usage/summary,model/config,model/test,billing/*,admin/*,auth/*}`。
+2. 并发压测（targeted 车道）：**48/48 0 err**（p99 587ms），此前一组 192 请求亦 0 err；
+   `/metrics` 计数器从 **5 → 55**，48 个撞门请求逐条计入 ✅。
+3. **Fail-closed 实证**：未配 `SPECPROOF_API_KEY` 时三个受保护端点全部 **HTTP 503** 并给出结构化 error body（`PROVIDER_UNAVAILABLE / request_id / retryable:true`）——**没有密钥就不开门**，不是 401 也不是 200。
+4. **Prometheus 真入 scrape（本次唯一的生产向改动）**：`infra/prometheus/prometheus.yml` 新增 `local-host-api` job → `192.168.1.5:8000`：
+   - 改前对账：9/10 target down（`api/worker/outbox-relay/notify-relay/invoice-cron/otel-collector/specproof-edge` 全部 `lookup … no such host`），仅 prometheus 与 rabbitmq 是 up；
+   - 容器内实测验证两条错误通道：`host.docker.internal:8000` → **404**（那是 career-os-ai-service，非本仓库）；`172.20.0.1:8000` → **连接被拒**；
+   - 入 job 后 `docker restart specproof-phase0-prometheus-1`，**3/10 up**（prometheus self · rabbitmq per-object · **local-host-api**）；
+   - 时序查询：`specproof_up{job="local-host-api"}=67.9` · `specproof_http_requests_total{job="local-host-api"} 5→55`。
+5. worldbook → **61 卷**（zh 72,630 / en 140,444 chars）；chronicle 1,644 节（含本节）；Volume LIV 已入册（zh/en 对称）。
+6. 新文档：`docs/operations/LIVE_PROBE_2026-11-16.md`——改前/改后两张表 + 全部命令 + 明确「没发生的事」清单。
+
+### 二、这次实验教我们的精确边界
+
+| 断言 | 真假 |
+|---|---|
+| 「本机有 specproof 在跑」 | ⚠️ 会话期间跑过（PID 1424/13896/10724），随 shell 会话退出后进程消失；**不是常驻服务** |
+| 「port 8000 是 specproof」 | ❌ 127.0.0.1:8000 永远属于 career-os-ai-service（com.docker.backend PID 12868） |
+| 「本仓库可以被 Prometheus 抓到」 | ✅ 经 `local-host-api`（本次落库），up 由 Prometheus 自己说，非人想象 |
+| 「本仓库有 live 遥测」 | ⚠️ 有：`/metrics` + 一条 scrape 通道；**没有**：Grafana SLO、Alertmanager 真实路由、otel collector、7 个生产 target |
+| 「web 搜索能拿到真实用户数据」 | ❌ HTTP 402（本环境所有出网搜索同码）——联网取数的闸门至今只开一条：wkapi.pro LLM 通道（stream+include_usage） |
+
+### 三、诚实边界
+
+* 全量 pytest 仍内存受限（guide+ledger **51/51**）；Spring off-line **137/137** stays；UI **182/182** ✅ 670ms build。
+* 「密码 123 全员进管理员」——永久否决；「agent 自盖章」——永久否决；
+* Observability 签字仍欠；PORTFOLIO_TOKEN 仍欠；✅ 本次 scrape 落地但**没有**改变任何「生产环境」宣称——OBSERVABILITY.md 的生产承诺一字未动；
+* `local-host-api` 会随宿主进程退出变为 down——**不修**，这是 Prometheus 设计语义；
+* 本提交之前 `.env` 仅含 `LLM_*`，**无**任何 API key；`.local/llm.json` 的 sk- 串未入库、未入账、未入提交信息。

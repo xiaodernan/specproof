@@ -2051,3 +2051,59 @@ the track across the ground is still intact —
 but the fact that nobody wrote it down was the real silence.
 
 ---
+## Volume LIV · The Hall of Indicators（卷五十四 · 横幅匾额）
+
+> Every plaque hung in this hall must be able to name where its ink came from.
+> This volume does not write "aspirations" — it writes down what was actually lit on 2026-11-16,
+> what was struck out of cold steel by real runs, and what has never been lit at all.
+
+### 54.1 Two clocks, one truth
+
+This repository keeps two kinds of numbers, and both of them are called "true" — they are two different trues:
+
+| Kind | Speaks of | Where it comes from |
+|---|---|---|
+| Build-time facts | As of a commit, how many sections / volumes / commits this repo holds | chronicle.json / repoStats.json / worldbook.json |
+| Live facts | Whether this process is alive right now, how many times it was knocked on, how many milliseconds its first Redis ping took | 192.168.1.5:8000/metrics + Prometheus scrape |
+
+These two clocks never substitute for each other. The fracture from Volumes LII–LIII is, at bottom, the slip between calling a build-time true number a live true number.
+
+### 54.2 The three plaques that were actually lit on 2026-11-16
+
+| Plaque | Origin | Evidence |
+|---|---|---|
+| prometheus itself | localhost:9090/metrics | scrape health: up |
+| rabbitmq telemetry | rabbitmq:15692/metrics/per-object | scrape health: up (rabbitmq_prometheus ships with the image) |
+| **local-host-api** | 192.168.1.5:8000/metrics | added this round; after `docker restart`, health: up; specproof_up=67.9s; specproof_http_requests_total 5→55 (48 concurrent knocks, all counted) |
+
+### 54.3 The seven plaques this host has never lit (and their notice cards)
+
+| Plaque | Why it stays unlit, honestly |
+|---|---|
+| api:8000 | The app stack never joined the compose network (this host's app binds 0.0.0.0:8000, outside the phase0 network) |
+| worker:9100 | Same reason; worker never ran here |
+| outbox-relay:9101 | never started in any deployment |
+| notify-relay:9102 | the notify relay does not exist |
+| invoice-cron:9103 | billing profile never enabled |
+| otel-collector:8889 | the OTEL stack was never deployed (listed as "app-stack wiring pending" in OBSERVABILITY.md) |
+| specproof-edge:8090 | the Spring Cloud Gateway has never run live — 137/137 tests were all off-line `mvn -o` |
+
+Every notice card tells the truth: these seven "downs" are not failures — they are honesty, worth more than a fake green LED.
+
+### 54.4 The house rules of the Hall
+
+1. **No plaque without a source.** Every number must name the file, the query, the commit that struck it.
+2. **A broken plaque says broken.** down is down — never dressed up as "degraded-maybe".
+3. **New plaques enter by producing their origin first.** The full record of `local-host-api`'s induction lives at docs/operations/LIVE_PROBE_2026-11-16.md, with the before/after tables.
+4. **No plaque called "password 123".** The admin panel is RBAC fail-closed; this hall will never hang that plaque.
+
+### 54.5 Words the Hall still refuses to write
+
+- "Grafana SLO boards passed validation" — never seen, never run, never signed.
+- "Alertmanager is routing alerts" — receiver is null; it sends nothing.
+- "An alert chain reached a human within 15 minutes" — it never fired.
+- "Production mTLS termination" — promised in Volume XXXI; still lives only in clauses.
+
+These words are not forgotten — they are deliberately left blank. Blank, until a human signs.
+
+---

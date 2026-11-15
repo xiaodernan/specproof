@@ -98,3 +98,16 @@ scrape_configs:
     metrics_path: /actuator/prometheus
     static_configs:
       - targets: ["specproof-edge:8090"]
+
+  # 单机自托管设备（phase0 单机，2026-11-16 实测）：应用栈（api/worker/
+  # relay…）都不在 compose 网络里 —— 应用进程跑在宿主机上
+  # （`python -m api.server`，绑 0.0.0.0:8000）。
+  # 注意：host.docker.internal:8000 在这台机器上指向 127.0.0.1，而 127.0.0.1:8000
+  # 被另一个项目（career-os-ai-service，com.docker.backend PID 12868）占用 ——
+  # 从容器里打过去返回 404。所以这里钉死的是宿主机局域网 IP：192.168.1.5:8000。
+  # 换机器/换 IP 时只需改这里一行；完整应用栈（compose.observability/production）
+  # 里就是上面的 api:8000 —— 本目标不替代它，只是单机落地的真实抓取通道。
+  - job_name: local-host-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["192.168.1.5:8000"]
