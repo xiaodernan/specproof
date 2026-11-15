@@ -53,7 +53,7 @@ describe("AgentToolStream", () => {
     });
     expect(screen.getByRole("log").textContent).toContain("new output");
     await act(async () => { sessions[1].done(); });
-    expect(screen.getByText(/已结束 closed/)).toBeTruthy();
+    expect(screen.getByText(/已结束/)).toBeTruthy();
   });
 
   it("names an unmapped status 状态未识别 rather than leaving it looking like a live run", async () => {
@@ -67,6 +67,6 @@ describe("AgentToolStream", () => {
     render(<AgentToolStream jobId="job-1" />);
     await waitFor(() => expect(screen.getByRole("log")).toBeTruthy());
     expect(screen.getByText(/状态未识别/)).toBeTruthy();
-    expect(screen.queryByText(/已结束 closed/)).toBeNull();
+    expect(screen.queryByText(/已结束/)).toBeNull();
   });
 });

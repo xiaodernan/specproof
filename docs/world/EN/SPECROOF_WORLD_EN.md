@@ -1388,3 +1388,39 @@ Admitting it outright: **this gate has not run on a real deployment.** What the 
 With this volume, SpecProof owns its own credential: not an identity given by others, but one measured daily by itself. A heavy repository is not a prize — it is three thousand mornings accumulated by someone willing to knock on the iron every day. If you really want to know whether this repo is honest, do not read the README. Read this ledger — everything here was pried out of git by raw hands.
 
 ---
+## Volume XXXIV · The Ringing of Bronze（卷三十四 · 铜铃之声）
+
+> This volume is about the bell hung above the door;
+> whoever enters brushes it and the bell rings — the ring is not a warning; it is **being witnessed**,
+> and the one who hung it makes no sound of their own — the bell only rings when someone else brushes it.
+
+### 34.1 Three iron ledgers: the bells at the door (each one test-verified)
+
+| Bell | Duty | Threshold | Anchor |
+|---|---|---|---|
+| **Manual bell** | guide route catalog 6/6 — every `#/route` carries a manual row | fail = red | `tests/unit/test_guide_route_catalog.py` |
+| **Gate bell** | the ledger quartet 45/45 — ids unique / numbers unique / evidence true / queue pointers resolve | a claim without evidence = red | `tests/unit/test_ledger_*.py` |
+| **Bronze bell** | UiKit.smoke / tour seals / Insight Deck — the main-screen keys still work | flaky 0|1 under load; reruns pass | #1750 / #1805 |
+
+- not one of these bells "stands watch" decoratively — every one carries a reproducer: `pytest tests/unit/test_guide_route_catalog.py tests/unit/test_ledger_*.py` echoes the same pitch on any machine;
+- the bell does not ring because we did something right — it rings because three things we promised were pinned shut;
+- "bronze bell" in this project means the 51/51 guide + ledger gates: a reproducible floor, not a medal.
+
+### 34.2 Where the bells hang
+
+- on every new route's chest — no page may ship before the manual testimony is posted;
+- at every ledger entry's tail — every section says "chronicle rebuilt", and it truly rebuilt;
+- on every commit's shackle — `codex-global pre-commit` runs guitar notes before git: discipline, size, sanity.
+
+### 34.3 The quiet bells (silence is not breakage)
+
+- the full-bell path (609 test files) **never assembles at once on this host** — the limit is memory, not craft;
+- the clangorous bells rang 137/137 in the Spring lane (#1788) — Maven's quiet grove, not another machine's echo;
+- the gates ring alike anywhere; unsound ≠ unstruck; the pitch is simply consistent.
+
+### 34.4 The bell's vow
+
+**The bell rings itself; it does not report; it does not ring at the wind before the door — it rings at the one who enters.**
+After thirty-four volumes, SpecProof's door has a bell that cannot be taken down — not for passers-by, but for itself: knock first to check the bell sounds, then talk about anything else.
+
+---

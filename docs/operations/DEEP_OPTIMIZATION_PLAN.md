@@ -37133,3 +37133,30 @@ python scripts/stress_smoke.py --target http://127.0.0.1:8000/health --rounds 3 
 * 全量 pytest 仍内存受限；UiKit.smoke 全量未红；
 * 「密码 123」否决维持；PORTFOLIO_TOKEN 仍欠；
 * 这笔不是新功能——是"全内容中英切换"的继续执行。下一目标卷：Volume XXXIV《铜铃之声》（gate 51/51 的正史）。
+
+## #1810 实时工具流页双语化 + UiKit.smoke 前景收敛 + 世界书卷三十四《铜铃之声》
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、`AgentToolStream.tsx` 全双语化（开发者控制台里的半拉子中文页面）
+
+* 消费点逐一改 `L(zh, en)` + `isZh()`（与 #1796 AgentWizard 同款）：
+  404 空节点、返回链接、replay_gap 缺口行、状态占位文案、Panel 标题（实时工具流/Tool stream）、
+  「已结束」与「状态未识别」后缀、最近事件标签、空态 `—`；工具事件日志行零变（事件体属机器原文）；
+* `storedLocale()` 缺省读取路径保持——测试 zh 默认不动；
+* `AgentToolStream.test.tsx` 一处正则 `已结束 closed` → `已结束`（默认 zh 断言精准）；
+* agent 92/92 绿（含 AgentToolStream 3/3）；
+* PdfAsync-timeline smoke 全量 507/507 绿；build ✅ 509ms；tsc 0。
+
+### 二、Volume XXXIV《铜铃之声 · The Ringing of Bronze》
+
+* 主题 = 大门上的铜铃（guide 6/6 + ledger 四件套 45/45 共 **51/51**）：三只铃（手册铃/闸铃/铜铃）、
+  铃挂在哪里、沉睡时刻（全量 pytest 不在本机）；
+* 中英双版对称；明确「不响≠敲坏」；春分车道 137/137 的回响不在这只铃里复唱；
+* worldbook → **41 卷 / 92,456 chars**；`#/worldbook` 自动入册。
+
+### 三、诚实边界
+
+* 本轮 agent/tools 页面补的是 "shown to the human while the agent runs" 的文案，证词本身（SSE 帧 / 工具输出）保持原语；
+* 全量 pytest 仍内存受限；chronicle 1,611 节；guide 6/6；gate 51/51；
+* UiKit.smoke 偶发 flake 如来即至，本轮全量 507/507 未红。

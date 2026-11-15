@@ -3,6 +3,10 @@ import { AgentEvent, AgentReplayGap } from "../../api";
 import { ErrorBox, Panel, Spinner } from "../../ui";
 import { AgentJobShell, EventRow, useAgentJob } from "../components";
 import { agentRunPhase, eventKindLabel, isAgentTerminal, sseStateLabel } from "../util";
+import { storedLocale } from "../../i18n/strings";
+
+const isZh = (): boolean => storedLocale() === "zh";
+const L = (zh: string, en: string): string => (isZh() ? zh : en);
 
 /** 与本文件之外的调用方（测试）共用的原始事件缓冲上限。 */
 const MAX_BUFFERED_EVENTS = 300;
@@ -68,11 +72,15 @@ export default function AgentToolStream(props: { jobId: string }) {
 
   const toolish = events.filter((ev) => ev.type !== "progress");
   const gapNotice = activeGap
-    ? `\n[日志缺口 replay_gap：请求 seq>${activeGap.requested_after}，首个可用 seq=${activeGap.first_available}，中间缺了 ${activeGap.first_available - activeGap.requested_after - 1} 条]\n`
+    ? isZh()
+      ? `\n[日志缺口 replay_gap：请求 seq>${activeGap.requested_after}，首个可用 seq=${activeGap.first_available}，中间缺了 ${activeGap.first_available - activeGap.requested_after - 1} 条]\n`
+      : `\n[Replay gap: requested seq>${activeGap.requested_after}; first available seq=${activeGap.first_available}; ${activeGap.first_available - activeGap.requested_after - 1} event(s) missing in between]\n`
     : "";
   const consoleText =
     toolish.length === 0
-      ? "[等待工具事件… 计划批准后 worker 会发出 tool_call/tool_result/edit/gate]\n" + gapNotice
+      ? (isZh()
+          ? "[等待工具事件… 计划批准后 worker 会发出 tool_call/tool_result/edit/gate]\n" + gapNotice
+          : "[waiting for tool events — after plan approval the worker emits tool_call/tool_result/edit/gate]\n" + gapNotice)
       : toolish
           .map((ev) => {
             const d = ev.data || {};
@@ -89,14 +97,16 @@ export default function AgentToolStream(props: { jobId: string }) {
       <ErrorBox error={error} />
       <Panel
         title={
-          "实时工具流 Tool stream (" +
+          L("实时工具流", "Tool stream") +
+          " (" +
           events.length +
-          " 帧 · SSE " +
+          (isZh() ? " 帧" : " frames") +
+          " · SSE " +
           sseStateLabel(sseState) +
-          // 「已结束」只来自两个事实：这条流自己收到了 done，或任务状态在终态词表里。
-          // 未识别的状态不能借用其中任何一条——既不宣称结束，也不暗示仍在执行。
-          (done || isAgentTerminal(job.status) ? " · 已结束 closed" : "") +
-          (agentRunPhase(job.status) === "unknown" ? " · 状态未识别 unrecognized" : "") +
+          // "closed" is only ever claimed from two facts: this stream received done,
+          // or the job status is in the terminal vocabulary.
+          (done || isAgentTerminal(job.status) ? (isZh() ? " · 已结束" : " · closed") : "") +
+          (agentRunPhase(job.status) === "unknown" ? (isZh() ? " · 状态未识别" : " · unrecognized") : "") +
           ")"
         }
       >
@@ -104,9 +114,9 @@ export default function AgentToolStream(props: { jobId: string }) {
           {consoleText}
         </div>
         <div style={{ marginTop: 12 }}>
-          <div className="kv-label">最近事件 Recent events (全部类型)</div>
+          <div className="kv-label">{L("最近事件", "Recent events")} {L("（全部类型）", "(all kinds)")}</div>
           {events.length === 0 ? (
-            <div className="muted">—</div>
+            <div className="muted">{L("—（无事件）", "— (none)")}</div>
           ) : (
             events
               .slice(-12)
