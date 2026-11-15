@@ -37677,3 +37677,30 @@ no third-party links in reply ✅
 * 「密码 123 全员看所有人行为」永久否决（禁忌清单第 2 位）；Observability 必唯一签字；PORTFOLIO_TOKEN 仍欠；
 * 全量 pytest 仍内存受限；
 * 只在 build 时重生 worldbook/json——`#/worldbook` 不展示运行中页面动态拉升。
+
+## #1828 世界书卷四十六《立不倒的书 · The Book That Will Not Fall》+ portfolio artifacts 重新构建
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、卷四十六入史（53 卷 · 122,316 chars）
+
+* 卷中收录 #130 ~ #1827 的账本全体证言：失败（`#1782` `.env.example` 钩拒）、漏网（`#1815` 中文冒号英 digest 里）、误选（`#1825` JAVA_HOME 误指 JDK 17）——不抹不淡化，
+  逐条列在表格里——被证明强证 = 已被证明；被证明错的证 = 也被收藏——这是一本正经的进化体；
+* 焦点 5 项 scripted 实锤：draft 10.25s→`3.0ms` cached replay（`#1800`+）、`prompt_tokens_details.cached_tokens=4224`（`#1821`，246 tokens 真实增量）、
+  `stress_smoke.py 双车道` 432+432/0 err（`#1801`）、Redis L2 142/142（`#1773`）、`mvn -o 137/137`（`#1825`，JDK 17→25 改写路径 annotated）；
+* Volume XLVI zh/en 双版对称；worldbook → **53 卷** / 122,316 chars。
+
+### 二、portfolio artifacts 同步重建（本机 deterministic；GitHub Pages 待 token 才能推）
+
+* `scripts/sync_portfolio.py` 重建三件套：
+  - `artifacts/portfolio-data/products.json`（44 个 pages，hash 锁定）；
+  - `artifacts/portfolio-data/latest.md`（头版，v0.90.0+#1824/trace 提交 + `Change log`）；
+  - `artifacts/portfolio-data/.github-sync.json`（同步状态 · 不推测 push 状态——若无 token 则等待显式 run）；
+* 本次世界大小 121.6 KB · 页面数 44 · Hash 锁定 tight；
+* **实际 GitHub-Pages 同步仍需** `PORTFOLIO_TOKEN`（Settings → Secrets，Contents: read+write）——没有它，workflow 只重建 `artifacts/PORTFOLIO-data/` 而不推、不红、不违约。
+
+### 三、诚实边界
+
+* 卷四十六不是 v1.0，只是「不动的一本书」—— 这是 v0.90.0 之后的叙述式里程碑；
+* 全量 pytest memory-limited；只跑 guide+ledger **51/51**；春车 137/137（#1825）= 离线全绿、无 TLS/生产；
+* 「密码 123」永久否决；PORTFOLIO_TOKEN 仍需你自备；Observability 真实遥测需隐私评审签字。

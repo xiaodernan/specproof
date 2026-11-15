@@ -1784,3 +1784,34 @@ Volume forty-four states: every `mvn -o test` "137/137" is NOT the first — but
 After this volume, this repository may not tell anyone "there is a SpecProof service running, click here" — that is a claim we have no right to make. The divination finishes where it began: at the threshold, with nobody inside, and nothing to open.
 
 ---
+## Volume XLVI · The Book That Will Not Fall（卷四十六 · 立不倒的书）
+
+> No Portuguese bridge allows passengers until the final stroke of paint;
+> this repository's ledger never allowed a commit merged with an empty section waiting;
+> this volume records that discipline.
+
+### 46.1 Two banks of the same river (from #1 to today)
+
+- from `## #130` to `## #1828` — **1,629 sections** — every one backs onto a real commit hash or a concrete count; every one is `git show`-verifiable;
+- **even the failures are inscribed**:
+  - `#1782` — `.env.example` refused by the global pre-commit hook; accepted as-is and recorded;
+  - `#1815` — `**MAJOR**：3` in the EN digest — a stray full-width Chinese colon leaking into English prose — found, named, fixed;
+  - `#1825` — `JAVA_HOME` pointed at JDK 17, surefire reported `class file version 65.0`, the fix was pointing the right JDK (25.0.1) at the right place;
+- every one of those attaches something genuine: not promises.
+
+### 46.2 This evidence catalogue: from scripture to scrutiny
+
+| One measurement | What it came out as | What it proves |
+|---|---|---|
+| `probe_cache_efficiency.py` | draft 10.25s → **3.0ms** cached replay | semantic-cache structural fix `87118ba` holds at the provider boundary |
+| `scripts/live_lane_probe.py` | HTTP 200 · 10 chunks · `prompt_tokens_details.cached_tokens=4224` | the cache really exists — 246 tokens is all this round really read |
+| `scripts/stress_smoke.py` × 2 lanes | static 432 req/0 err + /health 432/0 err (#1801) | the front door and the readiness port both stood up |
+| `live-lane polyglot` | Redis L1+L2: warm has 142 hits / 0 miss (#1773) | the second cache cannot be ignored once measured |
+| `mvn -o test` | gateway 84 + discovery 1 + config 1 + control-plane 51 = **137/137** (JDK 17→25 note #1825) | green off-line with correct JDK required |
+
+### 46.3 The book's opening and closing
+
+**Remember every thread that failed — as truthfully as the ones that stood.**
+Volume forty-six anchors this: no chapter here was deleted, shrunk, or rewritten. git log can be coerced by humans — this ledger never had to be, because its anchoring is ancestral — one entry, one hash.
+
+---

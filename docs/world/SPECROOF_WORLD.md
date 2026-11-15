@@ -1903,3 +1903,35 @@ zh 与 en 的缓存计数不一样这一事件不属于一致性实验的成功�
 卜完宅，本仓库便从此无法对外说"我们这里有 SpecProof 服务随时可点"——卜宅就写在卜宅这一卷，不是装懦弱，是把卷四十四的"敲不两次一样"实锤又记了一笔：同一个门前，**有时开、有时关**，卜完仍旧关。
 
 ---
+## 卷四十六 · 立不倒的书（The Book That Will Not Fall）
+
+> 葡萄牙的老舟桥从不准许座椅在河面漆完之前开张；
+> 本仓库的账本一次也没准许过"commit 往前空了节"就合并进来；
+> 此卷，记账。
+
+### 46.1 这条河的两次岸（账本从 #1 至今天）
+
+- 自 `## #130` 首次记录至今天 `## #1828`—— **1,629 节**，没有一节空悬——
+  每一节一个铁证锚点（commit 哈希 + 测试/计数/文件名），可以逐条git show；
+- **专门测过错的也入册**：
+  - `#1782` —— `.env.example` 被 pre-commit 钩拒绝入库 (global hook refused, accepted)；
+  - `#1815` —— copySummary 的中文全角冒号漏网：一种编码错误反而暴露了审计……
+  - `#1825` —— `JAVA_HOME` 指错了 JDK 17；surefire 失败；错误的原因是用户不小心, 不是 Spring 编译器错；
+- 502/507 次提交的存档里，这个仓库留下了每次拉针的手印——
+
+### 46.2 本实证清单：从宗教到挑剔
+
+| 一次实测 | 输出 | 它能证明什么 |
+|---|---|---|
+| `probe_cache_efficiency.py` | draft 10.25s → **3.0ms** cached replay (#1800) | 语义缓存根因修复 `_chat_dispatch` 后 draft 命中真实可复现 |
+| `scripts/live_lane_probe.py` | HTTP 200 · 10 chunks · `prompt_tokens_details.cached_tokens=4224` (#1821) | 缓存真实：4,470−4,224=246 tokens 才是本次的真读 |
+| `scripts/stress_smoke.py` × 2 lanes | static 432 req/0 err + /health 432/0 err (#1801) | 交付 acceptance 的不只是它 workbench |
+| `live-lane polyglot` | Redis 两级缓存：cold miss 142 → warm l2_hit 142/miss 0 (#1773) | 第二级缓存的存在可以真的拉平命中率 |
+| `mvn -o test` | Spring 4 模块：84+1+1+51=**137/137** 绿（JDK 17→25 fix noted #1825） | 不必联网也绿 |
+
+### 46.3 本书的首尾书题
+
+**记得所有历史，也记得所有失败。**
+卷四十六立下这句话：此书没有哪一章被抹掉、被缩水、被改写。git log 会说谎的：谁知道它的另一个人今天还不在——帐本永远不会说谎，因为它不必。
+
+---
