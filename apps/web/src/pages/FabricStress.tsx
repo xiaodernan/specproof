@@ -1,5 +1,6 @@
 import { ProductIcon } from "../ui/ProductIcon";
 import { useI18n } from "../i18n";
+import evidence from "./evidence.json";
 import "../styles/fabricStress.css";
 
 /**
@@ -54,6 +55,27 @@ export default function FabricStress(): JSX.Element {
           <code>{L("唯一可用联网通道仍是 wkapi.pro（stream + include_usage 车道）", "only viable outbound remains wkapi.pro (stream + include_usage lane)")}</code>
         </div>
       </div>
+      {evidence.latest && (
+        <div className="fabric-evidence" aria-label={L("git 证据件", "The git evidence file")}>
+          <div className="fabric-evidence-head">
+            <span className="fabric-stress-lane">{L("git 证据件 · 自动从 docs/evidence/ 读取", "GIT EVIDENCE · read from docs/evidence/ at build time")}</span>
+            <code className="fabric-evidence-name">{evidence.latest.file}</code>
+          </div>
+          <div className="fabric-evidence-row">
+            <span>{L("敲击时间", "struck")} <strong>{evidence.latest.started_utc.slice(0, 16).replace("T", " ")}Z</strong></span>
+            <span>{L("并发", "concurrency")} <strong>{evidence.latest.concurrency}</strong> · {L("预热", "warmups")} <strong>{evidence.latest.warmup_rounds}</strong></span>
+            <span>{L("总数", "total")} <strong>{evidence.latest.total_ok}/{evidence.latest.total}</strong> · {L("0 错", "0 err")}</span>
+            <span>{L("最差 p99", "worst p99")} <strong>{Math.round(evidence.latest.worst_p99_ms)}ms</strong></span>
+            <span className={evidence.latest.verdict === "OK" ? "fabric-evidence-ok" : "fabric-evidence-blown"}>{L("判定", "verdict")} <strong>{evidence.latest.verdict}</strong></span>
+          </div>
+          <p className="fabric-evidence-note">
+            {L(
+              "本卡片由 scripts/build_evidence.py 在构建期从证据件原样摘录；要让它更新，就敲一份新证据：stress_smoke.py --json-report docs/evidence/<名称>.json",
+              "This card is distilled verbatim at build time by scripts/build_evidence.py. To refresh it, strike a new one: stress_smoke.py --json-report docs/evidence/<name>.json",
+            )}
+          </p>
+        </div>
+      )}
       <p className="fabric-stress-foot">
         <ProductIcon name="shield" size={12} />{" "}
         {L(

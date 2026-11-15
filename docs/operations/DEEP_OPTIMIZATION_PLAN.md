@@ -38444,3 +38444,28 @@ python scripts/live_lane_probe.py
 * 预热是「本机减少尖峰」，**不是生产许可**——真·生产演练仍欠应用栈 + OBSERVABILITY 签字；
 * Volume LXII《东风之南 · The East Wind South Wind》入册（zh/en 对称）→ 世界书 **69 卷**（本轮 +1）；chronicle 1,652 节；
 * UI 521/521 stays · gate 51/51 stays · court 永不缓存；「密码 123 全员进管理员」永久否决。
+
+## #1852 《织物》挂上 git 证据件：build_evidence.py + evidence.json + 「git 证据件」卡
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、航线（Volume LXIII）
+
+| 站 | 落库路径 | 内容 |
+|---|---|---|
+| 1 · 提炼 | `scripts/build_evidence.py` | 读 docs/evidence/*.json → 按文件名逆序取最新 → **原样摘录**（最差 p99 / 总数 / bytes / verdict）；空目录 → `latest: null` 不编样本 |
+| 2 · 蒸馏 | `apps/web/src/pages/evidence.json` | 构建期 data contract（当前 1 件：2026-11-16-static-warm.json） |
+| 3 · 挂窗 | `FabricStress.tsx` 「git 证据件 · read from docs/evidence/ at build time」卡 | 敲击时间 · 并发 48 · 预热 2 · 192/192 · 最差 p99 **1532ms** · **判定 OK（玉绿）**；@media print 不做特殊处理，A4 打印时随页 |
+| 4 · 更新协议 | 卡上直接印：`stress_smoke.py --json-report docs/evidence/<名称>.json` | 人人可敲；敲完跑一次 build_evidence.py |
+
+### 二、证据如何复核
+
+`git show HEAD:docs/evidence/2026-11-16-static-warm.json` → 与卡上数字 1532ms / 1529ms / 96×2 / 19,394,784 B ×2 / verdict OK 一一对得上；`apps/web/src/pages/evidence.json` 与之同值。**两不是一源，而是同一份 JSON 的原地摘抄——verbatim on verbatim。**
+
+### 三、诚实边界
+
+* 本卡是**构建期快照**——应用运行期不重读文件、不感知新证据；
+* 判定卡随 verdict 变色（OK → 玉绿 / BUDGET-BLOWN → 红）；没有「不亮」中间态；
+* Volume LXIII《归港记 · The Homecoming》入册（zh/en 对称）→ 世界书 **70 卷**（本轮 +1，zh 82,064 首 → 重建后上升）；chronicle 1,653 节；
+* UI **521/521** stays · build 509ms · tsc 0 · gate 51/51 stays · court 永不缓存；
+* 「密码 123 全员进管理员」永久否决；Observability 签字仍欠；PORTFOLIO_TOKEN 仍欠。

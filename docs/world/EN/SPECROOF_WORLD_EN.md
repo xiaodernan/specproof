@@ -2428,3 +2428,33 @@ It answers to `git show` — evidence need not plead: **git holds it, it speaks 
 * this volume registers only "how loud it could ring at this hour" — it will never claim "every hour rings this loud".
 
 ---
+## Volume LXIII · The Homecoming（卷六十三 · 归港记）
+
+> A ship going out never sails to prove how far the sea is — it sails so that home may know it can come back.
+> This volume shelters one piece of evidence on its way home:
+> from one command (stress_smoke.py --json-report), to one committed JSON,
+> to one build-time distiller that hands it to the eyes of #/fabric — none of the legs may skip a stop.
+
+### 63.1 The evidence's route home (all stops verifiable via git show)
+
+| Leg | Evidence |
+|---|---|
+| 1 · filed | `docs/evidence/2026-11-16-static-warm.json` — both ends p99 1532/1529ms · 96×2 · 0 err · 19,394,784 B ×2 |
+| 2 · distilled | `scripts/build_evidence.py` — newest by filename; verbatim copy, never recomputed; empty dir → "no evidence filed yet", never a fake green |
+| 3 · compacted | `apps/web/src/pages/evidence.json` — the build-time data contract; every field verbatim |
+| 4 · displayed | `#/fabric` git-evidence card: struck-at · concurrency · warmups · totals · worst p99 · verdict (OK → jade / BUDGET-BLOWN → red) |
+| 5 · rule | the command on the card: `stress_smoke.py --json-report docs/evidence/<name>.json` — anyone may strike, and the weave lights up |
+
+### 63.2 Three house rules of the homecoming
+
+1. **no sleight of hand** — build_evidence.py has no "improve", only "copy verbatim";
+2. **no fake green** — no evidence, no green card; corrupt files render readable:false as-is;
+3. **no silence** — the verdict chip takes the verdict's colour; BUDGET-BLOWN is red, always will be.
+
+### 63.3 Where the next leg goes
+
+The evidence already hangs on the weave — Volume LXIV will make the homecoming a routine:
+stress_smoke.py truly struck in CI (even weekly), the card refreshing itself on the next push.
+Until that day, every person willing to knock makes this tapestry glow a little.
+
+---

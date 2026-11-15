@@ -2555,3 +2555,33 @@ zh 与 en 的缓存计数不一样这一事件不属于一致性实验的成功�
 * 本卷登记的从来是「这一刻能敲多响」，永远不假装「每时每刻都这么响」。
 
 ---
+## 卷六十三 · 归港记（The Homecoming）
+
+> 出海的船从来不是为了证明海有多远——它是为了让家乡的港口知道，它回得来。
+> 本卷收纳的，是一件证据回到 git 的航程：
+> 从一行命令（stress_smoke.py --json-report），到一份 JSON 入库，
+> 到一个构建脚本把它拆给 #/fabric 看的眼睛——每一程都不许绕、不许调。
+
+### 63.1 证据回港的航线（全部可 git show）
+
+| 程 | 证据 |
+|---|---|
+| 1 · 登记 | `docs/evidence/2026-11-16-static-warm.json`——两端 p99 1532/1529ms · 96×2 · 0 err · 19,394,784 B ×2 |
+| 2 · 提炼 | `scripts/build_evidence.py`——按文件名逆序取最新；原样摘录不重算；空目录 →「no evidence filed yet」而不是伪绿 |
+| 3 · 蒸馏 | `apps/web/src/pages/evidence.json`——构建期 data contract，所有字段都是 verbatim |
+| 4 · 挂窗 | `#/fabric`「git 证据件」卡：敲击时间 · 并发 · 预热轮数 · 总数 · 最差 p99 · 判定（OK → 玉色 / BUDGET-BLOWN → 红色） |
+| 5 · 门规 | 卡上的命令：`stress_smoke.py --json-report docs/evidence/<名称>.json`——人人可敲、敲完回来一目了然 |
+
+### 63.2 归港记的三条家规
+
+1. **不偷换**——build_evidence.py 没有「improve」，只有「copy verbatim」；
+2. **不假绿**——没有证据就没有绿卡；文件损坏标 readable:false 原样展示；
+3. **不静默**——判定卡随 verdict 变色；BUDGET-BLOWN 任何时候都是红字。
+
+### 63.3 下一程去哪
+
+证据件已经挂上织物图——卷六十四将做的是：让「归港」成为日常——
+`scripts/stress_smoke.py` 在 CI 里真的敲一次（哪怕每周一次），push 上去就自动刷新本卡。
+在那之前，每一个肯敲的人，都能让这块织物亮一亮。
+
+---

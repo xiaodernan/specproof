@@ -1,0 +1,65 @@
+{
+ "version": 1,
+ "source": "docs/evidence/*.json (stress_smoke.py --json-report output; this host)",
+ "files_count": 1,
+ "latest": {
+  "file": "2026-11-16-static-warm.json",
+  "readable": true,
+  "started_utc": "2026-11-15T17:20:51.540914+00:00",
+  "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
+  "concurrency": 48,
+  "warmup_rounds": 2,
+  "rounds": [
+   {
+    "total": 96,
+    "ok": 96,
+    "p50_ms": 16.13070000166772,
+    "p95_ms": 1158.9732499996899,
+    "p99_ms": 1532.1360349968018
+   },
+   {
+    "total": 96,
+    "ok": 96,
+    "p50_ms": 16.63774999906309,
+    "p95_ms": 1031.5708749994883,
+    "p99_ms": 1528.5063649995209
+   }
+  ],
+  "worst_p99_ms": 1532.1360349968018,
+  "total": 192,
+  "total_ok": 192,
+  "bytes_read": 38789568,
+  "verdict": "OK"
+ },
+ "all": [
+  {
+   "file": "2026-11-16-static-warm.json",
+   "readable": true,
+   "started_utc": "2026-11-15T17:20:51.540914+00:00",
+   "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
+   "concurrency": 48,
+   "warmup_rounds": 2,
+   "rounds": [
+    {
+     "total": 96,
+     "ok": 96,
+     "p50_ms": 16.13070000166772,
+     "p95_ms": 1158.9732499996899,
+     "p99_ms": 1532.1360349968018
+    },
+    {
+     "total": 96,
+     "ok": 96,
+     "p50_ms": 16.63774999906309,
+     "p95_ms": 1031.5708749994883,
+     "p99_ms": 1528.5063649995209
+    }
+   ],
+   "worst_p99_ms": 1532.1360349968018,
+   "total": 192,
+   "total_ok": 192,
+   "bytes_read": 38789568,
+   "verdict": "OK"
+  }
+ ]
+}
