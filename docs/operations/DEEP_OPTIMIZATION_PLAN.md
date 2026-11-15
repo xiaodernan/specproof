@@ -39018,3 +39018,29 @@ draft#2    → 0.00s · 5600/14  (重复命中)
 * 地标仍然观察到——根证据只有 3 件（本墙之上才两件重要证据），样本小也记账本里；
 * Volume LXXXII《灯上水下 · Below the Lamp, Above the Water》入册（zh/en 对称）→ worldbook **89 卷**（本轮 +1）；chronicle 1,672 节；
 * court 永不缓存 · 「密码 123 全员进管理员」永久否决。
+
+## #1872 《先红后绿》：证据复核子图两个 edge-case 测试 + 排序落地（started_utc ISO desc · 消 mtime tie-flake）· 更正 R11 入卷轴
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、这轮真活（三件）
+
+1. **测试先失败一次**（本真·非演习）：`test_graph_ok_when_all_pass` 🔴 flaky → 和两枚新 edge-case 修完了 🟢。根因：intake_node 按 mtime 排序，tmp_path 双写 tie → 随机判 REGRESSION。
+2. **两个新 edge-case**（`tests/unit/test_evidence_graph_extra.py`）：
+   * 损坏压测件 → `EVIDENCE-MISSING` + errors=`unreadable b.json` 指名；
+   * audit-family JSON → 全部跳过 · `NO-DELTA` · `rounds` 恰 1（`c.json`）。
+3. **更正卷轴** `docs/world/APPENDIX_CORRECTIONS*` 新增 **R11**（以上肇因逐条入账——本仓库不许"测试过了"当理由假装没红过）。
+
+### 二、排序修：started_utc 字典序（ISO = 时间序）
+
+| 项目 | 旧 | 新 |
+|---|---|---|
+| sort key | `p.stat().st_mtime`（不够 tick-granular → tie 乱序） | `started_utc`（ISO 字典序） |
+| fallback | 无 | absence → mtime tailset |
+
+### 三、诚实边界
+
+* R11 不是"本仓库的惯例挡箭牌"——它是本轮本 commit 里发生的真失误的正式位置；
+* Volume LXXXIII《先红后绿？》暂未立碑；若有意加挂卷则 LXXXIII；
+* gate 合计 **62/62**（60+2 新增 evidence edge-cases）；UI 533/533 stays；
+* court 永不缓存；LIVE audit 4 灯（awaiting-signature ✓琥珀脉动 · merged ✓玉绿 · port-free ✓ · clean ✓(0/0)）。

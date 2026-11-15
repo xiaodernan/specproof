@@ -49,7 +49,16 @@ def intake_node(state: EvidenceState) -> EvidenceState:
     if not evidence_dir.is_dir():
         errors.append(f"evidence dir not found: {evidence_dir}")
         return {"evidence_dir": str(evidence_dir), "rounds": [], "errors": errors}
-    for f in sorted(evidence_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
+    def order_key(path: Path):
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            stamp = str(raw.get("started_utc", "")) or ""
+            if stamp:
+                return (1, stamp)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            pass
+        return (0, str(path.stat().st_mtime))
+    for f in sorted(evidence_dir.glob("*.json"), key=order_key, reverse=True):
         if f.name.startswith(("audit-", "verify-", "weekly-")) and f.name.endswith("-summary.json"):
             continue
         try:

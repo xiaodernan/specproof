@@ -23,6 +23,7 @@
 | **R09** | the #1865 commit repaired the ROADMAP-Live **output** but not its **generator** `build_roadmap_live.py` | re-running yesterday's commit would regress the same wrong claim (item 5) | follow-up commit `27d632b` aligned both — ROADMAP-LIVE and its producer | git show 27d632b |
 | **R10** | RageCoach tests expected `"Sign & seal"` → approve; rulemap actually owned it as tour-seal (the `seal` keyword wins) | the rulemap intentionally places seal-related signatures under tour-seal; expectation was written for the wrong lane | test expectation changed to tour-seal; the approve rule made whitespace-tolerant (`批\s*准`) | #1846 · `apps/web/src/ui/rage.test.ts` |
 
+**R11** | `test_graph_ok_when_all_pass` of the evidence-review subgraph flaked once | root cause: intake_node sorted by mtime; two back-to-back fixture writes tie on mtime → random REGRESSION | switched to ISO `started_utc` descending (lexicographic == time order); mtime only as fallback | §#1872 · `tests/unit/test_evidence_graph.py` |
 ## House rules of the scroll
 
 1. Entries never get deleted, only appended;
