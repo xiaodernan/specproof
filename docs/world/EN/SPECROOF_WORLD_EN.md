@@ -1583,3 +1583,38 @@ After Volume thirty-eight, SpecProof's door carries exactly one question-and-ans
 From volume thirty-nine, SpecProof speaks these three: law so people can't act wild, testimony so people don't whisper half-truths, poetry so people want to stay — none is furniture; remove one and the iron shatters.
 
 ---
+## Volume XL · The River with Lamps（卷四十 · 河灯）
+
+> This repository's LLM lanes are two currents: a slow draft current, and a verdict current;
+> both share the same river, but the lamps hang at different heights — one above draft, one forever above court.
+
+### 40.1 Twelve measured facts about wkapi.pro (verify with `git show`)
+
+| # | Fact | Anchor |
+|---|---|---|
+| 1 | `stream=True + stream_options.include_usage=True` is the only lane that returns `usage`; the non-stream lane never reports it — "hit rate 0 on non-stream" is a seeing-error, not a model deficit | upstream back-fills a static prefix of 18,549 tokens; `include_usage` returns `prompt=18549, completion=557 (reasoning 450)` (#1800 `567f604`) |
+| 2 | Semantic-cache silent-fail was **structural**, not a prompt-miss — root cause: the `responses`-protocol lane returned early before the policy branch was ever reached | `providers/openai_compatible.py::_chat_dispatch` · `87118ba`; after the fix, a draft replays in **10.25s → 3.0ms** on the cache |
+| 3 | `cached_tokens` on wkapi (short prompts → `null`; long prompts → constant ~4,224) is the **gateway's static-prefix cache**, never user-message hits; treat it as prefix residue, never as evidence | `e657631` (#1777) |
+| 4 | wkapi ignores `max_tokens=32` (answered 557 tokens); it sets its own completion length — budget truth lives in `providers/budget.py` only | #1800 `567f604` |
+| 5 | HTML widgets injected: `inite.ai/...utm_source=openai` — wkapi is a reseller with an ad pipe; read every byte | #1800 `567f604` |
+| 6 | Model labelled `gpt-6-sol`; `protocol=chat_completions` (explicit in `.local/llm.json`); `base_url=https://wkapi.pro/v1` (normalize_base_url appends `/v1`) | #1800 `567f604` |
+| 7 | `court` never caches (evidence grade) — iron is not issued as a receipt, receipts never stand in for court | `PROVIDER_POLICY.md` #1782 `8b9aa3a` |
+| 8 | `draft` / `diagnose` with `SPECPROOF_PROVIDER_POLICY=1` are auto-routed onto the chat lane for cache; the only kinds eligible for cache | `providers/openai_compatible.py` `_policy_allows()` + `_kind_allows_cache`; #1781 prod-shaped repro |
+| 9 | L1 in-process LRU + `SPECPROOF_REDIS_URL` L2 Redis in this repo; measured in a real container: cold miss=142 → warm **l2_hit=142, miss=0** | #1773 (golden lane, real container) |
+| 10 | Spring off-line suite 137/137: gateway 84/84 · discovery 1/1 · config 1/1 · control-plane 51/51 | #1788 (2026-11-15 live-offline re-run) |
+| 11 | Load lane both directions: static front door 432 req / **0 err** (round 3 p50=84 ms); live backend `/health` 432 req / **0 err** (round 3 p50=329 ms) | #1801 (2026-11-15 field) |
+| 12 | Live `wkapi` is never called from CI — every probe runs on a local executor, scripts live in `.local/` (git-ignored) | `.local/.gitignore` = `*` (#1817) |
+
+### 40.2 Where the four lamps hang
+
+- **Lamp I · DIAGNOSE lane** — rides semantic cache + draft dispatch; a few seconds longer than needed is fine (since #1781 it's 3.0 ms replay);
+- **Lamp II · DRAFT lane** — order search / rewrite / example-spec generation — lightweight models (deepseek-v4-pro or wkapi); policy lane now the default fast lane;
+- **Lamp III · COURT lane** — **never moves**; verdicts / matrix / evidence artifacts are never touched for price; no cache keys walk through this wall;
+- **Lamp IV · VERIFY lane** — `sandbox.verify` — base and head both execute in a real sandbox; the claim is "head failed that the base passed" (`base_pass_head_fail`) — iron grade.
+
+### 40.3 The River with Lamps' vow
+
+**The river may flow any direction, the lamp never lies — the lamp only shines to show: this is water, not oil.**
+After thirty-nine volumes, every LLM lane is a lamp in this repo: draft rides lamps, evidence walks lamp-lit, verdict lights stands; no lamp burns shorter, no lamp burns longer, each shines its own span — **ferry more with cache, never with lies**.
+
+---

@@ -37410,3 +37410,39 @@ python scripts/stress_smoke.py --target http://127.0.0.1:8000/health --rounds 3 
 * `specproof_pulse_v1` 只存本机；「清空」是硬删；
 * `/metrics`（OTel lane）是**未经 collector 直接到达**——本页不读它；要走船队，`OBSERVABILITY.md` + 隐私签字必须；
 * 全量 pytest 仍内存受限（guide+ledger 51/51 不声称全绿）；Spring 137/137（离线在 #1788）；'密码 123' 否决不变。
+
+## #1820 世界书卷四十《河灯 · The River with Lamps》：wkapi 车道的十二个测量事实钉上正史
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、事实（逐一可 `git show` 验证——不是传闻）
+
+1. `stream + include_usage` 车道 probe：`HTTP 200, 7 chunks, 12.6s, prompt=18,549, completion=557 (reasoning 450)`（`#1800` `567f604`）；
+2. 语义缓存静默失败的根因 = `responses` 车道提前 return（policy 分支不可达）→ 修复 `providers/openai_compatible.py` `87118ba`；修复后 draft replay **10.25s → 3.0ms**；
+3. wkapi `cached_tokens`：短 → null，长 → ~4,224 静态前缀缓存——与用户消息无关（`#1777` `e657631`）；
+4. `max_tokens=32` 未被遵守（实际 557 tokens）；
+5. 返回注入第三方推广链 `inite.ai/...utm_source=openai`（wkapi = 带推广链路的第三方转售车道）；
+6. 本机 L1 LRU + L2 Redis：真容器 miss=142 → warm l2_hit=142 miss=0（#1773 的 golden lane）；
+7. Spring 车道离线 **137/137**（#1788 `mvn -o`）；
+8. 压测车道双轮 432 req / 0 err（#1801）；
+9. `court` kinds 永不缓存 —— 证据级，不打折、不缓存（#1782 `8b9aa3a`）；
+10. `include_usage` ≠ 高命中率，只是可见率；
+11. `SPECPROOF_PROVIDER_POLICY=1` allow `draft / diagnose` 走 chat 车道入 cache；其它 kind 不；`court` 永不；
+12. 真 CI 从不打 wkapi，脚本在 `.local/`（untracked）。
+
+### 二、卷四十四盏灯（草稿灯 / 诊断灯 / 法庭灯 / 验证灯）
+
+卷中反复点燃的主题：**河水向北向南都行，灯不向南不向北——灯是让人看见河是水，不是油**。
+每盏灯的角色和缓存资格一一明列；court 那盏永远不摇；草稿车道成熟后走 policy default（缓存 3.0ms）。
+中英双版对称；worldbook → **47 卷 / 108,707 chars**。
+
+### 三、诚实边界
+
+* 本卷**不涵盖 wkapi 账单与发票真相**——hands on 无法获得；本卷只承诺「每条可 `git show`」；
+* 全量 pytest 内存限制不变（guide+ledger 51/51）；Spring 离线 137/137 stays；
+* 「密码 123」永久否决维持；
+* **再次强调**：用户本会话多次粘贴 wkapi key——本次窗口 [已脱敏]。
+  - 真实值 wkapi 方每次调用都必收；视为已泄露；
+  - 仅放 `.local/llm.json`（untracked）或 shell 环境变量**是常态**；不要再贴进邮件 / 白板 / 任何聊天工具；
+  - 任何仓库内 `git grep -e 'sk-[A-Za-z0-9]{8,}'` 已审计；不出现真实值；
+* 若要重新签发 wkapi key，请在 wkapi.pro 控制台做，不需要我处理任何账户权限。

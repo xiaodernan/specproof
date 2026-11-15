@@ -1701,3 +1701,38 @@ zh 与 en 的缓存计数不一样这一事件不属于一致性实验的成功�
 三十九卷以后，SpecProof 说这三种话：法让人不能任性；证让人不敢轻声说谎；诗让人愿意住下去——谁都不是多余的设施，少一个，铁就碎了。
 
 ---
+## 卷四十 · 河灯（The River with Lamps）
+
+> 这座仓库的 LLM 车道有二种水流：一种是认真漂过去的草稿与诊断，一种是判语的铁证；
+> 两条水流共用同一条河，但灯悬挂的位置不同——一盏灯亮在 draft 上，一盏灯永远照在 court 上。
+
+### 40.1 wkapi.pro 的十二个测量事实（逐一核可 `git show`）
+
+| # | 事实 | 证据 |
+|---|---|---|
+| 1 | `stream=True + stream_options.include_usage=True` 是唯一返回 `usage` 的车道；非流形态 usage 根本不上报，UI 里「非流显示命中率 0」是车道错法，不是模型差 | 网关以推理回填静态前缀 18,549 tokens；`include_usage` 形态完整返回 usage `prompt=18549, completion=557(reasoning 450)`（#1800 `567f604`） |
+| 2 | 语义缓存（draft/diagnose）的关闭是**结构性问题**而非「提示词没对上」——根因：`responses` 协议车道提前 return，policy 分支永远不可达 | `providers/openai_compatible.py::_chat_dispatch` `87118ba`；修复后 draft 实测 **10.25s → 3.0ms** 缓存回放 |
+| 3 | wkapi 的 `cached_tokens`（短 prompt 返 null、长 prompt 恒显 ~4,224）是**网关静态前缀缓存**，与你的消息「命中」无关——非命名词命中率不能当证据 | `e657631`（#1777） |
+| 4 | wkapi 对 `max_tokens=32` **不受约束**（回信 557 tokens）；作答长度自定，预算只存在于 `providers/budget.py` 自己——别拿它当硬上限 | #1800 `567f604` |
+| 5 | 返回内容注入第三方链接 `inite.ai/...utm_source=openai` —— wkapi 是带推广链路的第三方转售，默认过眼一遍 | #1800 `567f604` |
+| 6 | 模型显示 `gpt-6-sol`、`protocol=chat_completions`（`.local/llm.json` 显式）、`base_url=https://wkapi.pro/v1`（normalize_base_url 自动追加 /v1） | #1800 `567f604` |
+| 7 | `court` 永不缓存（证据级：court kinds 永远不走语义 cache lane）—— 铁证不成证件，证件不能代替审判庭 | `PROVIDER_POLICY.md` #1782 `8b9aa3a` |
+| 8 | `draft` / `diagnose` 在 `SPECPROOF_PROVIDER_POLICY=1` 时自动改走 chat lane 入 cache；全仓唯一允许缓存的两类 | `providers/openai_compatible.py` `_policy_allows()` + `_kind_allows_cache`；#1781 真机复现 |
+| 9 | 本机 L1 LRU + `SPECPROOF_REDIS_URL` L2 Redis 两级缓存；真容器实测 miss=142 → warm **l2_hit=142, miss=0** | #1773（真容器 golden lane） |
+| 10 | Spring 车道离线 `mvn -o test` **137/137**：gateway 84/84 · discovery 1/1 · config 1/1 · control-plane 51/51 | #1788（2026-11-15 现场离线复验） |
+| 11 | 压力车道双车皆跑：静态前门 432 req / **0 err**（r3 p50=84 ms）；活后端 `/health` 432 req / **0 err**（r3 p50=329 ms） | #1801（2026-11-15 实测） |
+| 12 | 真 CI 没有因 `wkapi` 被叫醒——GitHub Actions 从不打这条网；每次实测都是本机 executor，脚本在 `.local/`（不入 git） | `.local/.gitignore` = `*`；#1781 证据 |
+
+### 40.2 河灯的方位（四盏灯，永远亮着的四条线）
+
+- **第一盏 · debug 车道**：`DIAGNOSE` —— 走语义缓存 + draft 通道，慢一点没问题（#1781 已稳 3.0ms replay）：批量复核 fork 时，是从缓存回放拿的，不是再次烧 10.25s 生成；
+- **第二盏 · draft 车道**：`DRAFT` —— 订单搜索/改写/example-spec 生成，走 lightweight 模型（deepseek-v4-pro / wkapi cloud），policy lane 已是默认快车道；
+- **第三盏 · court 车道**：**永不变**——所有验收裁决（verdict/matrix/evidence）不减最矜的一丝公平，绝不压价、绝不缓存；
+- **第四盏 · verify 车道**：`sandbox.verify` ——真 base/head 各沙箱执行一次；口径永远是"差分有火，head 没过 base 过了"的铁证（#1781 同源）。
+
+### 40.3 河灯的誓言
+
+**河水向北向南都行，灯不向南，灯不向北——灯是让人看见河是水，不是油。**
+三十八卷之后，SpecProof 的每条 LLM 车道都称作灯：草稿用灯写，证据用灯判，裁判用灯断——但每盏灯都不减、也不加，只照自己的一段路；多走路，就多点一盏，**不拿缓存换谎话，不拿速度换铁证**。
+
+---
