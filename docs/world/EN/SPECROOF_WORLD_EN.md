@@ -1488,3 +1488,31 @@ the demo room's door stands where people assume "it's just a demo"; it is the le
 After thirty-six volumes, SpecProof's beauty is this: **it hangs its unfinished niches in the same lamplight as the finished ones** — first admit "there is no number here", then fill the gap for real — rather than pre-colouring a broken figure into completeness.
 
 ---
+## Volume XXXVII · After the Inkwell（卷三十七 · 墨水池之后）
+
+> Volume thirty-six cataloged the empty shelves — this is not another symmetric wound;
+> it dangles the notebook itself over the water: 2,456 strokes, 128 days, 39.1 percent overnight, 811 strokes on Saturday — once you stare at them long enough, what does the human do?
+
+### 37.1 Three kinds of "witnessed hands"
+
+- **the scribe past midnight** — what live inside those 960 strokes laid after 22:00? Not disguised effort, but this repository's own biological clock etched into its commits;
+  not a contest of who tires fastest — it is *admitting that the hour of the stroke has always been a variable*; hang this page on the wall and the lamp beneath the water sees the hand at two in the morning;
+- **the one who always clocks in on Saturday** — 811 on Saturday, 120 on Monday, the number is the number: it never means anyone's work is better;
+  someone is assigned that door, someone volunteers to stoke it first, nobody is ranked louder for it — endurance is not a medal;
+- **the longest 14-day streak and the longest 34-day silence** — two sides of the same pool: `streak` is not a promise, it only means the previous stroke landed;
+  `quiet` is not death — it is the held breath before the repository remembers itself.
+
+### 37.2 After the inkwell hangs on the wall
+
+- **for yourself, not for the office** — this page is not a KPI report, not a performance attachment, not a weekly memo; it only says the light is on and you are writing;
+- **numbers do not explain people** — night depth is not diligence, late hours are not cunning, silence is not laziness; apart from "the repository witnessed itself", this page claims nothing;
+- **an inkwell needs fresh water** — inkwell.json is a frozen snapshot; every ledger entry re-runs `scripts/build_inkwell.py` straight from `git log`, never writing back;
+- **whoever floats on top** — you will never learn from this page who these unnamed hands are… and that is the point in this repository: **not naming names is the most respectful naming of all**.
+
+### 37.3 Seven words after the inkwell
+
+**Ink spills and does not look back — whoever opens this book will simply say "most of these pages were written past two in the morning".**
+**Never mind who — the question is whether tonight's stroke is still allowed to land.**
+Volume thirty-seven carries no finale — it only offers a hand toward whoever comes next, inkwell still warm.
+
+---

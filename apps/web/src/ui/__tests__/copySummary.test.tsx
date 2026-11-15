@@ -102,6 +102,122 @@ describe("buildMarkdownSummary", () => {
     expect(md).not.toContain("undefined");
   });
 
+  it("caps the findings list at five entries but keeps severity counts exact", () => {
+    const many = Array.from({ length: 8 }, (_, i) => ({
+      severity: i < 3 ? "MAJOR" : "MINOR",
+      contract_id: `CONTRACT-${String(i + 1).padStart(2, "0")}`,
+      evidence_type: "static_analysis",
+    }));
+    const md = buildMarkdownSummary(
+      {
+        job,
+        summary: {
+          verdict: "NEEDS_REVIEW",
+          contracts_total: 2,
+          matrix_passed: 2,
+          matrix_failed: 0,
+          matrix_unverified: 0,
+          errors: [],
+        },
+        findings: many,
+      },
+      "en",
+    );
+    expect(md).toContain("**MAJOR**: 3");
+    expect(md).toContain("**MINOR**: 5");
+    expect(md).toContain("CONTRACT-05");
+    expect(md).not.toContain("CONTRACT-06");
+  });
+
+  it("keeps an unknown severity visible verbatim instead of inventing a tier", () => {
+    const md = buildMarkdownSummary(
+      {
+        job,
+        summary: {
+          verdict: "VERIFIED",
+          contracts_total: 1,
+          matrix_passed: 1,
+          matrix_failed: 0,
+          matrix_unverified: 0,
+          errors: [],
+        },
+        findings: [{ severity: "deep-weird", contract_id: "X-C1", evidence_type: "mystery" }],
+      },
+      "en",
+    );
+    expect(md).toContain("**DEEP-WEIRD**");
+    expect(md).toContain("1");
+    expect(md).not.toContain("undefined");
+  });
+
+  it("renders the literal job id even when every optional field is missing", () => {
+    const md = buildMarkdownSummary({ job: { id: "bare-1" }, summary: null, findings: [] }, "en");
+    expect(md).toContain("## SpecProof verification: bare-1");
+    expect(md).toContain("#/jobs/bare-1");
+    expect(md).toContain("(not provided)");
+    expect(md).not.toContain("undefined");
+    expect(md).not.toContain("null");
+  });
+
+  it("emits job-branch-to-job-branch verbatim regardless of which ref is right", () => {
+    const md = buildMarkdownSummary(
+      {
+        job: { id: "j-8", base_ref: "a", head_ref: "b", created_at: 1_700_000_000 },
+        summary: null,
+        findings: [],
+      },
+      "zh",
+    );
+    expect(md).toContain("#/jobs/j-8");
+    expect(md).toContain("`a` → `b`");
+  });
+
+  it("renders an explicit locale argument even over a stored preference", () => {
+    try {
+      window.localStorage.setItem("specproof_locale", "zh");
+      const md = buildMarkdownSummary(
+        {
+          job,
+          summary: {
+            verdict: "VERIFIED",
+            contracts_total: 1,
+            matrix_passed: 1,
+            matrix_failed: 0,
+            matrix_unverified: 0,
+            errors: [],
+          },
+          findings: [],
+        },
+        "en",
+      );
+      expect(md).toContain("## SpecProof verification");
+      expect(md).not.toContain("验收");
+    } finally {
+      window.localStorage.removeItem("specproof_locale");
+    }
+  });
+
+  it("uses the stored zh preference when no locale argument is passed", () => {
+    try {
+      window.localStorage.setItem("specproof_locale", "zh");
+      const md = buildMarkdownSummary({
+        job,
+        summary: {
+          verdict: "VERIFIED",
+          contracts_total: 1,
+          matrix_passed: 1,
+          matrix_failed: 0,
+          matrix_unverified: 0,
+          errors: [],
+        },
+        findings: [],
+      });
+      expect(md).toContain("## SpecProof 验收");
+    } finally {
+      window.localStorage.removeItem("specproof_locale");
+    }
+  });
+
   it("counts findings by severity and surfaces BLOCKER details", () => {
     const md = buildMarkdownSummary({
       job,

@@ -60,6 +60,7 @@ const TXT = {
     risks: "### 风险发现",
     noFindings: "（未提供）（无发现），等价于 verify 目前没有产出任何 finding；它不等于\"没有缺陷\"。",
     itemsSuffix: " 项",
+    countsSep: "：",
     capsule: "复现包",
     link: "链接（同一租户、按权限可见）",
     generated: (d: string): string =>
@@ -79,6 +80,7 @@ const TXT = {
     noFindings:
       "(not provided) — no findings; this means verify produced nothing, NOT that the code is defect-free.",
     itemsSuffix: "",
+    countsSep: ": ",
     capsule: "Reproduction capsule",
     link: "Link (same tenant, permission-gated)",
     generated: (d: string): string =>
@@ -125,7 +127,7 @@ export function buildMarkdownSummary(
     lines.push(
       ...Array.from(counts.entries())
         .sort(([a], [b]) => b.localeCompare(a))
-        .map(([s, n]) => `- **${s}**：${n}${tx.itemsSuffix}`),
+        .map(([s, n]) => `- **${s}**${tx.countsSep}${n}${tx.itemsSuffix}`),
     );
     for (const f of findings.slice(0, 5)) {
       lines.push(

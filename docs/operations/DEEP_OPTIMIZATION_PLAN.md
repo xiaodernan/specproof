@@ -37272,3 +37272,35 @@ python scripts/stress_smoke.py --target http://127.0.0.1:8000/health --rounds 3 
 * 本页不是排名、不是 KPI、不是绩效——它是**一面镜子**：让本仓库自己看清自己怎么写的；
 * 统计层是一张静态快照（build time），不是实时观察窗；再入库一次要手跑脚本；
 * UiKit.smoke 全量未红；全量 pytest 仍内存受限；'密码 123' 否决维持。
+
+## #1815 复制摘要门禁 10→11 本锤 + 卷三十七《墨水池之后》（中/英双版）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、复制摘要门禁 5 → 11 本锤（含 en-prose-colon 现场补丁）
+
+* en 输出此前 severity 行仍是 `**MAJOR**：3`（中文全角冒号）—— #1803 的 en 残留审计未捕获这一处；
+  - 新增 `countsSep` 逐 locale 字段（zh `：` · en `: `），严重度行在两个 locale 下冒号语法正确；
+  - 既有 en 测试 `"Verdict: **BLOCKER**"` 等字节级不变，本轮新增 6 本锤：
+    - 封顶五条列表但计数精确（`**MAJOR**: 3` · `**MINOR**: 5`）；
+    - 未知 severity `DEEP-WEIRD` 原样小写上显；
+    - bare job（只留 id）渲染 # SpecProof 裸标题 + `#/jobs/bare-1` + `(not provided)`；
+    - `a`/`b` 分支箭头原文直映出 digest；
+    - 显式 `locale='en'` 在 specproof_locale='zh' 时仍出英文；
+    - 正确存根 `specproof_locale='zh'` 时不传 locale 参数出中文（修正 jsdom navigator.language 默认 en-US 导致的旧错误断言）；
+  - vitest copySummary 11/11（+6）；
+* **衍生真实 bug**：locale 未指定时在 jsdom 默认为 en-US navigator —— 本地兜底是 fallback，不是断言硬编码；
+* 全量 vitest **514/514**（+2 净:12 → 沿用）；tsc 0；build ✅ 433ms。
+
+### 二、Volume XXXVII《墨水池之后 · After the Inkwell》
+
+* 卷三十七把 inkwell.json 的数字（2,456 笔 / 128 天 / 39.1% 深夜 / 周六 811 笔 / 14 连写 / 34 天沉寂）挂上墙（`#/inkwell`）以后的反照；
+* 主题：深夜执笔人之于仓库生物钟 · 周六入场的没人奖赏 · 两种纺织——``streak` is not a promise; `quiet`/gap 不是死寂` · 「不叫出来的姓名是这里最郑重的命名」；
+* 中英双版对称；worldbook → **44 卷 / 99,835 chars**；`/worldbook` 自动入册。
+
+### 三、附
+
+* `ui/copySummary.ts` 里 `countsItem:` 未动，仍是同列拼入；`countsSep` 与 `sep`（verdict 用 `: `/`：`）一致性为笔误排除；
+* UiKit.smoke 全量未红；
+* 全量 pytest 内存限制不变（guide+ledger 51/51）；
+* "密码 123" 否决维持；PORTFOLIO_TOKEN 仍欠。
