@@ -1736,3 +1736,36 @@ zh 与 en 的缓存计数不一样这一事件不属于一致性实验的成功�
 三十八卷之后，SpecProof 的每条 LLM 车道都称作灯：草稿用灯写，证据用灯判，裁判用灯断——但每盏灯都不减、也不加，只照自己的一段路；多走路，就多点一盏，**不拿缓存换谎话，不拿速度换铁证**。
 
 ---
+## 卷四十一 · 实测缓存（The Proven Cache）
+
+> 卷四十把河灯的方位讲清楚了；这一卷只记一次标准敲门声；
+> 探针敲进 wkapi，三样灯一起亮：HTTP 200、10 chunks、usage 完整返回——
+> 4470 里有 **4224** 个前缀 token 纹丝未动；只有 246 是本次真正新读的——
+> 缓存事实这一次，终于被**嵌套**地亲眼看见：`prompt_tokens_details.cached_tokens = 4224`。
+
+### 41.1 探针带回来的三件事（`scripts/live_lane_probe.py`，2026-11-15 实测）
+
+| 项 | 数据 | 位置 |
+|---|---|---|
+| HTTP + streaming | **HTTP 200 · 10 chunks · 3.45 s** | SSE 以 `[DONE]` 收尾 |
+| usage 完整返回 | `prompt=4470 · completion=11 · total=4481` | `stream_options={"include_usage":true}` 兑现了它的字面承诺 |
+| 静态前缀缓存直观呈现 | **`prompt_tokens_details.cached_tokens = 4224`**<br>—— **94.5% 的前缀未被收费** | 嵌套在 details 里，不在顶层——读顶层的人看不到真金 |
+| 推广占位符 | 本次回复中**没有** inite.ai 之类的第三方链接 | 仅作抽样观测；依旧每封信要过眼 |
+| max_tokens=24 | `completion_tokens=11` 被遵守 | 本次遵守了；但网关在别的请求里未必死守上限——噪声不是铁律 |
+
+### 41.2 这一卷印三句话
+
+- **wkapi 的前缀缓存是真的**——草稿/诊断 lane 只要 `SPECPROOF_PROVIDER_POLICY=1` hoist，
+  前缀就没在每次重新又读一次；缓存不是营销词，它是一次 `git rev-list` 里没被人注意过的 4,224；
+- **cache 证据从嵌套层 `prompt_tokens_details.cached_tokens` 读出来**，不在顶层字段——
+  此前记账的人看不到这一行，就误判了"缓存命中率 0"；实际的命中率 94.5%；
+- **discount 只颁给 `draft / diagnose`（policy lane），court 永久不拿缓存换证**——
+  缓存省钱，不省证。
+
+### 41.3 这一卷的寄语
+
+**不是缓存缺席，是缓存曾经离肉眼只有一层括号的距离。**
+`cached_tokens: 4224` 只写两次的确认帧——它每次都照样按时亮、按时灭、按时 `[DONE]`；
+缓存真正的考验不是 `#1800`，不是 `#1810`，是下一次它还在不在，你能不能直接敲一下 `probe` 听见其中的滴答。
+
+---

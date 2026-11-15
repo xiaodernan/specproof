@@ -1618,3 +1618,35 @@ From volume thirty-nine, SpecProof speaks these three: law so people can't act w
 After thirty-nine volumes, every LLM lane is a lamp in this repo: draft rides lamps, evidence walks lamp-lit, verdict lights stands; no lamp burns shorter, no lamp burns longer, each shines its own span — **ferry more with cache, never with lies**.
 
 ---
+## Volume XLI · The Proven Cache（卷四十一 · 实测缓存）
+
+> Volume forty mapped where the lamps hang; this volume only records one standard knock;
+> the probe walked in and three lamps lit at once — HTTP 200, ten chunks, usage intact:
+> of 4,470 prompt tokens, **4,224 never moved**; only 246 were freshly read on this call;
+> the cache fact, finally seen in its **nested home**: `prompt_tokens_details.cached_tokens = 4224`.
+
+### 41.1 Three things the probe brought home (`scripts/live_lane_probe.py`, 2026-11-15 field)
+
+| Item | Figure | Location |
+|---|---|---|
+| HTTP + streaming | **HTTP 200 · 10 chunks · 3.45 s** | SSE `[DONE]` trailer |
+| Full usage intact | `prompt=4470 · completion=11 · total=4481` | `stream_options={"include_usage": true}` delivers on its word |
+| Static prefix cache, plain sight | **`prompt_tokens_details.cached_tokens = 4224`**<br>—— **94.5% of the prefix uncharged** | nested inside details, not top-level; people reading only the top level miss the mould inside |
+| Promotional placeholder | **none** this sample | sampled; every byte still needs a glance — this is not a whitelist |
+| max_tokens=24 | `completion_tokens=11` honored | this call honored; the gateway does not always dead-stop — noise, not law |
+
+### 41.2 Three utterances this volume presses in
+
+- **wkapi's prefix cache is real** — every draft/diagnose lane call with `SPECPROOF_PROVIDER_POLICY=1` hoist means the prefix never re-reads itself;
+  cache is not a marketing word; it is 4,224 tokens worth of work, shipping inside every reply;
+- **cache evidence lives inside `prompt_tokens_details.cached_tokens`**, not the top level —
+  anyone reading only the top level concludes "hit rate 0"; the actual instruction this volume ships is: pull the nested field;
+- **the discount is for `draft / diagnose` only** — court never trades cache for evidence; cache is for cost, never for the verdict.
+
+### 41.3 What this volume leaves behind
+
+**Not absent the cache; the cache was one bracket-pair away from sight.**
+`cached_tokens: 4224` — written down here so the next knock sounds the same tick;
+the real test is not this receipt, nor #1810; it is whether, next time you ping `scripts/live_lane_probe.py`, the lamp still ticks.
+
+---

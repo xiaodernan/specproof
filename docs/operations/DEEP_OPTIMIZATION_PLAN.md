@@ -37446,3 +37446,44 @@ python scripts/stress_smoke.py --target http://127.0.0.1:8000/health --rounds 3 
   - 仅放 `.local/llm.json`（untracked）或 shell 环境变量**是常态**；不要再贴进邮件 / 白板 / 任何聊天工具；
   - 任何仓库内 `git grep -e 'sk-[A-Za-z0-9]{8,}'` 已审计；不出现真实值；
 * 若要重新签发 wkapi key，请在 wkapi.pro 控制台做，不需要我处理任何账户权限。
+
+## #1821 实测缓存：live_lane_probe.py 入库 + 世界书卷四十一《实测缓存 · The Proven Cache》
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、实敲一次（2026-11-15，session 末端）
+
+```
+source local_file | protocol chat_completions | model gpt-6-sol | base_url https://wkapi.pro/v1
+HTTP 200 | chunks 10 | 3.45 s
+reply: 铁证不伪造。
+usage: {"prompt_tokens": 4470, "completion_tokens": 11, "total_tokens": 4481,
+        "prompt_tokens_details": {"cached_tokens": 4224}}
+cached_tokens field present ✅
+no third-party links in reply ✅
+```
+
+* **关键发现**：wkapi 真正有缓存——只是**嵌套在 `prompt_tokens_details.cached_tokens`，不在顶层**；此前 `#1800` 的探针抓顶层视野并产生了"缓存 null"的误判；本次补漏
+* 前缀 4,470 里 4,224（**94.5% 不重读**），246 tokens 才是本次真正的新读；此前一直将其称作"网关前缀"而不算证据——本节作为账本，回答了"缓存到底有没有？"——**有，94.5%**（本次专访）；
+* 探针脚本 `scripts/live_lane_probe.py` 入库：一条最小 SSE 请求，打印 source/protocol/model/base_url/HTTP/chunks/耗时/usage/推广链检查；
+  绝不打印 key；不用于 CI；需要重测时直接敲 1 次。
+
+### 二、探针放在哪
+
+* `scripts/live_lane_probe.py` 入库（绝不打印 key）；任何人敲一次都能得到自己的数字
+* 两种类型：`scripts/llm_cache_probe.py`（既有，统计过往 ledger 的 cache lane 观测）+ 本次单独的 live probe；
+* 监控方针不变：policy=1 draft/diagnose 才上 cache；court 永不缓存
+
+### 三、世界书卷四十一《实测缓存》（中/英）
+
+* 主题：缓存只被一层括号隔离，`4470 - 4224 = 246` tokens 是本次新读；
+* policy=1 仅 draft/diagnose 缓存免重读；court 永老不走缓存；
+* worldbook → **48 卷 / 110,875 chars**
+* 本卷永久加 textile：**缓存不是缓存本身，缓存是那一层看不见的 `prompt_tokens_details`**
+
+### 四、诚实边界
+
+* court kinds 仍不缓存——不是漏：**缓存永不属于证据**；
+* `/usage` 的 hit_rate 显示的是 **ledger 事件聚合**，不代表产品整体，也不代表 `#1800` 之后任何一轮调用；
+* 全量 pytest 内存限制不变（guide+ledger 51/51）；Spring off-line 137/137（#1788）；
+* 「密码 123」否决维持；本节唯一改变的，是一眼能看见的 `cached_tokens`。
