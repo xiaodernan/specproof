@@ -26,6 +26,13 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
+# The report contains CJK + symbols; Windows consoles default to GBK and
+# UnicodeEncodeError mid-print would truncate it. Force UTF-8 output.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except Exception:  # noqa: BLE001 - best-effort console fix only
+    pass
+
 REPO = Path(__file__).resolve().parents[1] / "apps" / "web" / "src"
 EXEMPT = re.compile(r"(strings\.ts|\.copy\.ts|__tests__|\.test\.|i18n)")
 LITERAL = re.compile(r'"[^"\n]{2,300}"|\'[^\'\n]{2,300}\'|`[^`\n]{2,300}`')

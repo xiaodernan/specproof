@@ -36940,3 +36940,28 @@ python scripts/stress_smoke.py --target http://127.0.0.1:8000/health --rounds 3 
 * 全量 pytest 仍未跑完（本机内存受限）；guide 6/6 + gate 51/51 重跑通过；chronicle 将在本提交后 ≈1,603 节；
 * 卷三十一（跨地域 + TLS + 限流遥测）留为待办口子，不在本次声称范围内；
 * 世界书 PDF/在 App 内阅读 → `/worldbook`，本卷自动入册。
+
+## #1803 复制摘要双语化：审阅者粘出的 Markdown 不再永远是中文 + i18n_audit 工具 UTF-8 修复
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、问题（粘贴产物是中文唯一来源）
+
+* `ui/copySummary.ts` 的 `buildMarkdownSummary()` 生成的是**审阅者粘到 PR / Issue / Slack 的 Markdown 摘要**——此前它**无视 locale**，永远产出中文（`## SpecProof 验收：…`、`验收条件：…`、`### 风险发现`、`（未提供）`）；
+* 这正是「所有内容都得支持全中英文切换」被悄悄违反的一处真实缺口：英文 UI 的用户粘出去的仍是中文；
+* i18n_audit bucket A 此前数到 324 条、cat 上大面积被误报——但 bucket A **下也潜水着真的此类功能缺陷**，本节就是从中捞出的那一件。
+
+### 二、修复
+
+* `buildMarkdownSummary(input, locale?)`：第二参数可显式传 `zh|en`（缺省走 `storedLocale()` 调用时读取）；返回结构恒为完整摘要，两种语言各一份 `TXT` 表（title/verdict repo/change/spec/contracts/risks/noFindings/capsule/link/generated），分项明确；
+* **`sep` 字段**：分隔符中文 `：`、英文 `: ` —— 英文输出零中文残留；zh 输出字节级不变（三个既有断言逐字对齐：`"## SpecProof 验收：verify-abc123"` / `"3 项（3 通过 / 0 未通过 / 0 未验证）"` / `"（未提供）（无发现）"`）；
+* 新增一条 en digest 全量断言（"renders a complete digest in English, not a translated hybrid"：含 `## SpecProof verification:` / `Verdict: **BLOCKER**` / `Acceptance contracts: 2 (1 passed / 1 failed / 0 unverified)` / `### Risk findings` / `Reproduction capsule`，并**断言输出里没有任何汉字**：`验收` / `未提供` 缺位）；
+* 既有 zh 测试：4/4 file-level 全绿；全量 vitest **503/503**（+1）；
+* `scripts/i18n_audit.py`：Windows GBK 控制台打印 CJK 时 `UnicodeEncodeError` 截断报告 → 强制 `sys.stdout.reconfigure(encoding="utf-8", errors="replace")`，报告现在打得完（bucket A/B 汇总表全量可见）。
+
+### 三、诚实边界
+
+* i18n_audit bucket A 仍≈324 条，其中**绝大多数是忠实标注**：`Insight.tsx`/`AgentWizard.tsx`/`CommandPalette.tsx` 里 `zh ? "…" : "…"` 的 zh 分支本来就含汉字（审计无法感知对偶侧）；`agent/util.ts` 的 `AGENT_STATUS_META` 是后端 `STATUS_LABELS` 的**直版镜像**（`test_agent_console_terminal_vocabulary_parity.py` 锁死的契约），渲染路径已走 `agentStatusMeta()` 按 locale 出字；`tour.ts` 是 zh 版正文（en 版在 `tour.copy.ts`，`TOUR_BY_LOCALE` 配对）；UiKit.tsx 75 条为 dev-only showcase；
+* 本文件**不是**门禁，是给人看的细查清单；real quality = 逐桶审 + 实测渲染，不是数字归零；
+* UiKit.smoke / 全量 Python 单测状态不变：UI **503/503**，`tests/unit` 全量仍内存受限；guide 6/6；gate 51/51；
+* `/insight` 等 L() 三元式文件已如实保留 zh 分支原样，不会因此报 bucket A 为零——不为报表优化代码。

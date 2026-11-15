@@ -45,6 +45,35 @@ describe("buildMarkdownSummary", () => {
     expect(md).not.toContain("null");
   });
 
+  it("renders a complete digest in English, not a translated hybrid", () => {
+    const md = buildMarkdownSummary(
+      {
+        job,
+        summary: {
+          verdict: "BLOCKER",
+          contracts_total: 2,
+          matrix_passed: 1,
+          matrix_failed: 1,
+          matrix_unverified: 0,
+          errors: [],
+        },
+        findings: [
+          { severity: "BLOCKER", contract_id: "AUTH-01", evidence_type: "base_pass_head_fail" },
+        ],
+      },
+      "en",
+    );
+    expect(md).toContain("## SpecProof verification: verify-abc123");
+    expect(md).toContain("Verdict: **BLOCKER**");
+    expect(md).toContain("Acceptance contracts: 2 (1 passed / 1 failed / 0 unverified)");
+    expect(md).toContain("### Risk findings");
+    expect(md).toContain("AUTH-01");
+    expect(md).toContain("Reproduction capsule");
+    expect(md).not.toContain("验收");
+    expect(md).not.toContain("未提供");
+    expect(md).not.toContain("undefined");
+  });
+
   it("counts findings by severity and surfaces BLOCKER details", () => {
     const md = buildMarkdownSummary({
       job,
