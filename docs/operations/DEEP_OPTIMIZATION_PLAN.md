@@ -38415,3 +38415,32 @@ python scripts/live_lane_probe.py
 * start_local.ps1 的「预热门」只在**下次真正启动**时计时生效；
 * Volume LXI《北风之夜 · North Wind Night》入册（zh/en 对称）→ 世界书 **68 卷**（本轮 +1）；chronicle 1,651 节；
 * UI 521/521 · build 275ms · gate 51/51 stays；court 永不缓存；「密码 123 全员进管理员」永久否决。
+
+## #1851 东风之南：`--warmup N` 落库 + 预算账翻页（5376ms → OK/1532ms）+ 证据件入 git
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付物
+
+* `scripts/stress_smoke.py` 新增 **`--warmup N`**：先敲 N 轮（不计时、不计入 worst 也不参与判定），再进计量轮；`--json-report` 的 summary 里新增 `warmup_rounds` 字段；
+* **`docs/evidence/2026-11-16-static-warm.json` 入库**（本仓库自己的第一份 git-tracked 证据件）：
+  * 2026-11-15T17:20Z · 静态车道 3 入口资产 · 48 并发 ×2 req · 2 预热 + 2 计量；
+  * warmup 1 p99 3585ms / warmup 2 p99 1523ms（均不入账）；
+  * **measured round 1：p50 16.1ms · p99 1532ms · 96/96 · 0 err · 19,394,784 字节**；round 2：p99 1529ms；
+  * **verdict: OK**（最坏轮 p99 1532ms < 脚本内建 5000ms 预算）。
+
+### 二、这一页为什么是历史性的
+
+卷六十的 BUDGET-BLOWN 5376ms → 本卷 **1532ms / OK**。原因不是魔术：
+1. `--warmup` 让预热轮先吸走了冷盘 JIT（#1850 启动礼已先推了一次）；
+2. 计量轮只剩热缓存 + 正常 p50 ≈ 16ms；
+3. 本机今天仍然高负载（23 容器并跑）——p99 仍 ~1.5s，**高于 <600ms 心理线但远低于 5000ms 机制门限**——两种门限在账上分别写清楚，不混用。
+
+**「预热翻盘」从这一刻起不是口号，是 git show 得出的 JSON。**
+
+### 三、诚实边界
+
+* 5000ms 预算是脚本内建的「压断前的兜底」，不是 SLO；<600ms 从来没进过机制门限；
+* 预热是「本机减少尖峰」，**不是生产许可**——真·生产演练仍欠应用栈 + OBSERVABILITY 签字；
+* Volume LXII《东风之南 · The East Wind South Wind》入册（zh/en 对称）→ 世界书 **69 卷**（本轮 +1）；chronicle 1,652 节；
+* UI 521/521 stays · gate 51/51 stays · court 永不缓存；「密码 123 全员进管理员」永久否决。

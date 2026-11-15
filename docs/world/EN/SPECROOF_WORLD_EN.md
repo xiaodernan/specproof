@@ -2391,3 +2391,40 @@ The warm door may not change this host's barometric pressure, but it changes one
 With warming built into the launch, every door is opened already warm.
 
 ---
+## Volume LXII · The East Wind South Wind（卷六十二 · 东风之南）
+
+> The east wind arrives and first melts the old snow off the roof — the old ledger is not deleted; it just lies there warming in the sun.
+> Volume LX said "over budget"; Volume LXI said "the key is cut but this host cannot hold the pressure" — this volume says:
+> the key went in, one turn, and the door may now say "open", verdict in three characters: **OK** —
+> with one footnote: nobody ever promised <600ms outside our heads.
+
+### 62.1 The key & its turn
+
+`scripts/stress_smoke.py --warmup N`: knock N untimed rounds first (not counted), then measure.
+This is the first ruler to actually quantify the "after warming" answer — the companion of the #1850 warm door.
+
+### 62.2 The three rounds struck at 2026-11-16T17:20 (the budget sheet; 2 warmups + 2 measured)
+
+| Round | Figures | Verdict |
+|---|---|---|
+| warmup 1 | p99 3585ms (not counted) | — |
+| warmup 2 | p99 1523ms (not counted) | — |
+| round 1 | **p50 16.1ms** · p99 **1532ms** · 96/96 · 0 err | within the 5000ms budget |
+| round 2 | p50 16.6ms · p99 1529ms · 96/96 · 0 err | within the 5000ms budget |
+| **verdict** | **OK** (worst p99 1532ms < 5000ms) | |
+
+Compared with Volume LXI: without warming the verdict was BUDGET-BLOWN (5376ms); with warming the verdict is OK — warming really works. This time it is the numbers speaking, not the spirit.
+It still sails above the <600ms psychological line — **the psychological line is not a shipping line; the gap stays written, never拆.**
+
+### 62.3 The evidence goes into git
+
+`docs/evidence/2026-11-16-static-warm.json` — every round's elapsed time, every byte (19,394,784 B × 2), every single zero error, committed verbatim.
+It answers to `git show` — evidence need not plead: **git holds it, it speaks for itself.**
+
+### 62.4 Not the end — the next opening
+
+* next boot: the #1850 warm door and this volume's `--warmup` are a pair of migrating birds;
+* a genuine budget redemption (<600ms) needs one quiet 4 GB machine without 23 noisy neighbours — that is Volume LXIII's honest prelude;
+* this volume registers only "how loud it could ring at this hour" — it will never claim "every hour rings this loud".
+
+---

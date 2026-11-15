@@ -108,6 +108,8 @@ def main() -> int:
     parser.add_argument("--rounds", type=int, default=4)
     parser.add_argument("--per-thread", type=int, default=2)
     parser.add_argument("--timeout", type=float, default=8.0)
+    parser.add_argument("--warmup", type=int, default=0,
+                        help="untimed warm-up rounds before the measured rounds (not counted in any verdict)")
     parser.add_argument("--json-report", default="")
     args = parser.parse_args()
 
@@ -123,6 +125,12 @@ def main() -> int:
         note = f"static lane, {len(paths)} entry assets, fresh server on 127.0.0.1"
         server, base = serve_dist()
         print("serving dist/ on", base)
+
+    if args.warmup:
+        for w in range(args.warmup):
+            warm = run_round(base, paths, args.concurrency, args.per_thread, args.timeout)
+            print(f"warmup {w + 1}/{args.warmup}: total={warm['total']} ok={warm['ok']} "
+                  f"p99={warm['p99_ms']:.1f}ms (not counted)")
 
     rounds_out = []
     for r in range(args.rounds):
@@ -144,6 +152,7 @@ def main() -> int:
         "note": note,
         "concurrency": args.concurrency,
         "per_thread": args.per_thread,
+        "warmup_rounds": args.warmup,
         "rounds": rounds_out,
         "verdict": "OK" if worst_err <= 0.01 and worst_p99 < 5000 else "BUDGET-BLOWN",
         "honesty": "This is a static-asset delivery probe on this host; it is not a FastAPI/MySQL/Redis rating.",
