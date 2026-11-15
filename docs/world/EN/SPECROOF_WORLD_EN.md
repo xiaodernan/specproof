@@ -2921,3 +2921,41 @@ This book will not delete them, nor abstract them away — open one and it is re
 Anybody itching to delete these should go sign for it first.
 
 ---
+## Volume LXXVII · Door and Lock（卷七十七 · 门与锁）
+
+> Doors are what get pushed; locks are what keep the door being a door.
+> This volume answers one line of question: court never enters any cache — not a slogan, five machine-struck locks.
+
+### 77.1 The five machine locks (scripts/audit_court_lock.py · re-strike anytime)
+
+| # | Piece verified | How struck |
+|---|---|---|
+| 1 | providers/openai_compatible.py `kwargs["stream"] = True` | byte-slice SHA256 over the match |
+| 2 | same file `kwargs["stream_options"] = {"include_usage": True}` | byte-slice SHA256 over the match |
+| 3 | providers/client_policy.py `ENV_POLICY = "SPECPROOF_PROVIDER_POLICY"` | byte-slice SHA256 over the match |
+| 4 | providers/semantic_cache.py `EVIDENCE_KINDS` exactly {{court, counterexample, accept_judge, contract_compile}} | byte-slice SHA256 · exact member-set assert |
+| 5 | same file `CACHEABLE_KINDS` exactly {{draft, diagnose}} | byte-slice SHA256 · exact member-set assert |
+
+The synthetic lock (16 hex) = SHA256 over the sorted concatenation of the five evidence hashes.
+As this volume is written: **LOCKED · `4117d2b0ca5fb23a`**.
+`pytest tests/unit/test_court_lock_machine.py` (2/2 ✅) re-checks the lock on every CI run.
+
+### 77.2 House rules of door and lock
+
+1. **locks never rely on memory** — machine-byte spliced; trusts no docs, no comments, no ledger;
+2. **#/engine renders the lock** — one chip, lock hex right on the page; a bypasser can only succeed loudly;
+3. **BROKEN is always visible** — audit exits 2 in that case and the chip goes red;
+4. **a court-cache flip would break the lock** = red chip — nothing in this repo may silence that.
+
+### 77.3 Two real things that happened while writing this
+
+* First strike returned BROKEN: not the code — the audit regex didn't recognise Python's `kwargs["stream_options"] = {...}` spelling; fixed (accepts both styles now);
+* after that, `audit_court_lock.py` strikes with **both-spelling-compatible regexes** — no extra lock gets added, no existing lock gets removed.
+
+### 77.4 The lock keeps the door, not the reverse
+
+`SPECPROOF_PROVIDER_POLICY` is the bolt — without it, the repo is byte-identical to today (no cache at all; cache_hit_rate stays 0 because there IS no cache, not because nothing matched).
+With it, court still never enters the rack — the four welds in `test_court_never_caches.py` keep that iron uncut.
+**The cipher machine is not a nerve; the lock is the testimony of iron and fire.**
+
+---

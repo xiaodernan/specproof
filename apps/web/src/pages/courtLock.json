@@ -1,0 +1,50 @@
+{
+ "version": 1,
+ "generated_utc": "2026-11-15T18:30:47+00:00",
+ "verdict": "LOCKED",
+ "lock": "4117d2b0ca5fb23a",
+ "court_rule": "court / judge never enter any cache — stream+include_usage only lane of recorded usage",
+ "checks": [
+  {
+   "id": "openai_compatible_stream_true",
+   "found": true,
+   "evidence_sha256": "8a5f628337e0eaaca85811dfcc07f87e45270af0226cba6b604cd356ee3e29b0",
+   "anchor": "providers/openai_compatible.py"
+  },
+  {
+   "id": "openai_compatible_include_usage",
+   "found": true,
+   "evidence_sha256": "6eb38c12fcc27d14cb9a7bc5f767439589f70980c93c081e8f233ccfb35284a3",
+   "anchor": "providers/openai_compatible.py"
+  },
+  {
+   "id": "policy_disabled_by_default",
+   "found": true,
+   "evidence_sha256": "b488e82940e5808e62421fdbf60dc0a0c419c5740b94493bf3141a697d3b1132",
+   "anchor": "providers/client_policy.py"
+  },
+  {
+   "id": "semantic_cache_evidence_kinds_match",
+   "found": true,
+   "evidence_sha256": "45d41b6aabbe7d2fa8049aa75707fbae7264778a6ba9222048222b77e80ab87a",
+   "anchor": "providers/semantic_cache.py",
+   "members": [
+    "accept_judge",
+    "contract_compile",
+    "counterexample",
+    "court"
+   ]
+  },
+  {
+   "id": "semantic_cache_cacheable_kinds_match",
+   "found": true,
+   "evidence_sha256": "5b0c72a93ab47fbca75a326836d3087b8d03a9cc0c38ce9e6c19e9b8d3bf1a88",
+   "anchor": "providers/semantic_cache.py",
+   "members": [
+    "diagnose",
+    "draft"
+   ]
+  }
+ ],
+ "anchor": "scripts/audit_court_lock.py · git show HEAD:providers/semantic_cache.py"
+}

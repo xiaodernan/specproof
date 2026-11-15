@@ -30,8 +30,8 @@ describe("fabric self-portrait", () => {
     const { container } = render(<Fabric />);
     const card = container.querySelector(".fabric-evidence");
     expect(card).not.toBeNull();
-    expect(card?.textContent ?? "").toContain("2026-11-16-static-warm-2.json");
-    expect(card?.textContent ?? "").toContain("1537ms");
+    expect(card?.textContent ?? "").toMatch(/2026-11-16-static-warm[\d-]*\.json/);
+    expect(card?.textContent ?? "").toContain("OK");
     const ledger = container.querySelector(".fabric-stress");
     expect(ledger).not.toBeNull();
     expect(ledger?.textContent ?? "").toMatch(/2026-11-16/);

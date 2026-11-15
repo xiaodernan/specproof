@@ -3046,3 +3046,41 @@ put with kind="court" 直接返回 False、cache 保持空；rejected 计数 +1�
 本书不许删，也不许架空——点进去就是一段真 Python。任何想删它的人，等签字人给你做讲解。
 
 ---
+## 卷七十七 · 门与锁（Door and Lock）
+
+> 门是被推开的东西，锁是让门保持自己的东西。
+> 本卷只回答一句话：court 永远不进缓存——不是一句口号，是五把机器做的锁。
+
+### 77.1 五把机器锁（scripts/audit_court_lock.py · 逐次敲可重复）
+
+| 锁 # | 校验件 | 检测方式 |
+|---|---|---|
+| 1 | providers/openai_compatible.py `kwargs["stream"] = True` | 正则字节切片 SHA256 |
+| 2 | 同上文件 `kwargs["stream_options"] = {"include_usage": True}` | 正则字节切片 SHA256 |
+| 3 | providers/client_policy.py `ENV_POLICY = "SPECPROOF_PROVIDER_POLICY"` | 正则字节切片 SHA256 |
+| 4 | providers/semantic_cache.py `EVIDENCE_KINDS` **恰好** {{court, counterexample, accept_judge, contract_compile}} | 正则字节切片 SHA256 · 成员集合精确校验 |
+| 5 | 同文件 `CACHEABLE_KINDS` **恰好** {{draft, diagnose}} | 正则字节切片 SHA256 · 成员集合精确校验 |
+
+合成 lock（16 hex）= SHA256(排序后的五枚证据哈希拼接) — 杜甫。
+本卷落稿时 **LOCKED · `4117d2b0ca5fb23a`**。
+`pytest tests/unit/test_court_lock_machine.py`（2/2 ✅）随 CI 每次机器验锁。
+
+### 77.2 门与锁的家规
+
+1. **锁不靠记忆**——机器逐字节拼接，不信任何文档、任何注释、任何 ledger；
+2. **#/engine 屏**显示锁（机顶一 chip）——黑客要绕过，物理上不可能静默成功，此处也不需要代码评审"雰围"——读 SHA 即可判真伪；
+3. **BROKEN 永远可见**——审计脚本 exit 2 即因此；engine 页 chip 颜色换成红色；
+4. **court 启用缓存 = 破 lock = 红 chip**——本仓库里永远不许这种掩盖。
+
+### 77.3 两件真事（修）
+
+* 首敲一瞬 LOCK AUDIT BROKEN：不是代码坏了——是审计 regex 不认 `kwargs["stream_options"] = {...}` 的正常 Python 写法——已修正（两个拼法都校验）；
+* 本卷后：`audit_court_lock.py` 用的是**两种拼法兼容正则**；锁永远是这五把——多了不可加、少了不可减。
+
+### 77.4 门我不锁，门锁自己
+
+`SPECPROOF_PROVIDER_POLICY` 是把门闩——没闩时 = 永不自动缓存（byte-identical）。
+闩上后，court 仍不入柜——四枚断言钉死（`test_court_never_caches.py`）。
+**密码机不是神经，锁是铁和火的证词。**
+
+---

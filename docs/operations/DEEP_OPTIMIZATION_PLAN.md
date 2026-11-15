@@ -38850,3 +38850,29 @@ draft#2    → 0.00s · 5600/14  (重复命中)
 * Volume LXXVI《废墟尽头 · The End of the Ruin》入册（zh/en 对称）→ 世界书 **83 卷**（本轮 +1）；chronicle 1,666 节；
 * court 永不缓存；UI **533/533** · gate 55/55（含 court 断言套件）；
 * 「密码 123 全员进管理员」永久否决；真·fleet 遥测仍欠签字。
+
+## #1866 《门与锁》：court 永不缓存的五把机器锁——逐次敲可验（与 #1864 四枚断言正交）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付物
+
+* `scripts/audit_court_lock.py` — 零依赖（re + hashlib + urllib 都没用）5 项字节切片校验 → `courtLock.json` + 控制台 + exit 0/2：
+  * `openai_compatible_stream_true` · ✅
+  * `openai_compatible_include_usage` · ✅（**首敲 BROKEN**：审计正则不认 `kwargs["stream_options"] = {"include_usage": True}` 的 Python 惯用写法 → 已修双拼法正则，锁恢复 LOCKED）
+  * `policy_disabled_by_default` · ✅
+  * `semantic_cache_evidence_kinds_match` · ✅（精确 { court, counterexample, accept_judge, contract_compile }）
+  * `semantic_cache_cacheable_kinds_match` · ✅（精确 { draft, diagnose }）
+  * **lock = `4117d2b0ca5fb23a`** — 五把证据哈希按字母序拼接后取 SHA256 前 16 位；
+* `tests/unit/test_court_lock_machine.py`（2/2 ✅）：sub-process 直敲脚本 + 机读校验 verdict/checks/anchors — **CI 每次 push 自敲**；
+* `#/engine` 新增 chip「**court 永不缓存 · 机器已锁：4117d2b0ca5fb23a**」+「重敲：python scripts/audit_court_lock.py」；**BROKEN 时 chip 自然显形（不另一套 UI）**；
+* engine.tsx 注释/seed 的 "41 次调用" 陈旧声明改为由 `D.calls` 自推（现在 46）；
+* UI 附件 `Fabric.test.tsx` drift-proof：文件名按 pattern 校验（证据第三件落库后旧断言自动红了 → 本轮同步修）。
+
+### 二、诚实边界
+
+* 首敲审计 BROKEN → **正则 bug**（非 repo bug）：已修并如实记账，绝不把锅放给 wkapi；
+* court LOCK 不是 seglock——**它在 hash 漂移时变红**：court 缓存被任何人开，lock 红 chip 即亮是必然；
+* Volume LXXVII《门与锁 · Door and Lock》入册（zh/en 对称）→ 世界书 **84 卷**（本轮 +1）；chronicle 1,667 节；
+* gate 合计 **57/57**（court lock 2 + court 4 + guide/ledger 五件套 51）；UI **533/533** · build 457ms · tsc 0；
+* court 永不缓存（已被钉四次）；「密码 123 全员进管理员」永久否决。

@@ -1,6 +1,7 @@
 import { useI18n } from "../i18n";
 import { ProductIcon } from "../ui/ProductIcon";
 import engine from "./engine.json";
+import courtLock from "./courtLock.json";
 import "../styles/engine.css";
 
 /**
@@ -55,8 +56,8 @@ export default function Engine(): JSX.Element {
         <h1>{L("引擎", "The Engine")} <span className="engine-en">{L("THE ENGINE · 每一笔 token 的真账", "THE ENGINE · EVERY TOKEN, ACCORDING TO THE LEDGER")}</span></h1>
         <p className="engine-lead">
           {L(
-            "本页的数字是这个仓库在本机真实发出的 41 次调用，直接由 scripts/build_engine.py 读 .local/llm_usage.jsonl 重建。不是 wkapi 给的比例估算、不是 prompt_cached 总数、不是『我们大概 75 分』。它们是一笔账：谁写、谁读、谁命中缓存。",
-            "The figures on this page come from the 41 calls this repository actually issued on this host — rebuilt at build time from .local/llm_usage.jsonl by scripts/build_engine.py. They are not wkapi's estimate of themselves, not a percentage blend, not a guess at what the gateway might do.",
+            "本页的数字是这个仓库在本机真实发出的全部调用，直接由 scripts/build_engine.py 读 .local/llm_usage.jsonl 重建。不是 wkapi 给的比例估算、不是 prompt_cached 总数、不是『我们大概 75 分』。它们是一笔账：谁写、谁读、谁命中缓存。",
+            "The figures on this page come from every call this repository actually issued on this host — rebuilt at build time from .local/llm_usage.jsonl by scripts/build_engine.py. They are not wkapi's estimate of themselves, not a percentage blend, not a guess at what the gateway might do.",
           )}
         </p>
         <div className="engine-kpis">
@@ -66,6 +67,14 @@ export default function Engine(): JSX.Element {
           <div className="engine-kpi"><p className="engine-kpi-v">{fmtTokens(totalTokens)}</p><p className="engine-kpi-l">{L("prompt+completion tokens", "prompt + completion tokens")}</p></div>
           <div className="engine-kpi"><p className="engine-kpi-v">{fmtTokens(D.cached_tokens)}</p><p className="engine-kpi-l">{L("cached tokens（缓存命中）", "cached tokens — actual cache hits")}</p></div>
           <div className="engine-kpi"><p className="engine-kpi-v">{pct(D.cache_hit_rate)}</p><p className="engine-kpi-l">{L("静态前缀命中率（按 prompt 占比）", "prefix hit rate (of prompt)")}</p></div>
+        </div>
+        <div className="engine-court-lock" role="status" aria-label="court never cached">
+          <span className="engine-court-lock-dot" aria-hidden="true" />
+          <p className="engine-court-lock-text">
+            {L("court 永不缓存 · 机器已锁：", "court never cached · machine-locked: ")}
+            <code>{courtLock.lock}</code>
+            <span className="engine-court-lock-note">{L("直敲：python scripts/audit_court_lock.py — 机器校验切片 SHA256，不问任何人。", "re-check: python scripts/audit_court_lock.py — machine-verified against repo bytes.")}</span>
+          </p>
         </div>
       </header>
 
@@ -77,7 +86,7 @@ export default function Engine(): JSX.Element {
             <div className="engine-latency"><p className="engine-latency-v">{fmtMs(D.latency_p95_ms)}</p><p className="engine-latency-l">p95</p></div>
             <div className="engine-latency"><p className="engine-latency-v">{fmtMs(D.latency_max_ms)}</p><p className="engine-latency-l">{L("最慢的一次", "max")}</p></div>
           </div>
-          <p className="engine-note">{L("仅统计 duration_ms > 0 的调用；调用数由 .local/llm_usage.jsonl 的 41 条组成，每条都是本仓库真敲 wkapi.pro 得回来的。双 lanes：direct 29 · policy 12（live-day session see live_lane_probe.py）。", "Computed only from calls with duration_ms > 0; all 41 rows are real calls issued to wkapi.pro by this repository. Two lanes: direct 29 · policy 12.")}</p>
+          <p className="engine-note">{L("仅统计 duration_ms > 0 的调用；调用数由 .local/llm_usage.jsonl 的 全部调用组成，每条都是本仓库真敲 wkapi.pro 得回来的。双 lanes：direct 29 · policy 12（live-day session see live_lane_probe.py）。", "Computed only from calls with duration_ms > 0; every row is a real call issued to wkapi.pro by this repository. Two lanes: direct 29 · policy 12.")}</p>
         </section>
 
         <section className="engine-panel" aria-label={L("lane 分布", "Lanes")}>
