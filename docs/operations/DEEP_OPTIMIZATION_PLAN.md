@@ -37896,3 +37896,52 @@ lanes={'direct': 29, 'policy': 12}  kinds={'(unspecified)': 29, 'draft': 6, 'cou
 * 「密码 123 全员进」永久否决；Observability 签字仍欠；PORTFOLIO_TOKEN 仍欠；
 * 本轮 worldbook 为 56/56 (Volume L)；chronicle 即将重建至 1,635 节；
 * 下一步：**Volume XLIX → Volume L《第一卷？》——本轮书脊完毕**。
+
+## #1835 世界书卷五十《收口之门 · The Closing Gate》——铁证铁锚定在本机
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、五件钉死的事实（本机可敲、可复现）
+
+1. **Spring 车道离线**：`mvn -o test` — gateway 84/84 · discovery-server 1/1 · config-server 1/1 · control-plane 51/51 → **137/137**（#1825 现场再验证；#1788 首次离线全绿）；
+
+2. **压测车道双车道（#1801）**：
+   - Static front door：72 并发 × 3 轮 × 2 req/线 · 432 req · **0 err**（round-1 cold p50=2356 ms · round-2 p50=103 ms · round-3 p50=**84 ms**）；
+   - Live backend `/health`：72 并发 × 3 轮 × 2 req/线 · 432 req · **0 err**（p50 round-3 = **329 ms**）
+
+3. **LLM 车道 `wkapi.pro` 实测记录**（`scripts/live_lane_probe.py` #1821 现场）：
+   - 唯一能上报 usage 的车道 = `stream=True + stream_options.include_usage=True`；
+   - `#1800` not — that was the scroll fix；`#1813` 之后确立缓存嵌套层：wkapi 把静态前缀缓存放在 **`prompt_tokens_details.cached_tokens`**（嵌套字段）· 不是顶层——此前 #1777 只读了顶层以为 hit=0；
+   - 新探针（#1821 `scripts/live_lane_probe.py`）敲回来 `prompt=4470 / cache_hit=4224 = 94.5%` prefix cache hit · 10 chunks / 3.45 s · no in-page ad injection this sample · `max_tokens=24` 被遵守
+
+4. **滚轮方向** § #1800（`567f604`）——owner 第三次点名同一症状 · `specproof_invert_scroll="1"` only opt-in · 滚轮尽头直接恢复了自然方向；
+
+5. **MQ 车道（Spring）**：gateway 的 Distributed tag/Event containment 严校——case-sensitive tag → case-insensitive allowlist → unknown tags drop-latch, unknown routing families do not manufacture commitments (#1786)；MQ Watchdog merge limit exercised in Docker container `#1783`（Gateway tests green：`GatewayMqEventCardinalityTest` 严封）；
+
+### 二、Worldbook 重建
+
+* 卷五十入史（中/英双版对称）：
+  ZH · `## 卷五十 · 收口之门`，
+  EN · `## Volume L · The Closing Gate`
+
+* worldbook → **57 卷** / 131,415 chars · chronicle 1,636 节中并入 `#1835`
+
+### 三、诚实边界
+
+* 本轮所有数字都是 **本机 specs**——不代表任何生产节点
+* 不代表任何 SLA 承诺，**只代表 this host**；
+* 全量 `pytest tests/unit` 仍内存限制 ~2 GB（guide + ledger 五件套 **51/51**）；
+* 「密码 123 全员进」永久否决；「agent 自己 Approve」永久否决；
+* Observability 真遥测签字仍欠；PORTFOLIO_TOKEN 仍欠（`portfolio-sync.yml` 不配 → 不动 GitHub Pages）。
+
+### 四、可自测
+
+```powershell
+# 离线 Spring
+$env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot'; mvn -o -pl gateway,discovery-server,config-server,control-plane test
+# 压测
+python scripts/stress_smoke.py --rounds 3 --timeout 15
+python scripts/stress_smoke.py --target http://127.0.0.1:8000/health --rounds 3 --timeout 10
+# live wkapi 敲门声
+python scripts/live_lane_probe.py
+```

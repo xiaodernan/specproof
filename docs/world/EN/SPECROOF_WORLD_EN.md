@@ -1926,3 +1926,32 @@ Volume XLIX latches this one: your eyes on `git log` can watch real commits arri
 and if you want to know what the next volume is — go knock on GitHub; the book neither promises nor retrades.
 
 ---
+## Volume L · The Closing Gate（卷五十 · 收口之门）
+
+> This volume is the closing gesture of a door —
+> not a finish line, not a triumph, but a door swung inward one time and exactly one time: what you see inside is what has been visibly counted.
+
+### 50.1 Five things this milestone pins shut
+
+| Event | Grade | Detail |
+|---|---|---|
+| Spring lanes off-line (mvn -o) | **green** | gateway 84 / discovery 1 / config 1 / control-plane 51 = **137/137** (2026-11-15) |
+| Static-front-door load lane | **green** | **432 req / 0 err** · p50 round-3 = 84 ms |
+| Live backend /health lane | **green** | **432 req / 0 err** · p50 round-3 = 329 ms |
+| LLM lane (wkapi.pro · gpt-6-sol) | **partial truth** | stream + include_usage alone returns `usage`; call answered in 12.6 s · 557 completion (reasoning 450) · `cached_tokens` at top = `null` — the signal lives at `prompt_tokens_details.cached_tokens` |
+| Wheel inversion | **fixed** | commit `#1800` · three iterations on owner's repeat reports |
+
+### 50.2 What this round did NOT finish — honestly
+
+| Hand | Detail | Waits on |
+|---|---|---|
+| Real production | this repo has never run in a real deployment | you handing me a surface / DNS / credentials |
+| Full pytest suite | host RAM ≈ 2 GB · the full suite won't even boot | you upgrading the runner to ≥8 GB |
+| Real fleet-wide instrumentation | without product-privacy sign-off, we ship nothing about anyone | you signing `OBSERVABILITY.md` gates |
+
+### 50.3 The vow of the closing gesture
+
+**The closing is not the conclusion; it is the drawing of the outline — the shape before the figure.**
+Volume L pins these; it does not complete them. The five holds of #1825 / #1801 / #1800 / #1821 / #1788 — hold up under hammer. The door swings inward: nothing has ended; everything has been named.
+
+---

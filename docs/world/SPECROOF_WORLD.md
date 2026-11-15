@@ -2049,3 +2049,33 @@ zh 与 en 的缓存计数不一样这一事件不属于一致性实验的成功�
 也没人说"请再等"。此卷 —— 你敲了，下一卷往哪走？**去敲 GitHub。**
 
 ---
+## 卷五十 · 收口之门（The Closing Gate）
+
+> 这是一卷不可以再改写的——这一卷不要再有人说「未完成」，
+> 只能说："完成过，但不是全部完成；证完成过；"——一些数字被钉下来之后，你不能再改了。
+
+### 50.1 本卷要钉住的五件 iron
+
+| 事件 | 等级 | 内容 |
+|---|---|---|
+| Spring 车道离线 `mvn -o` | **green** | gateway 84 / discovery 1 / config 1 / control-plane 51 = **137/137** (2026-11-15) |
+| 静态前门压测 | **green** | **432 req / 0 err**, p50 r3 = 84 ms |
+| 活后端 /health 压测 | **green** | **432 req / 0 err**, p50 r3 = 329 ms |
+| LLM 车道（wkapi.pro · gpt-6-sol） | **partial truth** | stream + include_usage 是唯一上报 token usage 的车道；waited 12.6 s, 557 completion tokens, cached_tokens=`null`（top level）— 嵌套在 `prompt_tokens_details.cached_tokens` 下（#1821 probe）|
+| 滚轮方向 | **fixed** | `CaretInverted` 修复；commit `#1800` · owner 多次点名后 3 版本迭代最终 fix |
+
+### 50.2 收口的三只手（这一轮没有做完的事，公开摆出来）
+
+| 手 | 描述 | 等谁 |
+|---|---|---|
+| 真·生产 | 本仓库没有在任何外网中部署过一次 | 等你给 deployment surface 或 token |
+| 全量 Python 单测 | 本机 ~2 GB 内存；分布运行不足以支撑全量 suite | 等你把 runner 升级到 ≥8 GB |
+| 真实全产品遥测 | 我没有 waiver、privacy sign-off、consent basis —— 无 OBSERVABILITY.md 认证，不开 | 你签 `OBSERVABILITY.md` 条款 |
+
+### 50.3 收口的誓言
+
+**收口不是结束，是承认已经画下来的形状。**
+卷五十到此——spring 工 + 前置门 + 滚轮 + 缓存探针——水印写就是成品「铁证」，等下一卷破土。
+「完成」在这里不是 verb：**只是个名词，它回答你的问题：「你到底做到哪了」？——我们做到了这五条，本书到此为止，继续是新世界。**
+
+---
