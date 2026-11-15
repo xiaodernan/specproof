@@ -53,6 +53,7 @@ const LastCall = lazy(() => import("./pages/LastCall"));
 const Inkwell = lazy(() => import("./pages/Inkwell"));
 const Gallery = lazy(() => import("./pages/Gallery"));
 const Pulse = lazy(() => import("./pages/Pulse"));
+const Trace = lazy(() => import("./pages/Trace"));
 
 type NavItem = {
   path: string;
@@ -92,6 +93,7 @@ const NAV: NavItem[] = [
   { path: "inkwell", labelKey: "nav.inkwell", icon: "book", groupKey: "group.evidence" },
   { path: "gallery", labelKey: "nav.gallery", icon: "gazette", groupKey: "group.evidence" },
   { path: "pulse", labelKey: "nav.pulse", icon: "health", groupKey: "group.evidence" },
+  { path: "trace", labelKey: "nav.trace", icon: "invert", groupKey: "group.evidence" },
   { path: "census", labelKey: "nav.census", icon: "verify", groupKey: "group.evidence" },
   { path: "manual", labelKey: "nav.manual", icon: "guide", groupKey: "group.evidence" },
   { path: "identity", labelKey: "nav.identity", icon: "team", groupKey: "group.admin", roles: IDENTITY_ROLES },
@@ -148,6 +150,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "inkwell") return <Inkwell />;
   if (seg[0] === "gallery") return <Gallery />;
   if (seg[0] === "pulse") return <Pulse />;
+  if (seg[0] === "trace") return <Trace />;
   if (seg[0] === "atlas") return <Atlas />;
   if (seg[0] === "worldbook") return <WorldBook />;
   if (seg[0] === "nightwatch") return <NightWatch />;

@@ -37556,3 +37556,36 @@ no third-party links in reply ✅
 * 春分车道命令仍 `mvn -o`；Spring CI 真实运行仍等部署环境；
 * 「密码 123 在控制台」——不存在；`#/insight` 是 admin/operator fail-closed RBAC 替代；
 * Observability 真实遥测仍需隐私签字；本轮仅新增世界书文档，不触达应用代码，不重建 dist。
+
+## #1824 溯源 `#/trace`：当场扫账本 + 世界书的诚实眼睛
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、动机
+
+* 用户要求「尽量加入真实数据，不要演示数据」—— worldbook/chronicle 仍是 build-time JSON，不是真实数据；但它们可以被**核查**；
+* 全仓库所有「真实数字」都可以静默对账——本页让「核到什么程度」第一次有一个人能看见的按钮；
+* 本页永不 fetch 网络，只做 literal substring 扫描，确保「任何人不只能相信你，只能当场看证」。
+
+### 二、交付
+
+* `pages/Trace.tsx` + `styles/trace.css`：
+  - 搜索框（`autoFocus`，`type=search`，`placeholder` zh/en 双语）；
+  - **6 粒种子按钮**（示例：`e06d918` · `#1819` · `4f2ad98` · `#1800` · `e657631` · `#1781`）；
+  - 命中计数（账本命中数 + 世界书命中数 + 合计）；
+  - 「账本命中」列表（`#NNNN`，可点击链到 `#/chronicle?q=NNNN`）去见证；
+  - 「世界书命中」列表（卷号 + 卷目 + 正文命中的话展示 240 字 center-anchored 窗）；
+  - 空态与"再敲两个字符"退路两侧都到位；
+  - 诚实 footer：本页不是索引、不是搜索引擎、不是定理证明——只是看向 own evidence；
+* `App.tsx` 懒加载 + NAV evidence 组（icon `invert`）+ 路由分支；`strings.ts` → `nav.trace`（溯源 / Trace）；
+* `USER_GUIDE.md` + EN mirror：各加 `/trace` 一行；一级入口 35 → **36**；guide route catalog **6/6** 绿；
+* build ✅ 407ms（Trace chunk 6.45 kB JS / 2.94 kB gzip + CSS 3.52 kB）；tsc 0；vitest **514/514**；gate 51/51；
+* chronicle 1,625 节；worldbook（50 卷）不变。
+
+### 三、诚实边界
+
+* 不联网、不上传 key、不 fetch anything、不存 query——検索字符串只活在组件内存里（关闭即消失，不落盘）；
+* 本页只回答 literal substring 扫描——`n` / `t` / `s` 子串与正文 240 字中心锚点窗；没有语义检索、没有向量召回；
+* `#NNNN` 走 `String(e.n) === q` 精确 + `includes` 宽松两路；query ≥3 字节；
+* UiKit.smoke 全量未红；全量 pytest 内存受限；Spring 车道离线 `mvn -o test`；
+* 「密码 123」永久否决维持。
