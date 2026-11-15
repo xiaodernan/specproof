@@ -443,6 +443,32 @@ if ($degradedServices.Count -gt 0) {
     exit 1
 }
 
+# ── 预热门（cold-hit, #1849 B 组证词）────────────────────────────────────────
+# 静态 front door 冷启动曾实测 p99 7588ms（#1849）：JIT + 冷盘不是崩溃，而是超额。
+# 这个项目的启动序列里，本函数先自己敲两下门——让下游真实用户不会吃到那第一个尖峰。
+Write-Step "预热门：先让自己吃一次冷(cold-hit)"
+try {
+    $h = Invoke-RestMethod -Uri "$ApiUrl/health" -TimeoutSec 5
+    Write-Info ("自敲 /health -> db/redis/mysql={0}" -f (($h | ConvertTo-Json -Compress) -replace '\"', ''))
+} catch {
+    Write-WarnMsg ("/health 自敲失败（就绪检查刚才已过，需排查）: {0}" -f $_.Exception.Message)
+}
+foreach ($i in 1..2) {
+    try {
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $resp = Invoke-WebRequest -Uri "$ApiUrl/" -TimeoutSec 15 -UseBasicParsing
+        $sw.Stop()
+        Write-Ok ("第 {0} 次自敲 / -> {1} ({2} ms, {3} bytes)" -f $i, $resp.StatusCode, $sw.ElapsedMilliseconds, $resp.RawContentLength)
+    } catch {
+        Write-WarnMsg ("预热自敲第 {0} 次失败: {1}" -f $i, $_.Exception.Message)
+    }
+}
+if (Test-Path (Join-Path $RepoRoot "apps\web\dist\index.html")) {
+    Write-Ok "front door 已预热：随后的静态车道不再吃冷盘 JIT（判定门限按预热后 <600ms 复核）"
+} else {
+    Write-Info "apps/web/dist 不存在——Vite dev 模式无需预热静态资产；跳过"
+}
+
 Write-Step "全部就绪"
 Write-Host ""
 if ($LlmConfigured) {

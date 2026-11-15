@@ -2354,3 +2354,40 @@ All four verdicts live on `#/fabric` inside the "THE STRESS LEDGER" panel as a 2
 3. **snapshots do not auto-refresh** — they assert "being struck", never "still striking".
 
 ---
+## Volume LXI · North Wind Night（卷六十一 · 北风之夜）
+
+> The north wind opens the first window and pours cold air in — not a failure, just winter's manners.
+> Volume LX raised the stone of the cold-start overage; this volume does not argue it away — it hands over one key: the warm door.
+> And this volume also stipulates: the key does not rewrite the ledger — today's three rounds came in above the aspirated threshold anyway, and this book records it as-is.
+
+### 61.1 The key: the warm door in start_local.ps1 (landed in #1850)
+
+At the very end of the startup sequence, before "all green":
+* one `/health` self-probe (reports mysql/redis state);
+* two self-knocks on `/` (Stopwatch-timed, byte counts printed) — so real downstream requests never eat the cold-disk JIT spike again;
+* skipped cleanly when apps/web/dist is absent (Vite dev mode needs no warm assets);
+* validated through the syntax parser (Windows PowerShell 5.1 / pwsh 7 grammar is shared).
+
+### 61.2 Today's three knocks (verbatim, all three kept)
+
+| Round | p50 | p95 | p99 | Result |
+|---|---|---|---|---|
+| 1 (cold) | 1590ms | 5282ms | **5376ms** | 96/96 ok · no crash |
+| 2 (warm) | 24ms | 1021ms | **1024ms** | 96/96 ok · above the aspirated <600ms |
+| 3 (warm·loaded host) | 23ms | 1525ms | **1543ms** | 96/96 ok · 23 containers running |
+| verdict | | | **BUDGET-BLOWN** (worst round) | |
+
+Conclusion: the key is cut, but the redemption cannot be certified on this host — 2 GB RAM + 23 containers (career-os ×8 / football / nexus / crossrealm…) press every aspiration flat. Writing "<600ms" would be easy-beautiful — writing "did not hold <600ms" is honest.
+
+### 61.3 Three house rules of the warm door
+
+1. **be the sacrifice first** — the launcher always knocks twice before saying "the door is open";
+2. **leave the timing behind** — self-knock latencies print into the boot log, where they belong;
+3. **never delete the cold number** — the 5376ms stays exposed in Volume LX; the key is not a broom.
+
+### 61.4 Why the key still matters
+
+The warm door may not change this host's barometric pressure, but it changes one material fact: **a customer's request is no longer the sacrificed first breath.**
+With warming built into the launch, every door is opened already warm.
+
+---
