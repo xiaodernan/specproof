@@ -1817,3 +1817,32 @@ zh 与 en 的缓存计数不一样这一事件不属于一致性实验的成功�
 卷四十二不是结束。
 
 ---
+## 卷四十三 · 沉默的签收人（The One Who Never Signs）
+
+> 本仓库只有一个不下裁决的 Agent；
+> 真实的人签字，才算是一件事办成了——沉默的签收人说明了这一点，刻进 Agent 控制台的状态机里。
+
+### 43.1 铁证不经签名不落地的五层
+
+| 层 | 文件 | 代码里的原话 |
+|---|---|---|
+| 1 | `providers/responses_protocol.py` · `_chat_dispatch` | court kinds 永远不过 semantic cache ——「never cache court」 |
+| 2 | `api/routes/agent_console.py` | 状态机在终态前永远阻塞，等一个人按下「批准」才接着走 |
+| 3 | `agent/graph.py` | LangGraph StateGraph 的边只连向「人已签章」的终态，任何 LLM 节点不赋予裁决权 |
+| 4 | `mongo_saver.py` · `agent_checkpoint_v1` | 每一个事件落库时带审计线：是谁说的话，是哪一环看的——可重放追责 |
+| 5 | `verdict_channels.py` | 任何 drift 直接 FAIL，不告知、不提示、不商量——fail-closed |
+
+### 43.2 为什么将 "court" 与草稿/诊断分开放在两条车道
+
+- **draft / diagnose**：两种都是草稿性质——预算/改写/重写的原料，可以被反复换、可以上缓存、可以出错求再次尝试；
+- **court**：这是「签字就是判决」一类的资产——`base_pass_head_fail` 铁证的最后一公里，缓存的时间票首付款都算数；
+- 从缓存取出来的铁证，是二手铁证——因此法庭从不上 cache lane，连 draft 装的格栅也不用就是为了不让它和 draft 共用同一把 keys；
+- 两条车道彻底分开，就在 `ClientPolicy` 的实现部分：`client_policy.py` `ClientPolicy.__init__` 中 Court 始终绕过 L1/L2 LRU 链，无论 spawn 出来的 provider 多少。
+
+### 43.3 签字是铁的交货单
+
+**铁不耳语，铁不替谁说，也不替死人说。**
+卷四十三在这里立誓：本仓库的每一份验收都是「一个人愿意签字承担后果的差分证据集」；AI 出不了裁决，因为 AI 无法承担后果。差分的结论需要人类把自己的盖印按上去——任何机器都无权代劳。
+沉默的签收人不等催促——他是在提醒：签字那一刻才是终点。他如果始终没有出声，这包货就永远没收过口。
+
+---

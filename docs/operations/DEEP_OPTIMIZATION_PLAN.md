@@ -37523,3 +37523,36 @@ no third-party links in reply ✅
 * 账本有测量 → 不以"所有已完成"作为标题——本节标题"卷四十二 · 收山的山门"读作**自白未完成*；
 * 全量 pytest 仍内存受限（guide+ledger 51/51）；UiKit.smoke 已知 flake；
 * 「密码 123」永久否决；Observability 真实遥测仍需签字；Spring 证据止于 137/137 离线——不夸不下彩车。
+
+## #1823 世界书卷四十三《沉默的签收人 · The One Who Never Signs》：Agent 从不出裁决的铁律钉成正史
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、本节列出的五层签收铁律（每层可打开源码当场核）
+
+| 层 | 文件 | 所钉死的东西 |
+|---|---|---|
+| 1 | `providers/responses_protocol.py` | court kinds 永不过 semantic cache — 铁证永不入格 |
+| 2 | `api/routes/agent_console.py` | 状态机在终态前永远等**一个人**的「批准」才落定 |
+| 3 | `agent/graph.py` | LangGraph StateGraph 只连向 human-sealed terminal state；所有 LLM 节点不含裁决权 |
+| 4 | `mongo_saver.py` | append-only `agent_checkpoint_v1`：事件落库带审计线——谁说的话、谁看过的话、什么时候落库 |
+| 5 | `verdict_channels.py` | drift → fail build，无 warn 无提示无协商 |
+
+### 二、worldbook 重建为 **50 卷**（里程碑 半百）
+
+* 卷四十三 · 沉默的签收人入史（中/英双版对称）；
+* `ClientPolicy` 中 court 永远绕过 L1/L2 缓存链；cache 资格仅颁给 `draft / diagnose`（`SPECPROOF_PROVIDER_POLICY=1`）；
+* worldbook 重建为 **50 卷 / 115,889 chars**；`#/worldbook` 自动入册；
+* tag `v0.90.0` 已推送（#1822 同账，Mountains Corner of 49）；
+  本节依然否认本产品已是"生产级部署"——只看发布标记；
+* Spring off-line 节点：gateway 84/84 · discovery 1/1 · config 1/1 · control-plane 51/51 = **137/137**（#1788）；
+  压测双车道 432 req / 432 req / 0 err（#1801）；
+* 「密码 123 全员看所有人」——**永久否决**，禁忌清单第 2 位。
+
+### 三、诚实边界
+
+* 50 卷不是成品，**只是账本厚度的一个里程碑**——每一卷都能逐字 `git show`；
+* 全量 `pytest tests/unit`：本机 2 GB 内存撑不住——只 guide+ledger **51/51**；
+* 春分车道命令仍 `mvn -o`；Spring CI 真实运行仍等部署环境；
+* 「密码 123 在控制台」——不存在；`#/insight` 是 admin/operator fail-closed RBAC 替代；
+* Observability 真实遥测仍需隐私签字；本轮仅新增世界书文档，不触达应用代码，不重建 dist。

@@ -1697,3 +1697,32 @@ A reader opens at the end — these are not adjectives, these are `git show` poi
 Whoever walks through next: know this—see how wide this mountain is; every next pass adds another door, another name on the gate.
 
 ---
+## Volume XLIII · The One Who Never Signs（卷四十三 · 沉默的签收人）
+
+> This repository has exactly one agent that never renders a verdict;
+> acceptance closes when a real human presses Seal — the agent is silent by design.
+
+### 43.1 Five layers between evidence and signature
+
+| Layer | File | Literally says |
+|---|---|---|
+| 1 | `providers/responses_protocol.py` · `_chat_dispatch` | court kinds never enter the semantic cache — `court never cache` |
+| 2 | `api/routes/agent_console.py` | the state machine refuses to terminate without a human pressing Approve |
+| 3 | `agent/graph.py` | the LangGraph StateGraph only routes toward the human-sealed terminal state; every LLM node is non-adjudicating |
+| 4 | `mongo_saver.py` · `agent_checkpoint_v1` | every event lands append-only with an audit trail — who said it, who read it, replayable |
+| 5 | `verdict_channels.py` | any drift fails the build — no warn, no notice, no negotiation |
+
+### 43.2 Why court and draft/diagnose live on separate lanes
+
+- **draft / diagnose** — both are draft-in-nature — proposal matter, subject to repeated attempts, safe to cache, retryable without ceremony;
+- **court** — signature-priced; price includes the minutes stepped on its doorstep of every verdict; a cached verdict is a second-hand verdict — the cache door never opens for court, and neither do the draft shutters;
+- this is structural in `ClientPolicy`: court bypasses the L1/L2 LRU chain entirely, always; the draft lane may take advantage of cache through `SPECPROOF_PROVIDER_POLICY=1`, but court has no such switch;
+- the two lanes are physically distinct at the provider boundary — not a flag, not a wish.
+
+### 43.3 Seal is the iron bill of lading
+
+**Iron never whispers, iron never speaks for others, iron never speaks for the dead.**
+Volume forty-three seals this vow: every acceptance in this repo is a diff-bundle only a human can sign for the consequences of it; the AI proposes — the human disposes. No machine wins the authority to adjudicate on any version of the product, in any ledger, ever.
+The silent one does not stand by waiting for the invoice — he is the reminder that the seal is the last mile; without it, the package never closes.
+
+---
