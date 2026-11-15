@@ -37970,3 +37970,37 @@ python scripts/live_lane_probe.py
 * 全量 UI 514/514 / UiKit.smoke 未红（上次已验）；
 * i18n 残余 bucket A=242 (fixed earlier @ #1818)；`#/engine` 没动；
 * 「密码 123 永久否决」维持；Observability 签字仍欠；PORTFOLIO_TOKEN 仍然唯一阻塞。
+
+## #1837 世界书卷五十一《呼吸 · The Breath》：字体与屏幕的呼吸重新对准（含 backing fix 已落 master）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、卷五十一入史
+
+| 节 | 题 | 出处 |
+|---|---|---|
+| 51.1 | 本仓库最近的呼吸（#1804→#1836） | 设计 · UI · 缓存 · 钩子 · 搜索 — 全部进了编年 |
+| 51.2 | 「呼吸」这一卷写三件实际的事 | `.topbar-left strong` token capsule · focus-visible hover · fail-closed identity |
+| 51.3 | 呼吸的誓言：**【呼吸】本身就是铁的修辞法**——呼是骨头里没有连着疼的那一口 | 到了卷五十一，仓库开始能「喘」 |
+
+* 卷五十一 · 呼吸入正史；修订后 worldbook 含 58 卷（中/英双版对称）
+* chronicle ≈ 1,638 节；`scripts/build_worldbook.py` 重建
+
+### 二、本节入账同 commit 中实际交付
+
+* `styles/product.css` `.topbar-left strong { max-width: 460px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }` + `.topbar-left { min-width: 0 }` + `.topbar-actions { flex-shrink: 0 }`
+* `styles/coach.css` `.coach-tip` 从 `left: 130%; top: -8px`（出屏）改为 `left: 50%; top: calc(100% + 10px); transform: translateX(-50%); max-width: min(240px, calc(100vw - 32px)); white-space: normal`
+* 上述两项上 commit（#1836 前提，included in 42d6ae6 ancestor of this master）——本案纪录完整；本节卷五十一只是诗歌式回应；
+
+### 三、诚实边界
+
+* 全量 pytest 仍内存限制；guide+ledger 51/51 全绿；
+* Spring 车道离线 137/137 stays requirement Java≥21；
+* 「密码 123 全员进」永久否决；「agent 自Approve」永久否决；Observability 签字仍欠；PORTFOLIO_TOKEN 仍欠；
+* 「呼吸」不是完成的说法——它是**第一口没有别人帮你吸的气**——volume LI 以此收束，但这本仓库没有到 v1
+
+### 四、metrics snapshot (this commit)
+
+- worldbook 卷 → **58 卷** / zh 68,167 chars + en 133,339 chars
+- git_commit_count = 2,479
+- chronicle `#1837` 入账（chronicle count 本次重建）

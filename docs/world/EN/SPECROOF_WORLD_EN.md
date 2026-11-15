@@ -1955,3 +1955,33 @@ and if you want to know what the next volume is — go knock on GitHub; the book
 Volume L pins these; it does not complete them. The five holds of #1825 / #1801 / #1800 / #1821 / #1788 — hold up under hammer. The door swings inward: nothing has ended; everything has been named.
 
 ---
+## Volume LI · The Breath (卷五十一 · 呼吸)
+
+> What walks into this repository is not the lexicon, not the threshold — it is the sustained breath: writes → is proven → is polished → writes again;
+> a pixel squished off by one inch, a commit bred by three — the station where a visitor lands says the one about breathing itself.
+
+### 51.1 The recent breaths (#1804 → #1822 → #1836)
+
+| Moment | Volume | Wavelength |
+|---|---|---|
+| 2026-11-15 #1812 | The Book Writes Itself | 56 volumes |
+| 2026-11-15 #1813 | The Last Call | random next, single-page |
+| 2026-11-15 #1800 | The Tide of Quiet | 2 × 432 req / 0 err |
+| 2026-11-15 #1807 | Copy & Replay | 10.25s → **3.0ms** cached replay |
+| 2026-11-15 #1821 | The Proven Cache | 94.5% prefix cache nested |
+| 2026-11-15 #1824 | The Trace | 1,625-section scan |
+| 2026-11-15 #1836 | The Breath | coach tooltip dropped & re-anchored |
+
+### 51.2 Three doings of "The Breath"
+
+- **Typography no longer battles blocks**：`white-space: nowrap` on long IDs replaced with `max-width: 460px; text-overflow: ellipsis`
+  - at ≤900px, `.topbar-help`, `.topbar-workspace`, `.breadcrumb-separator` collapse — the prose keeps its wings;
+- **Coach tip dropped from "right off the screen"**：the previous anchor `left:130%` churned outside the cliff — now `left: 50%; top: calc(100% + 10px)`; centered below the badge;
+- **Immovable rails**: (1) court never walks through the cache lane; (2) the agent console waits for a human to press Approve — no self-sealing, ever; (3) no bearer key grants all users admin — the gate at `#/identity` is fail-closed and that is forever.
+
+### 51.3 The vow of the breath
+
+**The book is not completed — Volume LI is not a finale; it is the first exhale the code dares to make.**
+A breath is not the storm's end — it is one of many turns on the clock. The next book has its own ink; each volume is one stroke, one stroke one knock, each knock one hash; **"no hash is skipped"** is the spell this book holds.
+
+---
