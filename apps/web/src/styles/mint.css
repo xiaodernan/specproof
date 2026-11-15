@@ -1,0 +1,92 @@
+/* ── 印记阁 · The Mint ───────────────────────────────────────────────
+   Brass on deep walnut — a vault for the visitor's own deeds. Every
+   figure comes from this browser's localStorage. Gold = earned, grey = pending. */
+
+.mint-page { max-width: 1180px; margin: 0 auto; color: #e8dfc8; }
+
+.mint-mast { padding: 24px 26px 20px; border: 1px solid rgba(216, 180, 96, 0.4); border-radius: 12px; background: radial-gradient(1000px 260px at 14% -25%, rgba(216, 180, 96, 0.18), transparent 62%), linear-gradient(180deg, #1c160e 0%, #141009 100%); }
+.mint-kicker { font-size: 11px; letter-spacing: 0.42em; color: rgba(216, 180, 96, 0.85); margin: 0 0 10px; font-weight: 600; }
+.mint-mast h1 { font-family: Georgia, "Noto Serif SC", "Songti SC", serif; font-size: clamp(1.8rem, 4vw, 2.5rem); line-height: 1.1; margin: 0; color: #f2e9c9; letter-spacing: 0.03em; }
+.mint-en { display: block; font-size: 0.24em; letter-spacing: 0.34em; color: rgba(216, 180, 96, 0.8); margin-top: 8px; text-transform: uppercase; }
+.mint-lead { color: #b5a882; line-height: 1.9; margin: 12px 0 0; max-width: 66ch; font-size: 0.9rem; }
+
+.mint-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 16px; }
+.mint-kpi { border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(255, 255, 255, 0.03); border-radius: 8px; padding: 12px 14px; }
+.mint-kpi-v { font-size: 1.55rem; font-weight: 700; color: #f3e6b5; font-variant-numeric: tabular-nums; margin: 0; line-height: 1.2; }
+.mint-kpi-l { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: #8d8672; margin: 4px 0 0; line-height: 1.6; }
+@media (max-width: 900px) { .mint-kpis { grid-template-columns: repeat(2, 1fr); } }
+
+.mint-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.mint-panel { border: 1px solid rgba(255, 255, 255, 0.08); background: #171209; border-radius: 10px; padding: 18px; min-width: 0; }
+.mint-panel h2 { font-size: 1rem; margin: 0 0 12px; color: #ece0b8; border-bottom: 1px solid rgba(216, 180, 96, 0.3); padding-bottom: 10px; display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.mint-panel-note { font-size: 10px; letter-spacing: 0.18em; color: #8d8672; text-transform: uppercase; font-weight: 600; }
+.mint-seals-panel { grid-column: span 7; }
+.mint-drill-panel { grid-column: span 5; }
+.mint-gestures-panel { grid-column: span 6; }
+.mint-trace-panel { grid-column: span 6; }
+@media (max-width: 1120px) { .mint-seals-panel, .mint-drill-panel, .mint-gestures-panel, .mint-trace-panel { grid-column: span 12; } }
+
+/* stamps */
+.mint-stamps { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 1120px) { .mint-stamps { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .mint-stamps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.mint-stamp { display: flex; flex-direction: column; align-items: center; gap: 6px; border-radius: 10px; border: 1px dashed rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.025); padding: 14px 8px 12px; text-align: center; }
+.mint-stamp-numeral { font-family: Georgia, "Noto Serif SC", serif; font-size: 1.35rem; color: #c9bb8a; line-height: 1; }
+.mint-stamp-name { font-size: 10.5px; color: #9aa0b4; line-height: 1.45; }
+.mint-stamp-en { font-size: 8.5px; letter-spacing: 0.16em; text-transform: uppercase; color: #5b5648; }
+.mint-stamp-state { font-size: 9px; letter-spacing: 0.3em; text-transform: uppercase; color: #5b5648; padding: 3px 8px; border: 1px solid rgba(255,255,255,0.12); border-radius: 2px; }
+.mint-stamp-done { border: 1px solid rgba(216, 180, 96, 0.55); background: radial-gradient(140px 90px at 50% 40%, rgba(216, 180, 96, 0.22), transparent 75%), rgba(216, 180, 96, 0.07); }
+.mint-stamp-done .mint-stamp-numeral { color: #f3e6b5; text-shadow: 0 0 14px rgba(216, 180, 96, 0.45); }
+.mint-stamp-done .mint-stamp-name { color: #e8dfc8; }
+.mint-stamp-done .mint-stamp-en { color: rgba(216, 180, 96, 0.75); }
+.mint-stamp-done .mint-stamp-state { color: #141009; background: #d8b460; border-color: #d8b460; font-weight: 800; }
+.mint-footnote { font-size: 10.5px; color: #8d8672; margin: 10px 0 0; font-variant-numeric: tabular-nums; }
+
+/* drill ladder */
+.mint-drill-score { font-size: 2.4rem; font-variant-numeric: tabular-nums; font-weight: 700; color: #f3e6b5; margin: 4px 0 12px; line-height: 1; }
+.mint-drill-score span { font-size: 0.5em; color: #8d8672; font-weight: 500; }
+.mint-drill-score em { display: block; font-style: normal; font-size: 0.42em; color: #8d8672; letter-spacing: 0.06em; margin-top: 8px; }
+.mint-ladder { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.mint-ladder-rung { display: grid; grid-template-columns: 28px 1fr; gap: 2px 12px; align-items: baseline; border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 6px; padding: 8px 10px; }
+.mint-rung-at { font-family: var(--font-mono); font-size: 10px; color: #5b5648; grid-row: span 2; }
+.mint-rung-name { font-size: 11.5px; color: #9aa0b4; }
+.mint-rung-note { font-size: 10.5px; color: #6f6a58; line-height: 1.6; }
+.mint-rung-reached { border-color: rgba(216, 180, 96, 0.4); background: rgba(216, 180, 96, 0.05); }
+.mint-rung-reached .mint-rung-name { color: #efe0b3; font-weight: 600; }
+.mint-rung-reached .mint-rung-note { color: #a9a08a; }
+.mint-rung-reached .mint-rung-at { color: #d8b460; }
+
+/* gestures */
+.mint-gestures { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+@media (max-width: 640px) { .mint-gestures { grid-template-columns: repeat(4, 1fr); } }
+.mint-gesture { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 9px 4px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.06); background: rgba(255, 255, 255, 0.02); text-align: center; }
+.mint-gesture-numeral { font-family: Georgia, "Noto Serif SC", serif; font-size: 0.95rem; color: #6f6a58; }
+.mint-gesture-name { font-size: 9px; color: #6f6a58; line-height: 1.4; }
+.mint-gesture-owned { border-color: rgba(216, 180, 96, 0.5); background: radial-gradient(80px 60px at 50% 50%, rgba(216, 180, 96, 0.18), transparent 70%); }
+.mint-gesture-owned .mint-gesture-numeral { color: #f3e6b5; }
+.mint-gesture-owned .mint-gesture-name { color: #d8c990; }
+
+/* trace */
+.mint-trace { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.mint-trace li { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px dashed rgba(255, 255, 255, 0.08); padding: 6px 0; }
+.mint-trace code { font-family: var(--font-mono); color: #9ecbff; font-size: 11px; }
+.mint-trace-at { color: #6f6a58; font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.mint-trace-empty { color: #8d8672; font-size: 12px; line-height: 1.9; }
+
+/* certificate */
+.mint-certificate { border: 1px double rgba(216, 180, 96, 0.6); border-radius: 6px; background: radial-gradient(700px 140px at 50% -20%, rgba(216, 180, 96, 0.2), transparent 65%), #191510; padding: 22px 26px; margin-top: 14px; text-align: center; }
+.mint-certificate-kicker { font-size: 10px; letter-spacing: 0.44em; color: rgba(216, 180, 96, 0.85); margin: 0 0 12px; text-transform: uppercase; }
+.mint-certificate-body { color: #e8dfc8; line-height: 2.05; font-size: 0.92rem; max-width: 62ch; margin: 0 auto; }
+.mint-print { margin-top: 14px; border: 1px solid rgba(216, 180, 96, 0.55); background: transparent; color: #ecd894; padding: 10px 26px; letter-spacing: 0.2em; text-transform: uppercase; font-size: 11px; border-radius: 3px; cursor: pointer; }
+.mint-print:hover { background: rgba(216, 180, 96, 0.14); }
+
+/* honesty footer */
+.mint-footer { display: flex; gap: 10px; align-items: flex-start; border: 1px dashed rgba(155, 172, 220, 0.4); background: rgba(155, 172, 220, 0.06); border-radius: 10px; padding: 12px 14px; margin-top: 14px; color: #9aa0b4; line-height: 1.85; font-size: 11.5px; }
+.mint-footer svg { flex: 0 0 auto; margin-top: 2px; }
+
+@media print {
+  .mint-mast, .mint-grid, .mint-footer, .mint-print { display: none !important; }
+  .mint-certificate { border: 3px double #8a6d1f; background: #fffdf4; color: #221d10; }
+  .mint-certificate-body { color: #221d10; }
+  .mint-certificate-kicker { color: #8a6d1f; }
+}

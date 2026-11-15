@@ -37071,3 +37071,36 @@ python scripts/stress_smoke.py --target http://127.0.0.1:8000/health --rounds 3 
 * 40 卷筛子里卷三十三分量最轻——它是一节统计，不是一场战斗；它重的是**承诺被写下来**；
 * 全量 pytest 仍内存受限；春风车道离线复验 137/137 仍在 #1788 里；
 * 「密码 123」否决维持。
+
+## #1808 印记阁 `#/mint`：只属于这个浏览器的自印凭证
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、动机（用户最想要的"被看见"，但只准被自己看见）
+
+* "用户可能会感到被监视"是本项目隐私纪律的硬约束；
+* 但用户自己也应该有一面**只属于自己的镜子**：盖了哪六枚巡览印、快问最好几分、十四式收了几个、足迹多少——这些本机就有，藏在 `specproof_tour_v1 / specproof_drill_v1 / specproof_gestures_v1 / specproof_onboarding_v1` 里；
+* 本节把镜子装进 App：`#/mint` 印记阁。
+
+### 二、交付
+
+* `pages/Mint.tsx` + `styles/mint.css`：
+  - 顶栏 = KICKER "自证之匣 EVIDENCE BY YOUR OWN HAND" + 四格 KPI（巡览印 / 快问最好 / 手势收集 / 足迹次数）；
+  - 「六印之册」6 枚印章格：已盖 = 金 radial-gradient + 验讫胶囊；虚位 = 虚线框 + VOID；Tour corruption（存储损坏）诚实显示「—」而不猜；
+  - 「快问之阶」TIERS 四阶梯（见习→正式→见证→铁证）按 `tierIndexFor` 上色；score + runs；
+  - 「十四式手印」14 格手印，已收 = 金光；存储未读/缺失**明说未知/未开始，不显示 0 作为假象**；
+  - 「最近脚迹」最近 5 条 `localStorage` 路由 + 时间；
+  - **「自印凭证」**：一段基于真实本机数字的盖印凭据 + `window.print()`（print CSS 只留凭证一页，白纸黑字）；
+  - 诚实性页脚 + OBSERVABILITY.md 指路。
+* `App.tsx`：懒加载 + NAV evidence 组（icon=`seal`，本轮新增产品图标：双环+星）+ 路由分支；
+* `strings.ts`：`nav.mint` = `印记阁` / `The Mint`；
+* `USER_GUIDE.md` + EN mirror：各加一行 `/mint`；一级入口 30 → **31**；guide catalog **6/6** 绿；
+* build ✅ 917ms（Mint chunk 8.5 kB JS / 3.35 kB gzip + CSS 6.6 kB）；tsc 0；vitest **506/506**；i18n 双语逐键对齐不变。
+
+### 三、诚实边界
+
+* 印记阁**只陈列本机 localStorage**——不与服务端对账、不汇总跨设备、不上报；这不是验收报告；真实验收仍以矩阵 + 人签为准；
+* Tour/gestures/drill/onboarding 任何一个键缺失或损坏：对应格写「未知/未开始」（`readGestureCollected()` 三态：ok / unknown / absent）——**从不写 0 冒充"无"**；
+* 全量 `pytest tests/unit` 仍内存受限；chronicle 1,609 节；
+* UiKit.smoke 全量未红；
+* 「密码 123」永久否决（#1799 / #1804 条款）；观察性遥测上生产仍需隐私评审签字（本节不变）。
