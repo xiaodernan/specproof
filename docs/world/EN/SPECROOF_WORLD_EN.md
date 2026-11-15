@@ -1726,3 +1726,34 @@ Volume forty-three seals this vow: every acceptance in this repo is a diff-bundl
 The silent one does not stand by waiting for the invoice — he is the reminder that the seal is the last mile; without it, the package never closes.
 
 ---
+## Volume XLIV · The Iron, Struck Again（卷四十四 · 再敲一遍的铁）
+
+> Volume forty-three wrote the silent signer — this volume writes the iron struck again;
+> not a new hammer over old quieted iron; the hammer was already in hand — someone simply set the correct `JAVA_HOME`.
+
+### 44.1 The second verification: 137/137 across four Spring lanes
+
+| Lane | Result | Command |
+|---|---|---|
+| `services/gateway` | **84/84** green | `mvn -o test` |
+| `services/discovery-server` | **1/1** | same |
+| `services/config-server` | **1/1** | same |
+| `services/control-plane` | **51/51** | same |
+
+- **exit 0 means** all forks returned SUCCESS — not WARN-stuffed passes;
+  with `JAVA_HOME` pointing at JDK 17, surefire reported "class file version 65.0" (required Java ≥21) and failed; Eclipse Adoptium JDK 25.0.1 parsed it and went green;
+- **config server `optional=true`**: the 8888 WARNs are design silence — it merely logs "not located"; missing that optional property is by design and never fails a fork; silence here is not a false proof — green without it still fires;
+- **still offline**: every figure in this chapter is THIS host, THIS `mvn` version, THESE exact tests — never your production traffic, never a claim that the service is live or deployed for real users.
+
+### 44.2 The unclosed Linux non-root sandbox
+
+- the `integration` suffix requires container-grade root to simulate real failure injection on Linux — never been run on a Linux non-root host; it is named as a shelf to fill, not a defect;
+- repeats Volumes XXXI and XXXV: **absence of a deployment environment ≠ a bug** — but likewise it does not mean anything about another host;
+- every figure in this chapter is this host, this moment, this `mvn` version, this suite — none of it is copied from any other host.
+
+### 44.3 The vow of the iron struck again
+
+**Nothing can be faked as done; and what has struck the hammer does not become more-counted simply because the hammer falls a second time.**
+Volume forty-four states: every `mvn -o test` "137/137" is NOT the first — but this round registers one specific new detail: **`JAVA_HOME` pointed at the wrong JDK and burned, righted back**; that costs the same as every round.
+
+---

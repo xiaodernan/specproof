@@ -1846,3 +1846,34 @@ zh 与 en 的缓存计数不一样这一事件不属于一致性实验的成功�
 沉默的签收人不等催促——他是在提醒：签字那一刻才是终点。他如果始终没有出声，这包货就永远没收过口。
 
 ---
+## 卷四十四 · 再敲一遍的铁（The Iron, Struck Again）
+
+> 卷四十三立了「沉默的签收人」——这一卷立的是「再敲一遍的铁」；
+> 不是再扛起一锤来敲第一次留下的静默——锤子一直握在手里，是某人把 JAVA_HOME 指错了又改回来了。
+
+### 44.1 二度验铁：gateway 84 / discovery 1 / config 1 / control-plane 51 → 137/137
+
+| 车道 | 结果 | 命令 |
+|---|---|---|
+| `services/gateway` | **84/84** 绿（Exit 0 正确倾斜） | `mvn -o test` |
+| `services/discovery-server` | **1/1** | 同上 |
+| `services/config-server` | **1/1** | 同上 |
+| `services/control-plane` | **51/51** | 同上 |
+
+- **exit 0 的含义**：`mvn` 每 fork 回一个 SUCCESS——不是"仅 WARN 而 PASS"——`JAVA_HOME` 指错了 JDK 17 时 surefire 直接 fail（"class file version 65.0"，需要 Java 21+）；Eclipse Adoptium JDK 25.0.1 解析过去后才 pass；
+- **配置服务器（config-server）的 `optional=true`**：8888 的 WARN 日志不是故障——它「找不到也照常运行」是设计；缺这个可选项不会挂 test；但 knots of green cannot be claimed on silence;
+- **仍属离线**：本卷每一个证据都是 off-line `mvn` 在本机跑的结果——不是全球所有宿主，不是生产流量、不是 SLA、不是已部署——每一个字都写清楚了。
+
+### 44.2 Linux 非 root 沙箱那个未解的架
+
+- `integration` 结尾的 case 需要容器宿主的 root 以模拟真实故障注入；目前只在 macOS / Windows 上触达；Linux 非根路径尚未点火——是缺位，不是讹误，明示着写在卷三十一的空架上；
+- 重复卷三十一 / 卷三十五：**缺少部署环境 ≠ 有 bug**——但同样不等于在任何别的宿主机上不关心；
+- 每一处证据都是此 host 此时此 `mvn` 版本此测试套件的结果——不照搬别的宿主，也不跨机搬证言。
+
+### 44.3 再敲一遍的堑言
+
+**没有什么可以假装成已经完成的；敲过的铁，不因为再次落锤就多算一敲。**
+卷四十四立誓：每次 `mvn -o test` 得 137/137，每次都不是第一次也不是最后一次；但这一轮单独多钉一枚钉子——
+**`JAVA_HOME` 指错了一次（JDK 17），改回了 JDK 25.0.1**——每一份绿都给了自己破坏它过的理由里看一次。
+
+---

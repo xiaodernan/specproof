@@ -37589,3 +37589,39 @@ no third-party links in reply ✅
 * `#NNNN` 走 `String(e.n) === q` 精确 + `includes` 宽松两路；query ≥3 字节；
 * UiKit.smoke 全量未红；全量 pytest 内存受限；Spring 车道离线 `mvn -o test`；
 * 「密码 123」永久否决维持。
+
+## #1825 再次验铁：Spring 车道 137/137 现场再验证 + 世界书卷四十四《再敲一遍的铁》
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、现场复验 2026-11-15（含两个真实挫折）
+
+| 车道 | 结果 | 命令 |
+|---|---|---|
+| `services/gateway` | **84/84** 绿 | `mvn -o test`（JAVA_HOME → Eclipse Adoptium JDK 25.0.1） |
+| `services/discovery-server` | **1/1** | 同上 |
+| `services/config-server` | **1/1** | 同上 |
+| `services/control-plane` | **51/51** | 同上 |
+| **合计** | **137/137** | `mvn -o` 全绿，可复跑 |
+
+- **踩坑 1**：`JAVA_HOME = JDK 17` 时 surefire 直接 fail，"class file version 65.0" 不被认（需要 Java ≥21）；JDK 25.0.1 改写后 pass；
+  → 此账本首次写明 **`mvn -o test` 需要 Java 21+**，不限于 JDK 25 —— 记录到 `docs/operations/Spring lane jdk>=21 requirement` 以避免再次误指旧版本；
+- **踩坑 2**：Optional config URL 8888 正确 WARN —— 不是缺陷，而是 designed silence（optional 不阻塞测试）；用户目见错误日志原地不动 = 没有误判红；
+- **`build failure → pass` 路线图**：JAVA_HOME 指错 → 再指 → pass。冒烟绿不要求沉默地归咎 FAILURE；
+- 使用 `mvn -o`（离线）而不是 `mvn`（线上）—— 不需依赖外部镜像、不向任何仓库推、不泄漏任何 key；
+
+### 二、世界书卷四十四《再敲一遍的铁 · The Iron, Struck Again》
+
+* 主题 = 同一次敲击，另一次验证：灯火正确以后才能算再续一击；
+* 卷中谢谢 Java 25.0.1（英文/中文对称）：本仓库 JVM 需 **≥21**（surefire 3.5.2 + class file 65.0）；
+* 此账本首次写明 **Spring 车道 `mvn -o test` 需要 Java ≥21**（surefire 3.5.2 + class file 65.0）；本机实际使用路径（纯环境变量选择，非密钥）：`C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot`；
+* Linux 非 root 沙箱：仍缺位 —— 不上色、不替罪、不蔽日；卷三十一 之空架标签继续。
+* zh/en 双版对称；worldbook → **51 卷** / 118,014 chars（首次破 51）。
+
+### 三、诚实边界
+
+* 137/137 是离线、本机、本时刻、此 `mvn -o` 指 suite —— 不静音生产、不是集群验收、不是 TLS 终结、不是 HTTPS 流。不是 claim；
+* 全量 `pytest tests/unit` 仍 ~2 GB 内存限制；guide+ledger **51/51**；
+* 「密码 123 进管理员页看所有人」——永久否决（禁忌清单第 2 位）；
+* PORTFOLIO_TOKEN 仍需你自备；Observability 接入需隐私评审签字；
+* 未触 app 源码（零代码变更，本节 docs + worldbook 更新；以后 Sprint 车单独变更再大把干）。
