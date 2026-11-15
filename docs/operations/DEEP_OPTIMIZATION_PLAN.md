@@ -37332,3 +37332,28 @@ python scripts/stress_smoke.py --target http://127.0.0.1:8000/health --rounds 3 
 * 卷目预览摘录在 build 时算一次（`firstProseExcerpt` 是**展示用摘要，不是内容解释**；如 wall 全文 747 万 chars 全文敲满墙会不可读）；
 * 册数 `44` 是 `build_worldbook.py` 当场扫出来——不是记忆值；
 * 全量 pytest 内存限制不变；Spring 车道 137/137 离线绿；UiKit.smoke 未红；'密码 123'否决维持。
+
+## #1817 世界书卷三十八《真话与演示 · The Truth and the Demo》：仓库所有「这是真的吗」的回答钉在一张桌上
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、事实
+
+* 卷三十八回答本仓库每一个「这到底是真的吗」——三系证词表 + 四条诚实法：
+  - **Gazette**：build-time 直读 git，无活流；
+  - **Dossier 111 件金案**：每案沙箱当场各跑 base/head，ground-truth.json 权威，`pytest` CI 同源复现；
+  - **Insight**：`mulberry32(20261115)` 合成标定，永远不冒充真人群；
+  - **Mint**：本机 localStorage 只读轨迹，不上报不对账；
+  - **Inkwell**：`git log` 直读，零姓名零邮箱；
+  - **agent 不签收**：人签才落；`verdict_channels.py` docstring 钉死；
+* 四条诚实法：合成不冒充真 / 缺了就是缺了 / 人签才落 / 数字带锚（`#NNNN`）；
+* 中英双版对称；worldbook → **45 卷 / 102,451 chars**；
+* 同一提交：secret hygiene 审计——`git log --all -S'sk-4W8'` 历史零痕迹；`.local/.gitignore` = `*`；
+  `git grep 'sk-[A-Za-z0-9]{8,}'` 命中项全部是测试假 token 与 Flask 示例，**真实键从未入库**。
+
+### 二、诚实边界
+
+* 卷三十八是"反幻觉正史"，不是营销；它只是把"人是哪些话都写在哪些页上"集中成桌面；
+* 全量 pytest 内存限制不变（guide+ledger 51/51）；春分轨道 137/137（离线在 #1788）；
+* 「123 密码」永久否决维持；Observability 接入仍需隐私评审签字；
+* **安全提醒入账**：用户把 api key 多次明文粘贴在本会话聊天里；会话文本不做 git，但可存对话。建议把 wkapi.pro 的 gpt-6-sol key 视为**已泄露**——重新签发后，仅在 `.local/llm.json`（untracked）或 shell 环境变量配置，不要再贴进任何聊天窗口（本条只提醒，不改用户配置）。

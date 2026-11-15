@@ -1634,3 +1634,34 @@ zh 与 en 的缓存计数不一样这一事件不属于一致性实验的成功�
 卷三十七不在终奏里——它只是墨水池被挂上墙以后的一只手伸向下一个人。
 
 ---
+## 卷三十八 · 真话与演示（The Truth and the Demo）
+
+> 这一卷只写消灭虚伪的句子；
+> 每次有人问「这是不是真的」，SpecProof 的回答都写进这一页：
+> 「是真的——或者写明是演示。"
+
+### 38.1 全仓库三系证词（每条都能复现）
+
+| 证词 | 真相是 | 若怀疑，敲什么 |
+|---|---|---|
+| `#/gazette` 的所有数字 | build 时间直读 git（chronicle.json / repoStats.json / worldbook.json），没有活的生产流量 | `git pull && python scripts/build_repo_stats.py` |
+| `#/dossier` 的 111 件金案 | 一次提交流一次执行，ground-truth.json 逐件对应，沙箱真的各跑 base + head | `git show <任意金案>/ground-truth.json`；`pytest` 同源到 CI |
+| `#/insight` 的人群面板 | `mulberry32(20261115)` 可复现合成标定——**永远不冒充真人群** | 跑 `buildInsight()` 两次对比；宣读页角落的"synthetic"徽章 |
+| `#/mint` 的本机印章 | 这个浏览器 `localStorage` 里的真实轨迹（只读），不上报、不对账 | 清 localStorage → 页面明说「未知」，不说「0」 |
+| `#/inkwell` 的🐙墨盘 | `git log` 审计直清（2,456 笔/128 天/连写 14 天），**零姓名零邮箱** | `python scripts/build_inkwell.py` 当场复数 |
+| 契约编译器不敷衍任何残缺 | HANDS ON：`specproof verify` 在 demo 仓库真的各跑一次（`base` 过/`head-v1` 不过） | `pwsh scripts/prepare_demo_repo.ps1` 自己敲 |
+| agent 的副本「我看到了」不构成验收 | 验收必须人签；「AI 从不签收」写在 verdict 通道的 docstring 里 | `verdict_channels.py` 打开验证 |
+
+### 38.2 四个"诚实法"落成规矩
+
+- **合成不冒充真**：凡数据自计算、自宣告"合成/演示/校准"，从不冒充任何采集到的事实；
+- **缺了就是缺了**：localStorage 读不出 →「未知」，不渲染 0；答案对不上 → 红，**不猜**；
+- **人签才落地**：AI 草稿/诊断出账后等**人**批准；agent console 的状态机永远等一个人点下「批准」才继续；
+- **数字带锚**：一切数字必须对应 `#NNNN` 账本节，"编了"就是留下笔迹，"没写"不会被你看见。
+
+### 38.3 真诚的表演也是纪律
+
+**把"这不算数"说出来，才算是真的算数。**
+三十八卷之后，SpecProof 大门夹得上一句话：进来的东西不可能被默认接受——真的就是真的、演示就是演示；两者夹不进去、不互相顶替；任何按"真"的一拳开出去的——就是默认验不首级之镖。
+
+---

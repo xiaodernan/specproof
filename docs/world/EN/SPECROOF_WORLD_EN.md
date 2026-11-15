@@ -1516,3 +1516,34 @@ After thirty-six volumes, SpecProof's beauty is this: **it hangs its unfinished 
 Volume thirty-seven carries no finale — it only offers a hand toward whoever comes next, inkwell still warm.
 
 ---
+## Volume XXXVIII · The Truth and the Demo（卷三十八 · 真话与演示）
+
+> This volume is written only in sentences that destroy pretense;
+> whenever someone asks "is that real?" — this page is the only page they need:
+> "it is real — or it is plainly marked as a demo".
+
+### 38.1 The repository's three testimonies (every one is reproducible)
+
+| Testimony | What it is | To doubt it, run |
+|---|---|---|
+| `#/gazette`'s figures | Build-time reads of git (chronicle.json / repoStats.json / worldbook.json) — never a live production stream | `git pull && python scripts/build_repo_stats.py` |
+| `#/dossier`'s 111 golden cases | Each case ran real sandbox jobs on base and head; ground-truth.json is authoritative | `git show <any case>/ground-truth.json`; CI reruns the same |
+| `#/insight`'s cohort panels | `mulberry32(20261115)` — a reproducible synthetic calibration, **never passing as a real human cohort** | `buildInsight()` twice and diff; read the "synthetic" pill in the corner |
+| `#/mint`'s seals | This browser's own localStorage trace (read-only) — never uploaded, never reconciled | clear localStorage and watch the page say "unknown", never "0" |
+| `#/inkwell`'s pie | `git log` straight audit (2,456 strokes / 128 days / 14-day streak) — zero names, zero emails | `python scripts/build_inkwell.py`, right on the spot |
+| The contract compiler refuses half-truths | HANDS ON: `specproof verify` runs each side for real (base passes, head-v1 does not) | `pwsh scripts/prepare_demo_repo.ps1`, drive it yourself |
+| The agent's "I saw it" is not an acceptance | Acceptance requires a human signature; "AI never signs" is written into the verdict channel | `verdict_channels.py`, open and see |
+
+### 38.2 The four honesty laws, made into discipline
+
+- **synthetic never passes as real**: any computed datum self-declares "synthetic / demo / calibration", never posing as sampled fact;
+- **missing is missing**: storage unreadable ⇒ "unknown", never 0; checks that fail ⇒ red, never guessed;
+- **only humans sign**: after the draft/diagnosis, the agent waits forever for a human to press Approve;
+- **every figure carries its anchor**: `#NNNN` is the ledger seat of every number; inventions leave traces; silence is not exempt.
+
+### 38.3 Honesty as performance, not decoration
+
+**Saying "this does not count" is what makes anything count at all.**
+After Volume thirty-eight, SpecProof's door carries exactly one question-and-answer: anything inside this product was never accepted by default — real is real, demo is demo, and the two never argue with each other; anything that struck the knocking blow with the word "real" on it walked straight into the hall of the unverifiable.
+
+---
