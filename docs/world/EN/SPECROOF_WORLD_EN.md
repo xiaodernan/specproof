@@ -2892,3 +2892,32 @@ This repo stipulates: **court never borrows from this wall (or any other).**
 This book will not dye an amber green to look prettier. Every lamp colour, every trace can be `git show`n.
 
 ---
+## Volume LXXVI · The End of the Ruin（卷七十六 · 废墟尽头）
+
+> "There appears to be a ruin here" — that is the ruin's first impression;
+> "here is a place where someone worked, where a story completed, where every byte is on file" — the second.
+> This volume is about where the second impression came from: the alleged "ruin" of this repo, audited artefact by artefact, all of it evaluation archaeology.
+
+### 76.1 The audit (struck live, 2026-11-15)
+
+| Suspicion | The truth | The proof |
+|---|---|---|
+| "roughly 1000 hash-named 542-byte files, suspect residue" (written in a backlog note earlier) | **a ledger of exactly 21 git-tracked files under `docs/eval/swebench-logs/<case>/craft/backup/`** (591,524 bytes, every one inside the eval logs) | `scripts/audit_scratch_residue.py` (read-only; re-strike it) |
+| What they actually are | **source snapshots from the craft/backup mechanism** — content-addressed by a 6-hex suffix from the runner | `import functools ... from werkzeug...` — real Flask source, unrelated to anyone's mess |
+| May we delete them? | **NEVER** — these are the eval runner's byte-level snapshots of files it modified; they remain load-bearing for replay | the audit only reports; nobody plucks anything off |
+| What the book claimed | #1860 wrote about "roughly a thousand hash-named 542-byte files, suspected residue" — this round's audit **refutes the earlier suspicion** and files the correction | ledger #1865 carries the retraction appendix |
+
+### 76.2 House rules of the ruin
+
+1. **no "this looks like junk" without one audit first** — no hammer before the verdict;
+2. **the audit never deletes anything** — the report is its only product; if you want an action, you knock yourself;
+3. **wrong verdicts get filed** — this repo's earlier suspicion is withdrawn here, today, in writing: not "1000 × 542 bytes" — **21 evaluation snapshots**;
+4. **the eval logs are not a shelf — they are an archive room** — they sit in their place, they are fresh, they are not to be "tidied".
+
+### 76.3 One corner of the world, steady
+
+The ruin is not the end. Every stone in it holds one SWE-bench case, one craft surgery, one content address.
+This book will not delete them, nor abstract them away — open one and it is real Python.
+Anybody itching to delete these should go sign for it first.
+
+---

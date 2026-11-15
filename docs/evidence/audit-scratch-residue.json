@@ -1,0 +1,19 @@
+{
+ "version": 1,
+ "generated_utc": "2026-11-15T18:21:07+00:00",
+ "files_count": 21,
+ "total_bytes": 591524,
+ "under_swebench_logs": 21,
+ "per_top_directory": {
+  "docs": 21
+ },
+ "origin": "craft/backup snapshots of source files, made by the SWE-bench eval runner (apps/web/../bench or docs/eval logs) — content-addressed by a 6-hex suffix. These are REPRODUCIBILITY artifacts, deliberately committed; they are NOT scratch residue.",
+ "samples": [
+  {
+   "dir": "docs",
+   "first": "docs/eval/swebench-logs/pallets__flask-4045/craft/backup/src__flask__blueprints.py.20260819T142645Z0000.24dfe6",
+   "head": "import typing as t\\nfrom collections import defaultdict\\nfrom functools import update_wrapper\\n\\nfrom .scaffold import _endpoint_from_view_func\\n"
+  }
+ ],
+ "verdict": "intentional evaluation evidence — do not delete"
+}

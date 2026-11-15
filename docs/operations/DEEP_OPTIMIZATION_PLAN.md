@@ -38819,3 +38819,34 @@ draft#2    → 0.00s · 5600/14  (重复命中)
 * Volume LXXV《逾墙之镜 · The Mirror Over the Wall》入册（zh/en 对称）→ worldbook **82 卷**（本轮 +1）；chronicle 1,665 节；
 * UI 533/533 stays · gate 51/51 (court 测在场 · 55/55 新增 hint 测试仍不动 51/51 口径：Python 全量未全跑依旧 ~2 GB 限制)；
 * 「密码 123 全员进管理员」永久否决；联网搜索仍 402。
+
+## #1865 《废墟尽头》：「疑似千件 542-byte hash 残片」→ 审计实锤为 21 件 SWE-bench 评测快照 + 附录撤销 #1860 的错判
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、实测清点
+
+| 项目 | 值 |
+|---|---|
+| git-tracked 匹配 `.^[0-9a-f]{6}$` 的文件 | **21 件** |
+| 总字节数 | **591,524**（flask 真源码 byte-for-byte 快照） |
+| 所在目录 | `docs/eval/swebench-logs/pallets__flask-4045/craft/backup/`（**10 件**）· `pallets__flask-4992/`（**9 件**）· `specproof__toycalc-double-1/`（**2 件**） |
+| 内容类型 | `import functools…from werkzeug…` **真 Python 源码**（快照 = runner 修改前的原版） |
+| gis 解释 | SWE-bench runner 的 craft/backup：每个被修改文件在写入前先快照，命名 `<path>.<timestamp>.<6hex(content-hash)>` |
+| 处理 | **不删、不改名、不重打标签**——它们是评测证据，成井字 177 条 legible 快照 |
+| 输出文件 | `scripts/audit_scratch_residue.py`（只读、逐点名化）→ `docs/evidence/audit-scratch-residue.json` |
+
+### 二、#1860 的错判撤销
+
+* #1860 曾写「可疑 ~1000 个 hash 名 542-byte 残片，可疑 scratch」——**本轮审计否证**；
+  真容数：21 · 541.5 KB ↓ 不是千件 · 不是缓存 · 不是垃圾；
+* 撤销依据：上表 + `docs/evidence/audit-scratch-residue.json` + `git ls-files | grep -E '\.[0-9a-f]{6}$'`；
+* 原始错判段落保留原状；本节是撤销的文件证件；
+* ROADMAP-LIVE.md 第 5 项已被更正为上述真相（machine-regenerated）。
+
+### 三、诚实边界
+
+* 不删、不打 tag、不重写评测快照；判断标准只有「原始还剩什么」；
+* Volume LXXVI《废墟尽头 · The End of the Ruin》入册（zh/en 对称）→ 世界书 **83 卷**（本轮 +1）；chronicle 1,666 节；
+* court 永不缓存；UI **533/533** · gate 55/55（含 court 断言套件）；
+* 「密码 123 全员进管理员」永久否决；真·fleet 遥测仍欠签字。
