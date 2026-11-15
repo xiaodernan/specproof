@@ -3080,3 +3080,39 @@ DEBTS_OPEN.md gains M2's machine side — with this volume, `weekly-strike` is r
 `agent/graphs/evidence_graph.py docs/evidence` → `evidence-tick.md`. **The rest of the debt sits behind this volume, waiting for its input.**
 
 ---
+## Volume LXXXI · When the Moon Falls Into the Springs（卷八十一 · 月落千泉）
+
+> Moonlight falls into a thousand springs and a thousand identical moons rise up —
+> not an illusion: the same evidence mailed to every reader.
+> This volume delivers that "every reader can carry it away, nobody manufactured it" monthly ledger.
+
+### 81.1 The monthly census · monthly_census.py (landed in #1870)
+
+| Item | Value |
+|---|---|
+| Input | every `docs/evidence/*.json` carrying a `rounds` list |
+| Mechanics | month-bin rolled-up p50/p99/per-piece OK rate and request total / Δ vs previous |
+| Output | `docs/evidence/monthly-census.md` (git-tracked) |
+| Struck this round | **2026-11** · **576 req · 576 × 200 · 100.00% OK** (3 exhibits, all struck, p99 range 1537→1030ms this month) |
+
+Three exhibits **all OK** — this is what the repo looks like when the numbers aren't dressed up: 192 × 3 knocks.
+
+### 81.2 #/gazette "TOMORROW'S WEATHER" pushed one notch further
+
+The notices list now carries one live line (read straight from evidence.json):
+"3 exhibits on file · 576/576 requests (100.0%) green · monthly census at docs/evidence/monthly-census.md"
+
+### 81.3 House rules of the monthly ledger
+
+1. **never a baked percentage** — 100.0% is 576÷576 knocks, nothing else;
+2. **no hiding the rattle** — if 2 of 3 runs regress, the census line says REGRESSION;
+3. **no self-medal** — the census is a numerical map, never a badge of honour — "we struck it", never "we aced it";
+4. **one small bug nailed this round**: a stray `}` inside the zh notice `(100.0%})` — fixed (this repo does not ship `(100.0%}`).
+
+### 81.4 How many wells the moon has come to rest in so far
+
+| Month | Exhibits | p99 low | p99 high | total req | Result |
+|---|---|---|---|---|---|
+| 2026-11 | 3 | 1030ms | 1537ms | 576 | **576 · 576 ✓** |
+
+---

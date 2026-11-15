@@ -38972,3 +38972,25 @@ draft#2    → 0.00s · 5600/14  (重复命中)
 * 2 新 test · 1 新 graph · tick 工件入库；
 * worldbook **87 卷**（本轮 +1）；chronicle 1,670 节；
 * UI **533/533** · tsc 0 · build 879ms · gate 合计 **60/60**（57 + 3 graph）。
+
+## #1870 《月落千泉》：monthly_census.py + #/gazette 证据件/存量/比例实打 notice · 576/576 OK（100.00%）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付物
+
+* `scripts/monthly_census.py` — 新增 · 只读 `docs/evidence/*.json`（只计含 `rounds` 件）· byte 等式总 Σ：576/576 × 200 · 100.00% OK；写 `docs/evidence/monthly-census.md`（入库）；
+* `#/gazette` NOTICES 新增 #4：证据件数 + requests + 占比(100.0%) + 月报位置——**实打 `evidence.json`**（不是静态手写数字）；
+* 中文行内一个字节漂移（`}` 混入 "100.0%}"）→ **已修**；这类补丁可比缺陷本身更不该漏；
+* Volume LXXXI《月落千泉 · When the Moon Falls Into the Springs》入册（zh/en 对称）→ worldbook **88 卷**（本轮 +1）；chronicle 1,671 节。
+
+### 二、本卷同期修
+
+* pre-commit hook 还不是机器，逐件敲 — 每次提交前 `evidence_graph` 已重敲一遍；不需要额外 hook；
+* engine.json 仍 46 次调用 · 577 月报请求数不会混入 llm_usage.jsonl（月报只对 stress_smoke 做和）。
+
+### 三、诚实边界
+
+* 月报数字 = 当前三件证据的真值和（192×3），不代表 SLA；不演化、不平滑、不去噪；
+* IOU 缺口（OBSERVABILITY 签字 · PORTFOLIO_TOKEN）未被它抹除——monthly census 是「机器敲了多少」，不是「签字补回来了」；
+* court 永不缓存；UI **533/533** stays · gate **60/60** stays。
