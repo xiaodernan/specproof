@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ProductIcon } from "../ui/ProductIcon";
 import { useI18n, type Locale } from "../i18n";
+import FabricStress from "./FabricStress";
 import "../styles/fabric.css";
 
 /**
@@ -175,6 +176,7 @@ export default function Fabric(): JSX.Element {
         )}
       </div>
 
+      <FabricStress />
       {/* ── small legend table (accessibility / keyboard-only users) ── */}
       <div className="fabric-index" role="list">
         {NODES.map((n) => (

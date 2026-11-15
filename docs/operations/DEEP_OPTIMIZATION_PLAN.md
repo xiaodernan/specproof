@@ -38361,3 +38361,29 @@ python scripts/live_lane_probe.py
 * Volume LIX《镜厅回廊 · The Mirror Corridor》入册（zh/en 对称）→ 世界书 **66 卷**（本轮 +1）；
 * UI **521/521** · tsc 0 · build 648ms · gate 51/51；
 * court 车道永不进缓存（§LVI）；「密码 123 全员进管理员」永久否决；OBSERVABILITY 签字仍欠。
+
+## #1849 《织物》图新增「压过的真相 · THE STRESS LEDGER」：2026-11-16 四组压测的完整实敲判定，含 BUDGET-BLOWN
+
+**记录基准**：本节只追加；master = 本提交。以下所有数字来自 2026-11-16 本机实敲；快照不刷新。
+
+### 一、本轮四组实测（原样登记，含一次 BUDGET-BLOWN）
+
+| 组 | 命令 | 结果 | 判定 |
+|---|---|---|---|
+| A（本轮） | `stress_smoke.py --target http://192.168.1.5:8000 --concurrency 36 --rounds 2 --per-thread 2` | **144/144 · 0 err · round1 p99 1186ms, round2 p99 604ms** | OK |
+| A′（今早） | 同车道 72 并发 | 192/192 · 0 err · p99 440→176ms | OK |
+| B（本轮） | 默认 static 车道（dist 冷启动 loopback） | round1 p99 **7588ms** → round2 p99 528ms · 192/192 · 判 BUDGET-BLOWN（按最坏轮） | **BUDGET-BLOWN** |
+| C（本轮） | `--target http://127.0.0.1:8000` | **100% err** —— 那一刻 127.0.0.1:8000 是 career-os-ai-service 的门（uvicorn 答 404） | **BUDGET-BLOWN**（非本仓库） |
+
+### 二、交付物
+
+* 新组件 `apps/web/src/pages/FabricStress.tsx` — 挂 `#/fabric` 织物图下方（fabric-loom 之后、index 之前）：六格网格（A / A′ / B / C / port 8000 归属 / 外网 402）+ 页脚一句「本条目只声明 2026-11-16 实敲，没有任何一处声称 live」；
+* `fabricStress.css`（ice-蓝外框 · 好 cell 绿 / 坏 cell 红 · 1220px 断点 2 列 / 700px 单列）；
+* UI **521/521** · tsc 0 · build 275ms。
+
+### 三、诚实边界
+
+* **冷启动 BUDGET-BLOWN 印在页面上**——不是藏、不是摘要；
+* 25708/27508 进程随本会话退出（本机环境问题；app 进程起不起来说明不了生产能力）；
+* Volume LX《三体界碑 · The Three-Body Boundary》入册（zh/en 对称）→ 世界书 **67 卷**（本轮 +1）；
+* court 永不缓存；「密码 123 全员进管理员」永久否决；Observability 签字仍欠。

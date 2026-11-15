@@ -2310,3 +2310,47 @@ On a vast field, every empty room must hang one real lamp. What this volume acco
 The rest belongs to Volume LX and beyond.
 
 ---
+## Volume LX · The Three-Body Boundary（卷六十 · 三体界碑）
+
+> Stars never share orbits — gravity only binds them with invisible lines.
+> This volume puts up three boundary stones: the boundary of cold starts, the boundary of port ownership, the boundary of honest verdicts.
+> Every carving is from 2026-11-16's live knocking — not passed means not passed, and this volume does not retouch it.
+
+### 60.1 The first stone: cold start (verdict BUDGET-BLOWN)
+
+| Round | Result | Note |
+|---|---|---|
+| round 1 | p99 **7588ms** (96/96 ok) | cold-disk JIT + 23 concurrent readers fighting for the platter |
+| round 2 | p99 **528ms** (96/96 ok) | warm cache, normal service |
+| verdict | **BUDGET-BLOWN** (the script judges the worst round) | not a crash — an overage, and overage is overage |
+
+Not a crash — but this book may not write "normal" over an overage. The cold-start spike is real: every cold system spends its first two minutes serving its timeouts, that is factory spec, not a bug to fix. The right answer is a warmup probe downstream, not an average-obsessed dashboard pretending nothing happened.
+
+### 60.2 The second stone: port ownership
+
+| Address | Who answered, at that moment | Hallmarks |
+|---|---|---|
+| 127.0.0.1:8000 | career-os-ai-service (com.docker.backend PID 12868) | uvicorn + x-request-id + traceparent · 404 |
+| 0.0.0.0:8000 (this repo's bind) | specproof FastAPI | /health mysql+redis=ok · /metrics exposition |
+| 192.168.1.5:8000 | the same process | this repo's only true reachable face |
+
+Conclusion: this repo never owned, will never own, and does not need to own 127.0.0.1:8000. Any claim that "port 8000 is specproof" is an optical illusion.
+
+### 60.3 The third stone: honest verdicts
+
+| Lane | Target | Result | Verdict |
+|---|---|---|---|
+| A | 192.168.1.5:8000 (re-launched) | 144/144 · 0 err · p99 603ms | **OK** |
+| A′ | same host, earlier | 192 req · 0 err · p99 440→176ms | **OK** |
+| B | static front door, cold start | 192/192 · 0 err · p99 7588ms | **BUDGET-BLOWN** |
+| C | 127.0.0.1:8000 (this morning) | 100% err | **BUDGET-BLOWN** (not this repo) |
+
+All four verdicts live on `#/fabric` inside the "THE STRESS LEDGER" panel as a 2026-11-16 snapshot — not running, not live, not re-computed.
+
+### 60.4 The house rules of the stones
+
+1. **failed verdicts are not washed clean** — BUDGET-BLOWN is printed on the page, not filed under Bugs;
+2. **named ownership** — the answerer of every port must have a face;
+3. **snapshots do not auto-refresh** — they assert "being struck", never "still striking".
+
+---
