@@ -43,4 +43,11 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
       { keys: ["Enter", "Space"], label: { zh: "触发行操作（Table）", en: "Trigger the row action (Table)" } },
     ],
   },
+  {
+    title: { zh: "主界面教学", en: "On the main screen" },
+    items: [
+      { keys: ["H"], label: { zh: "开关首页教学模式（金色徽章 + 逐按键说明）", en: "Toggle coach marks on the main screen (gold badges + one line per control)" } },
+      { keys: ["?"], label: { zh: "打开 / 关闭本说明书（快捷键总览）", en: "Open / close this cheat sheet" } },
+    ],
+  },
 ] as const;

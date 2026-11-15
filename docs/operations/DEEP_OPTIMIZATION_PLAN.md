@@ -36781,3 +36781,21 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 全量 `pytest tests/unit` 仍未跑完（内存受限）；
 * TenantSwitcher / TenantTokens 的 rate-limit / soft-delete 等高级行为不在本次包内 —— 本条只解 i18n；
 * PermissionDenied 的 `Panel title`「权限说明 / Permission explanation」现纯单语；本节允许「中文 UI 内仍保留一行英文作对照」的旧味道仅限于 `Time`/`HMAC` 这类不可译的产品符号名和产品代号（`Token`、`RBAC`、`sp_*` 等）——这是产品合规，不是夹杂。
+
+## #1798 教学模式 `H` 进快捷键卡：主界面每个按键在 ? 面板里都有一行说明
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、事实（漏宣布教模式 H 的发现）
+
+* `#/coach-marks`（#1790）把主界面 17 处按键/按钮/侧栏入口都标了金色徽章 + 按 H 开关了——**但 `ui/shortcuts.ts` 的快捷键卡没有把 H 列进去**；
+* 新增分组 `{ title: { zh: "主界面教学", en: "On the main screen" }, items: [ { keys: ["H"], label: { zh: "开关首页教学模式（金色徽章 + 逐按键说明）", en: "Toggle coach marks…" } }, { keys: ["?"], label: { zh: "打开 / 关闭本说明书（快捷键总览）", en: "Open / close this cheat sheet" } } ] }`；
+* **`?` 快捷键卡现在包含了屏上每一项用户可按的键**——全局 / 命令面板（或直接 Escape）/ 页面内 / 主界面教学 四节；
+* ShortcutHelp 测试：SHORTCUT_GROUPS 分组数（3 → 4）随新增分组增长，`every shortcut row names a key combination` 和 `各分组标题出现` 这两个断言仍然匹配 SHORTCUT_GROUPS 固定结构；UI 测试 **187/187 绿**；
+* Build ✅ in 1.55s；UiKit.smoke 的瞬时红这次未出现；tsc 0。
+
+### 二、诚实边界
+
+* 此次**不是**新增功能，仅是把已经上线的 H 教学模式 **(#1790)** 补入它本应在的说明书——`shortcuts.ts` 头注释"every entry here EXISTS in the code, no aspirational rows" 自此名副其实；
+* 主界面教学浮窗（CoachMarks legend）现能看到徽章存在、按 H 可关闭、点击侧栏「教学模式」按钮也可关闭——本次没有改它；
+* 全量 `pytest tests/unit` 仍未跑完（内存受限）。
