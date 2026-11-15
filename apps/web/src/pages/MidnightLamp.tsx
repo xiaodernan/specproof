@@ -7,12 +7,13 @@ import "../styles/auditLights.css";
  * The Midnight Lamp — the audit's three lamps hanging beside the Atlas.
  * The same live statuses #/last-call shows (unsigned.json, struck at
  * build time by scripts/audit_unsigned.py) rather than a new measurement:
- * one host, three lamps, one truth.
+ * one host, four lamps, one truth.
  */
 const LABEL: Record<string, { zh: string; en: string }> = {
   "observability-signature": { zh: "真·fleet 遥测 · OBSERVABILITY.md 签字（amber until human-signed）", en: "real fleet telemetry · OBSERVABILITY.md sign-off" },
   "weekly-stress-merged": { zh: "每周一敲门 · weekly-stress.yml 合入", en: "the Monday knock · weekly-stress.yml" },
   "port-8000-answers": { zh: "端口 8000 · 此刻谁在答", en: "port 8000 · who answers right now" },
+  "branch-cleanliness": { zh: "提交到过 origin 了吗 · 分支洁净度", en: "did your commits reach origin? · branch cleanliness" },
 };
 
 const TONE: Record<string, "ok" | "warn" | "idle" | "bad"> = {
@@ -23,6 +24,13 @@ const TONE: Record<string, "ok" | "warn" | "idle" | "bad"> = {
   "specproof-answering": "ok",
   "other-project-answering": "bad",
   "port-free": "idle",
+  clean: "ok",
+  "ahead-of-origin": "warn",
+  "dirty-tree": "warn",
+  "behind-origin": "warn",
+  "diverged": "bad",
+  "dirty-diverged": "bad",
+  "no-upstream": "idle",
 };
 
 export default function MidnightLamp(): JSX.Element {
@@ -32,10 +40,10 @@ export default function MidnightLamp(): JSX.Element {
   const checks = unsigned.checks ?? [];
 
   return (
-    <section className="midnight-lamp" aria-label={L("长夜灯 · 三盏审计灯", "The Midnight Lamps")}>
+    <section className="midnight-lamp" aria-label={L("长夜灯 · 四盏审计灯", "The Midnight Lamps")}>
       <header className="midnight-lamp-head">
         <ProductIcon name="shield" size={13} />
-        <p className="midnight-lamp-kicker">{L("长夜灯 · 三盏 · 审计于本机", "THE MIDNIGHT LAMPS · three of them · audited on this host")}</p>
+        <p className="midnight-lamp-kicker">{L("长夜灯 · 四盏 · 审计于本机", "THE MIDNIGHT LAMPS · four of them · audited on this host")}</p>
       </header>
       <div className="midnight-lamp-grid">
         {checks.map((c) => {

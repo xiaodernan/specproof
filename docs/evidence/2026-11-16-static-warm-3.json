@@ -1,0 +1,37 @@
+{
+  "started_utc": "2026-11-15T18:11:05.399299+00:00",
+  "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
+  "concurrency": 48,
+  "per_thread": 2,
+  "warmup_rounds": 2,
+  "rounds": [
+    {
+      "total": 96,
+      "ok": 96,
+      "err_rate": 0.0,
+      "p50_ms": 33.74489999987418,
+      "p90_ms": 542.1103500011668,
+      "p95_ms": 1021.8602749991987,
+      "p99_ms": 1029.9240800019106,
+      "max_ms": 1031.4513000012084,
+      "avg_ms": 278.2171645833766,
+      "bytes_read": 21289312,
+      "sample_errors": []
+    },
+    {
+      "total": 96,
+      "ok": 96,
+      "err_rate": 0.0,
+      "p50_ms": 38.698200001817895,
+      "p90_ms": 530.1231000012194,
+      "p95_ms": 1012.6659499983361,
+      "p99_ms": 1030.0573850001456,
+      "max_ms": 1031.3263000025472,
+      "avg_ms": 268.92109270852416,
+      "bytes_read": 21289312,
+      "sample_errors": []
+    }
+  ],
+  "verdict": "OK",
+  "honesty": "This is a static-asset delivery probe on this host; it is not a FastAPI/MySQL/Redis rating."
+}

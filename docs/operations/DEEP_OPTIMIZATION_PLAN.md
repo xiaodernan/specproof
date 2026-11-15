@@ -38745,3 +38745,40 @@ python scripts/live_lane_probe.py
 * 灯不是 SLO、不是欠条豁免、不是签字——它是没有填写的签字行的等效视觉，仅此而已；
 * Volume LXXIII《长夜灯半 · The Midnight Lamplighter》入册（zh/en 对称）→ 世界书 **80 卷**（本轮 +1）；chronicle 1,663 节；
 * court 永不缓存；「密码 123 全员进管理员」永久否决；OBSERVABILITY 签字仍欠（琥珀灯就是那件事）。
+
+## #1863 风也认路：第四盏灯 `branch-cleanliness` 上线 + Archive 实况数字件纠偏 + 第三件压测证据 −507ms · Volume LXXIV
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、第四盏灯（分支洁净度）
+
+`scripts/audit_unsigned.py` 现**四盏**（之前三盏）：
+1. observability-signature → **awaiting-signature**（琥珀·脉动·等你真人签）
+2. weekly-stress-merged → **merged**（玉绿）
+3. port-8000-answers → **other-project-answering**（HTTP 200 · career-os-ai-service 再次上门——灯色如实亮红而非灰）
+4. **branch-cleanliness** → **dirty-tree**（本轮入库的两个文件：`audit_unsigned.py` 修正 + 重生 `unsigned.json`）；逻辑 = `git rev-list --left-right --count @{u}...HEAD` + `git status --porcelain`；**纯只读，零修改**；灯名 `no-upstream→灰 · clean→玉绿 · ahead/behind/dirty-tree→琥珀 · diverged→红`。
+无副产品、不写仓库、不推。
+
+### 二、Audit 调用面且生命周期
+
+* 脚本 10ms 完成；同组 import（同源问题）下 `unsigned.json` 消费者被动受益（last-call / atlas / archive 三页同时多一盏灯）；
+* `WeeklyVoyage` `LABEL`/`TONE` 映射新增 `branch-cleanliness`；
+* `MidnightLamp` 文案 "three→four lamps"，结构修复并实测渲染。
+
+### 三、Archive 纠偏
+
+之前：`worldbook: 50`（写死） + lead 内 `世界书 50 卷·编年 1,625 节`（写死＝假的）；
+现在： worldbook **80** · chronicle **1,663** · golden **111** · epics **14** · 源码行 **499,356** — 全部 import 自 locked JSON，与 `scripts/build_*.py` 实时对账；搬运时多一格「史诗卷」KPI（4→5 格）。
+
+### 四、第三件压测证据
+
+`scripts/stress_smoke.py --warmup 2 --concurrency 48 --rounds 2 --per-thread 2 --timeout 10.0` → `docs/evidence/2026-11-16-static-warm-3.json`：
+**worst p99 = 1030ms** · 192 req · 0 err · OK · Δ worst p99 vs `-2.json` = **−507.2ms**，Δ avg p95 = −83.6ms — 三件证据同车道，p99 首次跌破 1100ms。
+
+### 五、诚实边界
+
+* court 永不缓存；court 永远 stream+include_usage；
+* 真·fleet 遥测仍欠 OBSERVABILITY.md 真人签字（琥珀灯本轮未变，变了也会被敲成琥珀）；
+* Volume LXXIV《风也认路 · The Wind Knows the Way Too》入册 → worldbook **81 卷**（本轮 +1）；chronicle 1,664 节；
+* UI **533/533** ✅ · tsc 0 · build ✅（本轮 692ms/8.68s 双样）· gate **51/51** stays；
+* 「密码 123 全员进管理员」永久否决。

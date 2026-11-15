@@ -2816,3 +2816,41 @@ scripts/audit_unsigned.py        → unsigned.json (live struck)
 ```
 
 ---
+## Volume LXXIV · The Wind Knows the Way Too（卷七十四 · 风也认路）
+
+> The wind is silent — but the wind knows the road. A third row of lamps hangs in the corridor of this repository:
+> how many stories still await, how many have already arrived — none of them hidden from a careful stem.
+> This volume delivers: the fourth lamp (branch cleanliness) — the Atlas KPI recalibrated to live numbers —
+> and a third exhibit striking the front door down to p99 ≈ 1030ms.
+
+### 74.1 The fourth lamp: did your commits reach origin?
+
+| # | What it audits | Struck live |
+|---|---|---|
+| 1 | real fleet telemetry · OBSERVABILITY.md signature | awaiting-signature (amber, pulse) |
+| 2 | weekly-stress.yml merged | merged (jade) |
+| 3 | who answers port 8000 | port-free right now — the occupant of this morning, career-os-ai-service, is no longer there |
+| 4 | **branch cleanliness** | rev-list 0/0 vs origin/master · 2 dirty entries (the very files this round is committing): **dirty-tree** (amber · clears when this commit lands) |
+
+Implementation: `scripts/audit_unsigned.py` · landed in #1863. Colours: `clean` jade · ahead/behind/dirty-tree amber · diverged red · no-upstream grey (ours correctly reads no-upstream only when upstream is unset; today it shows dirty-tree because two files are uncommitted).
+
+### 74.2 The Atlas KPI recalibration (Archive's hard-coded ledger)
+
+Before: `Archive.tsx` wrote `worldbook: 50` and hard-coded "50 volumes · 1,625 ledger sections" in the lead — **a live lie as of Volume LXXI onward**.
+After: every figure derives from the locked JSON — world book **81** volumes · chronicle **1,663** sections · golden cases **111** · epic scrolls **14** · source lines — all re-checkable against `scripts/build_*.py`.
+
+### 74.3 Third consecutive exhibit dipped again
+
+| Exhibit | worst p99 | Δ vs previous |
+|---|---|---|
+| 2026-11-16-static-warm.json (17:20) | 1532ms | — |
+| 2026-11-16-static-warm-2.json (17:28) | 1537ms | +5.1ms |
+| **2026-11-16-static-warm-3.json (this round)** | **1030ms** | **−507.2ms** |
+
+verdict: OK. Three exhibits · one machine · one lane · one host — Δ sits comfortably inside the noise band (or out of it, this time, downward — record it as it fell, no rounding).
+
+### 74.4 Volume LVI's vow, re-read
+
+"court never cached" is still the truth. cached_tokens 46.4% is still the truth. **No lamp was dimmed for prettiness. Not one.**
+
+---

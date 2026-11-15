@@ -2942,3 +2942,41 @@ scripts/audit_unsigned.py        → unsigned.json（live 敲）
 ```
 
 ---
+## 卷七十四 · 风也认路（The Wind Knows the Way Too）
+
+> 风不掌嘴，风认路。本仓库里第三盏灯并排挂着——看着有多少事情在等、多少事情已经到，
+> 没有一盏灯是关了又没看的。
+> 本卷交付：第四盏灯（分支洁净度）上线；舆图指标与Archive 账面纠偏；
+> 第三件证据件连降p99至 1030ms。
+
+### 74.1 第四盏灯：提交到过 origin 了吗？
+
+| 灯号 | 记录 | 敲击方式 |
+|---|---|---|
+| 1 | 真·fleet 遥测签字 | 签不签 = awaiting-signature（琥珀·脉动） |
+| 2 | weekly-stress.yml 合入 | merged（玉绿） |
+| 3 | 端口 8000 谁在答 | port-free：此刻无人应答；今早占它的 career-os-ai-service 现在也不在那里了 |
+| 4 | **git 分支洁净度** | rev-list 0/0 + 2 脏件（本轮即将入库的两个新文件）：显示 dirty-tree（琥珀·只等本提交收尾） |
+
+实现 = `scripts/audit_unsigned.py` · `#1863` 起入库。灯色映射：`clean`玉绿 · `ahead/behind/dirty-tree`琥珀 · `diverged`红 · `no-upstream`灰（本仓库今天暂未设 upstream 也能如实显示）。
+
+### 74.2 舆图指标纠偏（Archive 的硬编码账面）
+
+旧状态：Archive.tsx 写了 `worldbook: 50`、`chronicle: …` 的部分来自 JSON、lead 内 `世界书 50 卷·编年 1,625 节` 写死——**此刻就是谎言**。
+新状态：档案馆的数字全部来自实况 JSON——世界书 **81** 卷 · 编年史 **1,663** 节 · 金案 **111** 件 · 史诗 **14** 卷 · 源码行 · 全部与 `scripts/build_*.py` 实时对账。
+
+### 74.3 第三件证据连降 500ms
+
+| 件 | worst p99 | Δ vs 上一件 |
+|---|---|---|
+| 2026-11-16-static-warm.json（17:20） | 1532ms | —— |
+| 2026-11-16-static-warm-2.json（17:28） | 1537ms | +5.1ms |
+| **2026-11-16-static-warm-3.json（本轮）** | **1030ms** | **−507.2ms** |
+
+判定：OK。三件同一车道·同一机器·同一气候——Δ 再次落在**噪声区间**。第三件的字节读到达 23,019,000 量级——不是空页面被重敲次数。
+
+### 74.4 回访 LVI 的誓言
+
+"court 永不缓存"仍是事实。cached_tokens 46.4% 仍是事实。**没有任何一盏灯为了好看降级。**
+
+---

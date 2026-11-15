@@ -1,11 +1,11 @@
 {
  "version": 1,
  "source": "docs/evidence/*.json (stress_smoke.py --json-report output; this host)",
- "files_count": 2,
+ "files_count": 3,
  "latest": {
-  "file": "2026-11-16-static-warm-2.json",
+  "file": "2026-11-16-static-warm-3.json",
   "readable": true,
-  "started_utc": "2026-11-15T17:28:07.829162+00:00",
+  "started_utc": "2026-11-15T18:11:05.399299+00:00",
   "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
   "concurrency": 48,
   "warmup_rounds": 2,
@@ -13,33 +13,63 @@
    {
     "total": 96,
     "ok": 96,
-    "p50_ms": 15.885849999904167,
-    "p95_ms": 1159.1339250016972,
-    "p99_ms": 1533.4500549995937
+    "p50_ms": 33.74489999987418,
+    "p95_ms": 1021.8602749991987,
+    "p99_ms": 1029.9240800019106
    },
    {
     "total": 96,
     "ok": 96,
-    "p50_ms": 16.519099999641185,
-    "p95_ms": 1042.5807250003345,
-    "p99_ms": 1537.2671949984579
+    "p50_ms": 38.698200001817895,
+    "p95_ms": 1012.6659499983361,
+    "p99_ms": 1030.0573850001456
    }
   ],
-  "worst_p99_ms": 1537.2671949984579,
-  "avg_p95_ms": 1100.8573250010159,
+  "worst_p99_ms": 1030.0573850001456,
+  "avg_p95_ms": 1017.2631124987674,
   "total": 192,
   "total_ok": 192,
-  "bytes_read": 39743616,
+  "bytes_read": 42578624,
   "verdict": "OK"
  },
  "delta_vs_previous": {
-  "vs_file": "2026-11-16-static-warm.json",
-  "worst_p99_delta_ms": 5.131160001656099,
-  "avg_p95_delta_ms": 5.585262501426769,
-  "bytes_delta": 954048,
+  "vs_file": "2026-11-16-static-warm-2.json",
+  "worst_p99_delta_ms": -507.20980999831227,
+  "avg_p95_delta_ms": -83.59421250224841,
+  "bytes_delta": 2835008,
   "total_delta": 0
  },
  "all": [
+  {
+   "file": "2026-11-16-static-warm-3.json",
+   "readable": true,
+   "started_utc": "2026-11-15T18:11:05.399299+00:00",
+   "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
+   "concurrency": 48,
+   "warmup_rounds": 2,
+   "rounds": [
+    {
+     "total": 96,
+     "ok": 96,
+     "p50_ms": 33.74489999987418,
+     "p95_ms": 1021.8602749991987,
+     "p99_ms": 1029.9240800019106
+    },
+    {
+     "total": 96,
+     "ok": 96,
+     "p50_ms": 38.698200001817895,
+     "p95_ms": 1012.6659499983361,
+     "p99_ms": 1030.0573850001456
+    }
+   ],
+   "worst_p99_ms": 1030.0573850001456,
+   "avg_p95_ms": 1017.2631124987674,
+   "total": 192,
+   "total_ok": 192,
+   "bytes_read": 42578624,
+   "verdict": "OK"
+  },
   {
    "file": "2026-11-16-static-warm-2.json",
    "readable": true,

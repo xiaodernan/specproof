@@ -2,6 +2,10 @@ import { useI18n, type Locale } from "../i18n";
 import { useIdentityAccess } from "../identity/useIdentityAccess";
 import { ProductIcon, type ProductIconName } from "../ui/ProductIcon";
 import repoStats from "./repoStats.json";
+import worldbook from "./worldbook.json";
+import dossier from "./dossier.json";
+import { SCROLLS_ZH } from "./epic.copy";
+import MidnightLamp from "./MidnightLamp";
 import chronicle from "./chronicle.json";
 import "../styles/archive.css";
 
@@ -87,9 +91,10 @@ export default function Archive(): JSX.Element {
   };
 
   const stats = {
-    worldbook: 50,
+    worldbook: (worldbook as unknown as { locales: Record<string, { volumes: unknown[] }> }).locales.zh.volumes.length,
     chronicle: (chronicle as Array<{ n: number }>).length,
-    goldenKeys: 111,
+    goldenKeys: (dossier as unknown as { cases: unknown[] }).cases.length,
+    epics: SCROLLS_ZH.length,
     loc: (repoStats as { total_lines_of_source: number }).total_lines_of_source,
   };
 
@@ -102,17 +107,20 @@ export default function Archive(): JSX.Element {
         <h1>{L("典藏馆", "The Archive")} <span className="archive-en">{L("THE ARCHIVE · 全部典籍一目了然", "THE ARCHIVE · ALL UNDER ONE ROOF")}</span></h1>
         <p className="archive-lead">
           {L(
-            "这一页是仓库的完整请帖——世界书 50 卷 · 史诗 14 卷 · 编年史 1,625 节 · 金案 111 件 · 十四式；照着这一页走，在 SpecProof 里再也不会迷路。",
-            "This page is the whole invitation — fifty volumes of the world book, fourteen scrolls, 1,625 ledger sections, 111 golden cases, fourteen gestures. Walk this page and you will never lose your way in SpecProof again.",
+            `这一页是仓库的完整请帖——世界书 ${stats.worldbook} 卷·史诗 ${stats.epics} 卷·编年史 ${stats.chronicle.toLocaleString()} 节·金案 ${stats.goldenKeys} 件·十四式手势——照着这一页走，在 SpecProof 里再也不会迷路。`,
+            `This page is the whole invitation — ${stats.worldbook} volumes of the world book, ${stats.epics} scrolls, ${stats.chronicle.toLocaleString()} ledger sections, ${stats.goldenKeys} golden cases, the fourteen gestures. Walk this page and you will never lose your way in SpecProof again.`,
           )}
         </p>
         <div className="archive-kpis">
           <div className="archive-kpi"><p className="archive-kpi-v">{stats.worldbook}</p><p className="archive-kpi-l">{L("卷", "volumes")}</p></div>
           <div className="archive-kpi"><p className="archive-kpi-v">{stats.chronicle}</p><p className="archive-kpi-l">{L("节", "ledger sections")}</p></div>
           <div className="archive-kpi"><p className="archive-kpi-v">{stats.goldenKeys}</p><p className="archive-kpi-l">{L("金案·件", "golden cases")}</p></div>
+          <div className="archive-kpi"><p className="archive-kpi-v">{stats.epics}</p><p className="archive-kpi-l">{L("史诗卷", "epic scrolls")}</p></div>
           <div className="archive-kpi"><p className="archive-kpi-v">{stats.loc.toLocaleString()}</p><p className="archive-kpi-l">{L("源码行", "source lines")}</p></div>
         </div>
       </header>
+
+      <MidnightLamp />
 
       {groups.map((groupKey) => {
         const rows = CARDS.filter((card) => card.group === groupKey);

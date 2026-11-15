@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""audit_unsigned.py — verily check the three still-unsigned items.
+"""audit_unsigned.py — verily check the four still-unsigned items (three above, plus branch cleanliness).
 
 Every check answers with the state of the host/repo AT THE MOMENT THE SCRIPT
 RUNS. Nothing is inferred from memory, nothing is cached; the doc written
@@ -24,6 +24,7 @@ import io
 import json
 import re
 import sys
+import subprocess
 import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
@@ -96,6 +97,43 @@ checks.append({
     "status": port_status,
     "detail": port_detail,
     "anchor": "live probe 127.0.0.1:8000/health",
+})
+
+# ── 4 · branch cleanliness (ahead / behind / dirty / diverged) ──────────────
+def _git_count(args):
+    try:
+        out = subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=False, timeout=10)
+        return out.stdout.strip()
+    except Exception:
+        return ""
+
+counts = _git_count(["rev-list", "--left-right", "--count", "@{u}...HEAD"])
+dirty = _git_count(["status", "--porcelain"]).splitlines()
+if counts:
+    left, _, right = counts.partition("\t")
+    ahead, behind = int(left or 0), int(right or 0)
+else:
+    ahead = behind = -1  # no upstream or unreadable
+
+if ahead == -1:
+    br_status, br_detail = "no-upstream", "git has no upstream configured on this branch (cannot compare with origin)"
+elif dirty and ahead and behind:
+    br_status, br_detail = "dirty-diverged", f"work tree has {len(dirty)} dirty entr" + f"ies; local ahead {ahead} / behind {behind} vs upstream"
+elif dirty:
+    br_status, br_detail = "dirty-tree", f"work tree has {len(dirty)} dirty entries (new/modified/untracked); origin is clean-synced ahead={ahead} behind={behind}"
+elif ahead and behind:
+    br_status, br_detail = "diverged", f"local ahead {ahead} AND behind {behind} vs upstream — a merge is pending"
+elif ahead:
+    br_status, br_detail = "ahead-of-origin", f"local is ahead of upstream by {ahead} commit(s) — unpushed work exists (normal while developing)"
+elif behind:
+    br_status, br_detail = "behind-origin", f"local is behind upstream by {behind} commit(s) — pull before you strike"
+else:
+    br_status, br_detail = "clean", "work tree clean; local == upstream (0/0)"
+checks.append({
+    "id": "branch-cleanliness",
+    "status": br_status,
+    "detail": br_detail,
+    "anchor": "git rev-list --left-right --count @{u}...HEAD && git status --porcelain",
 })
 
 doc = {

@@ -1,7 +1,7 @@
 {
  "version": 1,
  "source": "scripts/audit_unsigned.py (this host, this moment)",
- "generated_utc": "2026-11-15T17:43:54+00:00",
+ "generated_utc": "2026-11-15T18:12:10+00:00",
  "checks": [
   {
    "id": "observability-signature",
@@ -17,9 +17,15 @@
   },
   {
    "id": "port-8000-answers",
-   "status": "port-free",
-   "detail": "127.0.0.1:8000 refused/unreachable (URLError); no project answered",
+   "status": "other-project-answering",
+   "detail": "127.0.0.1:8000/health answered HTTP 200 — NOT specproof's triple; preview: {\"status\":\"ok\",\"db\":true,\"llm_provider\":\"openai_compat\",\"llm_ready\":true,\"embedding_provider\":\"hash\",\"embedding_ready\":true,\"build_sha\":\"dev\"}",
    "anchor": "live probe 127.0.0.1:8000/health"
+  },
+  {
+   "id": "branch-cleanliness",
+   "status": "dirty-tree",
+   "detail": "work tree has 16 dirty entries (new/modified/untracked); origin is clean-synced ahead=0 behind=0",
+   "anchor": "git rev-list --left-right --count @{u}...HEAD && git status --porcelain"
   }
  ]
 }

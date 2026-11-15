@@ -38,6 +38,7 @@ const CHECK_LABEL: Record<string, { zh: string; en: string }> = {
   "observability-signature": { zh: "真·fleet 遥测 · OBSERVABILITY.md 签字", en: "real fleet telemetry · OBSERVABILITY.md signature" },
   "weekly-stress-merged": { zh: "每周一敲门 · weekly-stress.yml 合入状态", en: "Monday knock · weekly-stress.yml merged" },
   "port-8000-answers": { zh: "端口 8000 · 此刻谁在答", en: "port 8000 · who answers right now" },
+  "branch-cleanliness": { zh: "提交到过 origin 了吗 · 分支洁净度", en: "did your commits reach origin? · branch cleanliness" },
 };
 
 export default function WeeklyVoyage(): JSX.Element {
