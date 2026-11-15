@@ -38240,3 +38240,38 @@ python scripts/live_lane_probe.py
 * 数字来源：2026-11-16 实敲（LIVE_PROBE_2026-11-16.md 存档 + #1843 入 scrape）；
 * 「密码 123 全员进管理员」永久否决；Observability 签字仍欠；PORTFOLIO_TOKEN 仍欠；
 * web 搜索仍 402——本环境的出网闸门状态原样登记，不做美化。
+
+## #1845 2026-11-16 白光实敲：缓存问题的三个新铁证 + 本地语义缓存一次真拦截（41→43 行账本）
+
+**记录基准**：本节只追加；master = 本提交。所含全部数字来自本节发生时刻本机实敲（2026-11-16T16:44Z），wkapi.pro / gpt-6-sol。
+
+### 一、三块新铁证（对「缓存命中率低、一直显示非流」的根治性验证）
+
+| 车道 | 结果 |
+|---|---|
+| 短问 · non-stream | prompt=4456 completion=5 **cached=4224** |
+| 短问 · stream+include_usage | prompt=4456 completion=5 **cached=4224** |
+| 长问（~4.5k zh） · stream+include_usage | prompt=2233 completion=272 **cached=2035**（91.1%） |
+| 长问第二次 · 两车道 | cached=None（**服务商前缀缓存不是幂等的**） |
+
+结论一：cached_tokens 只从 `stream+include_usage` 车道稳定地「露眼睛」——non-stream 车道对长文直接给 `None`。这就是用户看见的「非流缓存不好」的成因；**应用层所有 chat 都已经走 stream=True + include_usage=True**（providers/openai_compatible.py L684-685），requested-non-stream 只是聚合返回。
+
+结论二：应用层 `SPECPROOF_PROVIDER_POLICY=1` 的 draft 车道把**语义缓存**真跑通了：
+- call#1：6.71s，7564 → 47 tokens（真出门）；
+- call#2（同一请求）：**0.00s**，两行真账已入 `.local/llm_usage.jsonl`（**41 → 43**）；
+- `engine.json` 已重建：`cache_hit_rate 0.512 → 0.464`——未命中的新样本撑大了分母；**数字变化原样公布，不美化**。
+
+结论三：court / counterexample / accept_judge / contract_compile 永不进缓存（client_policy.py 硬拒）——「白光盖不过法庭」。
+
+### 二、本节变更
+
+* Volume LVI landed (zh/en symmetric) -> worldbook **63 volumes** (zh 75,383 chars / en 145,403 chars, freshly rebuilt); chronicle **1,646 sections**;
+* engine.json 重建入提交；`.local/llm_usage.jsonl` 只增不净（git-ignored，不入库）；
+* 本节只登记 2026-11-16T16:44Z 的一次实敲，不声称这等同于 SLA；
+* Volume LIV-LV 之后 continuous：62→63 卷（本轮 +1）。
+
+### 三、诚实边界
+
+* cache_hit_rate 0.464 的统计口径 = 全部 prompt token（含未报 cached 的 17 行里扣减 basis）——**这个口径本来就是近似**，`#/engine` 页面上有同样标注；
+* 服务商侧 prefix cache 实测**不可重复**：同一长文两次发起，两次都 None——不承诺、不保证、不拟 SLA；
+* 「密码 123 全员进管理员」永久否决；Observability 签字/PORTFOLIO_TOKEN 仍欠；web 搜索仍 402。

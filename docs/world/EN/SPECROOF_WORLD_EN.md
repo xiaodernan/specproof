@@ -2142,3 +2142,43 @@ Not the day the grid is filled — the day every cell can say "who knocked at wh
 Until then, this score stays on the stand: **no fake players in empty chairs, no attendance marks for the absent.**
 
 ---
+## Volume LVI · The Palm of White Light（卷五十六 · 白光掌心）
+
+> White light is not the lampshade — it is the point it shines upon, shining on its own.
+> This volume only accepts the three pieces of white-light iron evidence taken on the night of 2026-11-16 —
+> all under the name gpt-6-sol, and every one of them replayable.
+
+### 56.1 The three pieces of iron evidence (all struck live at 2026-11-16T16:44Z)
+
+| Iron evidence | Lane | Result |
+|---|---|---|
+| Short ask: "answer with one character: 证？" | non-stream **and** stream+include_usage — both report | prompt=4456 completion=5, **cached=4224** (94.9% hit, identical on both lanes) |
+| Long ask: ~4.5k-character Chinese evidence prose | stream+include_usage | prompt=2233 completion=272, **cached=2035** (91.1% hit) |
+| Long ask, repeated verbatim (2nd call) | both lanes | cached=None — **the provider's prefix cache is not idempotent**; it is no free lunch |
+
+### 56.2 Underneath the thumbnail — the repo's own white light
+
+The same ask through this repository's provider lane (`SPECPROOF_PROVIDER_POLICY=1`):
+
+| Call | Latency | prompt | completion | cached |
+|---|---|---|---|---|
+| call #1 (application lane, kind=draft) | **6.71s** | 7564 | 47 | None (provider miss — a brand-new Chinese prefix) |
+| call #2 (identical request) | **0.00s** | 7564 | 47 | local semantic cache (policy lane, draft is cacheable) — **the request never left the host** |
+
+Both real rows are now in `.local/llm_usage.jsonl` (41 → **43**); `engine.json` was rebuilt:
+`cache_hit_rate` **0.512 → 0.464** — not a secret turned, just the measuring basis turned: the two new calls never hit, and they widened the denominator. Honesty outranks prettiness.
+
+### 56.3 The house rules of the white light (why it burns this steady)
+
+1. **STABLE PREFIX FIRST → VARIABLE DATA LAST** — providers/prompt_templates.py pins byte-stable SYSTEM_BLOCK + TOOL_SCHEMA_BLOCK up front;
+2. **every lane streams with include_usage** — the chat path always sets `stream=True`, `stream_options={"include_usage": True}` (openai_compatible.py), the "requested non-stream" lane is only an aggregated return — this is where "perpetual non-stream display" was healed at the root;
+3. **court never enters the cache** — `client_policy.py` hard-refuses `court | counterexample | accept_judge | contract_compile`: a judge's white light illuminates only this once, never a memory impersonating it;
+4. **the key never lands on disk** — .local/llm.json is read-only, never logged; every number in this volume comes from scripts run fresh (`scripts/llm_cache_probe.py` + `scripts/build_engine.py`).
+
+### 56.4 Where the white light does not reach (still refusing to beautify)
+
+* The provider-side prefix cache cannot be promised: the identical long ask returned cached=None on the second hit on both lanes — an adaptive TTL dictates it;
+* this 2 GB host cannot run the full pytest suite; **guide+ledger 51/51** is the reproducible local gate;
+* "white light 100% hit rate" in any PR is advertising, not iron evidence.
+
+---

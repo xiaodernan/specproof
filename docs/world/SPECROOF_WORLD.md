@@ -2269,3 +2269,43 @@ zh 与 en 的缓存计数不一样这一事件不属于一致性实验的成功�
 在那天之前，这本曲谱留在台面上：**空位不加假人，缺席不标出勤。**
 
 ---
+## 卷五十六 · 白光掌心（The Palm of White Light）
+
+> 白光不是灯罩，是被照亮的那个点自己在亮。
+> 这一卷只收 2026-11-16 夜里的三块白光铁证——它们都得从 gpt-6-sol 那个名字下面点燃，
+> 而且每一块都能重演。
+
+### 56.1 白光的三块铁证（全部实敲于 2026-11-16T16:44Z）
+
+| 铁证 | 命令车道 | 结果 |
+|---|---|---|
+| 短问：「只回答一个字：证？」 | non-stream **和** stream+include_usage 两车道都报 | prompt=4456 completion=5，**cached=4224**（94.9% 命中，两车道一致） |
+| 长问：~4.5k 字 zh 证据语 | stream+include_usage | prompt=2233 completion=272，**cached=2035**（91.1% 命中） |
+| 长问重复（同内容第二次） | 两车道 | cached=None——**服务商的前缀缓存不是幂等的**，不是免费午餐 |
+
+### 56.2 指甲盖下面的那层——本仓库自己的白光
+
+同一个问题走本仓库 provider 车道（`SPECPROOF_PROVIDER_POLICY=1`）：
+
+| 调用 | 时长 | prompt | completion | cached |
+|---|---|---|---|---|
+| call #1（application-lane, kind=draft） | **6.71s** | 7564 | 47 | None（服务商未命中——这段中文是全新前缀） |
+| call #2（同一请求） | **0.00s** | 7564 | 47 | 本地语义缓存（SPECPROOF_PROVIDER_POLICY=1 的 draft 车道）直接返回——**没出门** |
+
+两行真数据已入 `.local/llm_usage.jsonl`（41 → **43**），`engine.json` 已重建：
+`cache_hit_rate` **0.512 → 0.464**——不是 secret 变了，是测量基数变了：未命中的两行新样本本来就没被命中过，它们把分母撑大了。诚实比好看重要。
+
+### 56.3 白光的家规（这盏灯为什么能亮这么稳）
+
+1. **STABLE PREFIX FIRST → VARIABLE DATA LAST**——providers/prompt_templates.py 的字节级常量 SYSTEM_BLOCK + TOOL_SCHEMA_BLOCK 钉在最前；
+2. **全车道 stream+include_usage**——chat 通道永远 `stream=True`，`stream_options={"include_usage": True}`（openai_compatible.py #），requested-non-stream 只是个 aggregated 返回——这是「一直显示非流」被根治的地方；
+3. **court 永不进缓存**——`client_policy.py` 对 `court | counterexample | accept_judge | contract_compile` 硬拒 cache：判典的白光照亮的永远是当下那一次，不能被记忆冒充；
+4. **密钥永不落盘**——.local/llm.json 只读取，永不入日志；本卷所有数字都由脚本现推（`scripts/llm_cache_probe.py` + `scripts/build_engine.py`）。
+
+### 56.4 白光照不到的地方（继续拒绝美化）
+
+* 服务商侧的 prefix cache 不可承诺：同一长文第二次发起，两个车道都回了 cached=None——adaptive TTL 说了算；
+* 本机 2 GB 内存跑不了全量 pytest，**guide+ledger 51/51** 才是本机的可复现 gate；
+* 「白光 100% 命中」这种话出现在任何 PR 里，就是广告，不是铁证。
+
+---
