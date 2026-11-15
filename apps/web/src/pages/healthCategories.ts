@@ -44,7 +44,7 @@ const COPY = {
     degradedNormal: "服务未报告降级状态。",
     degradedUnknown: "服务端未报告降级状态 — 未知。",
     normalValue: "正常",
-    degradedValue: "降级",
+    degradedValue: "降级中",
     dataOk: "可查询",
     dataBad: "不可查询",
     dataUnknown: "服务端未返回数据探针 — 没法判断数据是否可查。",

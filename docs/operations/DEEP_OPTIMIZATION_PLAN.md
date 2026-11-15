@@ -36752,3 +36752,32 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 
 * EXAMPLE_SPECS 的英文示例非机器翻译发用出壳——逐句写的双语对照，内容不是"机翻对照"，是独立可读的双语双例；
 * 全量 `pytest tests/unit` 仍未跑完；UiKit.tsx（内部 dev-only showcase）仍不声称收口；
+
+## #1797 身份控制台 + PermissionDenied 去夹杂（admin RBAC：admin/operator 仅可见）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `identity/PermissionDenied.tsx`（共用无权限视图）全量 `L(zh, en)`：
+  「无权限 — …」/ 租户/角色/来源/失效/Contact-admin hint 全部有英文 twin；`Panel title` 与四段 explanation 也同步；
+* `identity/pages/TenantUsers.tsx` + `identity/pages/TenantTokens.tsx`：
+  h1/page-sub/PermissionDenied action/Table headers（邮箱、角色、状态、操作；名称、用户、权限范围、过期、最近使用、操作）/
+  行内操作按钮（停用、启用、吊销）/ 表头 / spinner / 错误态文案 / 空态文案 / 操作提示 ——全部改 `L("中文", "English")`，
+  `storedLocale()` 运行时读取；
+* token cleartext 面板「仅展示一次 — 复制并妥善保存」、「保存到租户切换器 / Save to tenant switcher」、
+  「我已复制 / Done」—— 全部双语化；HMAC 说明句子也入 L();
+* 角色/状态/Sidebar 的 `roleLabel`/`userStatusLabel` 保持中文并保留 **英文原 token**（`viewer · viewer` → `只读查看 · viewer` 形式，dev-verified；这是 admin RBAC 的刻意选择：管理员精确可见后端下发的原值，与 `STATUS_LABELS ↔ AGENT_STATUS_META` 的镜像契约一致）——本文件的「raw token 可见」是**产品决策，非夹杂 bug**；
+* identity tests 9/9 全绿（locale 存 localStorage `specproof_locale=zh`，与其它测试对齐的 convention），断言 `/租户 Tenant/` 类正则改为 `getAllByText(...)[0]`，承担多处匹配；
+* **原 Health.test.tsx 的一处脆弱 pin 修正**：`degradedValue: "降级"` 改为 `"降级中"`（原测试期望 `"降级中"`，我的 trim 把它缩短了）。不兼容变化 = 修回向后兼容，不是向后兼容了，是回到了原语义；
+* 全量 vitest 502/502（UiKit.smoke 再次出现 §相同的瞬时红，重跑即绿；无改动即绿 —— 它是环境 flake）;
+* tsc 0；build ✅ in 528ms；i18n parity 11/11;
+* chronicle 重建（本节入账后 ≈ 1,598 节）；repoStats 重跑 (commits 2,439);
+* guide gate + ledger 四件套 51/51。
+
+### 二、诚实边界
+
+* 「raw token 可见」的原则保留（与 `STATUS_LABELS`↔`AGENT_STATUS_META` 同类契约），本次不抹；Identity RBAC 里 viewer/operator 的原样展示是给管理员调试用的，**不是**本次任务的缺陷；
+* 全量 `pytest tests/unit` 仍未跑完（内存受限）；
+* TenantSwitcher / TenantTokens 的 rate-limit / soft-delete 等高级行为不在本次包内 —— 本条只解 i18n；
+* PermissionDenied 的 `Panel title`「权限说明 / Permission explanation」现纯单语；本节允许「中文 UI 内仍保留一行英文作对照」的旧味道仅限于 `Time`/`HMAC` 这类不可译的产品符号名和产品代号（`Token`、`RBAC`、`sp_*` 等）——这是产品合规，不是夹杂。

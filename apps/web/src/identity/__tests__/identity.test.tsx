@@ -43,6 +43,7 @@ const ME_BODY = {
 beforeEach(() => {
   vi.stubGlobal("sessionStorage", mockStorage());
   vi.stubGlobal("localStorage", mockStorage());
+  window.localStorage.setItem("specproof_locale", "zh");
   vi.stubGlobal("location", { hash: "#/identity" });
 });
 
@@ -123,7 +124,7 @@ describe("TenantUsers", () => {
     fireEvent.change(screen.getByPlaceholderText("user@example.com"), {
       target: { value: "b@example.com" },
     });
-    fireEvent.click(screen.getByText("创建 Create"));
+    fireEvent.click(screen.getByText("创建"));
     expect(await screen.findByText("b@example.com")).toBeTruthy();
   });
 
@@ -196,7 +197,7 @@ describe("TenantTokens", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<TenantTokens />);
     expect(await screen.findByText("ci")).toBeTruthy();
-    fireEvent.click(screen.getByText("签发 Mint"));
+    fireEvent.click(screen.getByText("签发"));
     const cleartext = await screen.findByTestId("cleartext");
     expect(cleartext.textContent).toContain("sp_");
     expect(cleartext.textContent).toContain("abc");
@@ -228,7 +229,7 @@ describe("TenantTokens", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<TenantTokens />);
     expect(await screen.findByText("ci")).toBeTruthy();
-    fireEvent.click(screen.getByText("吊销 Revoke"));
+    fireEvent.click(screen.getByText("吊销"));
     await waitFor(() => {
       const deletes = fetchMock.mock.calls.filter(
         (c: unknown[]) => c[1] && (c[1] as RequestInit).method === "DELETE"
@@ -296,13 +297,13 @@ describe("permission explanation (§14.4)", () => {
     expect(await screen.findByTestId("identity-forbidden")).toBeTruthy();
     expect(
       screen.getByText(
-        "无权限 NO ACCESS — 用户管理仅对 admin/operator 开放 (RBAC fail-closed)"
+        "无权限 — 用户管理仅对 admin/operator 开放 (RBAC fail-closed)"
       )
     ).toBeTruthy();
-    expect(screen.getByText(/租户 Tenant/)).toBeTruthy();
-    expect(screen.getByText(/角色 Role/)).toBeTruthy();
-    expect(screen.getByText(/来源 Source/)).toBeTruthy();
-    expect(screen.getByText(/失效 Expiry/)).toBeTruthy();
+    expect(screen.getAllByText("租户")[0]).toBeTruthy();
+    expect(screen.getAllByText("角色")[0]).toBeTruthy();
+    expect(screen.getAllByText("来源")[0]).toBeTruthy();
+    expect(screen.getAllByText("失效")[0]).toBeTruthy();
     expect(screen.getByTestId("contact-admin-hint").textContent).toContain(
       "请联系租户管理员"
     );
@@ -315,11 +316,11 @@ describe("permission explanation (§14.4)", () => {
     expect(await screen.findByTestId("identity-forbidden")).toBeTruthy();
     expect(
       screen.getByText(
-        "无权限 NO ACCESS — Token 管理仅对 admin/operator 开放 (RBAC fail-closed)"
+        "无权限 — Token 管理仅对 admin/operator 开放 (RBAC fail-closed)"
       )
     ).toBeTruthy();
-    expect(screen.getByText(/租户 Tenant/)).toBeTruthy();
-    expect(screen.getByText(/失效 Expiry/)).toBeTruthy();
+    expect(screen.getAllByText("租户")[0]).toBeTruthy();
+    expect(screen.getAllByText("失效")[0]).toBeTruthy();
     expect(screen.getByTestId("contact-admin-hint")).toBeTruthy();
   });
 });

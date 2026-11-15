@@ -10,6 +10,11 @@ import { Button, ErrorBox, Panel, Table, fmtTime, type Column } from "../../ui";
 import { loadFailed } from "../../ui/errorHints";
 import { PermissionDenied } from "../PermissionDenied";
 import { useIdentityAccess } from "../useIdentityAccess";
+import { storedLocale } from "../../i18n/strings";
+
+const isZh = (): boolean => storedLocale() === "zh";
+const L = (zh: string, en: string): string => (isZh() ? zh : en);
+
 
 // Renders a unix-seconds timestamp as a friendly local date, with the exact
 // ISO instant kept in the title tooltip so the raw value stays inspectable.
@@ -58,10 +63,10 @@ export default function TenantTokens() {
     return (
       <div>
         <div className="page-head">
-          <h1>Token 管理 Tokens</h1>
-          <div className="page-sub">IDENTITY — sp_* 本地凭证, show-once (RBAC: admin/operator)</div>
+          <h1>{L("Token 管理", "Tokens")}</h1>
+          <div className="page-sub">{L("IDENTITY — sp_* 本地凭证，show-once（RBAC: admin/operator）", "Identity — sp_* local credentials, show-once (RBAC: admin/operator)")}</div>
         </div>
-        <PermissionDenied action="Token 管理仅对 admin/operator 开放 (RBAC fail-closed)" />
+        <PermissionDenied action={L("Token 管理仅对 admin/operator 开放 (RBAC fail-closed)", "Token management is admin/operator only (RBAC fail-closed)")} />
       </div>
     );
   }
@@ -87,11 +92,11 @@ export default function TenantTokens() {
   }
 
   const columns: Column<TokenRow>[] = [
-    { key: "name", header: "名称 Name", sortable: true },
-    { key: "user_email", header: "用户 User", sortable: true },
+    { key: "name", header: L("名称", "Name"), sortable: true },
+    { key: "user_email", header: L("用户", "User"), sortable: true },
     {
       key: "scopes",
-      header: "权限范围 Scopes",
+      header: L("权限范围", "Scopes"),
       render: (t) => (
         <span className="mono" title={t.scopes || undefined}>
           {t.scopes || "—"}
@@ -100,24 +105,24 @@ export default function TenantTokens() {
     },
     {
       key: "expires_at",
-      header: "过期 Expires",
+      header: L("过期", "Expires"),
       sortable: true,
       sortValue: (t) => t.expires_at ?? 0,
       render: (t) => tsCell(t.expires_at),
     },
     {
       key: "last_used_at",
-      header: "最近使用 Last used",
+      header: L("最近使用", "Last used"),
       sortable: true,
       sortValue: (t) => t.last_used_at ?? 0,
       render: (t) => tsCell(t.last_used_at),
     },
     {
       key: "actions",
-      header: "操作",
+      header: L("操作", "Actions"),
       render: (t) => (
         <Button variant="ghost" size="sm" onClick={() => revoke(t)}>
-          吊销 Revoke
+          {L("吊销", "Revoke")}
         </Button>
       ),
     },
@@ -129,29 +134,29 @@ export default function TenantTokens() {
         <h1>Token 管理 Tokens</h1>
         <div className="page-sub">IDENTITY — sp_* 本地凭证, show-once (RBAC: admin/operator)</div>
       </div>
-      <Panel title="签发新 Token">
+      <Panel title={L("签发新 Token", "Mint a token")}>
         <div style={{ display: "flex", gap: 8 }}>
           <input
             type="text"
-            aria-label="Token 名称 Name"
+            aria-label={L("Token 名称", "Token name")}
             value={name}
-            placeholder="名称 (如 ci)"
+            placeholder={L("名称（如 ci）", "Name (e.g. ci)")}
             onChange={(e) => setName(e.target.value)}
           />
           <input
             type="text"
-            aria-label="权限范围 Scopes (逗号分隔)"
+            aria-label={L("权限范围（逗号分隔）", "Scopes (comma-separated)")}
             value={scopes}
-            placeholder="scopes (如 jobs:read, 留空=角色矩阵决定)"
+            placeholder={L("scopes（如 jobs:read，留空 = 角色矩阵决定）", "scopes (e.g. jobs:read, empty = role matrix decides)")}
             onChange={(e) => setScopes(e.target.value)}
           />
           <Button variant="primary" onClick={mint}>
-            签发 Mint
+            {L("签发", "Mint")}
           </Button>
         </div>
       </Panel>
       {cleartext ? (
-        <Panel title="仅展示一次 SHOW-ONCE — 复制并妥善保存">
+        <Panel title={L("仅展示一次（show-once）— 复制并妥善保存", "Show-once — copy and keep it safe")}>
           <div className="cleartext" data-testid="cleartext">
             {cleartext}
           </div>
@@ -163,33 +168,33 @@ export default function TenantTokens() {
                 setCleartext(null);
               }}
             >
-              保存到租户切换器 Save
+              {L("保存到租户切换器", "Save to tenant switcher")}
             </Button>
             <Button variant="ghost" onClick={() => setCleartext(null)}>
-              我已复制 Done
+              {L("我已复制", "Done")}
             </Button>
           </div>
           <div className="muted" style={{ marginTop: 8 }}>
-            服务端只存 HMAC-SHA256(token) 与 bcrypt(secret); 此明文永不落库、无法找回。
+            {L("服务端只存 HMAC-SHA256(token) 与 bcrypt(secret)；此明文永不落库、无法找回。", "The server stores only HMAC-SHA256(token) + bcrypt(secret); the cleartext is never written to the DB and cannot be recovered.")}
           </div>
         </Panel>
       ) : null}
       <ErrorBox error={error} />
-      <Panel title="已签发 Tokens">
+      <Panel title={L("已签发的 Token", "Issued tokens")}>
         {loadFailed(error) ? (
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span>Token 列表暂时无法加载（请求失败）— 这不代表没有 Token。</span>
-            <Button variant="secondary" size="sm" onClick={reload}>重试 Retry</Button>
+            <span>{L("Token 列表暂时无法加载（请求失败）——这不代表没有 Token。", "The token list cannot be loaded right now (request failed) — this does NOT mean there are no tokens.")}</span>
+            <Button variant="secondary" size="sm" onClick={reload}>{L("重试", "Retry")}</Button>
           </div>
         ) : loading ? (
-          <div className="spinner">加载中 LOADING…</div>
+          <div className="spinner">{L("加载中…", "Loading…")}</div>
         ) : (
           <Table<TokenRow>
             columns={columns}
             rows={tokens}
             rowKey={(t) => t.id}
-            emptyTitle="暂无 Token No tokens"
-            emptyDescription="当前租户还没有签发过 Token。"
+            emptyTitle={L("暂无 Token", "No tokens yet")}
+            emptyDescription={L("当前租户还没有签发过 Token。", "This tenant has not minted any tokens yet.")}
           />
         )}
       </Panel>
