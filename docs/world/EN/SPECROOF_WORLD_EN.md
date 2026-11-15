@@ -1458,3 +1458,33 @@ From volume thirty-five, every door in SpecProof is more than an entry —
 the demo room's door stands where people assume "it's just a demo"; it is the least-knocked door in this repo and its loudest honesty — **if it lies once, the 111 cases in the compendium are void**.
 
 ---
+## Volume XXXVI · The Shelves Left Empty（卷三十六 · 空着的架子）
+
+> This volume does not write what stands tall;
+> it names every empty niche one by one —
+> empty niches are not failures; they are honesty: the blanks are not potholes hidden from view, they are shelves pointed out to everyone.
+
+### 36.1 Every "where a number should be, it says waiting" cell in the repo
+
+| Empty niche | Waiting for | Why it waits (true) | Anchor |
+|---|---|---|---|
+| `#/insight`'s cohort figures | Real fleet telemetry | Requires product/privacy review sign-off + opt-out + a user-visible "what is measured" manifest | `OBSERVABILITY.md`, #1799 |
+| `#/gazette`'s live rhythm | Real production traffic | the Gazette is fed build-time from chronicle.json / repoStats.json / worldbook.json (pure git), not from service streams | #1784 |
+| Any envelope beyond `/health` | Production queue depth, cross-region latency | compose.production.yml documents deployment topology; the repo contains no real deployment URL | compose.production.yml, #1783 |
+| Volume XXXI's second half | TLS endpoint / cross-region RTT | this host runs the local specproof API on 127.0.0.1:8000 (432 req / 0 err), but the internet is the one place this machine has never flown | #1801, #1805 |
+| Real concurrency rehearsal of the Spring lane | Real Redis Cluster rebalance, TLS cascade | mvn -o offline 137/137 (#1788) — ≠ any real cluster running | #1788 |
+| `golden-cases-crosslang` live run on this host | Windows + Python-only host | the Go/TS golden cases exist in-repo as real fixtures; no execution lane ran on this host | `golden-cases-crosslang/README.md` |
+| **Full `pytest tests/unit` scoreboard** | ≈2GB RAM on this host | only guide+ledger ran (51/51); the full 609-file suite has never completed on this host | #1806, #1804 |
+
+### 36.2 The empty shelves have their own code
+
+- **vacancies get reported, not removed** — this repo records shortfalls as "ledger-pressed gaps": every gap named in a section; whoever deletes it consigns it to oblivion (never colour a void green in any PR);
+- **vacancies wait for a signature** — behind every empty shelf stands a human's signature: the privacy review, the deployment field, the coverage caps;
+- **empty shelves get kept** — the more sections this chronicle gains, the more often these gaps must be re-audited; the regular reading is a patrol, not a prayer.
+
+### 36.3 The vow of the empty shelves
+
+**The true aggregator knows its own holes; the missing it fears least must be clipped on the board to deserve the one who fills them.**
+After thirty-six volumes, SpecProof's beauty is this: **it hangs its unfinished niches in the same lamplight as the finished ones** — first admit "there is no number here", then fill the gap for real — rather than pre-colouring a broken figure into completeness.
+
+---
