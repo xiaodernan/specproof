@@ -36994,3 +36994,32 @@ python scripts/stress_smoke.py --target http://127.0.0.1:8000/health --rounds 3 
 * 归因族的 "attribution" 语义（`base_defects`/`head_defects`）只对 attribution 族渲染（8 件）；standard 族恒为 0，零值如实显示；
 * UiKit.smoke 全量未红；未声称"所有面板零瑕疵"——**桌面像素不可见**，只验证结构/DOM/测试/构建；
 * 全量 `pytest tests/unit` 仍内存受限，只跑 guide+ledger 51/51，不声称全量绿。
+
+## #1805 产物提示双语化（clipboard/artifact 家族）+ UiKit 处置清账 + 卷三十一《验铁之约》
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、`artifactHint` 双语化（React 渲染给用户的悬停提示，此前中文唯一）
+
+* `ui/util.tsx::artifactHint` 生成阶段行「产物」悬停白话：`capsule:file=` / `counterexample_test:` / `report:` / s3:// 地址 / 未知引用 / 空输入，此前**无视 locale**；
+* 修复：`const isZh = storedLocale() === "zh"` 同款写法（与 #1796 的 `AgentWizard` 保持一致），六条 zh 字符串字节级原样保留，六条 en 字符串新增；zh 三个既有断言字节级不变；
+* `__tests__/artifactHint.test.ts` 新增 en 三断言（"Reproduction capsule" / "unknown origin, no guesses" / "Empty artifact reference"，均设 `specproof_locale=en` 并 afterEach 清除）；6 → **9/9** 绿；
+* `epicCertificate.ts` 核查结论：**已是完整双语**（COPY Record<'zh'|'en'，`verdictWord` 双语字典），不需要修——确认交付物不是 bug，是反而本来就合规的证据，写入账本作正向记录；
+* `copySummary.ts` 上一轮已修（#1803）——现在 clipboard 家族（summary + epic certificate + artifact hint）**全双语**，不再有"英文 UI 粘出中文"的缺口。
+
+### 二、UiKit.tsx 处置清账（bucket A：299 → 324 → **251**）
+
+* `scripts/i18n_audit.py`：`ui-kit/UiKit.tsx` 新增 EXEMPT 正则并**写明处置原因**（dev-only showcase、demo 果行 `荔枝 Lychee`/`山竹 Mangosteen` 是有意 zh+en 对，非用户可见面，不是隐藏 bug）；
+* bucket A 数字如实：324（#1804 时点）→ **251**，未为了"漂亮数字"动代码；
+* 剩余 251 绝大多数是忠实标注：Insight/AgentWizard 的 `zh ? a : b` zh 分支本就舍汉字、`agent/util.ts` 的 AGENT_STATUS_META 后端镜像锁死契约、`tour.ts` zh 版正文配对 `tour.copy.ts` en 版。
+
+### 三、世界书卷三十一《验铁之约 · The Appointment to Prove Iron》
+
+* 中英双版对称（章+条款+四句铁话）；**明确不补全、永远不说假**：卷中把"能测的"与"不能测的"分两半；后半（TLS / 双向 mTLS / `tc netem` 延迟注入 / 限流遥测曲线 / 回滚演练）写进条款但**没有发生**，没有部署环境就写在纸上——铁会记住什么被承诺过；
+* 引文锚点：A/B 车道数据（`e19de4f`）、Lua 限流修（#1783）、RAG 142→l2_hit=142（#1773）、语义缓存 10.25s→3.0ms（#1781）；
+* worldbook 重建 → **38 卷 / 84,222 chars**；`/worldbook` 自动入册。
+
+### 四、门禁重跑
+
+* tsc 0；vitest **506/506**（+3）；build ✅ 735ms；chronicle 1,606 节；guide 6/6；gate 51/51；UiKit.smoke 全量本轮未红。
+* 全量 `pytest tests/unit` 仍内存受限，仅跑 guide + ledger 五件套。

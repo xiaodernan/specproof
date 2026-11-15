@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { storedLocale } from "../i18n/strings";
 
 export function fmtPct(x: number | null | undefined): string {
   if (x === null || x === undefined) return "—";
@@ -37,22 +38,35 @@ export function shortId(id: string | undefined): string {
 // the viewer does not yet know. Turn each reference into one honest,
 // plain-language sentence a reviewer can act on — never dress an
 // unknown reference up as something it is not.
+const isZh = (): boolean => storedLocale() === "zh";
+
 export function artifactHint(ref: string): string {
+  const zh = isZh();
   const r = (ref || "").trim();
-  if (!r) return "空的产物引用（未知来源）";
+  if (!r) return zh ? "空的产物引用（未知来源）" : "Empty artifact reference (unknown origin)";
   if (r.startsWith("capsule:file=")) {
-    return "复现包（capsule）—— base/head 双侧工作树与执行日志，供评审者本地复现本次验收。";
+    return zh
+      ? "复现包（capsule）—— base/head 双侧工作树与执行日志，供评审者本地复现本次验收。"
+      : "Reproduction capsule — base/head worktrees and execution logs, for the reviewer to reproduce this verification locally.";
   }
   if (r.startsWith("counterexample_test:")) {
-    return "反例测试（针对性回归）—— 该用例在 head 上失败、在 base 上通过，是本次变更最直接的可复现证据。";
+    return zh
+      ? "反例测试（针对性回归）—— 该用例在 head 上失败、在 base 上通过，是本次变更最直接的可复现证据。"
+      : "Counterexample test — this case fails on head, passes on base: the most direct reproducible evidence of this change.";
   }
   if (r.startsWith("report:")) {
-    return "验收报告—— 证据级 HTML 报告，含契约矩阵、findings 与 verdict；点开可交付评审。";
+    return zh
+      ? "验收报告—— 证据级 HTML 报告，含契约矩阵、findings 与 verdict；点开可交付评审。"
+      : "Verification report — evidence-grade HTML with the contract matrix, findings and verdict; open it to hand to the reviewer.";
   }
   if (r.startsWith("s3://") || r.startsWith("oss://") || r.startsWith("http://") || r.startsWith("https://")) {
-    return "复现包（capsule）—— 对象存储地址，下载即得可复现的 base/head 环境。";
+    return zh
+      ? "复现包（capsule）—— 对象存储地址，下载即得可复现的 base/head 环境。"
+      : "Reproduction capsule — object-store address; download it for a reproducible base/head environment.";
   }
-  return "产物引用（来源未知）—— 原样展示了 SSE 帧里的字符串，未做任何猜测。";
+  return zh
+    ? "产物引用（来源未知）—— 原样展示了 SSE 帧里的字符串，未做任何猜测。"
+    : "Artifact reference (unknown origin) — shown verbatim from the SSE frame, no guesses made.";
 }
 
 export type StatTone = "ok" | "bad" | "warn" | "mute";

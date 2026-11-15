@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { artifactHint } from "../util";
 
@@ -35,5 +35,29 @@ describe("artifactHint", () => {
   it("handles empty input without inventing facts", () => {
     expect(artifactHint("")).toContain("未知");
     expect(artifactHint("   ")).toContain("未知");
+  });
+});
+
+
+describe("artifactHint (en locale)", () => {
+  beforeEach(() => {
+    window.localStorage.setItem("specproof_locale", "en");
+  });
+  afterEach(() => {
+    window.localStorage.removeItem("specproof_locale");
+  });
+
+  it("explains the capsule file reference in English", () => {
+    expect(artifactHint("capsule:file=capsule-123.zip")).toContain("Reproduction capsule");
+  });
+
+  it("explains an unknown artifact without inventing facts", () => {
+    const hint = artifactHint("mystery:blob-999");
+    expect(hint).toContain("unknown");
+    expect(hint).not.toContain("capsule");
+  });
+
+  it("handles empty input in English", () => {
+    expect(artifactHint("")).toContain("Empty artifact reference");
   });
 });

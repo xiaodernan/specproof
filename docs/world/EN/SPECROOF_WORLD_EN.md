@@ -1283,3 +1283,37 @@ The admin in this mirror sees *which door to fix next*, never *what Zhang San wa
 From this volume on, SpecProof owns its own proving anvil: 72 people push at once — the door opens, the floor holds, nobody bleeds. 144 2xx are 144 nods; zero errors are zero lies.
 
 ---
+## Volume XXXI · The Appointment to Prove Iron（卷三十一 · 验铁之约）
+
+> The iron the forge has already met — bent or bowed — never heard the farthest ringing: past the TLS endpoint, across the inter-region wire;
+> that night is called the Appointment to Prove Iron: we write the terms now, measure what can be measured, and ledger what cannot — no one is permitted to deny what they said.
+
+### 31.1 Measured, with numbers in the ledger
+
+| Item | Figure | Anchor |
+|---|---|---|
+| Front door, 72 concurrent | 432 req / 0 err / round-3 p50=84ms | #1801 · `e19de4f` |
+| Live backend /health, 72 concurrent | 432 req / 0 err / round-3 p50=329 ms | #1801 · `e19de4f` |
+| Rate-limiter fault containment (gateway) | Lua divide-by-zero fixed, 7 container cases | #1783 |
+| RAG two-level retrieval (LRU + Redis) | cold miss 142 → warm l2_hit=142 | #1773 |
+| Semantic-cache structural closure | draft 10.25s → 3.0ms cached replay | #1781 |
+
+### 31.2 The half not yet measured — the terms, in writing
+
+- **Endpoint certificates**: a self-signed TLS cert + mutual mTLS (control-plane → gateway → Python API) — each hop is witnessed inside the handshake;
+- **Cross-region RTT injection**: `tc netem delay 50ms 100ms 25%` (or equivalent) — measure how p50/p95/p99 drift under 72 concurrent;
+- **Rate-limit telemetry**: gateway exports `sp_rate_limited_total`; the error-budget burn curve feeds the same counters the Insight Deck's recommendation engine reads;
+- **Rollback drill**: a bad feature flag during rollout → automatic revert, users see nothing (a real drill, not a tabletop).
+
+### 31.3 No deployment, no second half — ever on paper only
+
+Admitting it outright: **this gate has not run on a real deployment.** What the machine measures is the floor, never the ceiling — cloud load balancers, real TLS, CDN hits, AZ-to-AZ latency have never seen a hand; the ledger does not lie on behalf of future observation. Whoever wins a deployment environment writes this volume's second half; whoever says "done" without the graph is the iron's pickpocket. The volume is named for the *appointment*: the terms are written, and the unfinished half hangs on paper — iron remembers what was promised.
+
+### 31.4 Four iron sentences of the appointment
+
+- Whatever can be measured now, measure now; whatever cannot, schedule; whatever cannot be scheduled — never say it is measured;
+- 72 people push at once — the open door is still a door, and the closed one enters the next volume;
+- every 5xx is a granule of lead; bookkeeping beats "definitely fine" by a mile;
+- the far wire signs its name on iron too — one fibre at a time.
+
+---

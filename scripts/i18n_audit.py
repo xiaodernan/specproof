@@ -34,7 +34,11 @@ except Exception:  # noqa: BLE001 - best-effort console fix only
     pass
 
 REPO = Path(__file__).resolve().parents[1] / "apps" / "web" / "src"
-EXEMPT = re.compile(r"(strings\.ts|\.copy\.ts|__tests__|\.test\.|i18n)")
+# Dispositioned by inspection (2026-11-15): UiKit.tsx 75 hits are the dev-only
+# style guide's demo rows (e.g. "荔枝 Lychee" / 山竹/Mangosteen...) — intentional
+# zh+en pairs for a component showcase, never rendered for customers. Human-eye
+# cleared; stays exempt, does not drive bucket A down silently.
+EXEMPT = re.compile(r"(strings\.ts|\.copy\.ts|__tests__|\.test\.|i18n|ui-kit/UiKit\.tsx)")
 LITERAL = re.compile(r'"[^"\n]{2,300}"|\'[^\'\n]{2,300}\'|`[^`\n]{2,300}`')
 CJK = re.compile(r"[一-鿿]")
 LATIN = re.compile(r"[A-Za-z][A-Za-z0-9_-]*")
