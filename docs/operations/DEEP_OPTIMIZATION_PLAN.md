@@ -37728,3 +37728,49 @@ no third-party links in reply ✅
 * 全量 pytest 仍内存受限（guide+ledger 51/51 全绿）；
 * 押注 "**全量纳米单位完成**" 不会因为卷四十七而变成 v1.0——v0.90.0 仍是最后一个公开里程碑 #1822；
 * 「密码 123 全员进管理员」永远不写为任何形式（包括绕过 RBAC 或掩盖 audit trail）。
+
+## #1830 容器实况记录（2026-11-15 22:14 UTC+8）+ 本轮启动尝试自白 + 退路清理
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、容器栈快照（命令：`docker ps --format '{{.Names}} | {{.Image}} | {{.Status}}' | specproof-`）
+
+| 容器名 | 镜像 | 状态 |
+|---|---|---|
+| specproof-mysql | mysql:8.4 | Up 2 minutes (healthy) |
+| specproof-redis | redis:7.4-alpine | Up 2 minutes (healthy) |
+| specproof-mongodb | mongo:7.0 | Up 2 minutes (healthy) |
+| specproof-elasticsearch | elasticsearch:8.16.4 | Up 2 minutes (healthy) |
+| specproof-rabbitmq | rabbitmq:4.0-management-alpine | Up 2 minutes (healthy) |
+| specproof-minio | seaweedfs:3.80 | Up 2 minutes (healthy) |
+| specproof-phase0-prometheus-1 | prom/prometheus:v3.3.1 | Up 2 minutes |
+| specproof-534-plane | python:3.12-slim | **Exited (255) 12-13 days ago** |
+
+* 也就是说：这是本仓库的基础设施层全在、能 ping 通、能 docker exec 的状态；
+* 这不是「生产运行时」——只是本地 Docker Compose 在;
+* 任何一个跑过 `docker compose up` 的人都会遇到这帧；
+* specproof-gateway（"services/gateway" 里的 Spring Cloud Gateway）**没有作为一个容器跑着** — Gateway 是 Java · 离线 `mvn -o test` **137/137** green (#1825);
+
+### 二、`127.0.0.1:8000` 的所有者 ≠ 本仓库（实测）
+
+| 时刻 | 事件 | 实测字节 |
+|---|---|---|
+| 21:33（UTC+8 近似） | 本节开会话时敲 `Test-NetConnection 8000` 返回 TRUE | `Test-NetConnection` 真 |
+| 本节笔者启动 specproof FastAPI on port 8000 (pid 25212) | pid 25212 Listening `0.0.0.0:8000`，另一 pid 20372 = `com.docker.backend` 也已 `LISTENING 127.0.0.1:8000` | **两个 TCP 监听者并存** |
+| /metrics 第一次请求成功 | 这一次先答的是 specproof 的 /metrics（uvicorn 回包 `specproof_up 33.8` / `specproof_http_requests_total 4`） | 0.0.0.0:8000 答出 |
+| /metrics 后续请求一概 404 | 之后请求均 hit **Docker**（或 career-os-ai-service）答出 **`{"detail":"Not Found"}`** | 127.0.0.1:8000 答出 |
+| 最终决定 | `Stop-Process -Id 25212 -Force`，留给用户的最原始 Docker 拓扑状态 | 本仓库不再拥有任何 port 8000 bound process |
+| 当前 21:15 UTC+8 | port 8000 现在只归 Docker，`image: careeros-ai-service` 答案一模一样 | 8195 bytes · `{"status":"ok","db":true,"llm_provider":"openai_compat","llm_ready":true,"embedding_provider":"hash","embedding_ready":true,"build_sha":"dev"}` |
+
+* `/health` 实际是 **career-os-ai-service 的** 答案（`server: uvicorn`，`x-request-id`，`traceparent`）—这不是我们本仓库的 build，而是另一个服务的 Docker；
+* 我决定不 kill：Docker 拓扑是你的东西，本账本不去碰；
+* 下次我敲 `curl http://127.0.0.1:8000/...` 时收到的答案是 **career-os-ai-service 的答案**，不是本仓库的答案——.cleanly named 这一点本纪录明确。
+
+### 三、诚实边界
+
+* 本节**唯一目的**：环境盘点 · 打脸笔者："以为本机跑着本仓库的 specproof" — 不是的；
+* Spring Cloud off-line `mvn -o`' 137/137 依然是本仓库能用代码验证的最高可信度证据；
+* 全量 pytest 内存受限不变（guide+ledger 51/51）· UI 514/514 ；
+* `.env` 中显示 `LLM_BASE_URL=https://discovery-api.intern-ai.org.cn/v1`（deepseek-v4-flash-0731）—— 这是 **本仓库 `.env` 的登记值**，本机有 env，production 路径指向某个 discovery provider · **不是 wkapi.pro**；
+* `.local/llm.json` 那边的是 `wkapi.pro/v1` · `gpt-6-sol`（就是用户贴进聊天里的那个 key）——两者并行；
+* 「密码 123 全员进」永久否决原因之一：**这条 key 已经在此聊天历史里出现过**——它就是个能开 `gpt-6-sol` 的 `sk-`，否则谁能发 `/chat/completions`；别再贴了。
