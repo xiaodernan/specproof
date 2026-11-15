@@ -3286,3 +3286,49 @@ DEBTS_OPEN.md 新增 M2（weekly evidence Δ）的机器完成度——本卷之
 唯一的错误是 weekly-stress 首班没到——等下一个周一。
 
 ---
+## 卷八十三 · 锚与绳（Anchor and Rope）
+
+> 锚砸下去不是结束——它是让一根绳子愿意长期兑现的理由。
+> 世界书里每一笔「我错过被我救回来」的账，就是这根绳子的工艺。
+> 本卷交付的是锚与绳并排上架：司法锁（锚）+ 勘误卷（绳）。
+
+### 83.1 锚：court 永不入缓存 · 机器已锁【4117d2b0ca5fb23a】
+
+`#/archive` 顶部新增草绿一行：
+
+> 司法 · 铁证 · court 永不缓存 · 机器已锁：4117d2b0ca5fb23a · 看引擎 →
+
+锚不解释。锚不辩解。锚是机器当落的，不是人写的。
+
+### 83.2 绳：勘误卷轴 · 11 条 R（R01–R11）
+
+`apps/web/src/pages/corrections.json` 由 `scripts/build_corrections.py` 从 `APPENDIX_CORRECTIONS.md` 现推：
+
+| 条目 | 镇 |
+|---|---|
+| R01–R05 | Chronicle 字数 / 世界书 72-73 哑铃 / CrewCard 死数 / 千件子遗片（被实锤证伪） / court-lock BROKEN（正则） |
+| R06–R08 | 证据排序 key 换 raw / Archive 硬编码全推翻 / subprocess 漏 import 误判 no-upstream |
+| R09–R10 | ROADMAP 脚本滞后产物 / RageCoach 测试期望写错 |
+| R11 | 证据复核子图 flaky 先红 |
+
+每条都配 anchor：**git show / python 脚本 / JSON / markdown body**。
+
+### 83.3 锚与绳的家规
+
+1. **锚不是演说**——它在。在就是在；
+2. **绳不许断裂**——APPENDIX_CORRECTIONS 只 append，不删；
+3. **锚绳在同博物馆，不在保险箱**——lock 一展览（在 `/engine` 挂出来），绳一样（`/archive` 顶部和 #/lexicon）；
+4. **任何想改这两件事的人，先读勘误卷轴**——改之前的每一笔账都欠过 "我错了" 三个字。
+
+### 83.4 冷档案
+
+| 锚 | 呼吸 | 绳 | 印记 |
+|----|------|----|------|
+| lock = 4117d2b0ca5fb23a | audit_court_lock 10ms | 11 R-entries | scripts/audit_evidence.py |
+
+### 83.5 盯——没把谁藏掉吗
+
+`DEBTS_OPEN.md`（D1–W4）仍挂在册页上，D1 = OBSERVABILITY 签字依然需要真人做，不会被任何一盏漆瞥。
+「court 永不缓存」也不是题目或 V1，是它已经在锁里。
+
+---

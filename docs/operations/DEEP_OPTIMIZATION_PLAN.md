@@ -39044,3 +39044,27 @@ draft#2    → 0.00s · 5600/14  (重复命中)
 * Volume LXXXIII《先红后绿？》暂未立碑；若有意加挂卷则 LXXXIII；
 * gate 合计 **62/62**（60+2 新增 evidence edge-cases）；UI 533/533 stays；
 * court 永不缓存；LIVE audit 4 灯（awaiting-signature ✓琥珀脉动 · merged ✓玉绿 · port-free ✓ · clean ✓(0/0)）。
+
+## #1873 《锚与绳》：Archive 顶部新增 court-lock 条 + build_corrections.py 入库（11 R-entries）· Volume LXXXIII
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付物
+
+* `scripts/build_corrections.py` — 从 `docs/world/APPENDIX_CORRECTIONS.md` 现推 `apps/web/src/pages/corrections.json`（locked build artifact · 入库）：**11 entries** · ids R01–R11；
+  本次第一次解析时宣布 R11 缺失 → 复现了 R11 自身误插 table 外的位置错误 → **两根纸带子并排、行首现 `|` 前缀后再数**——count 从 10 变 **11**（这次 rail 自己修自己，不藏）；
+* `Archive.tsx` — 新加一条层：`archive-court-lock`（位于 MidnightLamp 之上）· 绿色驱锁点 · 「司法 · 铁证 · THE JUDGE AND THE IRON」踢脚枚 · 绳数挂 11 · CTA 跳 `#/engine`；
+* `archive.css` — 对应色温与胶囊/风丝缕框架；`@media print` 下自藏（如果只想 A4 保留事实打印）；
+* Volume LXXXIII《锚与绳 · Anchor and Rope》入册 → worldbook **90 卷**（本轮 +1）；chronicle 1,674 节；
+* UI **533/533** stays · tsc 0 · build 401ms。
+
+### 二、家规声明
+
+* 锚（court lock）不是解释、不是辩护、不是 CLI flag——它机器生的、它在；绳（errata）append-only、anchor 可 knock；
+* 脚关了则明天再写；本仓库明天可以再活——这是 Volume LXXXIII 的"可 print"事实：现在我把锚和绳写死在扉页里。
+
+### 三、诚实边界
+
+* 补件纠正 R11 的入 table 行首 pipe——没有它永远 10 根绳子，不是 11；
+* court 锁没动（4117d2b0ca5fb23a）；OBSERVABILITY 签字仍欠（DEBTS_OPEN D1，未被本条遮蔽）；
+* court 永不缓存（七枚焊接/拼装性断言在场）；「密码 123 全员进管理员」永久否决；联网搜索 402 不变。

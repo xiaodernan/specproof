@@ -3161,3 +3161,49 @@ The stone grain is still deep and clean — `#/gazette` prints 192×3=576 req ·
 the only gap left: the first automated weekly-stress strike (waiting on next Monday 03:00 UTC after the merge).
 
 ---
+## Volume LXXXIII · Anchor and Rope（卷八十三 · 锚与绳）
+
+> An anchor doesn't end a story — an anchor is the reason a rope keeps its long promise.
+> Every page in this book called "I was wrong" all the way to "I rescued it" is one more fibre in that rope.
+> This volume delivers both, side by side: the judicial lock (the anchor) and the errata scroll (the rope).
+
+### 83.1 The Anchor: court never cached · machine-locked · [4117d2b0ca5fb23a]
+
+At the top of #/archive now lives one jade line:
+
+> THE JUDGE AND THE IRON · court never cached · machine-locked: 4117d2b0ca5fb23a · see the engine →
+
+The anchor does not explain. The anchor does not defend itself. The anchor was struck by a machine, not written by a person.
+
+### 83.2 The Rope: the errata scroll · 11 R-entries (R01–R11)
+
+`apps/web/src/pages/corrections.json` is rebuilt from `APPENDIX_CORRECTIONS.md` by `scripts/build_corrections.py`:
+
+| Range | Housed |
+|---|---|
+| R01–R05 | chronicle numerics / world-book 72→73 asymmetry / CrewCard hard-codes / the "1,000 hash remainders" suspicion (proven wrong) / court-lock BROKEN (regex) |
+| R06–R08 | evidence sort-key → raw / Archive hard-code overturned wholesale / subprocess import missing → false no-upstream |
+| R09–R10 | ROADMAP generator behind its own output / RageCoach expected the wrong lane |
+| R11 | evidence-review subgraph flaked-first |
+
+Each is anchored: **git show / python scripts / locked JSON / markdown body**.
+
+### 83.3 House rules of anchor and rope
+
+1. **the anchor does not orate** — it is there; being there is all it says;
+2. **the rope may never fray** — APPENDIX_CORRECTIONS only ever appends;
+3. **both live in the sun, never in a vault** — the lock is exhibited (hung on `/engine`), and the rope likewise (top of `/archive`, and pointed to from `#/lexicon`);
+4. **anyone who wants to amend these two must first read the errata scroll** — every prior error owes the three syllables "I was wrong".
+
+### 83.4 The cold archive
+
+| Anchor | Breathing | Rope | Insignia |
+|----|------|----|------|
+| lock = 4117d2b0ca5fb23a | audit_court_lock 10ms | 11 R-entries | scripts/audit_evidence.py |
+
+### 83.5 Does anyone stay hidden?
+
+`DEBTS_OPEN.md` (D1–W4) still pins — D1 = OBSERVABILITY signature still needs a human; nothing here varnishes over it.
+"court never cached" is also not a tagline nor a v1.0 promise — it is a locked artefact.
+
+---

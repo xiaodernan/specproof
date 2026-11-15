@@ -21,7 +21,7 @@
 | **R09** | 同一轮里 build_roadmap_live.py 入库 ≠ 它是确定性的——「commit 只修输出没跟脚本」（#1865 主提交遗漏生成器） | 出书面 v2 修复并提交 `27d632b`（follow-up）：ROADMAP-LIVE item 5 输出与生成器保持一致 | DEEP_OPTIMIZATION_PLAN 不为此另立节；提交 `27d632b` 直接记账（见 git log） | git show 27d632b |
 | **R10** | RageCoach 测试断言 `"Sign & seal"` 期望 approve —— 实际规则在 tour-seal（规则内含 seal 关键词先吃掉） | 规则命名本来就有重叠；测试 expectation 错了不是代码错了 | 测试期望改为 tour-seal；`approve` 规则加空白容错（`批\s*准` 等） | #1846：`apps/web/src/ui/rage.test.ts` |
 
-**R11** | 证据复核子图的 `test_graph_ok_when_all_pass` 曾 flaky 红了一次 | 根因：intake_node 按 mtime 排序；tmp_path 写入两个 back-to-back 文件时 mtime 常同 tick → 随机判 REGRESSION | 改为 `started_utc` ISO 字典序降序（ISO = 时间序）· mtime 仅作 absence 缺省 | §#1872 · `tests/unit/test_evidence_graph.py` |
+| **R11** | 证据复核子图的 `test_graph_ok_when_all_pass` 曾 flaky 红了一次 | 根因：intake_node 按 mtime 排序；tmp_path 写入两个 back-to-back 文件时 mtime 常同 tick → 随机判 REGRESSION | 改为 `started_utc` ISO 字典序降序（ISO = 时间序）· mtime 仅作 absence 缺省 | §#1872 · `tests/unit/test_evidence_graph.py` |
 ## 使用约束
 
 1. 本卷轴条目不许删，只许增量 append；

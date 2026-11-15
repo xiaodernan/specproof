@@ -6,6 +6,8 @@ import worldbook from "./worldbook.json";
 import dossier from "./dossier.json";
 import { SCROLLS_ZH } from "./epic.copy";
 import MidnightLamp from "./MidnightLamp";
+import courtLock from "./courtLock.json";
+import corrections from "./corrections.json";
 import chronicle from "./chronicle.json";
 import "../styles/archive.css";
 
@@ -121,6 +123,18 @@ export default function Archive(): JSX.Element {
       </header>
 
       <MidnightLamp />
+
+      <section className="archive-court-lock" aria-label="the judge and the iron">
+        <ProductIcon name="shield" size={16} />
+        <div className="archive-court-lock-body">
+          <p className="archive-court-lock-kicker">{L("司法 · 铁证 · THE JUDGE AND THE IRON", "THE JUDGE AND THE IRON")}</p>
+          <p className="archive-court-lock-line">
+            {L("court 永不缓存 · 机器已锁：", "court never cached · machine-locked: ")}<code>{courtLock.lock}</code>
+            <span className="archive-court-lock-note">{L(`勘误卷轴：${corrections.count} 条 R-entry——每一条都能用 git 敲开自己`, `errata scroll: ${corrections.count} R-entries — every one re-checkable with git`)}</span>
+          </p>
+        </div>
+        <a className="archive-court-lock-cta" href="#/engine">{L("看引擎 →", "see the engine →")}</a>
+      </section>
 
       {groups.map((groupKey) => {
         const rows = CARDS.filter((card) => card.group === groupKey);
