@@ -22,7 +22,7 @@ docker compose -f compose.phase0.yml up -d --wait
 
 ### 1.2 A lap around the whole product (5 minutes)
 
-Open `http://127.0.0.1:5173/` — the sidebar carries 38 first-level entries:
+Open `http://127.0.0.1:5173/` — the sidebar carries 39 first-level entries:
 > **Press H to open coach marks** — every control on the main screen (keys, buttons, sidebar entries) carries its one-line lesson as a gold badge; hover/focus to read. H or the legend's dismiss button hides them. Press `?` for the full shortcut card.
 
 | Group | Entry | What you can do right now | Iron evidence |
@@ -180,6 +180,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/trace` | Trace | type a commit short-hash, a ledger number, or any sentence — the page scans 1,624 chronicle sections + 50 world-book volumes live and tells you exactly where it was written — never uploads, never connects out, it only reads this repo's own committed JSON |
 | `/archive` | Archive | one page every room — annals, verification, doors-in, still water, services, admin corridor, engineer's loft — 37 routes on a wall, every tile live, every count direct from git JSON — never get lost again |
 | `/engine` | Engine | every token this repo actually sent to wkapi.pro on this host · real cache-rate from usage · p50/p95 real · .local/llm_usage.jsonl is the source — no extrapolation, no marketing gloss |
+| `/fabric` | Fabric | the whole workshop spread on one cloth — 37 nodes on seven warps (annals / verification / doors / still water / services / admin / loft), hover a node to title it, click to enter its room |
 | `/ui-kit` | Design System | the full Aurora component wall |
 | `/epic` | Chronicles | bilingual genesis; every anchor a real commit hash |
 | `/tour` | Grand Tour | interactive onboarding corridor; six stamps seal 「验讫」 |

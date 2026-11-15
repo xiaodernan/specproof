@@ -37843,3 +37843,35 @@ lanes={'direct': 29, 'policy': 12}  kinds={'(unspecified)': 29, 'draft': 6, 'cou
 * Spring off-line 137/137 stays unmatched;
 * 「密码 123」永久否决未改；Observability 签字仍需隐私评审；
 * `.local/llm.json` 全 untracked — wkapi gpt-6-sol key 继续未入库。
+
+## #1833 织物 `#/fabric` —— SpecProof 37 个房间在同一张布上
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、动机（把这本仓库的所有地址摊在一张布上）
+
+* 用户要的就是"世界无穷大，怎么探索都探索不完"——而我们至此也只有两个新地图（`#/atlas` Atlas)；
+* 但用户也不知道这一架空建筑物的大小："够小的地图全是死路"——我们把所有活路都先钉在布上；
+* 答案：直白的"7 个经线 × 37 个节点 = 一张布"，每个节点是仓库里的一个活着的通道，每个 lane 对应 Sidebar 的 7 个分区。
+
+### 二、交付
+
+* `pages/Fabric.tsx` + `styles/fabric.css`：
+  - 一整块 SVG loom（1200×720 viewBox）：4 横经线（轮廓用 dashed 等分）+ 3 竖经线作"季节"刻度；
+  - 37 个活着的路（Annulus → 楼层）`nodes`，每个 epoch 标 COLOR via `GROUP_COLOR`：
+    - annals 金（#d6b778）· palace 正蓝石青（#8ec5ff）· doors 薄荷白（#a5f2d9）· water 紫梦（#c8a2ff）· service 珊瑚红（#ff9f9f）· admin 半黄/金（#ffd97a）· loft 海蓝（#9ecbff）；
+  - Hover **感** (`fab nodes`), Click 直接穿点；
+  - 小键盘/触控可用（nodes 带 `role="link"` + `tabIndex={0}`，onKeyDown react)；
+  - 「节点索引」网格（37 个可点选 chip）——为屏读器用户也可以直接访问；
+  - 7 条经线 group 含 **Anniversary/Lodges**，caption 为 Hills' Court walk-style "Annuls / Verification / Doors-in / Still Water / Services / Admin Corridor / Engineer's Loft"（zh/en）。
+* `App.tsx` 懒加载 + NAV evidence 组（icon=`map`）+ 路由；`strings.ts` `nav.fabric`（织物 / Fabric）；
+* `USER_GUIDE.md` + EN mirror：各加 `/fabric` 一行；一级入口 38 → **39**；guide route catalog **6/6** 绿；
+* Fabric chunk 7.33 kB JS / 3.06 kB gzip + CSS 2.98 kB · tsc 0 · vitest **514/514** · build ✅ 514ms · gate 51/51。
+
+### 三、诚实边界
+
+* 37 个节点 = 一级路由全部覆盖（38 减 1 的总数变化自 Fabric 自己的 link 一一对应计入 r=38）；
+* 节点 hover tip 仅 Title · Route · Group — 不会再"补充"；
+* 所有 hotspot → 真路由，无 demo 无妥协；
+* 全量 pytest 仍内存受限；Spring off-line 137/137 stays；
+* 「密码 123 全员进」永远否决；Observability 真实遥测仍需签字。

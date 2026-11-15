@@ -1,0 +1,38 @@
+/* ── 织物 · The Fabric ───────────────────────────────────────────────
+   Every room in SpecProof on one cloth — a woven naïve map with
+   hand-placed warps. Hover to title, click to enter the room. */
+
+.fabric-page { max-width: 1280px; margin: 0 auto; color: #ece1c1; }
+
+.fabric-mast { padding: 26px 28px 22px; border: 1px solid rgba(214, 183, 120, 0.4); border-radius: 14px; background: radial-gradient(1200px 300px at 15% -25%, rgba(214, 183, 120, 0.18), transparent 60%), linear-gradient(180deg, #1e1810 0%, #14100b 100%); }
+.fabric-kicker { font-size: 11px; letter-spacing: 0.46em; color: rgba(214, 183, 120, 0.85); margin: 0 0 12px; font-weight: 600; }
+.fabric-mast h1 { font-family: Georgia, "Noto Serif SC", "Songti SC", serif; font-size: clamp(2rem, 4.6vw, 2.8rem); margin: 0; color: #f5ecd1; line-height: 1.05; letter-spacing: 0.03em; }
+.fabric-en { display: block; font-size: 0.2em; letter-spacing: 0.34em; color: rgba(214, 183, 120, 0.8); margin-top: 10px; text-transform: uppercase; }
+.fabric-lead { color: #b0a380; line-height: 1.9; margin: 12px 0 0; max-width: 68ch; font-size: 0.9rem; }
+
+.fabric-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 16px; }
+.fabric-chip { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(255, 255, 255, 0.02); border-radius: 999px; font-size: 11px; color: #cfc4a5; letter-spacing: 0.06em; text-transform: uppercase; }
+.fabric-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+
+.fabric-loom { position: relative; margin-top: 14px; border: 1px solid rgba(214, 183, 120, 0.3); border-radius: 12px; background: radial-gradient(1500px 500px at 50% 120%, rgba(214, 183, 120, 0.08), transparent 65%), #13110d; padding: 18px 0; overflow: hidden; }
+.fabric-loom svg { display: block; width: 100%; height: auto; }
+
+.fabric-node { cursor: pointer; outline: none; }
+.fabric-node circle { transition: all .15s ease; }
+.fabric-node:hover circle, .fabric-node:focus-visible circle { stroke-width: 2.5; }
+
+.fabric-tip { position: absolute; pointer-events: none; transform: translate(-50%, -110%); border: 1px solid rgba(214, 183, 120, 0.5); background: rgba(19, 17, 13, 0.95); color: #ece1c1; border-radius: 7px; padding: 8px 12px; font-size: 11px; min-width: 150px; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45); z-index: 5; }
+.fabric-tip-title { font-size: 12px; color: #f0e5ad; font-weight: 600; margin: 0 0 4px; font-family: Georgia, "Noto Serif SC", "Songti SC", serif; }
+.fabric-tip-route { margin: 0; font-family: var(--font-mono); font-size: 10px; color: #9ecbff; }
+.fabric-tip-group { margin: 4px 0 0; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: #a39169; }
+
+.fabric-index { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-top: 14px; }
+.fabric-chip-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid rgba(255, 255, 255, 0.07); background: #16130f; color: #d4caad; text-decoration: none; text-align: left; border-radius: 7px; cursor: pointer; font-size: 12px; transition: border-color .15s ease, transform .15s ease; }
+.fabric-chip-row:hover { border-color: rgba(214, 183, 120, 0.5); transform: translateY(-1px); color: #efe5bd; }
+.fabric-chip-route { font-family: var(--font-mono); font-size: 9.5px; color: #8c8470; margin-left: auto; }
+.fabric-chip-title { font-size: 11.5px; }
+
+.fabric-honesty { display: flex; gap: 10px; align-items: flex-start; border: 1px dashed rgba(155, 172, 220, 0.4); background: rgba(155, 172, 220, 0.06); border-radius: 10px; padding: 12px 14px; margin-top: 14px; color: #9aa0b4; line-height: 1.85; font-size: 11.5px; }
+.fabric-honesty svg { flex: 0 0 auto; margin-top: 2px; }
+
+@media print { .fabric-honesty, .fabric-index { display: none; } }
