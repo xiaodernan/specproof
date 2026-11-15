@@ -37945,3 +37945,28 @@ python scripts/stress_smoke.py --target http://127.0.0.1:8000/health --rounds 3 
 # live wkapi 敲门声
 python scripts/live_lane_probe.py
 ```
+
+## #1836 字体/重叠/coach 小票口补修：屏幕首装侧留住 16px 留白 + tooltip 改到下方而非出屏
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、Coach tooltip 出屏根阻断（commit 命中用户高频痛点 "实体块互相重叠"）
+
+* `styles/coach.css`：`.coach-tip` 之前 `left: 130%; top: -8px`—— **badges 位于右侧则 tip 被裁致完全不可见**：
+  - 改为 `left: 50%; right: auto; top: calc(100% + 10px); transform: translateX(-50%);`
+  - `width: min(240px, calc(100vw - 32px)); white-space: normal;`
+  - 现在任何一个 coach-badge（含贴右侧的 topbar 选项）的 tooltip 都会在 badge 正下方展开且不被屏幕裁切，符合常规 hover + focus 的行为与用户心理预期；
+* `styles/product.css`：`.topbar-left strong` 之前没截断——长验收 ID / 失控大页面标题会盖住右侧 actions；
+  - 加: `min-width: 0; max-width: 460px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`
+  - `.topbar-left` `min-width: 0`（flex 溢出修正）；
+  - `.topbar-actions` `flex-shrink: 0` 保住右侧不会被裁；
+* 无 React 改动、仅 CSS；
+* UI 测试 **198/198**（spinner + shortcuts + icon-only focus first-badge 全绿）；build ✅ 290ms；无 UiKit.smoke 飘；
+* 全量 pytest 仍内存受限（guide+ledger 51/51）；Spring off-line 137/137 stays；
+* 这些是粗心不营，也是「字 vs 实体块」最明显的一处痛点——现在收起来。
+
+### 二、未触及
+
+* 全量 UI 514/514 / UiKit.smoke 未红（上次已验）；
+* i18n 残余 bucket A=242 (fixed earlier @ #1818)；`#/engine` 没动；
+* 「密码 123 永久否决」维持；Observability 签字仍欠；PORTFOLIO_TOKEN 仍然唯一阻塞。

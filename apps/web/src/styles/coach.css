@@ -6,7 +6,7 @@
 @keyframes coach-pop { from { transform: scale(.4); opacity: 0; } }
 .coach-badge-num { font-size: 11px; font-weight: 800; color: #241a05; font-family: var(--font-mono); }
 
-.coach-tip { display: none; position: absolute; left: 130%; top: -8px; width: 240px; background: #05070f; border: 1px solid rgba(212,175,55,.5); border-radius: 8px; padding: 9px 11px; z-index: 70; box-shadow: 0 14px 40px -10px rgba(0,0,0,.7); }
+.coach-tip { display: none; position: absolute; left: 50%; right: auto; top: calc(100% + 10px); transform: translateX(-50%); width: min(240px, calc(100vw - 32px)); background: #05070f; border: 1px solid rgba(212,175,55,.5); border-radius: 8px; padding: 9px 11px; z-index: 70; box-shadow: 0 14px 40px -10px rgba(0,0,0,.7); white-space: normal; }
 .coach-badge:hover .coach-tip, .coach-badge:focus-visible .coach-tip { display: block; }
 .coach-tip strong { display: block; color: #f5e08a; font-size: 12px; letter-spacing: .04em; margin-bottom: 4px; }
 .coach-tip span:last-child { color: #cdd5e8; font-size: 11px; line-height: 1.7; }
