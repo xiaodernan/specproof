@@ -38061,3 +38061,38 @@ python scripts/live_lane_probe.py
 
 * 同 commit：tour 改造的完整背景见 `#1838`；此节登记的是除 `pages/Archive.tsx` 之外寻戏所有 tour-as-"clicker seal" 的文案清理；
 * 「到访才能盖印」 用法不阻塞任何入口，
+
+## #1840 卷五十二《沉默的种子 · The Spring of Silence》：把「看起来像」和「是」划清楚
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、这一卷登记的就是**哪些事情仓库里没有**
+
+五个「好像有」但**没有**的所由（全部列在卷五十二）：
+
+| 声称 | 事实 | 锚点 |
+|---|---|---|
+| CI 在跑 | workflow 存在但未配置触发条件（无 `push` / `pull_request` 默认链） | `.github/workflows/*.yml` 中未发现任何触发链 |
+| 自动化部署 | 没有 DNS、没有域名、没有生产实例、没有 running endpoint | `deploy/` 只有 scaffolding，无 K8s manifest |
+| 跨地域 TLS 终结 | 没——卷三十一只承诺了"可以写的条款"，没有任何一端在跑 | `#1805` `#1817` |
+| 真 · fleet 遥测 | 只有 build-time git-JSON 读数字（` chronicle 1,641 节` / ` 480,000 LOC`），无实时 HTTP / 无 live traffic metrics | `#/gazette` 的所有数字都是 build-time 取值 |
+| agent 自行盖章 | 没——`verdict_channels.py` drift 时 FAIL；agent console 永远等真人按"批准" | `verdict_channels.py` |
+
+### 二、哪些**是**真的（同样逐条对账）
+
+| 声称 | 事实 | 锚点 |
+|---|---|---|
+| 世界书双语一一对应 | 59 卷 · ZH 69,372 chars · **EN 135,053 chars** · 逐章对齐（Volume XLIX 老水位和卷五十二种子都已入册） | `scripts/build_worldbook.py` 输出 59 volumes |
+| 39 一级路由全部到达 | guide catalog 6/6 · USER_GUIDE 双 mirror 也包含所有路由条目 | `#1810` `#1818` |
+| Spring 车道离线全绿 | **137/137** | #1825 |
+| 全量 Python 绿 | 没——内存受限（~2 GB 内存），仅运行 guide+ledger 五件套 → **51/51** 全绿 | `#1824` `pytest tests/unit/test_guide_route_catalog.py` |
+| 压测双车道 | 432+432 req / **0 err** | `#1801` |
+| 管理员功能真存在 | `/insight`admin/operator RBAC fail-closed，非「密码 123 全员进入」 | `#1818` `#/insight` |
+
+### 三、诚实边界
+
+* 本节只追加 **已交付的当前状态**；不是 v1.0，不是 production；仅 **v0.90.0 tag** 为迄今唯一已推送标签；
+* 全量 pytest 仍内存受限；Spring 离线 137/137 是 off-line `mvn test`，不是任何集群跑过；
+* 「密码 123 全员进管理员」永远不会实现（禁忌清单第 2 位）；
+* PORTFOLIO_TOKEN 仍欠（GitHub Pages 自动同步不会产生假性推送）；
+* Observability 真实遥测：`OBSERVABILITY.md` 签字仍欠；若要日后接入，必须由你真人签字过。
