@@ -22,7 +22,7 @@ docker compose -f compose.phase0.yml up -d --wait
 
 ### 1.2 A lap around the whole product (5 minutes)
 
-Open `http://127.0.0.1:5173/` — the sidebar carries 31 first-level entries:
+Open `http://127.0.0.1:5173/` — the sidebar carries 32 first-level entries:
 > **Press H to open coach marks** — every control on the main screen (keys, buttons, sidebar entries) carries its one-line lesson as a gold badge; hover/focus to read. H or the legend's dismiss button hides them. Press `?` for the full shortcut card.
 
 | Group | Entry | What you can do right now | Iron evidence |
@@ -173,6 +173,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/insight` | Insight Deck | admin/operator-only dashboard: a labelled synthetic calibration cohort + this browser's real local trace + 28-day session trend with 7-day least-squares forecast (r²), plus 6 engine-rule optimisation moves (clearly labelled synthetic — never real user PII) |
 | `/dossier` | Golden Compendium | 111 committed golden cases, one-by-one: 22 BLOCKER / 51 MAJOR / 38 NONE controls; each case shows severity, contract, evidence_type and whether it should be detected — ground-truth.json read at build time, never demo data, never an LLM in the loop; verify with `git show` |
 | `/mint` | The Mint | this browser's own vault: the six tour seals, drill ladder, fourteen gestures and recent footsteps — all read from localStorage (specproof_tour_v1 / specproof_drill_v1 / specproof_gestures_v1 / specproof_onboarding_v1); never uploaded, never aggregated, unreadable = unknown, never zero |
+| `/last-call` | Last Call | three independent draws served fresh on every visit — a sentence spilled from the world book, one golden case, one section of the chronicle; no recommendation, no curation, nothing for anyone in particular; re-deal as often as you like |
 | `/ui-kit` | Design System | the full Aurora component wall |
 | `/epic` | Chronicles | bilingual genesis; every anchor a real commit hash |
 | `/tour` | Grand Tour | interactive onboarding corridor; six stamps seal 「验讫」 |

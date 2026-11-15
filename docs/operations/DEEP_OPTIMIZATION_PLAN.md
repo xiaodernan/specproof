@@ -37205,3 +37205,35 @@ python scripts/stress_smoke.py --target http://127.0.0.1:8000/health --rounds 3 
 * 手势/巡览/快问等"纯本机"功能不在「缺位」之列——那些是设计如此、有意为之（见 #1808 印记阁）；
 * UiKit.smoke 已知瞬时 flake；全量 pytest 本机内存限制不变；Spring 137/137 仍在 #1788；
 * 「密码 123」否决维持；TET demo 一予一诺不变。
+
+## #1813 末班车 `#/last-call`：三张独立抽牌——永远在仓库自己手心里的彩票
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、动机（把"无穷观的世界"具体到一个会让人不断想打开的按钮）
+
+* 用户要"无尽的开放世界：怎么探索都探索不完"——但前提得母库里本来就有足够的"意外"入账；
+* 本仓库已经有 4 份真实 `.json` 档（世界书正文 / 编年史 1,613 节 / 金案谱 111 件 / 轮的 ledger），但没有一个入口是**随机**的——用户很难"撞见一件他本来没搜的东西"；
+* 本节落地 `#/last-call`：每次开机/按钮直送三张独立抽牌，永不重复强调任何一样（真的是 `Math.random`）；
+* 这一按键是整个产品在"刺激中随机"的明线——三张牌都来自本仓库自己，每一张都可 `git show` 反查。
+
+### 二、交付
+
+* `pages/LastCall.tsx` + `styles/last-call.css`：
+  - **卡 1 · 世界书的一次抽见**：随机卷（卷 front 仅收录，正则保证 excerpt 不以标题符号开头、长度：zh 150 / en 280，block/quot/code fence 全部洗掉；卷目与出处明文渲染）；
+  - **卡 2 · 金案的一次抽见**：随机一则 case id + family + severity + should_detect/阴性对照双色胶囊；
+  - **卡 3 · 编年史里翻出的一节**：随机一条 `## #NNNN` 账本节标题；
+  - 顶栏显示三计数徽章（43 卷 · 1613 节 · 111 件），"末班车再开一次"按钮完全独立重抽（不 trick 你看什么）；
+  - 三卡均链到对应模块（/worldbook、/dossier、/chronicle），不向用户渲染装饰品，只向用户渲染**下一扇门**；
+  - 诚实性页脚 + 不解释「随机为什么是好」；`#/mint` 式本机数据 vs 本页 repo 数据，两套彻底分开。
+* `App.tsx` 懒加载 + NAV evidence 组（icon=`lantern`）+ 路由分支；`strings.ts` `nav.lastCall` = `末班车` / `Last Call`；
+* `USER_GUIDE.md` + EN mirror：各加 `/last-call` 一行；一级入口 **31 → 32**；guide route catalog **6/6**；
+* build ✅ 705ms（LastCall chunk 5.8 kB JS / 2.5 kB gzip + CSS 3.75 kB）；vitest **508/508**；tsc 0；chronicle 1,614 节；guide 6/6；gate 51/51。
+
+### 三、诚实边界
+
+* 抽牌**不向用户制造焦虑，也不制造购买行为**；它仅仅是把真内容摆出来；
+* 三张牌都是 `Math.random`——是彩票不是推荐系统；页面页脚原话；
+* 任何一张如果不对胃口，用户点下方链接可以直接验证底层文件，本卡不用用户相信；
+* 与印记阁（本机）/洞察舱（合成 cohort 标注）/金案谱（git 直读）一脉相承的数字学诚实：**每张牌都能 git show**；
+* 「密码 123」否决维持；隐私遥测需签字；PORTFOLIO_TOKEN 仍欠；全量 pytest 仍内存受限。
