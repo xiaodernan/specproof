@@ -38876,3 +38876,36 @@ draft#2    → 0.00s · 5600/14  (重复命中)
 * Volume LXXVII《门与锁 · Door and Lock》入册（zh/en 对称）→ 世界书 **84 卷**（本轮 +1）；chronicle 1,667 节；
 * gate 合计 **57/57**（court lock 2 + court 4 + guide/ledger 五件套 51）；UI **533/533** · build 457ms · tsc 0；
 * court 永不缓存（已被钉四次）；「密码 123 全员进管理员」永久否决。
+
+## #1867 《雪崩后的书脊》：更正卷轴落地 + audit_evidence.py 七验全绿
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、卷轴落纸（zh + en 双语）
+
+* `docs/world/APPENDIX_CORRECTIONS.md` — 10 条 R-entry（R01–R10）+ 三条 house rules；
+* `docs/world/EN/APPENDIX_CORRECTIONS_EN.md` — 英文镜像一字对应；
+* 每条 R 都配 commit / ledger / 文件 / JSON anchor——可捞起来亲自敲；
+* 卷轴不删：append-only。
+
+### 二、audit_evidence.py（新，七验全绿 CONSISTENT）
+
+| # | 验 | 结果 |
+|---|---|---|
+| A | chronicle entries == repoStats.ledger_sections | **1667 == 1667** |
+| B | worldbook zh == en | **84 == 84** |
+| C | evidence.json latest verdict 存在 | `2026-11-16-static-warm-3.json · verdict OK` |
+| D | unsigned.json 恰好 4 lamps 且唯一 | `observability-signature · weekly-stress-merged · port-8000-answers · branch-cleanliness` |
+| E | courtLock.json `verdict == LOCKED` · 16-hex lock | `4117d2b0ca5fb23a` |
+| F | engine.json calls > 0 | calls=46 · 17 policy · kinds incl. diagnose:1 |
+| G | semantic_cache.py EVIDENCE_KINDS literal 含 court | ✅ |
+
+* `docs/evidence/audit-evidence.json` 入库（git-tracked · generated_utc）；
+* gate：**57/57** stays（R05 lock 已锁绿；court 断言在场）· UI **533/533** stays（12 build artefact 全绿）。
+
+### 三、诚实边界
+
+* R 条 anchor 准许随时复敲（每个 anchor 都是可敲脚本/可 git show 的文件）；
+* audit_evidence 是 **漂移哨兵**——不是 audit 本体的替代品，只保证「产物间互相对得上」；
+* Volume LXXVIII《雪崩后的书脊 · The Spine After the Avalanche》入册 → worldbook **85 卷**（本轮 +1）；chronicle 1,668 节；
+* court 永不缓存；「密码 123 全员进管理员」永久否决；Observability 签字仍欠（灯琥珀）。

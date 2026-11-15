@@ -1,0 +1,42 @@
+{
+ "version": 1,
+ "generated_utc": "2026-11-15T18:33:33+00:00",
+ "verdict": "CONSISTENT",
+ "checks": [
+  {
+   "id": "chronicle_vs_repoStats",
+   "ok": true,
+   "detail": "chronicle entries=1667 repoStats ledger_sections=1667"
+  },
+  {
+   "id": "worldbook_zh_en_symmetric",
+   "ok": true,
+   "detail": "zh=85 en=85"
+  },
+  {
+   "id": "evidence_verdict_present",
+   "ok": true,
+   "detail": "latest=2026-11-16-static-warm-3.json verdict=OK"
+  },
+  {
+   "id": "unsigned_four_unique_lamps",
+   "ok": true,
+   "detail": "ids=['observability-signature', 'weekly-stress-merged', 'port-8000-answers', 'branch-cleanliness']"
+  },
+  {
+   "id": "courtLock_locked_16hex",
+   "ok": true,
+   "detail": "verdict=LOCKED lock=4117d2b0ca5fb23a"
+  },
+  {
+   "id": "engine_calls_positive",
+   "ok": true,
+   "detail": "calls=46 kinds={'(unspecified)': 29, 'draft': 10, 'court': 6, 'diagnose': 1} lanes={'direct': 29, 'policy': 17}"
+  },
+  {
+   "id": "semantic_cache_evidence_literals_intact",
+   "ok": true,
+   "detail": "EVIDENCE_KINDS frozenset literal contains 'court'"
+  }
+ ]
+}

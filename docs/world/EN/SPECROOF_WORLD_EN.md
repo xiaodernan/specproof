@@ -2959,3 +2959,42 @@ With it, court still never enters the rack — the four welds in `test_court_nev
 **The cipher machine is not a nerve; the lock is the testimony of iron and fire.**
 
 ---
+## Volume LXXVIII · The Spine After the Avalanche（卷七十八 · 雪崩后的书脊）
+
+> What a survivor sees first after an avalanche is not snow — it is the spine that stuck up out of it.
+> This volume collects every claim this repo got wrong and then corrected itself —
+> not an apology collection, but **the errata ledger**: anyone who wants to know where this project has been accurate, wrong, and how it climbed back, comes here.
+
+### 78.1 The Corrections Scroll: ten entries, append-only (R01–R10)
+
+| # | # | # | # |
+|---|---|---|---|
+| R01 | chronicle 1,645→1,644 (#1845, closed) | R06 | sort-key filename→ISO started_utc (#1852/#1854) |
+| R02 | world book 72/73 asymmetry — rolled back, re-landed → 73/73 (#1855) | R07 | Archive hard-codes worldbook:50/"1,625" → locked JSON (#1863) |
+| R03 | CrewCard hard-codes — import-resolved (#1858) | R08 | subprocess import missing → false no-upstream (#1863) |
+| R04 | suspect "1,000 hash remainders" → audit hard 21 SWE-bench snapshots (#1865) | R09 | repaired output, generator left behind → 27d632b (#1865) |
+| R05 | court-lock BROKEN: regex can't parse kwargs[...] — dual-spelling → **LOCKED 4117d2b0c** (#1866) | R10 | RageCoach test expects wrong lane (approve→tour-seal); approval regex ws-tolerant (#1846) |
+
+Every R is anchored — git show /敲 the script / read the locked JSON — **every one re-verifiable by hand.**
+
+### 78.2 House rules of the spine after the avalanche
+
+1. **append-only** — R-entries never get deleted;
+2. **anchorable** — every entry cites commit · ledger · file · JSON so anyone can knock it;
+3. **withdrawable** — when I am wrong, the retraction is printed in public, never "strategic silence";
+4. **no laughing** — these are not jokes, these are facts of last week — "the ink moves only forward".
+
+### 78.3 Three things always ride along after the appendices
+
+* APPENDIX_CORRECTIONS.md — the prose register (10 entries, all anchored)
+* APPENDIX_CORRECTIONS_EN.md — the English mirror, line-for-line
+* worldbook / chronicle / repoStats / engine / unsigned are the spine's foundations — drift one byte and the whole thing red-lights
+
+### 78.4 What I owe to the avalanche
+
+Every R reads one sentence aloud: "I was wrong, and I did not let the wrong walk away."
+The spine does not grow wings — it simply does not get crushed.
+Snow keeps falling under the timeline; we count by days:
+**after this volume, R11, R12... will come — good. The later flakes are still beautiful.**
+
+---

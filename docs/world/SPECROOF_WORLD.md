@@ -3084,3 +3084,42 @@ put with kind="court" 直接返回 False、cache 保持空；rejected 计数 +1�
 **密码机不是神经，锁是铁和火的证词。**
 
 ---
+## 卷七十八 · 雪崩后的书脊（The Spine After the Avalanche）
+
+> 雪崩过后的人看见的第一根东西不是雪——是露出来的一截脊梁。
+> 本卷收藏的是「本仓库说错过、后来自己纠正了的每一件事」——
+> 不是道歉集，是**勘误入册**：任何人想知道这个项目准确过、错误过、怎么改回来的，翻这里就是。
+
+### 78.1 更正卷轴：不可删·全列十条（R01–R10）
+
+| # | # | # | # |
+|---|---|---|---|
+| R01 | chronicle 1,645→1,644（#1845，收） | R06 | 排序 key filename→started_utc（#1852/#1854） |
+| R02 | 世界书 72/73 哑铃失衡校 — 回滚重入 → 73/73（#1855） | R07 | Archive 硬编码 worldbook:50/"1,625" → locked JSON（#1863） |
+| R03 | CrewCard 写死 → import 实推（#1858） | R08 | subprocess 漏 import → 误判 no-upstream（#1863） |
+| R04 | §1860 嫌疑 1,000 残片 → **审计实锤 21 件 SWE-bench 快照**（#1865 撤回） | R09 | 输出修了但生成器没跟 → 27d632b 补（#1865） |
+| R05 | court-lock BROKEN：正则不认 kwargs[…]= → 双拼法 → **LOCKED 4117d2b0c**（#1866） | R10 | RageCoach 测试期望写错 (approve→tour-seal) · 批准 regex 容空白（#1846） |
+
+每条都挂 commit / ledger / 文件 / json ——**全部能敲得亲自验证**。
+
+### 78.2 雪崩后书脊的家规
+
+1. **不可删**——卷轴条目 append only；
+2. **可追溯**——每条都带 anchor：git show / 敲脚本 / 读 locked JSON；
+3. **能撤回**——判错了就公开写撤回，不许用「策略性忽略」；
+4. **不许笑**——这些不是段子，是上周的事实——「不许动字」。
+
+### 78.3 本仓库的三件永远挂在 appendices 之后的事
+
+* APPENDIX_CORRECTIONS.md — 本卷轴的白描版（10 条完整表格，全部配 anchor）
+* APPENDIX_CORRECTIONS_EN.md — 英文版一字对应
+* worldbook / chronicle / repoStats / engine / unsigned 是整张卷轴的地基——再漂移一字节立马报错
+
+### 78.4 我为雪崩负责什么
+
+每一条 R，都是一句话：「我错过，我没看着它走。」
+书脊不长出翅膀——它只是不被压垮。
+雪还在时间轴之下继续落，我们按日计数：
+**这卷之后，R11、R12… 还会来——好。晚来的雪花也是漂亮的。**
+
+---
