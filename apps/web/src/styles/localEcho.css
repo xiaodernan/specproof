@@ -1,0 +1,16 @@
+﻿
+.local-echo { margin: 0 0 18px; border: 1px dashed rgba(158, 203, 255, .4); background: rgba(158, 203, 255, .05); border-radius: 10px; padding: 12px 14px; }
+.local-echo-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; border-bottom: 1px solid rgba(158, 203, 255, .2); padding-bottom: 6px; }
+.local-echo-head svg { color: #9ecbff; }
+.local-echo-kicker { font-size: 9px; letter-spacing: .3em; color: rgba(158, 203, 255, .85); margin: 0; text-transform: uppercase; font-family: Georgia, serif; }
+.local-echo-empty { color: #8fa3bd; font-size: .8rem; line-height: 1.8; margin: 8px 0 2px; }
+.local-echo-lead { color: #c3ccdf; font-size: .78rem; margin: 8px 0 6px; }
+.local-echo-list { list-style: none; margin: 0 0 8px; padding: 0; }
+.local-echo-list li { display: flex; align-items: center; gap: 10px; padding: 5px 0; border-bottom: 1px dashed rgba(158, 203, 255, .15); font-size: .76rem; }
+.local-echo-list li:last-child { border-bottom: 0; }
+.local-echo-list code { font-family: var(--font-mono); color: #9ecbff; font-size: .72rem; overflow-wrap: anywhere; flex: 1; }
+.local-echo-count { color: #ffd97a; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.local-echo-go { color: #9ecbff; font-size: .72rem; text-decoration: none; border: 1px solid rgba(158, 203, 255, .4); border-radius: 4px; padding: 3px 8px; white-space: nowrap; }
+.local-echo-go:hover { background: rgba(158, 203, 255, .12); }
+.local-echo-hint { color: #77839f; font-size: .7rem; line-height: 1.8; margin: 0; border-top: 1px solid rgba(158, 203, 255, .15); padding-top: 8px; }
+@media print { .local-echo { display: none !important; } }

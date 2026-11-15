@@ -2271,3 +2271,42 @@ The note carries two doors: press H (焊 the hints onto the interface) · or "re
 It never rings the same bell twice — unless the wanderer calls into the same button three times again.
 
 ---
+## Volume LIX · The Mirror Corridor（卷五十九 · 镜厅回廊）
+
+> A mirror never tells you what is on your face — it only counts how many times you frowned at it.
+> This volume is about the sound of the "quick bounce" travelling back into the pocket manual:
+> when a door is opened and shut three times, the library never rebukes the opener — it hangs a note on the door.
+
+### 59.1 The entrance to the Mirror Corridor
+
+Under the title of the pocket manual (#/manual) there is now a strip called THE LOCAL ECHO:
+* it reads this browser's `specproof_heat_v1`, collecting every event with dwell < 4000ms and grouping by route;
+* it lists only the top-4 "most-bolted" doors, marked "×N", each with a "Walk it →" anchor at its side;
+* an empty shelf honestly says "silence, not zero" — no data, no invented data;
+* it never prints (display:none on A4) — the pocket manual stays crisp on paper.
+
+### 59.2 The six mirrors of the Mirror Corridor
+
+| Mirror | Corresponding page | The truth |
+|---|---|---|
+| The Seal Court | /tour | six seals unsealed is how the table shrinks — re-enters mid-way and returns |
+| The Drill Ladder | /drill | re-classify soft items as review cards, not gates |
+| The Evidence Room | /jobs/new | the universal key: "load demo data" at the top |
+| The Model Mirror | /settings | the /v1 suffix / gpt-6-sol spelled exactly / protocol — the test button quotes your typo back |
+| The Pocket Manual | /manual | this volume itself — the more this device is exposed, the denser the echo becomes |
+| The Epic Hall | /epic | the macro-narrative most prone to emptiness — this hall hangs "volumes I–LIX are on the shelf" |
+
+### 59.3 The house rules of the Mirror Corridor
+
+1. **no mirrors look past your face** — the climate log counts shut doors, never expressions;
+2. **empty mirrors are not allowed to shine fake** — no bounce data = "silence", never a ranked guess;
+3. **reflection stays local** — the strip is sorted purely from localStorage; never uploaded, never aggregated, never cross-device;
+4. **every door keeps a handle** — "Walk it →" always links to the real anchor, never a decorative button.
+
+### 59.4 Infinite is not the same as empty
+
+On a vast field, every empty room must hang one real lamp. What this volume accomplishes is only this —
+"when somebody passes, the lamp flickers on."
+The rest belongs to Volume LX and beyond.
+
+---

@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { useI18n } from "../i18n";
 import { MANUAL } from "./manual.copy";
+import LocalEcho from "./LocalEcho";
 import "../styles/manual.css";
 
 /**
@@ -32,6 +33,7 @@ export default function Manual() {
         <div className="page-sub">{MANUAL.lead[locale]}</div>
       </div>
 
+      <LocalEcho />
       <div className="manual-paper print-area">
         <p className="manual-kicker">{MANUAL.subtitle[locale]}</p>
 

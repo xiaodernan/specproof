@@ -38333,3 +38333,31 @@ python scripts/live_lane_probe.py
 * 不指责、不断言原因；「回吐的频率」由 ack 计数严格控制——acknowledged 那几次不再弹；
 * Volume LVIII《回声定位 · The Echolocation》入册（zh/en 对称）→ 世界书 **65 卷**（本轮 +1，数字由 build_worldbook 实算）；
 * court 车道白光永不进缓存（§LVI）；「密码 123 全员进管理员」永久否决；OBSERVABILITY 签字仍欠。
+
+## #1848 袖中手札新增「本机回音壁 · THE LOCAL ECHO」：秒退榜单站在说明书顶部
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、改动
+
+* 新组件 `apps/web/src/pages/LocalEcho.tsx` — 挂在 `#/manual` 的 h1 与纸面之间：
+  * `deriveHeat(loadHeat())` 汇总本机 `specproof_heat_v1` 中 **dwell < 4000ms** 的 dwell 事件；
+  * 按路由聚合、取 top 4（`path ×N`），右侧「再走一次 →」锚点（真链接到 `#/<route>`）；
+  * 空态写「沉默，不是零」；storage 不可读时 return null（页面不会因此崩）；
+  * `@media print` 下 `display:none`——袖中手札打印依然干净；
+* CSS `apps/web/src/styles/localEcho.css`（本机 ice-蓝虚线框 · 与 Insight 的 rage-coach 区分色温）；
+* Manual.tsx 仅 +2 行（import + <LocalEcho />）。
+
+### 二、闭环现状（本轮之后）
+
+敲击（#1846 behavior.ts）→ 入册（specproof_heat_v1 41+2 真敲llm + 前端气候）→ 洞察舱可见（#/insight 气候图）→ **印章庭弹便条（#1847 RageCoach）**→ **说明书回音壁（#/manual·本卷 #1848）**。
+
+这一整条不落服务端、不上传、不对账——每一格数字都是这个浏览器亲手敲的。
+
+### 三、诚实边界
+
+* 只读本机；不跨设备；不上传；
+* 空态永远是「沉默」；
+* Volume LIX《镜厅回廊 · The Mirror Corridor》入册（zh/en 对称）→ 世界书 **66 卷**（本轮 +1）；
+* UI **521/521** · tsc 0 · build 648ms · gate 51/51；
+* court 车道永不进缓存（§LVI）；「密码 123 全员进管理员」永久否决；OBSERVABILITY 签字仍欠。
