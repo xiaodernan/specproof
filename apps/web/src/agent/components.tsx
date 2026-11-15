@@ -1,6 +1,10 @@
 // Shared components + hooks for the SpecCraft agent console pages.
 
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { storedLocale } from "../i18n/strings";
+
+const isZh = (): boolean => storedLocale() === "zh";
+const L = (zh: string, en: string): string => (isZh() ? zh : en);
 import {
   AgentApproval, AgentEvent, AgentJob, AgentReplayGap, apiGet, openAgentEventStream,
 } from "../api";
@@ -119,15 +123,15 @@ export function AgentJobShell(props: {
   const { job } = props;
   const meta = agentStatusMeta(job.status);
   const tabs: { key: string; label: string; href: string }[] = [
-    { key: "overview", label: "概览", href: "#/agent/jobs/" + job.id },
-    { key: "plan", label: "计划 Plan", href: "#/agent/jobs/" + job.id + "/plan" },
-    { key: "tools", label: "工具流 Tools", href: "#/agent/jobs/" + job.id + "/tools" },
-    { key: "events", label: "事件 Events", href: "#/agent/jobs/" + job.id + "/events" },
-    { key: "edits", label: "编辑 Edits", href: "#/agent/jobs/" + job.id + "/edits" },
-    { key: "gates", label: "门禁 Gates", href: "#/agent/jobs/" + job.id + "/gates" },
-    { key: "diff", label: "差异 Diff", href: "#/agent/jobs/" + job.id + "/diff" },
-    { key: "approvals", label: "审批 (" + job.approvals_count + ")", href: "#/agent/jobs/" + job.id + "/approvals" },
-    { key: "result", label: "结果 Result", href: "#/agent/jobs/" + job.id + "/result" },
+    { key: "overview", label: L("概览", "Overview"), href: "#/agent/jobs/" + job.id },
+    { key: "plan", label: L("计划", "Plan"), href: "#/agent/jobs/" + job.id + "/plan" },
+    { key: "tools", label: L("工具流", "Tools"), href: "#/agent/jobs/" + job.id + "/tools" },
+    { key: "events", label: L("事件", "Events"), href: "#/agent/jobs/" + job.id + "/events" },
+    { key: "edits", label: L("编辑", "Edits"), href: "#/agent/jobs/" + job.id + "/edits" },
+    { key: "gates", label: L("门禁", "Gates"), href: "#/agent/jobs/" + job.id + "/gates" },
+    { key: "diff", label: L("差异", "Diff"), href: "#/agent/jobs/" + job.id + "/diff" },
+    { key: "approvals", label: L("审批", "Approvals") + " (" + job.approvals_count + ")", href: "#/agent/jobs/" + job.id + "/approvals" },
+    { key: "result", label: L("结果", "Result"), href: "#/agent/jobs/" + job.id + "/result" },
   ];
   return (
     <div>
@@ -139,7 +143,7 @@ export function AgentJobShell(props: {
           </span>
         </h1>
         <div className="page-sub">
-          {"仓库 repo: " + job.repo_path + " · 更新 " + fmtTime(job.updated_at)}
+          {L("仓库", "Repo") + ": " + job.repo_path + " · " + L("更新", "Updated ") + fmtTime(job.updated_at)}
         </div>
       </div>
       <div className="tabs">
@@ -152,7 +156,7 @@ export function AgentJobShell(props: {
           {props.right}
           {props.reload ? (
             <button className="btn btn-ghost btn-sm" onClick={() => props.reload?.()}>
-              刷新 Refresh
+              {L("刷新", "Refresh")}
             </button>
           ) : null}
         </div>
@@ -186,7 +190,7 @@ export function ApprovalCard(props: { approval: AgentApproval; jobLabel?: string
     <div className="approval-card">
       <div className="approval-head">
         <span className={"pill " + (a.decision === "approve" ? "pill-ok" : "pill-bad")}>
-          {a.decision === "approve" ? "APPROVE 批准" : "REJECT 拒绝"}
+          {a.decision === "approve" ? L("批准", "Approve") : L("拒绝", "Reject")}
         </span>
         <span className="mono muted" title={a.target}>
           {approvalTargetLabel(a.target) + (a.step_index !== null ? " #" + a.step_index : "")}
@@ -195,9 +199,9 @@ export function ApprovalCard(props: { approval: AgentApproval; jobLabel?: string
           {fmtTime(a.created_at)}
         </span>
       </div>
-      {props.jobLabel ? <div className="mono muted">任务 job: {props.jobLabel}</div> : null}
+      {props.jobLabel ? <div className="mono muted">{L("任务", "Job")}: {props.jobLabel}</div> : null}
       {a.note ? <div className="approval-note">{a.note}</div> : null}
-      <div className="mono muted">操作人 by {a.actor} · {shortId(a.id)}</div>
+      <div className="mono muted">{L("操作人", "by")} {a.actor} · {shortId(a.id)}</div>
     </div>
   );
 }
@@ -205,7 +209,7 @@ export function ApprovalCard(props: { approval: AgentApproval; jobLabel?: string
 export function ProgressBar(props: { percent: number }) {
   const pct = Number.isFinite(props.percent) ? Math.max(0, Math.min(100, props.percent)) : 0;
   return (
-    <div className="bar" role="progressbar" aria-label="任务执行进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+    <div className="bar" role="progressbar" aria-label={L("任务执行进度", "Agent task progress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
       <div className="bar-fill" style={{ width: pct + "%" }} />
     </div>
   );

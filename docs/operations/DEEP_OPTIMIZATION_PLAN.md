@@ -36689,3 +36689,25 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 本文件以外还有约 50 个 A 桶文件（含 UiKit.tsx 75 处、drillQuestions、healthCategories 等）尚未收口——本条只证 CommandPalette 完成双语化；
 * 未验证 Tab 键盘焦点环序（无头环境无法枚举屏幕读屏顺序）；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1794 健康页五类别文案去夹杂 + agent 共享组件去夹杂（Health / AgentJobShell / ApprovalCard）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、healthCategories.ts（健康页五标签）
+
+* zh 文案里的"中文 + 英文大写"对照标签（`未知 UNKNOWN`、`服务可达 Service reachable`、`可达 REACHABLE`、`正常 NORMAL`、`降级 DEGRADED`、`可查询 QUERYABLE` …）全部改为中文单语；
+* 测试 `Health.test.tsx` **11/11 绿**（其中断言均为 toContain 中文子串，无冲突）；`healthCategories` 审计 19 → 7（余下 7 项全是中文插值如 `${n} / ${total} 可达`，审计工具误报）；
+* **未动 toneMap 的 `未知 UNKNOWN` pill 词表**——toneMap/Matrix 是另一条有固定测试契约的双语 pill 词表，改它必须成套改 pin，不在本节的诚实范围内擅自扩大；
+
+### 二、agent/components.tsx（AgentJobShell / EventRow / ApprovalCard / ProgressBar）
+
+* tabs（概览/计划/工具流/事件/编辑/门禁/差异/审批/结果）、仓库 repo 行、刷新、APPROVE/REJECT 徽章、任务标签、操作人、进度 aria-label——全部 locale 分支（`storedLocale()` 调用时读取）；中文单语、英文单语；
+* AgentApprovalsInbox.test.tsx 两条断言更新（"APPROVE 批准" → "批准"；getByText 的唯一性断言改为"存在性 + LGTM 卡片随 reject 筛选消失"，避开 combobox 选项文字同词的歧义）；
+* **agent 测试 92/92 绿**；审计记录：`components.tsx` 从混合字面量名单**消失**；tsc 0；build ✅ in 673ms；i18n parity 11/11。
+
+### 三、诚实边界
+
+* 健康页 `en` 侧 token（REACHABLE / NORMAL / DEGRADED / QUERYABLE）刻意保留英文大小写——它们是英文单语、无 CJK，不是夹杂；
+* toneMap pill 词表的"未知 UNKNOWN"仍属双语徽记，属于Matrix 契约改动；本节不动它；
+* 全量 `pytest tests/unit` 仍未跑完。

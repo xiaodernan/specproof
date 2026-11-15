@@ -76,8 +76,10 @@ describe("AgentApprovalsInbox", () => {
     stubFetch();
     render(<AgentApprovalsInbox />);
     await waitFor(() => expect(screen.getByText("审批 (2 / 2)")).toBeTruthy());
-    expect(screen.getByText("APPROVE 批准")).toBeTruthy();
-    expect(screen.getByText("REJECT 拒绝")).toBeTruthy();
+    // Both decisions render their pills; the filter combobox options also carry
+    // these words, so uniqueness cannot be assumed — presence is what matters.
+    expect(screen.getAllByText("批准").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("拒绝").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("tests red")).toBeTruthy();
     expect(screen.getByText("LGTM")).toBeTruthy();
   });
@@ -90,8 +92,9 @@ describe("AgentApprovalsInbox", () => {
     (select as HTMLSelectElement).value = "reject";
     select.dispatchEvent(new Event("change", { bubbles: true }));
     await waitFor(() => expect(screen.getByText("审批 (1 / 2)")).toBeTruthy());
-    expect(screen.getByText("REJECT 拒绝")).toBeTruthy();
-    expect(screen.queryByText("APPROVE 批准")).toBeNull();
+    expect(screen.getAllByText("拒绝").length).toBeGreaterThanOrEqual(1);
+    // a1 (the approve card) must vanish; LGTM was its note — nobody else's.
+    expect(screen.queryByText("LGTM")).toBeNull();
   });
 
   it("does not claim an empty inbox when the jobs list failed to load", async () => {
