@@ -38782,3 +38782,40 @@ python scripts/live_lane_probe.py
 * Volume LXXIV《风也认路 · The Wind Knows the Way Too》入册 → worldbook **81 卷**（本轮 +1）；chronicle 1,664 节；
 * UI **533/533** ✅ · tsc 0 · build ✅（本轮 692ms/8.68s 双样）· gate **51/51** stays；
 * 「密码 123 全员进管理员」永久否决。
+
+## #1864 《逾墙之镜》：court 永不缓存的四枚回归把钉钉 + 同源 prompt 命中缓存实录（18:15Z）+ port 8000 再占位
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、四枚断言入库（`tests/unit/test_court_never_caches.py` · 4/4 ✅）
+
+| 断言 | 结论 |
+|---|---|
+| `cacheable()` 只接受 draft/diagnose（大小写/空白不敏） | ✅ |
+| court / counterexample / accept_judge / contract_compile / edit_plan 永远 False | ✅ |
+| `put(kind="court")` → False、`get` → None、`cache.size == 0`、`rejected == 2` | ✅ |
+| draft 实际 put/get/clear 行为正常（可控开启/关闭） | ✅ |
+
+**本仓库第四次用 git 钉住「court 永不入缓存」——以后任何人不小心绕过它，`pytest tests/unit/test_court_never_caches.py` 就是本卷的呼吸。**
+
+### 二、2026-11-15T18:15Z 应用车道实敲（policy lane）
+
+```
+diagnose#1 → 6.92s · 5600/14 · cached=None  (真的没命中，真的出门了)
+draft#1    → 0.00s · 5600/14  (本进程语义缓存命中——diagnose 与 draft 同缓存类两类机械步共享一个 key)
+draft#2    → 0.00s · 5600/14  (重复命中)
+```
+
+账本 41→46；engine.json 重建：**46 calls · 17 policy · 10 draft · 1 diagnose · cached_tokens 75,638 · hit-rate 0.421**（命中率下降 = 未命中的 diagnose 被纳入分母——数字变动原样公布，不美化）。
+
+### 三、port 8000 又要剧情反转
+
+今早是 career-os-ai-service（uvicorn, x-request-id=200）；#1863 敲出 **other-project-answering**；本轮复敲仍为 **other-project-answering**——**career-os-ai 又上门答 200 了**。#/atlas 灯色灰→红（other-project-answering→red），这是活口灯的第七次换色；灯从来不藏。
+
+### 四、诚实边界
+
+* 灯是活的：may flip any time — 本节截图之刻是现况，不是 SLA；
+* court 永不缓存（四枚断言钉死）；court 永远 stream+include_usage；
+* Volume LXXV《逾墙之镜 · The Mirror Over the Wall》入册（zh/en 对称）→ worldbook **82 卷**（本轮 +1）；chronicle 1,665 节；
+* UI 533/533 stays · gate 51/51 (court 测在场 · 55/55 新增 hint 测试仍不动 51/51 口径：Python 全量未全跑依旧 ~2 GB 限制)；
+* 「密码 123 全员进管理员」永久否决；联网搜索仍 402。

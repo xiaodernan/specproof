@@ -1,20 +1,20 @@
 # SpecProof · 船员卡
 
-> xiaodernan/specproof · 打印于 2026-11-15 18:12 UTC
+> xiaodernan/specproof · 打印于 2026-11-15 18:17 UTC
 > 本卡只刻本仓库 git-tracked 的事实；它不是签字、不是验收、不是承诺。
 
 ## 数字墙
 
 | | |
 |---|---|
-| git 提交 | 2,505 |
-| 账本节数 | 1,664 |
-| 世界书卷（zh/en） | 81 / 81 |
-| 源码行数 | 500,419 |
-| Python 测试文件 | 609 |
+| git 提交 | 2,506 |
+| 账本节数 | 1,665 |
+| 世界书卷（zh/en） | 82 / 82 |
+| 源码行数 | 500,575 |
+| Python 测试文件 | 610 |
 | 前端测试文件 | 69 |
-| 账本字节 (KB) | 3783.7 |
-| 编年史最新节 | #1863 |
+| 账本字节 (KB) | 3786.0 |
+| 编年史最新节 | #1864 |
 
 ## 压测证据
 
@@ -38,7 +38,7 @@ git log --oneline -1 && python scripts/build_repo_stats.py && python scripts/aud
 ```
 
 本卡每一个数字都能敲开：chronicle.json · repoStats.json · evidence.json · unsigned.json · engine.json（全部 git-tracked）。
-LLM 账本：openai_compat · wkapi.pro · stream+include_usage 车道；cached_tokens：75,638（46.4% 前缀命中——不是 SLA）
+LLM 账本：openai_compat · wkapi.pro · stream+include_usage 车道；cached_tokens：75,638（42.1% 前缀命中——不是 SLA）
 
 > 本卡不含任何密钥、任何 API key、任何签名——本仓库从来不会把 `sk-…` 写进任何 git-tracked 文件。
 

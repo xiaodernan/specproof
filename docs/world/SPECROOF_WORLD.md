@@ -2980,3 +2980,41 @@ scripts/audit_unsigned.py        → unsigned.json（live 敲）
 "court 永不缓存"仍是事实。cached_tokens 46.4% 仍是事实。**没有任何一盏灯为了好看降级。**
 
 ---
+## 卷七十五 · 逾墙之镜（The Mirror Over the Wall）
+
+> 隔墙有耳——挂一镜面会照见邻院的光。
+> 本卷写的是语义缓存的一块被反光：同一灯火、两个房间、同一个名字——
+> 镜子挂在「墙」上的那一刻，本仓库第一次看见了它怎么借光。
+
+### 75.1 实测事实（2026-11-15T18:15Z）
+
+同一道 prompt（同一个 5600-token 前缀）顺序送入 draft / diagnose：
+
+| 步 | kind | 时长 | 行为 |
+|---|---|---|---|
+| diagnose#1 | diagnose | **6.92s** · 5600/14 · cached=None | **真出门**（第一次挥出） |
+| draft#1 | draft | **0.00s** · 5600/14 | 本进程内语义缓存命中（key=prompt digest+model+params；**缓存类别故意相同**：draft 与 diagnose 在同一个 Cacheable 种类里） |
+| draft#2 | draft | **0.00s** · 5600/14 | 命中（重复） |
+
+这不是漏：diagnose/draft 本属「可缓存机械步」；真正的禁忌是 court/judge——
+**本轮白纸黑字锁了四个断言（tests/unit/test_court_never_caches.py）**：
+court/counterexample/accept_judge/contract_compile 永远 `cacheable=False`；
+put with kind="court" 直接返回 False、cache 保持空；rejected 计数 +1。
+
+### 75.2 逾墙之镜的真意
+
+同一把锁，两种开法——
+缓存不是「单车道提速」；缓存在「同一前缀×同一请求参数×同一模型×同一 kind 类」内才站得住。
+**换句话说：隔壁书房的灯亮了，这边这灯也感受得到——但前提：前缀字节一致。**
+本仓库规定：**court 永不借这堵墙（和那堵墙没什么两样）。**
+
+### 75.3 两个新条目（本卷不藏）
+
+1. engine.json: **46 calls · 17 policy lanes · 10 draft · 1 diagnose** · cached_tokens 75,638 · hit-rate 0.421（分母只被分母撑大，可自己重推）；
+2. port-8000 再次东山再起：**career-os-ai-service 重新占住答 200**（#/atlas 灰灯色反着亮红 = 历史事实灯不藏）。
+
+### 75.4 灯不红灯色，这样不是性质
+
+本书不会为了「漂亮」把 orange 染成 green。每个灯色、每条 trace 都能 git show。
+
+---

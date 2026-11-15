@@ -1,20 +1,20 @@
 # SpecProof · FIELD CARD
 
-> xiaodernan/specproof · generated at 2026-11-15 18:12 UTC
+> xiaodernan/specproof · generated at 2026-11-15 18:17 UTC
 > This card prints only git-tracked facts. It is not a signature, not a seal, not a promise.
 
 ## The wall
 
 | | |
 |---|---|
-| commits | 2,505 |
-| ledger sections | 1,664 |
-| volumes (zh/en) | 81 / 81 |
-| source lines | 500,419 |
-| Python test files | 609 |
+| commits | 2,506 |
+| ledger sections | 1,665 |
+| volumes (zh/en) | 82 / 82 |
+| source lines | 500,575 |
+| Python test files | 610 |
 | web test files | 69 |
-| ledger bytes (KB) | 3783.7 |
-| latest chronicle | #1863 |
+| ledger bytes (KB) | 3786.0 |
+| latest chronicle | #1864 |
 
 ## Stress evidence
 
@@ -38,7 +38,7 @@ git log --oneline -1 && python scripts/build_repo_stats.py && python scripts/aud
 ```
 
 Every digit re-opens: chronicle.json · repoStats.json · evidence.json · unsigned.json · engine.json (all git-tracked).
-LLM ledger: openai_compat · wkapi.pro · stream+include_usage; cached_tokens 75,638 (46.4% prefix-hit, not an SLA)
+LLM ledger: openai_compat · wkapi.pro · stream+include_usage; cached_tokens 75,638 (42.1% prefix-hit, not an SLA)
 
 > This card carries no keys, no secrets, no signatures — this repository never writes an `sk-…` into any git-tracked file.
 

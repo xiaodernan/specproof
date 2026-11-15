@@ -2854,3 +2854,41 @@ verdict: OK. Three exhibits · one machine · one lane · one host — Δ sits c
 "court never cached" is still the truth. cached_tokens 46.4% is still the truth. **No lamp was dimmed for prettiness. Not one.**
 
 ---
+## Volume LXXV · The Mirror Over the Wall（卷七十五 · 逾墙之镜）
+
+> Over the wall is an ear — and a mirror angled just so reflects the neighbour's light.
+> This volume is about one reflection off the semantic cache: one light, two rooms, one name —
+> the instant the mirror hung on the wall, this repository saw how it borrowed fire.
+
+### 75.1 Struck live (2026-11-15T18:15Z)
+
+One prompt (same 5600-token prefix), offered in series to the draft/diagnose pair:
+
+| Step | kind | Latency | Behaviour |
+|---|---|---|---|
+| diagnose#1 | diagnose | **6.92s** · 5600/14 · cached=None | **went out the door** (first strike) |
+| draft#1 | draft | **0.00s** · 5600/14 | in-process **semantic-cache hit** (key = prompt digest + model + params; **deliberately the same cache class**: draft and diagnose are both cacheable mechanical steps) |
+| draft#2 | draft | **0.00s** · 5600/14 | repeat hit |
+
+Not a leak: draft/diagnose are by design the two cacheable mechanic kinds; the real anathema is court —
+**this round welds four regression assertions into the build (tests/unit/test_court_never_caches.py)**:
+court/counterexample/accept_judge/contract_compile always cacheable=False;
+put with kind="court" returns False and the cache remains empty; rejected += 1, puts unchanged.
+
+### 75.2 The meaning of the mirror over the wall
+
+Two ways through one lock —
+the cache is not a single-lane speed-up; it stands only when the prompt prefix, the model, the canonical params and the kind class all match.
+**In other words: when the lamp in the next study went up, this one was lit by the reflection — only because the prefix bytes were identical.**
+This repo stipulates: **court never borrows from this wall (or any other).**
+
+### 75.3 Two fresh entries (this volume hides nothing)
+
+1. engine.json: **46 calls · 17 policy lanes · 10 draft · 1 diagnose** · cached_tokens 75,638 · hit-rate 0.421 (the denominator swells, the numerator stayed put — re-check it yourself);
+2. port 8000 answered again this round: **career-os-ai-service holds it and answers 200** (the #/atlas lamp now flips grey → red again — the lamp hides nothing on purpose).
+
+### 75.4 Colour is not character
+
+This book will not dye an amber green to look prettier. Every lamp colour, every trace can be `git show`n.
+
+---
