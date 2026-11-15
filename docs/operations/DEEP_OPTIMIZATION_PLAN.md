@@ -36886,3 +36886,36 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 全量 `pytest tests/unit` 仍未跑完（本机内存受限）；
 * UiKit.smoke 本轮未红（全量 502/502）；
 * 「密码 123 给全员进入管理员页」维持否决（见 #1799）。
+
+## #1801 高压/并发实测（两车道都有真数字）+ 巡览车道审计解释
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、车道 A：静态前门（`scripts/stress_smoke.py`，dist/ 起 loopback 服务器，本宿主 2026-11-15）
+
+* 72 并发 × 2 请求/线程 × 3 轮 = **432 请求，0 错误**；
+* Round 1（冷）：p50=**2356 ms**，p99=12.94 s —— 这是**冷窗噪声**（新 ThreadingHTTPServer + 磁盘首读 + 线程池热身），不属于产品故障；Round 2：p50=103 ms；Round 3：p50=**84 ms**；
+* verdict=BUDGET-BLOWN 仅由首轮 p99 触发；后续轮基准 = 前门 2xx 恒成立；
+* 诚实边界：这是 loopback 静态车道，**不外推生产 SLA**；不能也不代表数据库、代理或多副本行为。
+
+### 二、车道 B：活后端探针（`--target http://127.0.0.1:8000/health`，本机已有 specproof API 在跑，`db:true, llm_ready:true`）
+
+* 72 并发 × 2 请求/线程 × 3 轮 = **432 请求，0 错误（err=0.00%）**；
+* Round 1：p50=649 ms，p99=1.48 s；Round 2：p50=1.78 s，p99=3.36 s；Round 3：p50=**329 ms**，p99=424 ms；verdict=**OK**；
+* 中间一轮变慢（round 2）与产品无直接因果可证 —— 本机同时跑着别的负载（spring/demo 等）；0 错率在高并发 432 样本中维持；
+* 只压了 `/health`（readiness 探针，即 K8s 自己也会压的那个）；**没有**用假凭据撞 /identity、/admin、登录或写入端点 —— 那不是压力测试，那是攻击；
+* 显式声明：真实生产级的线材测试（跨节点、TLS 终端、限流遥测、回滚能力）仍需你的部署环境；本机结论只用于"单节点 /health 不在 72 并发下崩溃"。
+
+### 三、i18n 巡览车道审计结论（澄清早期误判）
+
+* `ui/tour.ts` 的 `TOUR_STATIONS` 是**中文版**的六站正文（`TOUR_BY_LOCALE = { zh: TOUR_STATIONS, en: TOUR_STATIONS_EN }`，见 `pages/tour.copy.ts:94`）；英文版住在 `tour.copy.ts` —— 两种语言都在，没有夹杂；
+* 它也**不是**死代码：`tour.test.ts` 直接 `import { TOUR_STATIONS }` 断言；本节收回此前将其列入"待修复 A 桶"的错误标记；
+* 教学模式正文（`coachData.ts`）与 shortcuts 均已双语对齐；
+* 全量 `pytest tests/unit` 仍未跑完（本机内存受限）；UiKit.smoke 389/389 中此轮未红；gate 51/51 已在本节重跑。
+
+### 四、可复现
+
+```powershell
+python scripts/stress_smoke.py --rounds 3 --timeout 15                # A 车道（静态）
+python scripts/stress_smoke.py --target http://127.0.0.1:8000/health --rounds 3 --timeout 10   # B 车道（活后端 /health）
+```
