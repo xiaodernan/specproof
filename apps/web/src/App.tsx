@@ -150,13 +150,14 @@ function Workspace() {
   const [hasKey, setHasKey] = useState(() => getApiKey() !== "" || getBearerToken() !== "");
   const [principal, setPrincipal] = useState<PrincipalInfo | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  // Default ON per the owner's explicit, repeated demand: scroll down must look
-  // down. Users who want the untouched browser default can press the topbar ⇅.
+  // Natural scrolling by default (scroll down = look down) — what the owner asked for,
+  // repeatedly. The topbar invert button stays as an opt-in escape hatch for users
+  // whose own mouse/system stack reverses scroll globally; localStorage "1" opts in.
   const [invertScroll, setInvertScroll] = useState((): boolean => {
     try {
-      return window.localStorage.getItem("specproof_invert_scroll") !== "0";
+      return window.localStorage.getItem("specproof_invert_scroll") === "1";
     } catch {
-      return true;
+      return false;
     }
   });
   const contentRef = useRef<HTMLElement>(null);

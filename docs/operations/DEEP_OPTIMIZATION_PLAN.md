@@ -36852,3 +36852,37 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 
 * `#/insight` 若日后上线，必须：隐私评审签字 + 用户可见的「你被测量了什么」清单 + 退出机制；
 * 合成群体的参数（240 人、通关 56%、快问 62%）需用真实实验定标后替换——当前只是承接「看起来像真的」的演示骨架。
+
+## #1800 滚轮方向修复（owner 第三次点名）+ wkapi.pro 真机探针：stream/include_usage 车道确证
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、滚轮引擎（"往下滑应该往下看"）
+
+* 根因（两处叠加）：
+  1. `App.tsx` 的 `invertScroll` 初始 = `localStorage("specproof_invert_scroll") !== "0"` —— 键未设时**默认反转**（注释自述 "Default OFF" 但代码做相反的事，前会话遗留 bug）；
+  2. `invertScroll=true` 时挂 `wheel listener { passive:false }` → `preventDefault()` + `el.scrollTop -= deltaY * unit` —— 对主内容列**整体翻转**滚轮语义；
+* owner 的原话需求：「往下滑就往下看，会舒服一点」—— 即**浏览器原生方向**；
+* 修复：`invertScroll` 改为 **`=== "1"` 显式 opt-in**（默认自然滚动：wheel 事件完全不挂 listener，浏览器原生行为：往下滑=往下看）；顶级开关按钮（topbar.invertScroll）保留，给系统级鼠标反向的用户；
+* `topbar.invertScroll/invertScrollOn`（zh/en）改写为明确写明当前指针含义（「当前：自然滚动…」/「currently inverted…」），消除"按了不知道现在是什么状态"的歧义；
+* `ui/coachData.ts` 既有文案已讲 natural default，未动 —— 与代码现在一致；
+* 测试：tsc 0；vitest **502/502**；build ✅ 406ms；guide catalog 6/6。
+
+### 二、wkapi.pro 真机探针（一条最小流式调用，绝不展示密钥）
+
+* `protocol=chat_completions`（.local/llm.json 显式声明）；`POST /v1/chat/completions`，`stream=true + stream_options.include_usage=true`，`max_tokens=32`，29 汉字 user prompt：
+  - HTTP **200**；7 个 SSE chunks；12.6s；
+  - usage **完整返回**：`prompt_tokens=18549, completion_tokens=557 (reasoning 450), total=19106` —— include_usage 车道确为 wkapi.pro 上唯一可拿到 usage 的路径；
+* **观测到的三个 provider 事实（记录而非修复）**：
+  1. `cached_tokens` 字段**未返回**（本会话）—— 缓存数字仅能由 wkapi 侧前缀基线 `prompt_tokens` 放大（18549 ≈ 前缀主导）间接观察，**不构成用户消息级缓存证据**；
+  2. wkapi 对 `max_tokens=32` **不受约束**（completion_tokens=557）；非惊喜——网关自订阅作答并注资推理 + 广告；
+  3. 返回内容被注入第三方链接 `([inite.ai](https://inite.ai/...utm_source=openai))` ——**wkapi.pro 是含推广/重定向链路的第三方转售车道**；敏感岗位的代码/商业机密会经过这条链路。**发布级用法应直连官方 OpenAI/Azure 或自建网关**；本仓库用法（草稿/诊断、最终验收由人类签字）在契约上仍是"建议不下发、证据不自动"。
+* 本次探针未写入 `.local/llm_usage.jsonl`（不污染账本）；凭据未落库、未进 git；屏幕输出只出现"source/protocol/model/base_url"与 usage 摘要（经出具前删除任何 token 字段）。
+
+### 三、诚实边界
+
+* 滚轮修复是**语义翻转**，没有视觉/布局改动；theme/focus 等路径未动；
+* wkapi 的 `cached_tokens` 仍不可单测判级 —— 前次结论不变：降低**可计费 token**的唯一本地杠杆是 draft/diagnose 的语义缓存（#1781，实测 10.25s → 3.0ms 回放），court 永不缓存；
+* 全量 `pytest tests/unit` 仍未跑完（本机内存受限）；
+* UiKit.smoke 本轮未红（全量 502/502）；
+* 「密码 123 给全员进入管理员页」维持否决（见 #1799）。
