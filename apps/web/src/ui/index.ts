@@ -29,6 +29,7 @@ export { stageLabel, STAGE_LABELS } from "./stages";
 export { Checkbox, type CheckboxProps } from "./Checkbox";
 export { CommandPalette } from "./CommandPalette";
 export { ShortcutHelp } from "./ShortcutHelp";
+export { CoachMarks } from "./CoachMarks";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
 export { FieldShell, type FieldShellProps } from "./Field";
 export { Input, type InputProps } from "./Input";

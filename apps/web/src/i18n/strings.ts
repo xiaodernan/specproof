@@ -82,6 +82,7 @@ const zh = {
   "census.langTitle": "按语言的源码行数 Top 14",
   "census.lines": "行",
   "census.foot": "本页所有数字由 scripts/build_repo_stats.py 生成，由 git ls-files 派生；动不动手，都能重推。任何人看到不同即见证是代码问题。",
+  "coach.toggleAria": "切换教学模式（或按 H）",
   "nav.jobDetail": "验收详情",
 
   // ── groups ─────────────────────────────────────────────────────
@@ -571,6 +572,7 @@ const en: Record<keyof typeof zh, string> = {
   "census.langTitle": "Lines of code by language — top 14",
   "census.lines": "lines",
   "census.foot": "Every number on this page is produced by scripts/build_repo_stats.py from git ls-files — any divergence is a bug, not an opinion.",
+  "coach.toggleAria": "Toggle coach marks (or press H)",
   "nav.jobDetail": "Verification detail",
 
   "group.workspace": "Workspace",

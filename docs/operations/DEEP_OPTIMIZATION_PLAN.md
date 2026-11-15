@@ -36585,3 +36585,26 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 本节无运行时变更（build 仅更新 worldbook.json / chronicle.json / repoStats.json）；
 * 27.3 所列实证数字以提交时测得为准，主线继续走时它们会"褪色"——对不上就重推，不替数字打圆场；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1790 主界面教学模式 `H` —— 每个按键/按钮/入口都带一句教学说明
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付（需求：主界面各按键/操作附带教学说明）
+
+* `apps/web/src/ui/coachData.ts`：**16 个 data-coach 键**（topbar ×8、sidebar 导航 ×6、brand/guide 块 ×2），每键 zh/en 双语 title + body——与 `data-coach` 一一对应；`readCoachEnabled`（localStorage，首访默认 ON，`specproof_coach_marks=0` 可关）；`coachToggleEvent` 稳定事件名；
+* `apps/web/src/ui/CoachMarks.tsx`：固定定位金色徽章（22px，`coach-badge-num`，悬停/聚焦弹出含 title+body 的 tooltip）；500ms 采集器 + scroll/resize 监听跟随 shell（防 SPA 路由切换后徽章漂移）；右下「教学模式」浮卡（徽章计数 + 一键关闭）；**H 键** toggle（可编辑区内不抢）；
+* `apps/web/src/styles/coach.css`：徽章 pop-in、tooltip、图例浮卡、打印时隐藏（@media print）；
+* App.tsx：`<CoachMarks />` 挂载（与 ShortcutHelp 同级）；**topbar 新增 H 键徽章按钮**（Kbd H，data-coach=topbar.coach）；导航链接/topbar 按钮/brand/侧栏教学块全部 `data-coach`；
+* ui/index.ts 导出；`coachData.test.ts`（5 pins：默认 ON、持久化开关、存储不可用降级、键唯一 + 双语完整、事件名稳定）**5/5 绿**；
+* 两本 USER_GUIDE §1.2 增一句 "按 H 打开教学模式……"（中英对称）；
+* i18n 仅新增 `coach.toggleAria` ×2（parity 11/11）；coach 文案走 `Record<Locale,string>` 页内文件——不污染 strings 表基数；
+* tsc 0；build ✅ in 1.14s；i18n parity 11/11。
+
+### 二、诚实边界
+
+* **徽章定位无津确坐标断言**（jsdom 无布局引擎）——视觉校准依赖浏览器实测；500ms 采集不是瞬时跟手，切换 sidebar 折叠时有 ≤500ms 延迟；
+* **首访默认 ON**——老手关掉后永不再被打扰（`specproof_coach_marks=0`）；
+* 徽章文本为撰写性质（说明文案），非来自后端；
+* 本次不落在 /tour 之外任何页面——主界面教学注解是 shell 级能力，其他页面的教学由 /tour 与引导线条承担；
+* 全量 `pytest tests/unit` 仍未跑完；本提交不附像素截图（in-app browser 通道已关闭）。

@@ -23,6 +23,7 @@ docker compose -f compose.phase0.yml up -d --wait
 ### 1.2 A lap around the whole product (5 minutes)
 
 Open `http://127.0.0.1:5173/` — the sidebar carries 28 first-level entries:
+> **Press H to open coach marks** — every control on the main screen (keys, buttons, sidebar entries) carries its one-line lesson as a gold badge; hover/focus to read. H or the legend's dismiss button hides them. Press `?` for the full shortcut card.
 
 | Group | Entry | What you can do right now | Iron evidence |
 |---|---|---|---|
