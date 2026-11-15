@@ -38134,3 +38134,42 @@ python scripts/live_lane_probe.py
 * 任一「prod live」字眼**在本仓库中不存在** ——任何说法, 除了 demo/spring-base smoke driver，没有；
 * 「密码 123 全员进管理员」——永远不达；禁忌清单 §2；
 * PORTFOLIO_TOKEN 仍欠；Observability 签字仍欠。
+
+## #1842 工作台第 00 步：5 分钟快速体验先送 6 站巡览——让新手从「看世界」到「按铁」
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、改动
+
+* `dashboard.copy.ts`：在 quickstart 数组首插入 step `"00"`：
+
+  | 任 | zh | en |
+  |-----|----|----|
+  | title | 六站巡览，一页一条路 | Walk the six-scroll tour |
+  | text  | 先按 6 站走一遍演示路径——打开的页面记录在本浏览器里——本浏览器记录才计入巡游完成度 | Six stations, one browser, recorded truth — each station only seals once you actually opened the page |
+  | href  | `#/tour` | `#/tour` |
+  | cta   | 打开巡览卷轴 | Open the tour |
+
+* 入口点：`/dashboard` 是用户打开 app 第一眼——现在第一眼说的是「再启动六站巡览，练出本事再敲」；
+* 没有新增任何组件 / route / endpoint — 仅 i18n copy 数据 · Dashboard 不需 refactor；
+* UI 182/182 绿；tsc 0；build ✅ 670ms。
+
+### 二、为什么加在最前
+
+* #1838 把巡览改成「实地到站才能盖章」——之前谁都不知道巡览有这个规矩；
+* 用户第一次打开 app 时，**第一步点 `step: 00` 六站巡览便是最自然而非 01 直接去 Jobs** —— 巡览是「看世界」→Jobs 是「做事」→ 两步顺序：
+  - 看世界 = 这不是演示、而是一份真实可走的旅程；
+  - 走完后按章 = 任何人都会更早理解 "每个 sealed 都需要真手" 的哲学；
+* 「演示数据」仍是同一套（demo/spring-backend fixtures）——但**进入规则是意识形态**；
+
+### 三、与 `\#/tour` UI 的一致性
+
+* `/tour` 在 #1838 之前任何人可以点完六个盖章——现在 seal 按钮 disabled 直到本站 was visited；
+* 此 OK：UI 显示 `visited seal count / 6`，button disabled 并 title 提示「visit first」；
+* 这条 OK 完全对齐；**本条 step: 00 是其自然延伸**——它把「巡览」变成"最该被走的第一步"，而不是"让用户走到这里不知道该点哪"。
+
+### 四、诚实边界
+
+* 依然没有覆盖 welcome hero 区域（那里'"docs/world'" 早期 link to /guide），未在此次提交触及；
+* 全量 pytest 仍内存受限（guide+ledger 51/51）；Spring off-line 137/137 stays；
+* 「密码 123 全员进」永久否决；Observability 签字仍欠；PORTFOLIO_TOKEN 仍欠。

@@ -166,6 +166,7 @@ const zh: DashboardCopy = {
     { href: "#/guide", icon: "guide", title: "不知道从哪开始", text: "按顺序走一遍演示路径，一页一页把这把铁验玩明白。", label: "查看上手指南" },
   ],
   quickstart: [
+    { step: "00", title: "六站巡览，一页一条路", text: "先按 6 站走一遍演示路径——打开的页面记录在本浏览器里——本浏览器记录才计入巡游完成度。", href: "#/tour", cta: "打开巡览卷轴" },
     { step: "01", title: "看看演示验证", text: "用现成的演示，你会看到 VERIFIED 或 BLOCKED——这就是铁证的样子。", href: "#/jobs", cta: "查看演示列表" },
     { step: "02", title: "跑一条真实验收", text: "新建页填一个真实场景：base/head 在手、需求文件在手，报告里就有 base_pass_head_fail。", href: "#/jobs/new", cta: "连接真实验收" },
     { step: "03", title: "让 AI 改一个 Bug", text: "AI 按需求把演示任务改完，再自检自验，把结果喂回来。", href: "#/agent/new", cta: "进入 AI 建交付" },
@@ -257,6 +258,7 @@ const en: DashboardCopy = {
     { href: "#/guide", icon: "guide", title: "I don't know where to start", text: "Walk the demo path in order and learn what this iron is asking of you.", label: "Open the guide" },
   ],
   quickstart: [
+    { step: "00", title: "Walk the six-scroll tour", text: "Six stations, one browser, recorded truth — each station only seals once you actually opened the page.", href: "#/tour", cta: "Open the tour" },
     { step: "01", title: "Run the demo verification", text: "One ready-made demo; you should expect VERIFIED or BLOCKED — and that's the whole point of iron.", href: "#/jobs", cta: "View the demo list" },
     { step: "02", title: "Run a real verification", text: "New verification — one real reproduction scenario, no missing permissions, base/head in hand, base_pass_head_fail in the report.", href: "#/jobs/new", cta: "Connect a real verification" },
     { step: "03", title: "Let the AI fix a bug", text: "The AI carries the demo demand through to the end, verifies its own autonomy, and feeds the result back.", href: "#/agent/new", cta: "Enter AI delivery" },
