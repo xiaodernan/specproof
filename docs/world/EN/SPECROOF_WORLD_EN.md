@@ -1346,3 +1346,45 @@ Admitting it outright: **this gate has not run on a real deployment.** What the 
 **Fire does not discriminate wood; the pitcher does.** `feature` dared name itself `interview-hardening`, `release` dared call itself `p0.5-verified`, `p1` dared whisper `reliability` — what they shipped was never failure; it was **not-yet-delivered**. Someday you too will hand your work over: if the one you hand over happens not to be the main line, remember — a bell rings from the bronze itself; the main line, in the end, is only a line.
 
 ---
+## Volume XXXIII · The Ledger's Ledger（卷三十三 · 账本的账本）
+
+> The ledger writes everything else; this volume, the ledger writes itself;
+> every one of its sections lands in git — every one verifiable with `git log --oneline -1 <section-commit>`;
+> believers read straight through, skeptics pry at `.git` directly — before the iron, both are legal.
+
+### 33.1 The numbers: a living operations manual's cross-section (2026-11-15)
+
+| Item | Figure | How computed |
+|---|---|---|
+| Files tracked by git | **2,727** | `git ls-files`, counted live |
+| Total source lines | **490,491** | same |
+| Python source files | **1,342 / 303,375 lines** | same (62% of LOC) |
+| Markdown docs | **280 / 61,077 lines** | same |
+| TypeScript/TSX | **152 + 103 / 35,344 lines** | same |
+| Java (Spring lane) | **133 / 11,851 lines** | same |
+| Git commits | **2,448** | `git rev-list --count HEAD` |
+| Ledger sections | **1,607** | regex on `## #NNNN` |
+| Ledger size | **3,661.0 KB** | `stat` |
+| World Book | **39 volumes / zh 88,393 chars · en 90,769 chars** | `scripts/build_worldbook.py` |
+| Python test files | **609** · Web test files **64** | `git ls-files` |
+
+### 33.2 Who stamped the ledger of the ledger
+
+- every merge event walks the same six steps: ledger is append-only → `build_chronicle.py` rebuilds `chronicle.json` → `build_repo_stats.py` rebuilds the stats → gates → commit → push;
+- **gate 51/51**: guide route catalog 6/6 + ledger quartet (ids unique / numbers unique / evidence claims true / queue pointers resolve) 45/45 — the former says "every route has a manual row", the latter says "the ledger never bluffs, never breaks a pointer";
+- full `pytest tests/unit` does not fit in this host's memory (609 test files) — **no claim of full green**; only guide + ledger + affected files run; anyone who says "the whole suite passes" is lying or has forgotten what they said;
+- 51/51 is not a medal, it is a **reproducible floor**: pull the repo, run `pytest tests/unit/test_guide_route_catalog.py ...`, and count the 51.
+
+### 33.3 Four rules of the ledger's ledger
+
+- **Append, never rewrite**: `## #NNNN` only ever hangs further down; old verdicts are never deleted;
+- **one commit, one entry**: a节 and its commit message carry the same number;
+- **evidence half-plaintext**: every entry says what is real and what is not measured — no green is claimed unless green was counted;
+- **the atom of truth is the hash**: every figure here can be traced back with `git show <hash>`.
+
+### 33.4 The vow of the ledger's ledger
+
+**Only what can be remembered is ledgered; what you cannot bring yourself to write down is not yet yours.**
+With this volume, SpecProof owns its own credential: not an identity given by others, but one measured daily by itself. A heavy repository is not a prize — it is three thousand mornings accumulated by someone willing to knock on the iron every day. If you really want to know whether this repo is honest, do not read the README. Read this ledger — everything here was pried out of git by raw hands.
+
+---

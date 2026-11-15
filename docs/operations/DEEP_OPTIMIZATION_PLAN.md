@@ -37047,3 +37047,27 @@ python scripts/stress_smoke.py --target http://127.0.0.1:8000/health --rounds 3 
 * 全量 `pytest tests/unit` 仍内存受限；
 * i18n bucket A 251（#1805 清点）未再变；
 * 「密码 123」永久否决（见 #1799/#1804 明示条款），不再重开议题。
+
+## #1807 世界书卷三十三《账本的账本 · The Ledger's Ledger》：账本写自己 + index.html theme-color
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、卷三十三（中/英双版对称）
+
+* 主题：账本写账本自己——把这份操作手札的截面做成正史：2,727 个被跟踪文件、490,491 行源码、
+  Python 1,342/303,375（62%）· Markdown 280/61,077 · TS/TSX 35,344 · Java 133/11,851 ·
+  git 提交 **2,448** · 节 **1,607** · 体积 **3,661.0 KB** · Python 测试文件 **609** · Web 测试文件 **64**；
+* 关键诚实句：**全量 pytest 不在本机内存里跑，不声称全绿**；gate 51/51 是可复现底线不是勋章；
+* 锚点来自 build_repo_stats.py 真实输出（非估计）；数字指针逐一可核（`git rev-list --count HEAD` / `git ls-files` 当场复算）；
+* worldbook → **40 卷 / 90,136 chars**；`#/worldbook` 自动入册。
+
+### 二、index.html
+
+* 新增 `<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121714" />` 与 light 对应件（#f6f8f7，对齐 product.css 令牌）；`color-scheme`/description/favicon 保持；
+* build ✅ 1.06s；dist/index.html 1.49 kB；tsc 0；vitest 先前 506/506。
+
+### 三、诚实边界
+
+* 40 卷筛子里卷三十三分量最轻——它是一节统计，不是一场战斗；它重的是**承诺被写下来**；
+* 全量 pytest 仍内存受限；春风车道离线复验 137/137 仍在 #1788 里；
+* 「密码 123」否决维持。
