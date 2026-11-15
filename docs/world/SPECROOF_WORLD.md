@@ -2143,3 +2143,38 @@ zh 与 en 的缓存计数不一样这一事件不属于一致性实验的成功�
 它还是个开始。结束是另一个字眼 — 等这个字眼到来之前，它叫「继续敲」。
 
 ---
+## 卷五十三 · 裂缝之锚（The Fractured Anchor）
+
+> 本仓库的 docker daemon 里有七条活命的命（mysql/redis/mongo/es/rabbitmq/minio/prometheus），
+> 却没有一条属于应用层的——所以这本书不是"产品已上线"，而是"产品等待上线"。
+> 这不是羞愧，是账本。
+
+### 53.1 本机现在在跑的：七条真实的活命货物
+
+| 容器 | 镜像 | 状态 | 锚点 |
+|---|---|---|---|
+| specproof-mysql | mysql:8.4 | Up healthy | `#1825` 前再次复验 |
+| specproof-redis | redis:7.4-alpine | Up healthy | Redis L1/L2 双级 |
+| specproof-mongodb | mongo:7.0 | Up healthy | 审计/agent jobs append-only |
+| specproof-elasticsearch | elasticsearch:8.16.4 | Up healthy | RAG 检索层 |
+| specproof-rabbitmq | rabbitmq:4.0-management | Up healthy | Outbox relay→tag 414 · 安全事件严比 |
+| specproof-minio | seaweedfs:3.80 | Up healthy | capsule 对象存储 |
+| specproof-phase0-prometheus | prom/prometheus:v3.3.1 | Up Ready | /metrics scrape only |
+
+### 53.2 本机现在不跑的（也全部是真的）
+
+- `specproof-534-plane`：python:3.12-slim，**Exited (255) 13 天前**；
+- `specproof-web` / `specproof-gateway` / `specproof-api`：**都不存在于 Docker 列表**——没有任何应用进程在映射任何端口给本仓库，
+  8000 端口答案 `http://127.0.0.1:8000/health` 来自 `careeros-ai-service`（另一个项目）；
+- `specproof-gateway` 的 Sprint 车道满 137/137 —— 但只在 off-line `mvn -o` 里——没有 rack、没有 live traffic，
+  **green build ≠ live service**；
+- 真实 `spring-boot specproof-app` 场景只有本机 demo repo `demo/spring-backend` tag `head-v1` 作为 fixture — 只有金案 fixtures；没有一个"specproof production gateway in prod"是可追溯的。
+
+### 53.3 裂缝的真意
+
+**split 这个词最早是给地质学——裂了它不是坏了，是被标了出来。**
+本书今天撕开了一条裂缝：
+随时可以看见下面躺着的铁道——**应该有 8 节车厢**、现在只有 7 节。
+**`specproof-534-plane`** 就是那条没锚的最后一节车厢——**铁不会跪到断裂，铁认裂痕。**
+
+---

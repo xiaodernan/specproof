@@ -38096,3 +38096,41 @@ python scripts/live_lane_probe.py
 * 「密码 123 全员进管理员」永远不会实现（禁忌清单第 2 位）；
 * PORTFOLIO_TOKEN 仍欠（GitHub Pages 自动同步不会产生假性推送）；
 * Observability 真实遥测：`OBSERVABILITY.md` 签字仍欠；若要日后接入，必须由你真人签字过。
+
+## #1841 卷五十三《裂缝之锚 · The Fractured Anchor》：本机 7 条铁活命 + 应用层缺位一次写完
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、本本机到底有什么？—— 实物清单
+
+| 层 | 容器 | 状态 |
+|---|---|---|
+| MySQL 8.4 | specproof-mysql | Up healthy |
+| Redis 7.4-alpine | specproof-redis | Up healthy |
+| MongoDB 7.0 | specproof-mongodb | Up healthy |
+| Elasticsearch 8.16.4 | specproof-elasticsearch | Up healthy |
+| RabbitMQ 4.0-management | specproof-rabbitmq | Up healthy |
+| Seaweedfs 3.80 | specproof-minio | Up healthy |
+| Prometheus v3.3.1 | specproof-phase0-prometheus-1 | Up Ready |
+
+**恰好 7 条**——与 volume 52 提议的「车厢 8 节」对齐——**第 8 条车厢 `specproof-534-plane` Exited (255) 13 天前**。
+
+### 二、本机没有的（这也是事实）
+
+- `specproof-web` / `specproof-gateway` / `specproof-api` — 都没在 docker ps 里出现；
+- port 8000 的 `/health` 答话来自 **career-os-ai-service**（uvicorn + `x-request-id` + `traceparent`）——不是本仓库的 build；
+- `demo/spring-backend gui/tools` 只是金案 fixture——specproof Spring 车道 Spring Boot **从未在本机以 live mode 跑过**；
+- 137/137 Spring green 仍然全部是 off-line `mvn -o test`， **不是 prod**。
+
+### 三、卷五十三的精髓
+
+**"你说这不是 prod，但我说的不是 prod——你说的是 production-grage，我说的是容器安全屋。"**
+——本轮没有启动任何 service——而正是这种不启动的「清醒」, 构成 Volume 53。
+
+### 四、诚实边界
+
+* Spring 离线 137/137 stays — still；
+* 全量 pytest 仍内存受限（guide+ledger **51/51**）；
+* 任一「prod live」字眼**在本仓库中不存在** ——任何说法, 除了 demo/spring-base smoke driver，没有；
+* 「密码 123 全员进管理员」——永远不达；禁忌清单 §2；
+* PORTFOLIO_TOKEN 仍欠；Observability 签字仍欠。

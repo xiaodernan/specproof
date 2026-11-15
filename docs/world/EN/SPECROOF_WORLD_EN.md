@@ -2016,3 +2016,38 @@ A breath is not the storm's end — it is one of many turns on the clock. The ne
 It is only the start. The ending is another word — for now, it is "keep knocking."
 
 ---
+## Volume LIII · The Fractured Anchor（卷五十三 · 裂缝之锚）
+
+> Seven living containers run on this host — all of them dependency tier.
+> None is an application tier. That is not shame; that is the ledger.
+> This is what "demo in a browser" looks like when it is written down without theatrical fog.
+
+### 53.1 What is actually running — seven living cargo
+
+| Container | Image | State | Anchor |
+|---|---|---|---|
+| specproof-mysql | mysql:8.4 | Up healthy | docker-compose up |
+| specproof-redis | redis:7.4-alpine | Up healthy | dual-level cache (L1 + L2) |
+| specproof-mongodb | mongo:7.0 | Up healthy | append-only agent checkpoints |
+| specproof-elasticsearch | elasticsearch:8.16.4 | Up healthy | RAG retrieval layer |
+| specproof-rabbitmq | rabbitmq:4.0-management | Up healthy | outbox-relay |
+| specproof-minio | seaweedfs:3.80 | Up healthy | capsule object store |
+| specproof-phase0-prometheus | prom/prometheus:v3.3.1 | Up Ready | /metrics scraper |
+
+### 53.2 What is NOT running on this host (also true)
+
+- `specproof-534-plane` (python:3.12-slim): **Exited (255) 12–13 days ago** — binary does not run on this host anymore;
+- `specproof-web` / `specproof-gateway` / `specproof-api`: **absent from Docker list** — nothing maps any port to this repo;
+- Port 8000's `/health` belongs to `careeros-ai-service` — it returned `{"status":"ok"}`, with `server: uvicorn`, `x-request-id` and `traceparent` headers — not THIS repo's build;
+- Spring off-line lane **137/137 green** (`mvn -o`) — but that is JVM build-up + unit test, not a live process either;
+- The *only* prod-shaped specs on this host are `demo/spring-backend` under tags `base`/`head-v1` — they exist as **fixtures** for gofuzzle verification, not as a deployed service.
+
+### 53.3 What the fracture means
+
+**Fracture is not failure — it is the seam, marked in iron.**
+This volume exists in the world book because a fissure across the spine of the stack should not be smoothed over with optimism:
+7 of 8 expected cars are on the track. The 8th (`specproof-534-plane`) is sitting quiet;
+the track across the ground is still intact —
+but the fact that nobody wrote it down was the real silence.
+
+---
