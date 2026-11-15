@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useI18n, type Locale } from "../i18n";
 import { ATLAS_REGIONS, EXPEDITIONS, type AtlasRegionId } from "./atlas.copy";
 import stats from "./repoStats.json";
+import evidence from "./evidence.json";
 import MidnightLamp from "./MidnightLamp";
 import { ProductIcon } from "../ui/ProductIcon";
 import "../styles/atlas.css";
@@ -29,7 +30,12 @@ export default function Atlas() {
   const [roomPath, setRoomPath] = useState<string | null>(null);
   const region = ATLAS_REGIONS.find((r) => r.id === regionId) ?? ATLAS_REGIONS[1];
 
+  const evidenceGreen = (evidence as unknown as { all: Array<{ total_ok: number }> }).all.reduce((n, r) => n + r.total_ok, 0);
+  const evidenceRequests = (evidence as unknown as { all: Array<{ total: number }> }).all.reduce((n, r) => n + r.total, 0);
+  const stressGreenShare = evidenceRequests > 0 ? `${Math.round((evidenceGreen / evidenceRequests) * 100)}%` : "—";
   const tiles = [
+    { value: stressGreenShare, label: zh ? "本月压测 · 全绿份额" : "stress green share" },
+    { value: `${evidenceRequests.toLocaleString()}`, label: zh ? "本月证据·请求数" : "exhibit requests" },
     { value: stats.repository_files.toLocaleString(), label: zh ? "跟踪文件" : "tracked files" },
     { value: stats.total_lines_of_source.toLocaleString(), label: zh ? "源码行数" : "source lines" },
     { value: stats.git_commit_count.toLocaleString(), label: zh ? "提交次数" : "commits" },

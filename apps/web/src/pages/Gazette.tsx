@@ -183,6 +183,17 @@ export default function Gazette() {
           <span>{zh ? "完整命令与改前/改后两张表：docs/operations/LIVE_PROBE_2026-11-16.md · 编年史 #1843" : "Full commands and before/after tables: docs/operations/LIVE_PROBE_2026-11-16.md · chronicle #1843"}</span>
           <a className="gazette-pill gazette-lane-cta" href="#/chronicle">{zh ? "读编年史 →" : "Read the chronicle →"}</a>
         </div>
+        <div className="gazette-lane-foot gazette-lane-foot-census">
+          <span>{(() => {
+            const totalAll = (evidence.all as Array<{ total: number }>).reduce((n, r) => n + r.total, 0);
+            const okAll = (evidence.all as Array<{ total_ok: number }>).reduce((n, r) => n + r.total_ok, 0);
+            const ratio = totalAll > 0 ? ((100 * okAll) / totalAll).toFixed(1) + "%" : "0/0";
+            return zh
+              ? `月报：${evidence.files_count} 件证据 · ${okAll.toLocaleString()}/${totalAll.toLocaleString()} req（${ratio}）全绿 — 详见 docs/evidence/monthly-census.md（scripts/monthly_census.py 生成）`
+              : `Monthly: ${evidence.files_count} exhibits · ${okAll.toLocaleString()}/${totalAll.toLocaleString()} requests (${ratio}) green — see docs/evidence/monthly-census.md`;
+          })()}</span>
+          <a className="gazette-pill gazette-lane-cta" href="#/atlas">{zh ? "看活体地标 →" : "See the landmarks →"}</a>
+        </div>
       </section>
     </div>
   );

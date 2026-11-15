@@ -89,3 +89,5 @@
 .gazette-lane-cta { background: transparent !important; color: #9ecbff !important; border: 1px solid rgba(158, 203, 255, .45) !important; padding: 8px 14px !important; font-weight: 600 !important; }
 .gazette-lane-cta:hover { background: rgba(158, 203, 255, .12) !important; }
 @media (max-width: 860px) { .gazette-lane-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); } .gazette-lane-head { padding: 16px 16px 0; } .gazette-lane-foot { padding: 12px 16px 16px; } }
+.gazette-lane-foot-census { border-top: 1px dashed rgba(158, 203, 255, .25); margin-top: 0; padding-top: 8px; }
+.gazette-lane-foot-census span { color: #a5f2d9; }

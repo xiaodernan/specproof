@@ -38994,3 +38994,27 @@ draft#2    → 0.00s · 5600/14  (重复命中)
 * 月报数字 = 当前三件证据的真值和（192×3），不代表 SLA；不演化、不平滑、不去噪；
 * IOU 缺口（OBSERVABILITY 签字 · PORTFOLIO_TOKEN）未被它抹除——monthly census 是「机器敲了多少」，不是「签字补回来了」；
 * court 永不缓存；UI **533/533** stays · gate **60/60** stays。
+
+## #1871 《灯上水下》：#/atlas 新两块活体地标 + #/gazette 月报指针（100% 576/576）· Volume LXXXII
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付物
+
+* `Atlas.tsx` — 两颗活体地标（build-time verbatim from evidence.json）：
+  * **本月压测 · 全绿份额** = **100%**（576/576 ×2 轮 ping verdict OK）；
+  * **本月证据·请求数** = **576**；· 两颗并排「跟踪文件 / 提交次数 / 账本体积」等列
+* `Gazette.tsx` — 真车道 stripe 之下新增第二行「月报：3 件证据 · 576/576 req（100.0%）全绿 — 详见 docs/evidence/monthly-census.md」 + CTA「看活体地标 → #/atlas」；
+* `gazette.css` — `.gazette-lane-foot-census`（玉绿文字 + 虚线分割），print 时保留（type 不删）；
+* UI **533/533** stays · tsc 0 · build ✅ 1.08s。
+
+### 二、家规声明（LXXXII）
+
+* 地标不挂「权威解」锦旗；月报指针不许写 wish；全绿数字 = evidence.json 的复敲和，不平滑、不去噪、不美颜；
+* gazette 的 100% 是砸到 576 次 on-page 计算出来的，**不是百分比文案**——改的是这页的 fold-quality，一行真话。
+
+### 三、诚实边界
+
+* 地标仍然观察到——根证据只有 3 件（本墙之上才两件重要证据），样本小也记账本里；
+* Volume LXXXII《灯上水下 · Below the Lamp, Above the Water》入册（zh/en 对称）→ worldbook **89 卷**（本轮 +1）；chronicle 1,672 节；
+* court 永不缓存 · 「密码 123 全员进管理员」永久否决。

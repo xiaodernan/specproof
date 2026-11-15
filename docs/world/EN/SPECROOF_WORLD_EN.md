@@ -3116,3 +3116,48 @@ The notices list now carries one live line (read straight from evidence.json):
 | 2026-11 | 3 | 1030ms | 1537ms | 576 | **576 · 576 ✓** |
 
 ---
+## Volume LXXXII · Below the Lamp, Above the Water（卷八十二 · 灯上水下）
+
+> Above the lamp is light; below the water is writing —
+> the ripple between them records that nobody worked an angle here.
+> This volume delivers two landmarks you can re-check in one tap, and one line etched under the light.
+
+### 82.1 Two new landmarks (#/atlas, the living landmarks strip)
+
+| Landmark | Figure | Source |
+|---|---|---|
+| **stress green share (this month)** | **100%** (576/576) | `evidence.json` (verbatim at build time) |
+| **exhibit requests (this month)** | **576** | same |
+
+They hang beside `tracked files / commits / ledger volume / book sizes` — **not banners, measurements; re-run the script and they either agree or you found a bug.**
+
+### 82.2 The stone grain under the lamp (#/gazette footer, one line)
+
+```
+Monthly: 3 exhibits · 576/576 requests (100.0%) green — see docs/evidence/monthly-census.md
+                                          -> See the landmarks
+```
+
+Links straight into the Atlas landmarks strip. On print, this line stays (it is typeset; the print style doesn't delete it) but it names only what is verifiable — 公开、克制、不创造物种。
+
+### 82.3 House rules of below-lamp-above-water
+
+1. **a landmark only points** — never wears a "certified outcome" banner; every divider sits in the same hydrology;
+2. **the stone grain is never makeup** — no "steady now", no "trending down"; only struck numbers;
+3. **there is always a stone grain under the light** — no evidence → writes "not struck yet"; honesty beats silence.
+
+### 82.4 Two strikes, one pen
+
+| Door | Struck by | Read in |
+|----|-----|-----|
+| build_evidence.py — weekly | monthly roll-up | monthly-census.md |
+| audit_evidence.py — cross-product | every rebuild | 7/7 CONSISTENT |
+
+Both are strokes of the same mechanical pen — neither rewrites the verdict.
+
+### 82.5 The one lamp-flaw registered this volume
+
+The stone grain is still deep and clean — `#/gazette` prints 192×3=576 req · 100% ✓ ·
+the only gap left: the first automated weekly-stress strike (waiting on next Monday 03:00 UTC after the merge).
+
+---
