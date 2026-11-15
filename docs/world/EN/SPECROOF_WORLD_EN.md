@@ -1188,4 +1188,36 @@ the moment the next volume is written, its lamp lights again.
 **Iron evidence does not fear being examined; it fears not being examined.** The rite observes no calendar days; whoever dodges re-verification is passing off "we did it once" as "it is true now" — SpecProof does not sell that junk.
 
 ---
+---
+
+## Volume XXVIII · The Door（卷二十八 · 门扉）
+
+> A world, however large, with its doors shut, has no visitors; doors, however good, opening on emptiness, admit only light.
+> This volume is SpecProof's doorcraft — iron evidence does not refuse to teach you; it gave you the right door at every layer.
+> Which door you push first decides how you push the rest.
+
+### 28.1 Seven doors (all real)
+
+| Door | The essence | Anchors |
+|---|---|---|
+| Manual (`#/manual`) | The A4 pocket card: 5 carry-outs / 3 don'ts / 5 commands | #1766, POCKET_CARD.md |
+| Onboarding guide (`/guide`) | Progressive steps: from clone to your first verification | since #72, bilingual |
+| Grand Tour (`/tour`) | Six stamps, interactive — you pressed it or it didn't happen | TOUR_BY_LOCALE |
+| World Book (`#/worldbook`) | The official history in the app: readable, searchable, badgeable, 34 sections | #1774 |
+| Gazette (`#/gazette`) | The daily paper: live lead, live numbers | #1784 |
+| Evidence Calendar (`#/calendar`) | 365 cells of one year; git has the last word | #1787 |
+| **Coach marks (press `H`)** | Every button on the main screen with a one-line lesson | **#1790** |
+
+### 28.2 The four winds of the doorcraft
+
+- **Open it and you can use it**: no five-step detour — see at a glance, press in a second, understand in three sentences;
+- **Open it and know it's real**: behind every door is this repo's actual content (live figures, ledger cross-checks, git signatures) — never a demo;
+- **Whoever opens it, belongs**: every table parity-tested, zh/en aligned — every room has your name written on it;
+- **Whoever opens it, never gets lost**: the teaching layer only shines when you need it — once you've outgrown it, one keypress and it never shines again.
+
+### 28.3 The Door's vow
+
+**Iron evidence does not fear being seen; it fears not knowing where to look.** From this volume on, no door in SpecProof will ever be recorded alone — they are one thing: a person arriving knowing nothing; ten minutes later, walking out saying "I know."
+
+---
 
