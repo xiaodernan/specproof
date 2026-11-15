@@ -37819,3 +37819,27 @@ lanes={'direct': 29, 'policy': 12}  kinds={'(unspecified)': 29, 'draft': 6, 'cou
 * 全量 pytest 仍内存受限；guide+ledger 51/51 全绿；UI vitest 全绿；
 * **密码 123 全员进永久否决**。
 * 任何声称「cache rate > 90% on all lanes」的人——这本账本就这么写着：51.2%。请自己开放。
+
+## #1832 卷四十八《沉默的现账本 · The Current Ledger》：本机 41 真敲 · 无平均 · 无诱导
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、卷四十八入史（55 卷 · 127,614 chars）
+
+* 本卷登记本轮**守住的真相**——不是再去把未完成的画成完成，而是如实记
+  - 本机 :8000 不是 antagonist 也不是 hero——是 Docker 容器的端口，
+    触目即拒绝（`Test-NetConnection = False` earlier @ command）；
+  - 本机午后跑过 `scripts/live_lane_probe.py`：HTTP 200 · 10 chunks · prompt=4470 / cached_tokens=4224 = 94.5% 真实 prefix hit（#1813/#1831）；
+  - 本机晚上跑过 `scripts/stress_smoke.py`：72 并发 × 2 × 3 rounds × 2 lanes · 432/432 / 0 err（#1801）；
+  - 本机 `mvn -o test` 137/137 gateway/discovery/config/control-plane off-line 全绿（#1825）；
+  - 本机 `#/engine` 现在的 `51.2% prefix cache` 就是 41 calls 的加总，不是任何抽象推断。
+
+### 二、卷XLVIII 的诚实清单（它是最后一卷立下的）
+
+* 每一章只登无法被冲回去的证言；
+* 51.2% 不是胜利而是事实；**事实不需要买酒**；
+* 本节不是结尾 — 是 `v0.90.0` 留下来的书脊（as long as 你读这本书，它还存在）。
+* 全量 pytest 仍内存受限（guide+ledger 51/51 green）;
+* Spring off-line 137/137 stays unmatched;
+* 「密码 123」永久否决未改；Observability 签字仍需隐私评审；
+* `.local/llm.json` 全 untracked — wkapi gpt-6-sol key 继续未入库。

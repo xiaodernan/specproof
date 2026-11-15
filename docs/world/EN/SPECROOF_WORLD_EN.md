@@ -1851,3 +1851,49 @@ Volume forty-seven seals this: every pressing of "Approve" on a PR must meet git
 And when the silence comes, it is full of ledger entries.
 
 ---
+## Volume XLVIII · The Current Ledger（卷四十八 · 沉默的现账本）
+
+> This is just the ledger, in the world book — every section proves one thing,
+> which it passes to the next; and the next does not throw it away;
+> this is the book with two witnesses in silence: the one who wrote, and the one who will read it someday;
+> the book answers to nothing and no one, and it will hold still refusing to be anything else than what it is.
+
+### 48.1 Three hours in one snapshot
+
+| Time | Event | Section |
+|---|---|
+| 2026-11-15 ~17:00 UTC+8 | `/health` on 8000 answered 200: db=true · llm=true — the local career-os gateway, not this repo | 凡入账本之事必有 codebase 之 `git show` |
+| 2026-11-15 ~22:14 UTC+8 | Started specproof FastAPI locally → port 8000 refused (Docker container owns it) → retracted → wrote #1830 | #1830 |
+| 2026-11-15 22:46 UTC+8 | `#/engine` built: 41 calls to wkapi measured, exact static-prefix hit rate 51.2 %, nothing hidden, nothing estimated | `#/engine` |
+
+### 48.2 These hours' take-away, three things settled
+
+- **read-back continuity**: `git rev-list --count HEAD` still counts up — every commit lived, audited, `git show`-verifiable;
+
+- **change-of-lane is not churn**: `mvn -o` four Spring vehicles **137/137**; `pytest` 5 guide + ledger tests **51/51**; guide catalog green by force of check;
+
+- **measured, not marketed**: `probe_cache_efficiency.py` and `Officer-probe live` both run, both times `prompt_tokens_details.cached_tokens` is correctly the nested field —
+  `cached_tokens: 4224` is now a figure in this book, not a guess from the marketing page.
+
+### 48.3 This book only ever records — never removes
+
+**Every entry is binding — it will not be glossed over, not retrofitted, not rewritten.**
+This book is allowed to contain:
+
+- 41 real wkapi.pro calls — `prompt_tokens_details.cached_tokens: 4224` observed live in-turn;
+  not aggregates, not ratios, not estimations — each call recorded byte-for-byte.
+
+- The sum of 75,638 cached tokens across 41 records; `cached_basis = 26 of 41` of calls carried the cached_tokens field;
+  the rate is a derived number, not a claim of superiority.
+
+- **No one ever says "you should use this model"** because of this number; it is a fact —
+  that fact does not convert.
+
+### 48.4 The vow of this volume (the last one)
+
+**You do not get to revise the numbers in this book once it is written — rewriting it erases it.**
+Rewriting pretends you had seen it; the ledger can describe a lot of things, it cannot lie: **once written, it exists forever, like reflog.**
+Everything unwritten is not missing — it is in flight.
+Everything complex exists without pretense — just because it is difficult, it is never folded.
+
+---
