@@ -2672,3 +2672,34 @@ weekly-stress.yml 每周一自动敲        (LXIV·#1853)
 ```
 
 ---
+## 卷六十六 · 船期表（The Timetable）
+
+> 港口贴出的不是承诺，是船期表——
+> 每周一 03:00 UTC 有一班船，客人看得见表，看不见船的舵手在哪。
+> 本卷交付的是「界面不悄悄坏掉的守护船」：三页各一艘，满旗出航。
+
+### 66.1 三艘守护船（全部 vitest 真断言）
+
+| 船名 | 挂载 | 钉住的事 |
+|---|---|---|
+| Tour.test.tsx | 巡览页 #/tour | 进度铁轨 aria-valuenow=0 · ≥6 站 → 六印逐位被访客门封住 · 6 按钮 disabled · 6 枚 status（每站一条）· 存储损坏不崩 |
+| Fabric.test.tsx | 织物页 #/fabric | SVG ∃ · ≥30 节点 · 索引表 ≥30 键 · 点键导航到 `#/jobs` · 证据卡在场、显示 2026-11-16-static-warm-2.json 与 1537ms · 应力快照在场 |
+| Insight.test.tsx | 洞察舱 #/insight | 非 admin → 门板不开（PermissionDenied + RBAC fail-closed）· 未决时 spinner · admin → SYNTHETIC COHORT 在场 + 本机气候图渲染 + 一键清空（写了 heat_v1 → 清空成功） |
+
+### 66.2 船期表的家规
+
+1. **板壁不许改门**——测试不复制页面、不拍屏幕；只读断言 aria / 结构 / 导航副作用；
+2. **坏 storage 也不能沉**——test 直接喂 `{not-json` 给 localStorage，页面必须活着；
+3. **数字不绑死**——证据件名与 p99 允许变动；卡只要在、显示、不造 live 宣称即可。
+
+### 66.3 航程图（至 #1855）
+
+```
+533 绿 · 69 个测试文件
+三页守护船 · 12 个新增断言
+UI 全绿文件数 +3
+```
+
+本轮之后，「界面没有悄悄坏掉」第一次成为可以 git show 的红线。
+
+---

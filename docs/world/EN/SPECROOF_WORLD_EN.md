@@ -2545,3 +2545,34 @@ weekly-stress.yml every Monday strike  (LXIV·#1853)
 ```
 
 ---
+## Volume LXVI · The Timetable（卷六十六 · 船期表）
+
+> The harbour posts not promises, but a timetable —
+> every Monday 03:00 UTC there is a departure; guests see the table, not where the helmsperson sleeps.
+> This volume delivers three escort ships for the interface's steady hands: three pages, one ship each, flags up.
+
+### 66.1 Three escort ships (all real vitest assertions)
+
+| Ship | Docked at | Anchored facts |
+|---|---|---|
+| Tour.test.tsx | #/tour of the Grand Tour | rail aria-valuenow=0 · six stations · exactly 6 disabled seal buttons behind the visit gate · 6 status hints · corrupt storage does not sink the page |
+| Fabric.test.tsx | #/fabric, the weave | svg[role=img] exists · ≥30 nodes · ≥30 chips in the index table · clicking the Verifications chip navigates to #/jobs · evidence card present with 2026-11-16-static-warm-2.json and 1537ms · stress ledger present |
+| Insight.test.tsx | #/insight, the admin lounge | non-admin door stays shut (PermissionDenied + RBAC fail-closed) · undecided role renders spinner · admin admits with SYNTHETIC COHORT pill · the local heat panel renders and actually clears specproof_heat_v1 |
+
+### 66.2 House rules of the timetable
+
+1. **no wallpaper-testing** — no copies of the page, no screenshots; only aria/structure/navigation-side-effects;
+2. **corrupt storage never sinks a ship** — one test feeds `{not-json` straight to localStorage;
+3. **numbers are not carved in concrete** — file names and p99 may drift; the card must exist, must show, must never claim live.
+
+### 66.3 The chart (through #1855)
+
+```
+533 green · 69 test files
+Three escort ships · 12 new assertions
+UI suites grown by 3 files
+```
+
+From this hour on, "the interface has not quietly broken" is a line you can git show.
+
+---

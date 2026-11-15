@@ -38530,3 +38530,29 @@ python scripts/live_lane_probe.py
 * UI 521/521 stays · tsc 0 · build 391ms · gate 51/51 stays；
 * Volume LXV《归港复航 · The Homecoming, Repeated》入册（zh/en 对称）→ 世界书 **72 卷**（本轮 +1）；chronicle 1,655 节；
 * court 永不缓存；「密码 123 全员进管理员」永久否决；PORTFOLIO_TOKEN / Observability 签字仍欠。
+
+## #1855 三页守护船：Tour / Fabric / Insight 各一艘 vitest 守护（UI 全绿 533/533）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、新增三艘（12 断言 · 全部真断言 · 不复制屏幕）
+
+| 文件 | 钉住的事 |
+|---|---|
+| `pages/Tour.test.tsx` (4) | `progressbar aria-valuenow="0"` · ≥6 个 h2（巡览站） · `.tour-actions button[disabled]` **恰好 6 个**（访客门封印） · 6 枚 `role=status`  hint · `{not-json` 塞进 `specproof_tour_v1` 页面照样渲染（不崩） |
+| `pages/Fabric.test.tsx` (3) | `svg[role=img]` 必然在场 · ≥30 `.fabric-node` 节点 · ≥30 索引按钮 · 点 "Verifications" → `window.location.hash === "#/jobs"` · 证据卡（.fabric-evidence）存在且文字含 `2026-11-16-static-warm-2.json` 与 `1537ms` · `.fabric-stress` 在场且含日期 2026-11-16 |
+| `pages/Insight.test.tsx` (5) | RBAC fail-closed 一侧不开门（`.insight-page` 不存在） · 未决 → `.insight-spinner` · admin → `.insight-page` 在场 + SYNTHETIC COHORT 排队在场 · 真实本机气候（specproof_heat_v1 三事件入库）→ 面板渲染、点「清空本机轨迹」→ 存储键删除、面板回落到「还没有任何敲击记录」空态 · ack 计数 3 不被触碰 |
+
+### 二、为什么这三艘船就够
+
+前端门里有三扇最易悄悄变形的窗户：巡览的封印（规则随 #1838 改过一次）、
+织物的叙事（节点位置手摆、改一动一散）、洞察舱的门板（RBAC 是全站最重的一扇）。
+本仓库从今天起：**改这三处的代码必须先过这三艘船。**
+
+### 三、诚实边界
+
+* UI **533/533**（此前 521，+12）· tsc 0 · build 293ms · vitest **69 文件**；
+* 所有断言避开了当前中文原文的字形匹配（用 class / role / 结构比对）——i18n 再改措辞也不至于使测试误报；
+* gate 51/51 不变 · court 永不缓存 · 「密码 123 全员进管理员」永久否决；
+* Volume LXVI《船期表 · The Timetable》入册（zh/en 对称）→ 世界书 **73 卷**（本轮 +1）；chronicle 1,656 节；
+* Observability 签字仍欠；PORTFOLIO_TOKEN 仍欠；真·fleet 遥测仍欠。
