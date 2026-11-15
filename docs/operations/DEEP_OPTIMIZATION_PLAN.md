@@ -37654,3 +37654,26 @@ no third-party links in reply ✅
 * admin 回廊**没有密码**——依然是你本人 `/identity` 里的 RBAC（admin/operator fail-closed）决定；锁门时 tile 会变灰 + 写"仅 admin/operator 可见"；视图本身没破坏 RBAC；
 * 全量 pytest 内存受限（guide+ledger **51/51**）；Spring 离线 137/137（#1825）；'密码 123' 永久否决；
 * PORTFOLIO_TOKEN 仍欠；Observability 等法务/隐私签字。
+
+## #1827 世界书卷四十五《卜宅 · The Divination of the House Site》：Port 8000 昨时答话、今日沉默
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、事实（两条字节级证据，先后 4 小时内对白）
+
+1. 2026-11-15 ~17:51（#1801 压测）：`Test-NetConnection 127.0.0.1:8000` 返回 True；HTTP `/health` 回 200 `{"status":"ok","db":true,…,"build_sha":"dev"}`，喂了 432 req / 0 err 并入账；
+2. 2026-11-15 21:27（本卷）：`Test-NetConnection 127.0.0.1:8000` 返回 **False**；HTTP-Adapter 敲不通，8080 / 5173 / 5188 / 5189 / 3000 / 4173 也全部 False；
+3. 卜宅写的是「卜完仍旧关」——不吞默掉，不假装服务还在；不写假无虚有的「running」字句；不发送任何 HTTP(S) 尝试；不重启、不去查其 PID、不改其端口——卜宅就是卜宅；
+4. 卷中点明 `build_sha:"dev"` ≠ 当前 master；不做任何关于他属于哪个构建产物的推断限定。
+
+### 二、Volume XLV（中/英双版对称）
+
+* 卷四十五 · 卜宅入正史；中英双版 zh/en 对称；
+* worldbook 51→**52 卷** / **120,222 chars**；chronicle 将在本提交后重建；
+### 三、诚实边界
+
+* 卜宅**不是**"服务已经下线"公告——只写事实：这次敲门不响；卜宅入史不是关门审判；
+* 本节刻的是**环境不在本机**、spring 离线 `mvn` 仅 137/137、**生产依旧不存在**；
+* 「密码 123 全员看所有人行为」永久否决（禁忌清单第 2 位）；Observability 必唯一签字；PORTFOLIO_TOKEN 仍欠；
+* 全量 pytest 仍内存受限；
+* 只在 build 时重生 worldbook/json——`#/worldbook` 不展示运行中页面动态拉升。

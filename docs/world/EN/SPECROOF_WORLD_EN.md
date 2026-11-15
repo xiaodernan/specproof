@@ -1757,3 +1757,30 @@ The silent one does not stand by waiting for the invoice — he is the reminder 
 Volume forty-four states: every `mvn -o test` "137/137" is NOT the first — but this round registers one specific new detail: **`JAVA_HOME` pointed at the wrong JDK and burned, righted back**; that costs the same as every round.
 
 ---
+## Volume XLV · The Divination of the House Site（卷四十五 · 卜宅）
+
+> Volume forty-four wrote the iron struck twice — this volume writes a home whose owner never asked to be known;
+> port 8000 once answered hello (DB true, LLM ready, build_sha "dev") —
+> today there is nothing behind that door at all.
+
+### 45.1 Two knocks, opposite answers — full evidence chain
+
+| Moment (in this session) | Byte | What the byte means |
+|---|---|---|
+| 2026-11-15 ~17:51 (#1801 load test targeted `http://127.0.0.1:8000/health`) | HTTP 200 · `{"status":"ok","db":true,"llm_provider":"openai_compat","llm_ready":true,"embedding_provider":"hash","embedding_ready":true,"build_sha":"dev"}` | A process answered. 432 requests landed across 3 rounds / 0 errors; p50 round1=649 ms · round2=1780 ms · round3=329 ms (recorded at #1801) |
+| 2026-11-15 21:27 (this volume) | TCP `127.0.0.1:8000` → **refused** (`Test-NetConnection -Port 8000 -InformationLevel Quiet` = `False`) | Nothing answers on 8000 right now. Whatever it was is gone; nobody asked when, or by whom, or why |
+| all other ports on this host | `False` (8080 / 5173 / 5188 / 5189 / 3000 / 4173) | Nothing is waiting for us on this machine right now; there is no demo for the taking |
+
+### 45.2 What the divination read
+
+- **not kept as "a green heart beating"** — this ledger remembers what answered, then refuses to pretend it still answers;
+- **`build_sha:"dev"`** — whatever answered was not built from the current commit we just pushed; it was likely ahead or behind us in ways nobody asked to understand;
+- **`llm_ready:true, hash embeddings`** — it means the answer-the-DM-AI readiness flag was on. It does not mean any other human had access to it, nor that it spoke truthfully about anything except that moment;
+- **volume-pointer only** — this chapter exists in the world book & chronicle & ledger; the application still cannot assume any machine has a live process answering for it.
+
+### 45.3 The vow of the house site
+
+**What once answered is not owed a green reckoning.**
+After this volume, this repository may not tell anyone "there is a SpecProof service running, click here" — that is a claim we have no right to make. The divination finishes where it began: at the threshold, with nobody inside, and nothing to open.
+
+---
