@@ -47,6 +47,7 @@ const Calendar = lazy(() => import("./pages/Calendar"));
 const Manual = lazy(() => import("./pages/Manual"));
 const Chronicle = lazy(() => import("./pages/Chronicle"));
 const Insight = lazy(() => import("./pages/Insight"));
+const Dossier = lazy(() => import("./pages/Dossier"));
 
 type NavItem = {
   path: string;
@@ -80,6 +81,7 @@ const NAV: NavItem[] = [
   { path: "ide", labelKey: "nav.ide", icon: "hammer", groupKey: "group.evidence" },
   { path: "graph", labelKey: "nav.graph", icon: "matrix", groupKey: "group.evidence" },
   { path: "chronicle", labelKey: "nav.chronicle", icon: "scroll", groupKey: "group.evidence" },
+  { path: "dossier", labelKey: "nav.dossier", icon: "scroll", groupKey: "group.evidence" },
   { path: "census", labelKey: "nav.census", icon: "verify", groupKey: "group.evidence" },
   { path: "manual", labelKey: "nav.manual", icon: "guide", groupKey: "group.evidence" },
   { path: "identity", labelKey: "nav.identity", icon: "team", groupKey: "group.admin", roles: IDENTITY_ROLES },
@@ -130,6 +132,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "ide") return <Ide />;
   if (seg[0] === "graph") return <Graph />;
   if (seg[0] === "chronicle") return <Chronicle />;
+  if (seg[0] === "dossier") return <Dossier />;
   if (seg[0] === "atlas") return <Atlas />;
   if (seg[0] === "worldbook") return <WorldBook />;
   if (seg[0] === "nightwatch") return <NightWatch />;

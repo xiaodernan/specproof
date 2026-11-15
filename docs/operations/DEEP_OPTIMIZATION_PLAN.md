@@ -36965,3 +36965,32 @@ python scripts/stress_smoke.py --target http://127.0.0.1:8000/health --rounds 3 
 * 本文件**不是**门禁，是给人看的细查清单；real quality = 逐桶审 + 实测渲染，不是数字归零；
 * UiKit.smoke / 全量 Python 单测状态不变：UI **503/503**，`tests/unit` 全量仍内存受限；guide 6/6；gate 51/51；
 * `/insight` 等 L() 三元式文件已如实保留 zh 分支原样，不会因此报 bucket A 为零——不为报表优化代码。
+
+## #1804 金案谱 `#/dossier`：111 件入库金案在 App 内逐一可翻 + LONG_TERM_PLAN 入库
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、背景（把"演示数据堆砌"的边界真正缩小一点）
+
+* 用户要求"尽可能加入联网搜索得到的真实数据、真实实验数据，而不要全部都是演示数据的堆砌"；
+* 仓库里已经沉睡着**真的**东西：`golden-cases`（101）+ `golden-cases-attribution`（8）+ `golden-cases-crosslang`（2）= **111 件金案**，每一件都有 `ground-truth.json`（severity / contract / evidence_type / should_detect / attribution 缺陷归属）——这是**真实实验数据**（此项失败场景由差分沙箱可复现校准），只是此前只能在 `CI` 和 `git show` 里看见；
+* 本节把它搬进 App 并逐件实测渲染。
+
+### 二、交付
+
+* `scripts/build_dossier.py`（新）：读 3 个目录 × regex 三族式 `^case-(\d+)-(.+)$` / `^case-att-(\d+)-(.+)$` / `^case-(go|ts)-(\d+)-(.+)$`，解析 ground-truth/scenario/spec，输出 `apps/web/src/pages/dossier.json`——**111 件全入库**：BLOCKER 22 / MAJOR 51 / NONE 38；should_detect 73；
+* `pages/Dossier.tsx`（新）：搜索（多 token AND）、族过滤（标准/归因/跨语言）、severity 过滤（BLOCKER/MAJOR/NONE）、仅看应检出、卡片展开 = spec 全文 + ground-truth 对照表 + `git show HEAD:path/ground-truth.json` 验证口令；中英双语（`storedLocale()` 读取）；stats 条显示总案/应检出/BLOCKER/MAJOR/NONE；
+* 卡片编号 = 真实相对路径（`case-01-auth-bypass` 等），非演示列表；
+* `App.tsx`：懒加载 + NAV evidence 组（icon `scroll`）+ 路由分支；`strings.ts` 增 `nav.dossier` = `金案谱` / `Golden Compendium`；
+* `USER_GUIDE.md` + EN mirror：各加 `/dossier` 行；一级入口 **29 → 30**；guide route catalog **6/6 绿**；
+* `dossier.css`（新）：深核桃 + 羊皮纸，severity 像蜡封章；
+* build ✅ 684ms；vitest **503/503**；tsc 0；chronicle 待本提交重建 ≈1,604+节；
+* `docs/operations/LONG_TERM_PLAN.md`（新）：活的总计划（目标/纪律/质量线/节奏/现状盘点/H1·H2/禁忌清单），兑现对账项 3。
+
+### 三、诚实边界
+
+* dossier.json 是**构建时快照**：新入库的案例要跑一次 `scripts/build_dossier.py` 才进页面（和 worldbook/json 同样约定）；
+* 111 件里**没有一个未判定的格**——每一件都有 JSON，但 spec 正文的翻译没有做（107/111 是英文原始 spec，少数 zh 例外）；这是真实实验留存，不是翻译产物，不强行中文化原件；
+* 归因族的 "attribution" 语义（`base_defects`/`head_defects`）只对 attribution 族渲染（8 件）；standard 族恒为 0，零值如实显示；
+* UiKit.smoke 全量未红；未声称"所有面板零瑕疵"——**桌面像素不可见**，只验证结构/DOM/测试/构建；
+* 全量 `pytest tests/unit` 仍内存受限，只跑 guide+ledger 51/51，不声称全量绿。

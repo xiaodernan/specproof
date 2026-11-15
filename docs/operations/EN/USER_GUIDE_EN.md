@@ -22,7 +22,7 @@ docker compose -f compose.phase0.yml up -d --wait
 
 ### 1.2 A lap around the whole product (5 minutes)
 
-Open `http://127.0.0.1:5173/` — the sidebar carries 29 first-level entries:
+Open `http://127.0.0.1:5173/` — the sidebar carries 30 first-level entries:
 > **Press H to open coach marks** — every control on the main screen (keys, buttons, sidebar entries) carries its one-line lesson as a gold badge; hover/focus to read. H or the legend's dismiss button hides them. Press `?` for the full shortcut card.
 
 | Group | Entry | What you can do right now | Iron evidence |
@@ -171,6 +171,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/agent` | AI Developer (SpecCraft) | let AI pair on the work — generate, self-repair, review, with a paper trail |
 | `/identity` | Team & Access | RBAC, access control, audit (admin/operator roles only, fail-closed) |
 | `/insight` | Insight Deck | admin/operator-only dashboard: a labelled synthetic calibration cohort + this browser's real local trace + 28-day session trend with 7-day least-squares forecast (r²), plus 6 engine-rule optimisation moves (clearly labelled synthetic — never real user PII) |
+| `/dossier` | Golden Compendium | 111 committed golden cases, one-by-one: 22 BLOCKER / 51 MAJOR / 38 NONE controls; each case shows severity, contract, evidence_type and whether it should be detected — ground-truth.json read at build time, never demo data, never an LLM in the loop; verify with `git show` |
 | `/ui-kit` | Design System | the full Aurora component wall |
 | `/epic` | Chronicles | bilingual genesis; every anchor a real commit hash |
 | `/tour` | Grand Tour | interactive onboarding corridor; six stamps seal 「验讫」 |
