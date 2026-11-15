@@ -36919,3 +36919,24 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 python scripts/stress_smoke.py --rounds 3 --timeout 15                # A 车道（静态）
 python scripts/stress_smoke.py --target http://127.0.0.1:8000/health --rounds 3 --timeout 10   # B 车道（活后端 /health）
 ```
+
+## #1802 世界书卷三十《压铁 · The Iron Under Load》：把压测夜写进正史
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、事实
+
+* 卷三十《压铁》（`docs/world/SPECROOF_WORLD.md` + `docs/world/EN/SPECROOF_WORLD_EN.md` 双向对称）——把 #1801 的双车道压测数字写成世界正史：
+  - A 车道（静态前门）：432 req / 0 err / r1 冷启 p50=2356ms p99=12.94s / r2 103ms / r3 84ms；
+  - B 车道（活后端 /health）：432 req / 0 err / 649ms → 1.78s → 329ms；
+* 引文锚点 `e19de4f`（#1801）, `36a7d36`（#1799）, `567f604`（#1800）——卷中不虚构 hash；
+* `scripts/build_worldbook.py` 重建：worldbook.json → **37 卷 / 81,685 chars**；
+* 卷三十边界：明说"压的是 /health，不是用户数据"；演练环境与产品通道分开计账；跨地域/TLS/限流压测的夜 = 卷三十一提的口子；
+* i18n：两章标题、三表头、三个 narrated rows 全部中英双版独立成文，不共用一个句子偷懒。
+
+### 二、诚实边界
+
+* 卷三十**不是** SLA 承诺，是账本叙述；数字逐字来自 #1801 重定向的测量记录；
+* 全量 pytest 仍未跑完（本机内存受限）；guide 6/6 + gate 51/51 重跑通过；chronicle 将在本提交后 ≈1,603 节；
+* 卷三十一（跨地域 + TLS + 限流遥测）留为待办口子，不在本次声称范围内；
+* 世界书 PDF/在 App 内阅读 → `/worldbook`，本卷自动入册。

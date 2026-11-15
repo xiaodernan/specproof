@@ -1254,3 +1254,32 @@ From this volume on, SpecProof owns one mirror: mirrors shape, never person; mir
 The admin in this mirror sees *which door to fix next*, never *what Zhang San watched today* — the former is a product owner; the latter is an informant. The iron recognises the former only.
 
 ---
+## Volume XXX · The Iron Under Load（卷三十 · 压铁）
+
+> The night the forge ran hottest was never meant to break the blade — it was meant to see whether the blade trembled;
+> what decides if a system dares open its door is what happens when 72 people push on it at once — either it holds, or it gives.
+> This volume is Iron Evidence's night of mass hits — every blow has a receipt, and every receipt is right here.
+
+### 30.1 Two lanes, two punches, one night (real figures)
+
+| Lane | Profile | Requests | Errors | p50 (round1/2/3) | Verdict |
+|---|---|---|---|---|---|
+| A · front door, static (`stress_smoke.py`, fresh dist/ over loopback) | 72 concurrent × 2 req/thread × 3 rounds | **432** | **0.00%** | 2356 ms ／ 103 ms ／ **84 ms** | round-1 cold-window p99=12.9s is warm-up noise, not a defect (`e19de4f`) |
+| B · live backend /health (local instance already running, `db:true, llm_ready:true`) | 72 concurrent × 2 req/thread × 3 rounds | **432** | **0.00%** | 649 ms ／ 1.78 s ／ **329 ms** | the readiness probe survived 72 concurrent (see `e19de4f`, round 2 jitter recorded in the ledger) |
+
+- Why is the cold window long? ThreadingHTTPServer thread-per-request, first disk reads, Windows page-cache warm-up — **a forge lit for the very first time smokes**; by the second and third blow the hearth runs the way you want it to;
+- zero errors are not a medal — **the target was /health, never your data**: an attack is not a test; whoever walks past the first gate gets written down — blast-through tests have their own rehearsal range, on locked tables, inside one swallowed experience; **never on the product lane's door register**;
+- a static lane is never an SLA: it only proves the front door can stand a shove — the night of cross-region, TLS termination, and rate-limit telemetry comes later; that night is Volume XXXI.
+
+### 30.2 Two iron rules of load-testing
+
+- **Probe the readiness, never the business write path**: the probe is the door Kubernetes itself knocks on every second — knock it 432 times, it checks (DB `SELECT 1`) and answers (latency recorded); write-path hammering is rehearsal-range work;
+- **Every percentile maps back to evidence**: p50/p95/p99 recorded raw (`e19de4f`) — if the figures displease us, the book says "not met"; in front of the iron there is no "about right";
+- **BUDGET-BLOWN means budget language, not failure language**: Lane A's round-1 p99=12.9s tripped exit code 1 — like token budgets in the prompt ledger: exceeded = marked, labelled, next round.
+
+### 30.3 The Iron's vow
+
+**Iron that will not bow under load is fit to carry people; iron that never bows is decoration.**
+From this volume on, SpecProof owns its own proving anvil: 72 people push at once — the door opens, the floor holds, nobody bleeds. 144 2xx are 144 nods; zero errors are zero lies.
+
+---
