@@ -37023,3 +37023,27 @@ python scripts/stress_smoke.py --target http://127.0.0.1:8000/health --rounds 3 
 
 * tsc 0；vitest **506/506**（+3）；build ✅ 735ms；chronicle 1,606 节；guide 6/6；gate 51/51；UiKit.smoke 全量本轮未红。
 * 全量 `pytest tests/unit` 仍内存受限，仅跑 guide + ledger 五件套。
+
+## #1806 世界书卷三十二《沉默的信徒 · The Silent Believers》：没合分支的铜铃入正史 + 总计划自更新
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、事实
+
+* 卷三十二（`docs/world/SPECROOF_WORLD.md` + EN 版）：把三个**真实存在过**的未合分支写进正史——
+  - `feature/interview-hardening` @ `76285a7`（W197：终门禁收口 2530 passed + 3 skipped；五文档单元数同步 2369→2530；attribution-eval 7/7 P/R/F1 100.0；W196 两个门禁破损收尾）；
+  - `feature/p1-reliability-kernel` @ `a756f53`（outbox-relay + worker 进程级 healthchecks；Redis Stream exact maxlen；CI demo git repo init + procps）；
+  - `release/p0.5-verified-v1` @ `4145d95`（provider 可移植性 + typing gates；Mypy/Ruff/Bandit/绝对路径清账；.gitattributes 锁 LF；JAVA_HOME 脱敏）；
+* **0 未合并提交**（`git log master..origin/<branch>` 逐一为空）= **传递性抵达**：tip 名字是历史档案，不是悬挂承诺——每一处能力都以改写或吞并进入主线；
+* 中英双版对称；引文 hash 全部真实可自查（`git show 4145d95` 等）；
+* worldbook 重建 → **39 卷 / 87,171 chars**；`#/worldbook` 自动入册可读；
+* `LONG_TERM_PLAN.md` 自更新：现状盘点滚至 #1806（chronicle≈1,607、worldbook 39、"卷 XXXII 已交付"划掉），
+  「已测/未测」分半法的规则写进总计划（"部署环境才是天花板"）；H1 项 1、4 消项线，H2 卷 XXXII 划掉。
+
+### 二、诚实边界
+
+* 卷三十二没有评估这些分支是否"值得合"——它记录的是**传递性**，不是质量裁决；质量看 master 的测试与门禁；
+* UiKit.smoke 仍属已知瞬时 flake；UI 面 506/506；gate 51/51；chronicle 1,607 节；
+* 全量 `pytest tests/unit` 仍内存受限；
+* i18n bucket A 251（#1805 清点）未再变；
+* 「密码 123」永久否决（见 #1799/#1804 明示条款），不再重开议题。

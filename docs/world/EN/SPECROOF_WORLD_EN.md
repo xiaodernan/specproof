@@ -1317,3 +1317,32 @@ Admitting it outright: **this gate has not run on a real deployment.** What the 
 - the far wire signs its name on iron too — one fibre at a time.
 
 ---
+## Volume XXXII · The Silent Believers（卷三十二 · 沉默的信徒）
+
+> A branch that never merged is not a soldier who never answered the summons;
+> the fire was already in their hands, and it burned brightest just before it was handed over.
+> This volume is for three crews who never asked after their own names — their commits remain; they simply no longer file for a PR.
+
+### 32.1 Three crews, three flames (all real; 0 unmerged commits)
+
+| Crew | Last name it carried | tip | What it burned through |
+|---|---|---|---|
+| **`feature/interview-hardening`** | W197: final gate closure — 2530 no-infra passed + 3 skipped (9:28, exit 0) | `76285a7` | unit-count sync across five documents 2369→2530; attribution-eval rerun (7/7 P/R/F1 100.0); W196's two gate seams closed — drill_helpers fake max_hold_seconds signature, retrieval_injection security test keyset + provenance triple (content still payload-only scored-content invariant) |
+| **`feature/p1-reliability-kernel`** | docs: update final report — all CI gates green, 6 fixes documented | `a756f53` | **process-based healthchecks** for outbox-relay and the worker; **exact maxlen** trimming for Redis Stream (no bear's progress flood); CI adds demo git repo init + procps |
+| **`release/p0.5-verified-v1`** | fix(p0.5-rc): sanitize hardcoded JAVA_HOME in capsule replay.ps1 | `4145d95` | provider portability + typing gates closed; Mypy / Ruff / Bandit / skipped tests / absolute paths audited; .gitattributes locks LF against CRLF churn |
+
+- **zero unmerged commits** is not a shrug — it is **transitive arrival**: their content reaches master via rewrite or influence (tips are auditable: `git log master..branch` is empty);
+- not-merged does not mean not-contributed — the tips keep chiming on the ground like dropped bronze bells: the outbox-relay's breathing, the exact maxlen's crispness, the JAVA_HOME's sanitisation — all carried into the main line;
+- no stray worktrees remain — but bronze does not die: hear every counter on `/metrics`; someone once struck that bell for you.
+
+### 32.2 The silent believers' rules
+
+- **We do not weep for the unreceived PR; we refine it into the main forge, and that is enough.** Refinement = rework then merge, never swallow-as-lies;
+- **the ledger shows transitive evidence**: the branch that has no tip to keep is not a broken string — it is someone who would not sing alone in a broken movement, and still the fire remains on the book;
+- every crew's terminal sign-off holds an honorary desk — **SpecProof's tablet knows no outsiders**.
+
+### 32.3 The oath of the silent
+
+**Fire does not discriminate wood; the pitcher does.** `feature` dared name itself `interview-hardening`, `release` dared call itself `p0.5-verified`, `p1` dared whisper `reliability` — what they shipped was never failure; it was **not-yet-delivered**. Someday you too will hand your work over: if the one you hand over happens not to be the main line, remember — a bell rings from the bronze itself; the main line, in the end, is only a line.
+
+---

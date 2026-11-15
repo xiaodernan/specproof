@@ -1435,3 +1435,32 @@ zh 与 en 的缓存计数不一样这一事件不属于一致性实验的成功�
 - 远方那条链路的签名，也要在铁里留一根。
 
 ---
+## 卷三十二 · 沉默的信徒（The Silent Believers）
+
+> 没合进去的分支，不是没交过卷的士兵；
+> 火传到了手里，灯在交出去之前烧到了最旺。
+> 这一卷写的是三队从未问津自己身后名的堂工——他们的 commit 都还在，只是不再提 PR 了。
+
+### 32.1 三支队伍，三管火（全部真的，0 未合并提交）
+
+| 队伍 | 最后的名字 | git tip | 烧过的火 |
+|---|---|---|---|
+| **`feature/interview-hardening`** | W197：终门禁收口 — 全量套件 2530 passed + 3 skipped 全绿（9:28，exit 0） | `76285a7` | 五份文档单元数同步 2369→2530；attribution-eval 复跑（7/7 P/R/F1 100.0）；W196 两处门禁破损收尾：drill_helpers 假件 max_hold_seconds 签名、retrieval_injection 安全测试键集补 provenance 三字段（内容仍是 payload-only scored content 不变式） |
+| **`feature/p1-reliability-kernel`** | docs: update final report — all CI gates green, 6 fixes documented | `a756f53` | outbox-relay 与 worker **进程级 healthchecks**；`Redis Stream` 用 **exact maxlen** 裁剪防冗余进度洪流；CI 加 demo git repo 初始化 + procps |
+| **`release/p0.5-verified-v1`** | fix(p0.5-rc): sanitize hardcoded JAVA_HOME in capsule replay.ps1 | `4145d95` | provider 可移植性 + typing gates 收口；Mypy / Ruff / Bandit / skipped tests / 绝对路径全部清账；.gitattributes 锁 LF 防 CRLF 行移动 |
+
+- **0 未合并提交**不是无为而治，是**传递性抵达**——这些 commit 的等价物、改写、或其血脉在 master 依然可见（tip 信息如实可自查：`git log master..branch` 为空）；
+- 没合进去≠没贡献——tip 的名字本身仍在，像散落的铜铃：`outbox-relay` 的呼吸、`exact maxlen` 的干脆、`JAVA_HOME` 的脱敏 —— 都被主线拿起来用了；
+- 分支不复在（worktree 无遗留）——但铜铃不朽：看到 `/metrics` 里跳的每一条数据，就记得有人替你敲过一次。
+
+### 32.2 沉默信徒的规矩
+
+- **不为没被接收的 PR 哭；把它炼进主炉子就够了**。炼法=重构以后再合，不是吞了再说谎；
+- **账本看得见传递性**："没有 tip 的那一份"不是敲坏的弦——那是没人愿意在失败的乐章里独唱的人，而火还在册；
+- 每一队的末路验讫，都有一个特殊的 honor role——**specproof 的石板不打编外**。
+
+### 32.3 沉默的誓言
+
+**火不挑柴，挑的人挑。**`feature` 的名字敢自陈「interview-hardening」，`release` 敢叫「p0.5-verified」，暗念「p1-reliability」——他们出去地不是失败，是**没有完成送达**。总有一天，你也会把自己做的东西交出去：要是交出去的那一个恰好不是主线，也记住——铜铃的声音是在铜面上敲出来的，主线无论如何只是一条线。
+
+---
