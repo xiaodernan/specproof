@@ -36731,3 +36731,24 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * `（无说明）` / 无描述缺轨发现 等缺省描述属于中文侧文案继续存在于 L() zh 侧——那是本地化设计本身；
 * 不触碰任何 API / 不改证据计算与投影逻辑；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1796 AgentWizard 去夹杂 —— 三步向导全部 L(zh, en) + EXAMPLE_SPECS 双版 + 测试同步
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `agent/pages/AgentWizard.tsx`（三步向导 · 仓库 / 需求 / 提交）**全部展示文案双语化**：
+  标题/三步标签 / 字段（仓库路径、任务名称、基线、目标、需求规格、执行模式）/
+  摘要·时长提示（无伪造估算，honest：无伪造数字）/ 权限提示｜执行模式选项｜上一步·下一步｜
+  步骤标题｜审阅页全部 kv-label｜执行中的「生成计划，审阅后执行」；
+* `EXAMPLE_SPECS` 三个示例 name + text 全部 zh/en 对照（修复一个 Bug/Fix a bug ｜ 分页 /users ｜ 收紧权限）；
+* 两处 L() 误入纯文本（`{L("下一步","Next")}` 正确入表达式；duration-hint 文本节点补花括号）——这是真实 bug，build/双测抓出来的；
+* AgentWizard.test.tsx 4 处期望单语 zh；AgentPolling.test.tsx、AgentApprovalsInbox.test.tsx 期望同步单语 zh（批准/拒绝存在性断言，避开 combobox 选项同词的唯一性断言冲突）；
+* i18n_audit AgentWizard 仍报 17 项——全部是 zh 侧 L() 参数含技术&产品词（如 `/users`、`double 函数`、`Bug`）——不是未本地化残留；
+* 92/92 agent 测试绿；tsc 0；build ✅ in 581ms。
+
+### 二、诚实边界
+
+* EXAMPLE_SPECS 的英文示例非机器翻译发用出壳——逐句写的双语对照，内容不是"机翻对照"，是独立可读的双语双例；
+* 全量 `pytest tests/unit` 仍未跑完；UiKit.tsx（内部 dev-only showcase）仍不声称收口；

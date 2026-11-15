@@ -11,6 +11,10 @@ import {
   validateRepoStep,
   validateSpecStep,
 } from "../util";
+import { storedLocale } from "../../i18n/strings";
+
+const isZh = (): boolean => storedLocale() === "zh";
+const L = (zh: string, en: string): string => (isZh() ? zh : en);
 
 // 三步向导。此前是四步，其中"门禁"步骤没有任何可编辑控件（预算与步数只由
 // 服务端环境变量决定），用户只能点"下一步"空转一次。与其放一个不生效的开关，
@@ -20,29 +24,35 @@ export type WizardStep = "repo" | "spec" | "review";
 // 内置示例需求：点击即可填充，新手不用面对空白文本框。
 const EXAMPLE_SPECS: { title: string; text: string }[] = [
   {
-    title: "修复一个 Bug",
-    text: "任务: 修复 double 函数，使它返回输入的两倍。\n" +
+    title: L("修复一个 Bug", "Fix a bug"),
+    text: L("任务: 修复 double 函数，使它返回输入的两倍。\n" +
       "验收: 正数、负数和零的现有测试全部通过。\n" +
-      "禁止: 修改或删除测试文件。",
+      "禁止: 修改或删除测试文件。", "Task: fix the double function so it returns twice the input.\n" +
+      "Acceptance: the existing tests for positive, negative and zero inputs all pass.\n" +
+      "Do not: modify or delete test files."),
   },
   {
-    title: "给接口加分页",
-    text: "任务: 为 /users 列表接口增加分页参数 (page, page_size)，" +
+    title: L("给接口加分页", "Add pagination to an endpoint"),
+    text: L("任务: 为 /users 列表接口增加分页参数 (page, page_size)。\n" +
       "默认 page_size=20，上限 100。\n" +
-      "验收: page_size 超限时返回 400；补充分页相关的单元测试，全量测试通过。",
+      "验收: page_size 超限时返回 400；补充分页相关的单元测试，全量测试通过。", "Task: add pagination parameters (page, page_size) to the /users list endpoint.\n" +
+      "Default page_size=20, max 100.\n" +
+      "Acceptance: page_size above the limit returns 400; unit tests cover pagination and the full suite passes."),
   },
   {
-    title: "收紧权限",
-    text: "任务: 非管理员修改其他用户邮箱时必须返回 403，管理员可以修改。\n" +
+    title: L("收紧权限", "Tighten permissions"),
+    text: L("任务: 非管理员修改其他用户邮箱时必须返回 403，管理员可以修改。\n" +
       "验收: 覆盖越权与正常路径的测试全部通过。\n" +
-      "禁止: 删除现有权限检查。",
+      "禁止: 删除现有权限检查。", "Task: non-admins modifying another user's email get 403; admins may modify.\n" +
+      "Acceptance: tests cover both the over-privileged path and the normal path.\n" +
+      "Do not: remove existing permission checks."),
   },
 ];
 
 const STEPS: { key: WizardStep; label: string; href: string }[] = [
-  { key: "repo", label: "1 仓库 Repo", href: "#/agent/new" },
-  { key: "spec", label: "2 需求 Spec", href: "#/agent/new/spec" },
-  { key: "review", label: "3 提交 Review", href: "#/agent/new/review" },
+  { key: "repo", label: L("1 仓库", "1 Repo"), href: "#/agent/new" },
+  { key: "spec", label: L("2 需求", "2 Spec"), href: "#/agent/new/spec" },
+  { key: "review", label: L("3 提交", "3 Review"), href: "#/agent/new/review" },
 ];
 
 export default function AgentWizard(props: { step: WizardStep }) {
@@ -81,8 +91,8 @@ export default function AgentWizard(props: { step: WizardStep }) {
   return (
     <div>
       <div className="page-head">
-        <h1>新建 Agent 任务</h1>
-        <div className="page-sub">TASK WIZARD — 3 步: 仓库 → 需求 → 提交</div>
+        <h1>{L("新建 Agent 任务", "New Agent Task")}</h1>
+        <div className="page-sub">{L("TASK WIZARD — 3 步: 仓库 → 需求 → 提交", "TASK WIZARD · 3 steps: repo → spec → review")}</div>
       </div>
       <div className="wizard-steps">
         {STEPS.map((s, i) => (
@@ -102,8 +112,8 @@ export default function AgentWizard(props: { step: WizardStep }) {
       <ErrorBox error={error} />
 
       {props.step === "repo" ? (
-        <Panel title="步骤 1/3 — 目标仓库">
-          <label className="field" htmlFor="wizard-repo">仓库路径 Repo path</label>
+        <Panel title={L("步骤 1/3 — 目标仓库", "Step 1/3 — Target repo")}>
+          <label className="field" htmlFor="wizard-repo">{L("仓库路径", "Repo path")}</label>
           <input
             id="wizard-repo"
             type="text"
@@ -112,7 +122,7 @@ export default function AgentWizard(props: { step: WizardStep }) {
             placeholder="D:\repos\my-service"
             onChange={(e) => set({ repo_path: e.target.value })}
           />
-          <label className="field" htmlFor="wizard-task">任务名称 Task name (可选)</label>
+          <label className="field" htmlFor="wizard-task">{L("任务名称（可选）", "Task name (optional)")}</label>
           <input
             id="wizard-task"
             type="text"
@@ -121,7 +131,7 @@ export default function AgentWizard(props: { step: WizardStep }) {
             placeholder="为服务端增加分页"
             onChange={(e) => set({ task_name: e.target.value })}
           />
-          <label className="field" htmlFor="wizard-base">基线 Base ref（仅参考，不切换工作目录）</label>
+          <label className="field" htmlFor="wizard-base">{L("基线 Base ref（仅参考，不切换工作目录）", "Base ref (informational — the workdir is not switched)")}</label>
           <input
             id="wizard-base"
             type="text"
@@ -130,7 +140,7 @@ export default function AgentWizard(props: { step: WizardStep }) {
             placeholder="main"
             onChange={(e) => set({ base_ref: e.target.value })}
           />
-          <label className="field" htmlFor="wizard-head">目标 Head ref（仅参考，不切换工作目录）</label>
+          <label className="field" htmlFor="wizard-head">{L("目标 Head ref（仅参考，不切换工作目录）", "Head ref (informational — the workdir is not switched)")}</label>
           <input
             id="wizard-head"
             type="text"
@@ -140,22 +150,21 @@ export default function AgentWizard(props: { step: WizardStep }) {
             onChange={(e) => set({ head_ref: e.target.value })}
           />
           <div className="kv" data-testid="wizard-spec-summary">
-            <span className="kv-label">需求规格 Spec</span>
+            <span className="kv-label">{L("需求规格", "Spec")}</span>
             <span className="kv-value muted">
               {draft.spec_text.trim()
-                ? "已填写 (第 2 步可修改): " +
+                ? L("已填写（第 2 步可修改）：", "Filled in (editable in step 2): ") +
                   draft.spec_text.trim().slice(0, 80) +
                   (draft.spec_text.trim().length > 80 ? "…" : "")
-                : "未填写 — 在第 2 步填写"}
+                : L("未填写 — 在第 2 步填写", "Not filled — write it in step 2")}
             </span>
           </div>
           <div className="kv" data-testid="wizard-duration-hint">
-            <span className="kv-label">预计耗时 Duration</span>
+            <span className="kv-label">{L("预计耗时", "Duration")}</span>
             <span className="kv-value muted">
-              未知 Unknown — 不提供虚构估算 (honest: 无伪造数字)。耗时取决于仓库规模、门禁选择与执行档位, 提交前不显示预估, 以任务实际执行为唯一依据。
-            </span>
+              {L("未知 — 不提供虚构估算（honest：无伪造数字）。耗时取决于仓库规模、门禁选择与执行档。提交前不显示预估，以任务实际执行为唯一依据。", "Unknown — no invented estimate is shown. Duration depends on repo size, gate choices and execution tier; this page does not guess before you submit.")}</span>
           </div>
-          <label className="field" htmlFor="wizard-mode">执行模式 Execution mode</label>
+          <label className="field" htmlFor="wizard-mode">{L("执行模式", "Execution mode")}</label>
           <select
             id="wizard-mode"
             data-testid="wizard-mode"
@@ -168,14 +177,14 @@ export default function AgentWizard(props: { step: WizardStep }) {
             }
           >
             <option value="deterministic">
-              规则检查 — 不调用模型，不自动生成代码
+              {L("规则检查", "Rule checks") + " — " + L("不调用模型，不自动生成代码", "no model calls, no code generation")}
             </option>
             <option value="llm">
-              AI 开发 — 使用模型设置中的服务，先生成计划再审批执行
+              {L("AI 开发", "AI developer") + " — " + L("使用模型设置中的服务，先生成计划再审批执行", "uses the model connection settings — plan first, approve, then execute")}
             </option>
           </select>
           <div className="permission-hint" data-testid="wizard-permission-hint">
-            权限提示 Permission — 服务端需可读取所填仓库; RBAC 全程 fail-closed: 凭据无权限时任务将失败 (401/403) 而非静默跳过。
+            {L("权限提示", "Permission") + " — " + L("服务端需可读取所填仓库。RBAC 全程 fail-closed：凭据无权限时任务将失败 (401/403)，而非静默跳过。", "The server must be able to read the repo you entered. RBAC is fail-closed throughout: without permission the task fails (401/403) instead of silently skipping.")}
           </div>
           {validateRepoStep(draft) ? (
             <div className="errorbox">{validateRepoStep(draft)}</div>
@@ -185,16 +194,16 @@ export default function AgentWizard(props: { step: WizardStep }) {
               className={"btn" + (validateRepoStep(draft) ? " btn-disabled" : "")}
               href={validateRepoStep(draft) ? "#/agent/new" : "#/agent/new/spec"}
             >
-              下一步 Next
+              {L("下一步", "Next")}
             </a>
           </div>
         </Panel>
       ) : null}
 
       {props.step === "spec" ? (
-        <Panel title="步骤 2/3 — 需求规格">
-          <div className="wizard-examples" role="group" aria-label="示例需求">
-            <span className="wizard-examples-label">不知道怎么写？从一个示例开始：</span>
+        <Panel title={L("步骤 2/3 — 需求规格", "Step 2/3 — Specification")}>
+          <div className="wizard-examples" role="group" aria-label={L("示例需求", "Example specs")}>
+            <span className="wizard-examples-label">{L("不知道怎么写？从一个示例开始：", "Not sure how to write it? Start from an example:")}</span>
             {EXAMPLE_SPECS.map((example) => (
               <button
                 key={example.title}
@@ -206,7 +215,7 @@ export default function AgentWizard(props: { step: WizardStep }) {
               </button>
             ))}
           </div>
-          <label className="field" htmlFor="wizard-spec">需求规格 Spec text</label>
+          <label className="field" htmlFor="wizard-spec">{L("需求规格", "Spec text")}</label>
           <textarea
             id="wizard-spec"
             rows={12}
@@ -218,12 +227,12 @@ export default function AgentWizard(props: { step: WizardStep }) {
           />
           {!draft.spec_text.trim() ? (
             <div className="wizard-example">
-              <span>不知道怎么写？</span>
+              <span>{L("不知道怎么写？", "Not sure how to write it?")}</span>
               <Button size="sm" onClick={() => set({
                 task_name: DEMO_AGENT.task_name,
                 spec_text: DEMO_AGENT.spec_text,
-              })}>填入示例需求「{DEMO_AGENT.task_name}」</Button>
-              <small>示例包含任务、验收条件、禁止事项和影响范围 — 这是最容易被验证的写法。</small>
+              })}>{L("填入示例需求", "Use the demo task")}「{DEMO_AGENT.task_name}」</Button>
+              <small>{L("示例包含任务、验收条件、禁止事项和影响范围 — 这是最容易被验证的写法。", "The example includes task, acceptance criteria, prohibitions and impact scope — the shape easiest to verify.")}</small>
             </div>
           ) : null}
           {validateSpecStep(draft) ? (
@@ -231,20 +240,20 @@ export default function AgentWizard(props: { step: WizardStep }) {
           ) : null}
           <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
             <a className="btn btn-ghost" href="#/agent/new">
-              上一步 Back
+              {L("上一步", "Back")}
             </a>
             <a
               className={"btn" + (validateSpecStep(draft) ? " btn-disabled" : "")}
               href={validateSpecStep(draft) ? "#/agent/new/spec" : "#/agent/new/review"}
             >
-              下一步 Next
+              {L("下一步", "Next")}
             </a>
           </div>
         </Panel>
       ) : null}
 
       {props.step === "review" ? (
-        <Panel title="步骤 3/3 — 审阅并提交">
+        <Panel title={L("步骤 3/3 — 审阅并提交", "Step 3/3 — Review and submit")}>
           <div className="kv">
             <span className="kv-label">Repo</span>
             <span className="kv-value mono">{draft.repo_path || "—"}</span>
@@ -272,27 +281,25 @@ export default function AgentWizard(props: { step: WizardStep }) {
           <div className="degraded" style={{ marginTop: 14 }}>
             <strong>提交后会先生成计划，你批准前不会改动仓库</strong>
             <p>
-              执行器根据项目环境运行适用的检查，并在结果中逐项列出通过、失败或跳过的检查；
-              未执行的检查不算通过。运行预算与最大步数由服务端配置决定，这里不提供开关。
+              {L("执行器根据项目环境运行适用的检查，并在结果中逐项列出通过、失败或跳过的检查；未执行的检查不算通过。运行预算与最大步数由服务端配置决定，这里不提供开关。", "The executor runs the applicable checks for the project environment and lists each one as passed, failed or skipped; unset checks do not count as passed. The run budget and max steps are set server-side — this page does not offer switches.")}
             </p>
           </div>
           <p style={{ marginTop: 10 }}>
-            AI 开发使用当前工作目录，不会自动切换 Base / Head；版本比较请使用独立验收功能。
-          </p>
+            {L("AI 开发使用当前工作目录，不会自动切换 Base / Head；版本比较请使用独立验收功能。", "AI development uses the current workdir — it does not switch Base / Head. For version comparison, use the independent acceptance flow.")}</p>
           <div className="kv-label">
-            将提交的需求（不会添加未生效的配置）
+            {L("将提交的需求（不会添加未生效的配置）", "The spec that will be submitted (no dead configuration added)")}
           </div>
           <pre className="json">{buildSpecText(draft)}</pre>
           <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
             <a className="btn btn-ghost" href="#/agent/new/spec">
-              上一步 Back
+              {L("上一步", "Back")}
             </a>
             <Button
               data-testid="wizard-submit"
               disabled={submitting}
               onClick={() => void submit()}
             >
-              {submitting ? "正在提交…" : "生成计划，审阅后执行"}
+              {submitting ? L("正在提交…", "Submitting…") : L("生成计划，审阅后执行", "Generate plan — review, then run")}
             </Button>
           </div>
         </Panel>
