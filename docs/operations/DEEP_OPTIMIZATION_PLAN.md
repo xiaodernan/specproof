@@ -38639,3 +38639,35 @@ python scripts/live_lane_probe.py
 * 船员卡**不是**法律证书、**不是**生产许可、**不是**对任何人的承诺；
 * 真·fleet 遥测仍欠 OBSERVABILITY.md 签字（灯仍琥珀）；court 永不缓存；
 * 「密码 123 全员进管理员」永久否决；联网搜索仍 402。
+
+## #1859 《灯花落尽》：仓库 face 自持有生——docs/crewcard.md / crewcard-en.md 入库 + build_crewcard_markdown.py
+
+**记录基准**：本节只追加；master = 本提交。本次生成时间：2026-11-15T17:49Z（crewcard.md 内署）。
+
+### 一、交付物
+
+* `scripts/build_crewcard_markdown.py` — 机读出生字卡，**全部来自 git-tracked JSON**（repoStats / chronicle / evidence / unsigned / engine / worldbook），零重算：
+  * `docs/crewcard.md` — 中文船员卡；
+  * `docs/crewcard-en.md` — 英文 field card；
+  * 内容 = commits **2,500** · ledger **1,659** · worldbook **76/76** · LOC **499,356** · Python **609** / Web **69** · ledger KB **3773.9** · latest chronicle **#1858**；
+  * 压测证据：`2026-11-16-static-warm-2.json` · p99 **1537.3ms** · **OK** · Δ **+5.1ms**；
+  * 欠签 live：`awaiting-signature`（fleet）· **merged**（weekly-stress）· **port-free**（port 8000）；
+  * LLM ledger；wkapi.pro · stream+include_usage；cached_tokens **75,638**（46.4%，**不是 SLA**）；
+  * 页脚：`git log --oneline -1 && build_repo_stats.py && audit_unsigned.py` — 三条复核命令；明文「本卡只刻 git-tracked 的事实；不是签字、不是验收、不是承诺」；
+  * 明文「**本仓库从来不会把 sk-… 写进任何 git-tracked 文件**」— 以及 LLM 零密钥可见。
+
+### 二、灯花的三个门面
+
+| 门面 | 入口 | 状态 |
+|---|---|---|
+| GitHub 仓库页 | `docs/crewcard.md` · `docs/crewcard-en.md` | **合入 master 后对外可见** |
+| A4 打印 | `#/last-call`「打印船员卡」→ `crew.css @media print` | #1858 |
+| App 内 | `WeeklyVoyage.tsx` + `ShoppingVoyage`（欠签 live） | #1856 · #1857 |
+
+### 三、诚实边界
+
+* 卡内每个数字都来自 locked 的 JSON；LLM 账本那行同样来自 `engine.json`；
+* 「不是 SLA」— 白纸黑字；不写 SLA、不写 SLO、不写生产承诺；
+* 更新协议：chronicle 每次重推时**同盘**重跑 `build_crewcard_markdown.py`（本提交同时包含两端）；
+* chronicle 1,660 节 · 世界书 **77 卷**（本轮 +1）；chronicle 自身会在本提交重推并把本节实例入册；
+* court 永不缓存；「密码 123 全员进管理员」永久否决；PORTFOLIO_TOKEN 仍欠；真·fleet 遥测仍欠 OBSERVABILITY 签字。

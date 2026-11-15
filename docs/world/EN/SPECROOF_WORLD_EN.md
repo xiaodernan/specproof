@@ -2680,3 +2680,39 @@ CSS: invisible on screen · visible in print · the workstation and the flyer ne
 ```
 
 ---
+## Volume LXX · The Falling Sparks（卷七十 · 灯花落尽）
+
+> A spark is not the lamp dying — it is the last handful of its light, spilling over the lip.
+> People get one last train, a book gets a last page; this volume does only one thing:
+> it writes the repo's last note before it might ever die, truer than anybody's retelling.
+
+### 70.1 Three doors, one pantry of freshly-cooked facts
+
+| Door | Carries | Source |
+|---|---|---|
+| GitHub repo page (docs/crewcard.md · crewcard-en.md) | the same handprint — the Chinese card + the English card | build_crewcard_markdown.py this round |
+| A4 print (#/last-call "Print the field card") | the same byte, printed | #1858 |
+| in-app "weekly voyage + the stamp" | the same JSON rendered in react | #1856 · #1857 · #1854 |
+
+All three doors draw from **one drawer** (repoStats / evidence / unsigned / engine / worldbook, all git-tracked);
+none of them is the shadow copy of another — they all just reach for the same chopsticks.
+
+### 70.2 Why a third door (one that grips on GitHub itself)
+
+An app can crash, a page can hang, an A4 can be lost — but a plain markdown file on GitHub
+**outlives them all**; the first thing every visitor sees is not a pitch, not a badge,
+but a live card that never lies (2,500 commits · 1,659 sections · 76 volumes · p99 1537ms · OK).
+
+### 70.3 The house rules of the falling sparks
+
+1. **three doors, one drawer** — if one door shakes, the other two re-open; otherwise it's a crocked ceremony;
+2. **no stamped lies in print** — the markdown carries no signature line either; the whole card system forbids vermilion;
+3. **a spark is not a bowl** — the card is not a brand, not a pitch, not a "please hire us" page; it is a single, honest long-exposure;
+4. **every commit refreshes the spark** — build_crewcard_markdown.py rides the same forge as chronicle; chronicle moves, the spark moves.
+
+### 70.4 The finale is never the lamp dying
+
+The spark settles, the desk is still warm — the fact at hand:
+another docs/crewcard.md lands in git, and the repo's own doorway begins to speak back.
+
+---
