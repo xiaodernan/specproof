@@ -2716,3 +2716,34 @@ The spark settles, the desk is still warm — the fact at hand:
 another docs/crewcard.md lands in git, and the repo's own doorway begins to speak back.
 
 ---
+## Volume LXXI · Above the Snowline（卷七十一 · 雪线以上）
+
+> Above the snowline there are no trees — not because it is too cold to teach, but because every step at that altitude must tell the truth.
+> This volume writes ROADMAP-LIVE: line after line of doors inside this repo, each labelled
+> "who may strike it (machine/human) + what blocks it + which exhibit proved it" — not one invented.
+
+### 71.1 The nine doors generated at commit time (auto-rendered by build_roadmap_live.py)
+
+| # | Door | Who strikes |
+|---|---|---|
+| 1 | first weekly-stress strike (cron 0 3 * * 1, merged) | machine (next Monday) |
+| 2 | OBSERVABILITY.md sign-off (real fleet telemetry) | **a human being** |
+| 3 | evidence cross-check: 2 exhibits · Δ +5.1ms · OK | machine + human review |
+| 4 | PORTFOLIO_TOKEN (portfolio page sync) | a human being |
+| 5 | residue spotted (~1,000 hash-named 542-byte files in-repo — suspects from a scratch spill that got committed; this volume does not delete them alone) | human verdict |
+| 6 | chronicle keeps itself ingressed (1,859 sections) | machine |
+| 7 | the LLM ledger doesn't go stale overnight (cached 75,638 · 46.4% prefix-hit · not an SLO) | machine |
+
+### 71.2 House rules above the snowline
+
+1. **never promise** — three columns only: what to knock · who knocks · what blocks it; never "when it will be done";
+2. **doors re-judge themselves** — `scripts/build_roadmap_live.py` rewrites ROADMAP-LIVE on every chronicle rebuild;
+3. **IOU = door** — every roadmap line is just an unstruck door, always amber, never a red ✗;
+4. **the fog line stays visible** — port 8000, outbound 402, court never caches, fleet still unsigned — all printed in the footer, never hidden.
+
+### 71.3 The telescope pointed below the snowline
+
+#/gazette's weather strip graduates from a fixed "Overcast" to a barometer derived from `evidence.json` Δ:
+Δ ≤ +1ms → Fair; ≤ +5ms → Haze; otherwise Fog — **the only barometer in this repo is not a cloud, not Feng Shui — it is p99.**
+
+---

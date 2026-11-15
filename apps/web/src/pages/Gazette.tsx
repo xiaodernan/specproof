@@ -3,6 +3,8 @@ import { useI18n, type Locale } from "../i18n";
 import chronicle from "./chronicle.json";
 import stats from "./repoStats.json";
 import worldbook from "./worldbook.json";
+import evidence from "./evidence.json";
+import unsigned from "./unsigned.json";
 import { ProductIcon } from "../ui/ProductIcon";
 import "../styles/gazette.css";
 
@@ -30,6 +32,17 @@ export default function Gazette() {
   const worldNum = Number(stats.ledger_sections);
   const isoToday = new Date().toISOString().slice(0, 10);
   const isoWeek = new Date(Date.now() - 6 * 86_400_000).toISOString().slice(0, 10);
+  const baro = evidence.delta_vs_previous ? evidence.delta_vs_previous.worst_p99_delta_ms : null;
+  const p99 = evidence.latest ? Math.round(evidence.latest.worst_p99_ms) : null;
+  const obsUnsigned = unsigned.checks.find((c) => c.id === "observability-signature")?.status !== "signature-block-found";
+  const weatherName = baro === null ? (zh ? "无钟" : "No clock") : baro <= 1 ? (zh ? "微云" : "Fair") : baro <= 5 ? (zh ? "轻烟" : "Haze") : (zh ? "起雾" : "Fog");
+  const weatherLine = baro === null
+    ? (zh ? "证据件还不足两件，晴雨计还没写——敲一下：stress_smoke.py --json-report docs/evidence/<name>.json"
+         : "fewer than two evidence exhibits; the barometer has not been written yet. Strike one: stress_smoke.py --json-report docs/evidence/<name>.json")
+    : (zh
+        ? `端门判定：p99 ${p99}ms · Δ ${baro >= 0 ? "+" : ""}${baro.toFixed(1)}ms · git 双件同压一机一门`
+        : `front door: p99 ${p99}ms · Δ ${baro >= 0 ? "+" : ""}${baro.toFixed(1)}ms · both exhibits on this host, this lane`);
+
   const entryNum = entries.toLocaleString();
 
   return (
@@ -112,13 +125,13 @@ export default function Gazette() {
 
         <aside className="gazette-column gazette-weather">
           <h3>{zh ? "明日天气" : "TOMORROW'S WEATHER"}</h3>
-          <p className="gazette-weather-big">{zh ? "多 云" : "Overcast"}</p>
-          <p className="gazette-weather-line">{zh ? "偶有 Redis 时延，东南风，适合验收。" : "Occasional Redis latency, SE wind. Good day for verification."}</p>
-          <h4>{zh ? "通 知" : "NOTICES"}</h4>
+          <p className="gazette-weather-big">{weatherName}</p>
+          <p className="gazette-weather-line">{weatherLine}</p>
+          <h4>{zh ? "通告" : "NOTICES"}</h4>
           <ul>
-            <li>{zh ? "铁证书房第 32 节上架：卷二十五《铁门如意》" : "The Reading Room shelved section 32: Vol. XXV The Iron Gate"}</li>
-            <li>{zh ? "巡夜·子时之后 7 站开放试玩" : "The Night Watch — 7 stations, open for a walk"}</li>
-            <li>{zh ? "语义缓存命中实录 #1781" : "Semantic cache hits, on record: #1781"}</li>
+            <li>{zh ? `git 证据件 Δ ${baro === null ? "无钟" : (baro >= 0 ? "+" : "") + baro.toFixed(1) + "ms"} · 端门 ${evidence.latest ? evidence.latest.verdict : "未敲"}` : `git evidence Δ ${baro === null ? "none" : (baro >= 0 ? "+" : "") + baro.toFixed(1) + "ms"} · door ${evidence.latest ? evidence.latest.verdict : "unstruck"}`}</li>
+            <li>{obsUnsigned ? (zh ? "巡天仍琥珀：等待真人 OBSERVABILITY.md 签字（灯下篇章等你）" : "the night watch stays amber: a human signature on OBSERVABILITY.md is still pending") : (zh ? "签字在场（巡天转玉绿）" : "signature present (night watch is jade)")}</li>
+            <li>{zh ? "本周每周一 03:00 UTC · weekly-stress.yml 自动敲门（artifact 存档）" : "every Monday 03:00 UTC · weekly-stress.yml strikes (artifact archive)"}</li>
           </ul>
         </aside>
       </div>

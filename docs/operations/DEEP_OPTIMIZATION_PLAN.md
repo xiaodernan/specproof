@@ -38671,3 +38671,26 @@ python scripts/live_lane_probe.py
 * 更新协议：chronicle 每次重推时**同盘**重跑 `build_crewcard_markdown.py`（本提交同时包含两端）；
 * chronicle 1,660 节 · 世界书 **77 卷**（本轮 +1）；chronicle 自身会在本提交重推并把本节实例入册；
 * court 永不缓存；「密码 123 全员进管理员」永久否决；PORTFOLIO_TOKEN 仍欠；真·fleet 遥测仍欠 OBSERVABILITY 签字。
+
+## #1860 《雪线以上》：ROADMAP-LIVE.md 入库 + #/gazette 天气改接 evidence Δ 晴雨计
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、ROADMAP-LIVE.md（自动生成，9 门，零承诺）
+
+* `scripts/build_roadmap_live.py` — 从 repoStats/chronicle/evidence/unsigned/engine 重渲染 `docs/ROADMAP-LIVE.md`；commit 时产出 **7 道门**，每道门标「门名 · 谁来敲（机器/真人/混合） · 阻塞（哪本证据）」——**没有一条写「会在某天完成」**；
+* 内容（快照）：weekly-stress 首班 = **已合入**、等 Monday cron；OBSERVABILITY.md = **awaiting-signature**（真人）；PORTFOLIO_TOKEN = **未配**（真人）；证据 2 件 **OK** Δ **+5.1ms**；**疑点**（本仓库里疑似 ~1000 个 hash-名 542-byte scratch 残片误入 commit —— 本卷**不擅自删**，交由你判）；chronicle **1,859 节**；LLM cached **75,638** (**46.4%**) prefix-hit；
+
+### 二、#/gazette 天气晴雨计
+
+* import evidence.json / unsigned.json；新增 `baro` 推导；weather-big 显示：**Δ ≤ +1ms → 微云；≤ +5ms → 轻烟；否则起雾**（当前 Δ +5.1ms → **轻烟**）；
+* weather-line 实印：「端门判定：p99 1537ms · Δ +5.1ms · git 双件同压一机一门」；
+* NOTICES 换 3 条 live：证据件 Δ+verdict · 巡天琥珀（OBSERVABILITY 等签）· weekly-stress cron；
+* UI **533/533** · build ✅ 751ms · tsc 0。
+
+### 三、诚实边界
+
+* ROADMAP 不是承诺表、不是排期、不是宣言——「欠债画红绿灯，不画口号」；
+* 天气不是云、不是 Rust、不是风水——本仓库只有 **p99**；
+* Volume LXXI《雪线以上 · Above the Snowline》入册（zh/en 对称）→ 世界书 **78 卷**（本轮 +1）；chronicle 1,660 节 +本节= 1,661；
+* court 永不缓存；「密码 123 全员进管理员」永久否决；真·fleet 遥测仍欠签字。
