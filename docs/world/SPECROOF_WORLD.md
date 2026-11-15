@@ -2873,3 +2873,38 @@ CSS：screen 不显示 · print 才显示 · 边纸不属于卡里
 Δ ≤ +1mm/s → 微云；≤ +5ms → 轻烟；否则起雾——**本仓库目前唯一的晴雨计不是乌云不是风水，是 p99**。
 
 ---
+## 卷七十二 · 灯影千重（The Many Shadows of the Lamp）
+
+> 灯会投出三重影子——这不是瑕疵，是灯在说话。
+> 本卷把"用户将一辈子会看见却永远不会被告知不是谎的三件事"
+> 摆在桌面上：灯影，不是影子；影子才是谎。
+
+### 72.1 灯影三则（铁证词典第 15 条入册）
+
+| 灯影 | 真相 | 为什么留它 |
+|---|---|---|
+| ① Spring Cloud 车道 137/137 全绿 · off-line `mvn -o` | 没有任何 live 实例跑过；green build ≠ prod liveness | 「绿色 CI」不是生产许可——把它写在眼前比悄悄绿着更安全 |
+| ② #/insight 后台 admin/operator RBAC fail-closed | 「密码 123 全员进」永远不实现 | 本门从来不开给任何人一个「共享口令」的借口 |
+| ③ court/judge 车道永远 `stream=True + include_usage=True` · court 永不入缓存 | `client_policy.py` 硬拒 evidence kinds | 法庭的白光只照见此刻——不能被记忆冒充 |
+
+### 72.2 灯影的家规
+
+1. **灯影永远署名**——每道灯影都挂"这是灯影，不是 bug，也不是真相"的招牌；
+2. **灯影不许增长**——本仓库至多三则；再加一则需要你真人点头；
+3. **灯影不是遮羞布**——它是「这里从未有人（包括我）撒过谎，只有这里还没亮」的印章；
+4. **灯影可查**——铁证词典第 15 条 anchor 列表就是灯影的入口。
+
+### 72.3 三灯影排行成分（实敲出它们）
+
+| 灯影 | 实敲时刻 |
+|---|---|
+| ① | `mvn -o test`（Java 25.0.1）→ gateway 84 + discovery 1 + config 1 + control-plane 51 = **137/137**；本机 **0** 次 live 启动 specproof-app |
+| ② | `/api/v1/admin/users` — **503**（"Multi-tenant auth is not enabled"）· `/api/v1/llm/usage/summary` — **503**（"API key not configured…"） |
+| ③ | providers/openai_compatible.py L684 `stream=True` + L685 `include_usage=True` · client_policy.py:18-21 lane_kinds **court/judge 硬拒** |
+
+### 72.4 影子走开的一天
+
+如果某一天哪盏灯亮了——① 有 rack 起来，② 有真人签 SPECIFIC 文件，③ 法庭居然能被缓存——
+本卷成了历史。在这之前，它是照在墙上的那三行字。**不是诗，是户型图。**
+
+---

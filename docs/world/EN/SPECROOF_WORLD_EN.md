@@ -2747,3 +2747,38 @@ another docs/crewcard.md lands in git, and the repo's own doorway begins to spea
 Δ ≤ +1ms → Fair; ≤ +5ms → Haze; otherwise Fog — **the only barometer in this repo is not a cloud, not Feng Shui — it is p99.**
 
 ---
+## Volume LXXII · The Many Shadows of the Lamp（卷七十二 · 灯影千重）
+
+> A lamp casts three shadows — not a flaw, a voice.
+> This volume places on the table "three truths the user will see one day, and yet will never be told they are a lie" —
+> shadows, not spectres; spectres would be the lies.
+
+### 72.1 The three lamp-shadows (Iron Lexicon #15, on the shelf)
+
+| Shadow | Truth | Why kept |
+|---|---|---|
+| ① Spring Cloud lane 137/137 green · off-line `mvn -o` | nothing has ever run live; green build ≠ prod liveness | "green CI" is no prod licence — printed in the face of it, safer than quiet green |
+| ② `#/insight` admin/operator RBAC fail-closed | a "password 123 for everybody" will never be built | this door never offers anybody a shared-secret excuse |
+| ③ court/judge lanes always `stream=True + include_usage=True` · court never cached | `client_policy.py` hard-refuses evidence kinds | the judge's light marks only this sitting — never a memory impersonating it |
+
+### 72.2 House rules of the lamp-shadows
+
+1. **name every shadow** — each shadow hangs a plaque: "this is a shadow, not a bug, and not the truth";
+2. **shadows may not multiply** — at most these three; a fourth requires your real nod;
+3. **a shadow is not a fig leaf** — it is a seal saying "nobody here (including me) ever lied; the light just has not arrived on this one yet";
+4. **every shadow is searchable** — the Iron Lexicon anchor list is the entrance to each shadow.
+
+### 72.3 Struck live at the source
+
+| Shadow | Struck at |
+|---|---|
+| ① | `mvn -o test` (Java 25.0.1) → gateway 84 + discovery 1 + config 1 + control-plane 51 = **137/137**; this host **never** live-booted specproof-app |
+| ② | `/api/v1/admin/users` → **503** ("Multi-tenant auth is not enabled") · `/api/v1/llm/usage/summary` → **503** ("API key not configured…") |
+| ③ | providers/openai_compatible.py L684 `stream=True` + L685 `include_usage=True` · client_policy.py:18-21 — court/judge hard-refused |
+
+### 72.4 The day the shadows walk away
+
+If one day a shadow lit — ① a rack boots specproof-app, ② a human signs OBSERVABILITY.md, ③ the court could ever cache —
+this volume becomes history. Until that day, it stays as three lines of print on the wall. **Not a poem — a floor plan.**
+
+---

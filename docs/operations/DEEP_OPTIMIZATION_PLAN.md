@@ -38694,3 +38694,29 @@ python scripts/live_lane_probe.py
 * 天气不是云、不是 Rust、不是风水——本仓库只有 **p99**；
 * Volume LXXI《雪线以上 · Above the Snowline》入册（zh/en 对称）→ 世界书 **78 卷**（本轮 +1）；chronicle 1,660 节 +本节= 1,661；
 * court 永不缓存；「密码 123 全员进管理员」永久否决；真·fleet 遥测仍欠签字。
+
+## #1861 铁证词典第 15 条「灯影三则」+ Volume LXXII《灯影千重》：三道至今没被关掉的灯影，摆上桌面
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、改动
+
+* `apps/web/src/pages/lexicon.copy.ts` — LEXICON 新增第 15 条 entry **灯影三则 · The Three Lamp-Shadows**：
+  * ① Spring Cloud 137/137 off-line `mvn -o` 全绿，**零 live 实例**；
+  * ② `#/insight` RBAC fail-closed，**「密码 123 全员进」永远不实现**；
+  * ③ court/judge 车道 stream+include_usage，**client_policy.py 硬拒入缓存**；
+  * anchor：DEEP_OPTIMIZATION_PLAN.md#1843 · infra/prometheus/prometheus.yml · providers/client_policy.py · #/insight；
+* `Lexicon.tsx` 文档注释 14→15 条；build/tests 全绿；build OK 327ms；UI **533/533**。
+
+### 二、它缝补了什么
+
+用户第一节问「怎么使用，而不是留三道影子」——这一轮**不拆影子，只给影子装上铭牌**：
+每个用户都能在「铁证词典」里检索到「灯影三则」，看到三句真话（全部 anchor 可 git show），
+看不见的阴影就所剩无几。**影子不可怕，没被命名的影子才可怕。**
+
+### 三、诚实边界
+
+* 盲点登记：本仓库至多三则灯影；再加需你真人点头——本卷不是借口列表的广场；
+* Volume LXXII《灯影千重 · The Many Shadows of the Lamp》入册（zh/en 对称）→ 世界书 **79 卷**（本轮 +1）；chronicle 1,662 节；
+* UI 533/533 stays · gate 51/51 stays · court 永不缓存；
+* lexicon.test 通过（14→15 条不钉死数量）；「密码 123 全员进管理员」永久否决。

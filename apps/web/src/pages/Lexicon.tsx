@@ -4,7 +4,7 @@ import { LEXICON, type LexiconEntry } from "./lexicon.copy";
 import "../styles/verification.css";
 
 /**
- * 铁证词典 · Iron Lexicon — the 14 entries of
+ * 铁证词典 · Iron Lexicon — the 15 entries of
  * docs/world/APPENDIX_IRON_LEXICON.md, readable in one tap.
  *
  * Search filters as you type; the match is over term + gloss + iron prose,

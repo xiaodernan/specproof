@@ -144,4 +144,13 @@ export const LEXICON: LexiconEntry[] = [
     },
     anchor: "providers/openai_compatible.py",
   },
+  {
+    term: "灯影三则",
+    gloss: { zh: "至今没有被关掉、但也从来不假装不是灯影的三件事", en: "three shadows never switched off, never pretending not to be shadows" },
+    iron: {
+      zh: "① Spring Cloud 车道 **137/137 全绿，且全部 off-line `mvn -o`**——没有任何 live 实例跑过；green build ≠ prod liveness。② `#/insight` 后台是 admin/operator RBAC fail-closed——「密码 123 全员进」**永远不实现**。③ court / judge 车道永远走 `stream=True + include_usage=True`，**court 永不进缓存**——`client_policy.py` 硬拒。",
+      en: "① The Spring Cloud lane is **137/137 green, off-line `mvn -o` only** — nothing has ever run live; green build ≠ prod liveness. ② `#/insight` sits behind admin/operator RBAC fail-closed — a ‘password 123 for everybody’ **will never be built**. ③ Court / judge lanes always ride `stream=True + include_usage=True` — **court never enters the cache**; `client_policy.py` hard-refuses it.",
+    },
+    anchor: "docs/operations/DEEP_OPTIMIZATION_PLAN.md#1843 · infra/prometheus/prometheus.yml · providers/client_policy.py · #/insight",
+  },
 ];
