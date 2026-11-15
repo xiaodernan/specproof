@@ -38275,3 +38275,31 @@ python scripts/live_lane_probe.py
 * cache_hit_rate 0.464 的统计口径 = 全部 prompt token（含未报 cached 的 17 行里扣减 basis）——**这个口径本来就是近似**，`#/engine` 页面上有同样标注；
 * 服务商侧 prefix cache 实测**不可重复**：同一长文两次发起，两次都 None——不承诺、不保证、不拟 SLA；
 * 「密码 123 全员进管理员」永久否决；Observability 签字/PORTFOLIO_TOKEN 仍欠；web 搜索仍 402。
+
+## #1846 第五把本机钥匙：specproof_heat_v1——真实点按气候图（Insight 真格子 + Mint 第五 KPI）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、此前的现状（摸底事实）
+
+`apps/web/src` 全文 localStorage 点名仅 `specproof_reviewer` ×9 · `specproof_locale` ×2 · `specproof_gestures_v1` ×1
+（另：tour/onboarding/drill/gestures 有游标常量，inspect 过）——**没有任何代码记录「这个浏览器急躁地敲过哪里」**。
+
+### 二、交付物
+
+1. `apps/web/src/telemetry/behavior.ts` — 环形采集器（`BEHAVIOR_KEY="specproof_heat_v1"`）：
+   * 采集三事件：`view` / `dwell(ms)` / `rage`（同一元素签名 `tag.class|前 24 字` · 2s 窗内 ≥3 次）；**不采集键值、表单、密码、身份**；
+   * 容量 1200（oldest 溢出），quota 超限降级丢弃最老一半仍不抛；`currentPath()` 无 hash 时回退 `/`；
+   * 纯函数 `appendHeat` / `deriveHeat` 可单测（`behavior.test.ts` 2 组：bounded-cap · full derivation）。
+2. `main.tsx` 启动即 `attachBehaviorTracking()`（hashchange + visibilitychange + capture-phase click，全部 passive）。
+3. **洞察舱（#/insight）新增全宽「本机真实点按 · 气候图」板块**：事件数 · 不同页面 · 视图 · 中位停留 · 秒退 <4s · 跨度；常驻页面 top8（视图/停留表）；暴怒榜 top5；一键「清空本机轨迹」（`clearHeat()`）；**空态文案是「沉默」而非「零」**；
+4. **印记（#/mint）第五 KPI**：「点按事件」+ 全宽 `mint-heat-panel`（4 个小数格：视图/不同页面/秒退/暴怒 + 最暴怒元素）；Mint 的 localStorage 声明同步为 5 把钥匙；
+5. 构建 ✅ 388ms · tsc 0 · **vitest 518/518**（此前 182 ——本机终于能全跑，含新增 4 用例）。
+
+### 三、诚实边界
+
+* **不上传、不汇总、不对账服务端**——全链路 localStorage；真·船队遥测仍然欠 `OBSERVABILITY.md` 签字；
+* **「密码 123 全员进管理员」永久否决**——本轮新增板块仍挂在 `useIdentityAccess` 的 RBAC fail-closed 后面，「全员进」一个字都没写；
+* 气候图默认空白页就是「沉默」——不会用假数据填充；
+* web 搜索 402 未变；spring off-line **137/137** stays；guide+ledger **51/51** stays；
+* Volume LVII《静默的梨花 · The Silent Pear Blossom》入册（zh/en 对称）→ **64 卷**（本轮 +1）。

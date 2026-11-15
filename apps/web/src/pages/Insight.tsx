@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useI18n, type Locale } from "../i18n";
 import { useIdentityAccess } from "../identity/useIdentityAccess";
 import { PermissionDenied } from "../identity/PermissionDenied";
 import { buildInsight } from "./insight.copy";
 import { loadOnboardingProgress } from "../ui/onboarding";
+import { clearHeat, deriveHeat, loadHeat } from "../telemetry/behavior";
 import { ProductIcon } from "../ui/ProductIcon";
 import "../styles/insight.css";
 
@@ -32,6 +33,9 @@ export default function Insight() {
   const zh = locale === "zh";
   const { checked, canManage } = useIdentityAccess();
   const data = useMemo(() => buildInsight(), []);
+  const [heatVersion, setHeatVersion] = useState(0);
+  const heat = useMemo(() => loadHeat(), [heatVersion]);
+  const heatSummary = useMemo(() => deriveHeat(heat), [heat]);
 
   const local = useMemo(() => {
     const out = { visits: 0, routes: [] as { path: string; at: string }[] };
@@ -222,6 +226,67 @@ export default function Insight() {
               </ol>
             </>
           )}
+        </section>
+
+        {/* ── This browser's raw tap/dwell climate ───────────── */}
+        <section className="insight-panel insight-heat-panel">
+          <div className="insight-heat-head">
+            <div>
+              <h2>{zh ? "本机真实点按 · 气候图（specproof_heat_v1）" : "THIS BROWSER'S RAW TAPS · the climate chart"}</h2>
+              <p className="insight-heat-sub">{zh ? "这个浏览器亲手敲出的真实轨迹——路由视图、停留毫秒数、2 秒内连敲 3 次的暴怒点击。只读 localStorage，不联网、不上报、不代他人代写。" : "Trace struck by this very browser — route views, dwell in milliseconds, rage-taps (3 taps inside 2s). Read-only localStorage; never uploaded, never written on anyone's behalf."}</p>
+            </div>
+            <button
+              type="button"
+              className="insight-heat-clear"
+              onClick={() => {
+                clearHeat();
+                setHeatVersion((v) => v + 1);
+              }}
+              disabled={heatSummary.events === 0}
+            >
+              {zh ? "清空本机轨迹" : "Clear this browser's trace"}
+            </button>
+          </div>
+          {heatSummary.events === 0 ? (
+            <p className="insight-local-empty">{zh ? "还没有任何敲击记录——这不是零，是沉默。去 #/tour 走一走，再回到本页。" : "No taps recorded yet — silence, not zero. Walk through #/tour once, then come back."}</p>
+          ) : (
+            <>
+              <div className="insight-heat-stats">
+                <div><p>{heatSummary.events}</p><span>{zh ? "事件数" : "events"}</span></div>
+                <div><p>{heatSummary.distinctRoutes}</p><span>{zh ? "不同页面" : "distinct routes"}</span></div>
+                <div><p>{heatSummary.views}</p><span>{zh ? "路由视图" : "views"}</span></div>
+                <div><p>{heatSummary.medianDwellSec}s</p><span>{zh ? "中位停留" : "median dwell"}</span></div>
+                <div><p>{heatSummary.quickBounces}</p><span>{zh ? "秒退次数 (<4s)" : "quick bounces (<4s)"}</span></div>
+                <div><p>{heatSummary.spanMin}m</p><span>{zh ? "轨迹跨度" : "span"}</span></div>
+              </div>
+              <div className="insight-heat-cols">
+                <div>
+                  <h3>{zh ? "常驻页面（真实）" : "Resident routes (real)"}</h3>
+                  <table className="insight-heat-table">
+                    <thead><tr><th>{zh ? "页面" : "route"}</th><th>{zh ? "次数" : "views"}</th><th>{zh ? "停留" : "dwell"}</th></tr></thead>
+                    <tbody>
+                      {heatSummary.routes.map((r) => (
+                        <tr key={r.path}><td><code>{r.path}</code></td><td>{r.views}</td><td>{Math.round(r.dwellMs / 1000)}s</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div>
+                  <h3>{zh ? "暴怒点按（真实）" : "Rage taps (real)"}</h3>
+                  {heatSummary.rageTotal === 0 ? (
+                    <p className="insight-local-empty">{zh ? "零暴怒——要么顺利，要么耐心。" : "Zero rage — either lucky or patient."}</p>
+                  ) : (
+                    <ol className="insight-heat-rage">
+                      {heatSummary.rageTop.map((r) => (
+                        <li key={r.target}><code>{r.target}</code><span>×{r.count}</span></li>
+                      ))}
+                    </ol>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+          <p className="insight-heat-foot">{zh ? "事件仅存本机、随清缓存消失；本块永不上传——真·船队遥测需 OBSERVABILITY.md 签字。" : "Events live only on this device and vanish with your cache; this block never uploads — real fleet telemetry needs OBSERVABILITY.md signatures."}</p>
         </section>
 
         {/* ── Personas ───────────────────────────────────────── */}

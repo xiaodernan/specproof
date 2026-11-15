@@ -5,13 +5,14 @@ import { loadOnboardingProgress } from "../ui/onboarding";
 import { readDrillRecord, tierIndexFor, TIERS } from "./drill.copy";
 import { DRILL_TOTAL } from "./drillQuestions";
 import { GESTURES } from "./gestures.copy";
+import { loadHeat, deriveHeat } from "../telemetry/behavior";
 import { ProductIcon } from "../ui/ProductIcon";
 import "../styles/mint.css";
 
 /**
  * The Mint — the visitor's own vault. Every number here is read fresh from
  * THIS browser's localStorage (specproof_tour_v1 / specproof_drill_v1 /
- * specproof_gestures_v1 / specproof_onboarding_v1). Nothing is uploaded,
+ * specproof_gestures_v1 / specproof_onboarding_v1 / specproof_heat_v1). Nothing is uploaded,
  * nothing is averaged across users, nothing is inferred. If storage cannot
  * be read, the page says "unknown", never "0".
  */
@@ -39,6 +40,7 @@ export default function Mint(): JSX.Element {
   const onboarding = useMemo(() => loadOnboardingProgress(), []);
   const drill = useMemo(() => readDrillRecord(), []);
   const gestures = useMemo(() => readGestureCollected(), []);
+  const heat = useMemo(() => deriveHeat(loadHeat()), []);
 
   const visited = onboarding.status === "ok" ? Object.entries(onboarding.progress.visited) : [];
   const lastFive = [...visited].sort((a, b) => (a[1] < b[1] ? 1 : -1)).slice(0, 5);
@@ -65,6 +67,7 @@ export default function Mint(): JSX.Element {
           <div className="mint-kpi"><p className="mint-kpi-v">{drill.best}/{DRILL_TOTAL}</p><p className="mint-kpi-l">{L("快问最好成绩", "drill best")}</p></div>
           <div className="mint-kpi"><p className="mint-kpi-v">{gestures.status === "ok" ? gestures.collected.size : gestures.status === "absent" ? 0 : "—"}/{GESTURES.length}</p><p className="mint-kpi-l">{L("十四式已收", "gestures collected")}</p></div>
           <div className="mint-kpi"><p className="mint-kpi-v">{onboarding.status === "ok" ? visited.length : "?"}</p><p className="mint-kpi-l">{L("脚迹次数", "visits recorded")}</p></div>
+          <div className="mint-kpi"><p className="mint-kpi-v">{heat.events}</p><p className="mint-kpi-l">{L("点按事件", "tap events")}</p></div>
         </div>
       </header>
 
@@ -141,6 +144,22 @@ export default function Mint(): JSX.Element {
             </ol>
           )}
         </section>
+
+        {/* ── the tap climate (specproof_heat_v1) ───────────────── */}
+        <section className="mint-panel mint-heat-panel">
+          <h2>{L("点按气候（specproof_heat_v1）", "The Tap Climate (specproof_heat_v1)")} <span className="mint-panel-note">{L("这个浏览器亲手敲出的真实轨迹", "the raw trail this browser typed out itself")}</span></h2>
+          <div className="mint-heat-stats">
+            <div><p>{heat.views}</p><span>{L("路由视图", "views")}</span></div>
+            <div><p>{heat.distinctRoutes}</p><span>{L("不同页面", "routes")}</span></div>
+            <div><p>{heat.quickBounces}</p><span>{L("秒退(<4s)", "bounces(<4s)")}</span></div>
+            <div><p>{heat.rageTotal}</p><span>{L("暴怒点按", "rage taps")}</span></div>
+          </div>
+          {heat.rageTop.length > 0 ? (
+            <p className="mint-footnote">{L("最暴怒点按", "most-raged target")}: <code>{heat.rageTop[0].target}</code> ×{heat.rageTop[0].count} — {L("完整气候图见洞察舱 #/insight", "full climate chart at #/insight")}</p>
+          ) : (
+            <p className="mint-footnote">{L("还没有暴怒点按；要清空本机轨迹，同样在洞察舱 #/insight", "no rage taps yet; to clear this trace, head to #/insight")}</p>
+          )}
+        </section>
       </div>
 
       {/* ── the personal certificate ─────────────────────────────── */}
@@ -160,8 +179,8 @@ export default function Mint(): JSX.Element {
         <ProductIcon name="shield" size={13} />
         <p>
           {zh
-            ? "本页只读取本地存储（specproof_tour_v1 / specproof_drill_v1 / specproof_gestures_v1 / specproof_onboarding_v1）——不上报、不汇总、不与服务端对账。这一枚印不是验收报告；真实验收仍以矩阵与人签为准。船队级真实遥测见 docs/operations/OBSERVABILITY.md。"
-            : "This page reads only local storage (specproof_tour_v1 / specproof_drill_v1 / specproof_gestures_v1 / specproof_onboarding_v1) — nothing is uploaded or reconciled with the server. These marks are not a verification report; real acceptance still hangs on the matrix and a human signature. For real fleet telemetry see docs/operations/OBSERVABILITY.md."}
+            ? "本页只读取本地存储（specproof_tour_v1 / specproof_drill_v1 / specproof_gestures_v1 / specproof_onboarding_v1 / specproof_heat_v1）——不上报、不汇总、不与服务端对账。这一枚印不是验收报告；真实验收仍以矩阵与人签为准。船队级真实遥测见 docs/operations/OBSERVABILITY.md。"
+            : "This page reads only local storage (specproof_tour_v1 / specproof_drill_v1 / specproof_gestures_v1 / specproof_onboarding_v1 / specproof_heat_v1) — nothing is uploaded or reconciled with the server. These marks are not a verification report; real acceptance still hangs on the matrix and a human signature. For real fleet telemetry see docs/operations/OBSERVABILITY.md."}
         </p>
       </footer>
     </div>

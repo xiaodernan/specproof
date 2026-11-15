@@ -2182,3 +2182,54 @@ Both real rows are now in `.local/llm_usage.jsonl` (41 → **43**); `engine.json
 * "white light 100% hit rate" in any PR is advertising, not iron evidence.
 
 ---
+## Volume LVII · The Silent Pear Blossom（卷五十七 · 静默的梨花）
+
+> The pear blossom does not speak; it falls at your feet — it is not blooming for others, nor for warning others.
+> This volume is about the raw trail this very browser typed out itself: not one event was written on your behalf,
+> not one number came from somebody else's hand.
+
+### 57.1 The climate chart counts exactly five things
+
+| Sample | Meaning |
+|---|---|
+| `view` | the hash route became visible (including first paint) |
+| `dwell` | milliseconds the route was truly in front of a human (hidden→visible boundaries included) |
+| `rage` | 3+ taps on the same element signature (tag.class|first 24 chars of text) inside 2 seconds |
+| `route` | the roll-up: route · count · dwell |
+| `span` | minutes between the first and the last event |
+
+Capacity: 1200 events (a ring). When full, the oldest event is pushed out — **it will never push your key out, because it never touches keys.**
+
+### 57.2 The five things the climate chart never collects
+
+1. Keystrokes (what the keyboard typed does not exist here);
+2. Form contents (any input/textarea value);
+3. Passwords (they never reach the Insight Deck either);
+4. Real identities (no usernames, no emails, no device fingerprints);
+5. Other people's browsers (each browser sees only its own climate chart).
+
+### 57.3 Why the fifth key was cut
+
+Behind that door there were only four keys: specproof_tour_v1 (six seals), specproof_onboarding_v1 (footsteps), specproof_gestures_v1 (the fourteen), specproof_drill_v1 (the drill).
+**They certify what this browser did — none of them certifies where it grew impatient.**
+
+The new key `specproof_heat_v1` is cut precisely for impatience: quick bounces (<4s dwell) · the rage-tap hall of fame · the resident-route table — all on your device, all read-only, all erasable with one tap (Insight Deck: "Clear this browser's trace").
+
+### 57.4 The climate chart shows up in three audiences
+
+| Place | Role |
+|---|---|
+| Insight Deck (#/insight, RBAC fail-closed) | the "THIS BROWSER'S RAW TAPS" banner — the only cell of real data an admin can see |
+| The Mint (#/mint, marks of your own hand) | the fifth KPI "tap events" + the climate panel: views / distinct routes / quick bounces / rage taps |
+| Chronicle & ledger | recorded from #1846: the three-event sampling and the capacity cap |
+
+### 57.5 The house rules of the climate chart
+
+* **localStorage only, never the network** — no endpoint, no webhook, no beacon;
+* **silence is not zero** — the page says "silence", never "zero visits";
+* **one-tap erasure** — `clearHeat()` wipes the whole book;
+* **PV is not truth** — the chart answers "how impatient was this browser", never "who is this person".
+
+When the blossoms fill the ground, the vault's seal is complete — until that day, this volume is just one letter written by one browser, never mailed.
+
+---

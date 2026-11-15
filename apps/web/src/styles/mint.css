@@ -90,3 +90,12 @@
   .mint-certificate-body { color: #221d10; }
   .mint-certificate-kicker { color: #8a6d1f; }
 }
+
+.mint-kpis { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .mint-kpis { grid-template-columns: repeat(3, 1fr); } }
+.mint-heat-panel { grid-column: span 12; }
+.mint-heat-panel code { font-family: var(--font-mono); font-size: .72rem; color: #ffb3a0; overflow-wrap: anywhere; }
+.mint-heat-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.mint-heat-stats > div { border: 1px solid rgba(255,255,255,.07); border-radius: 8px; padding: 10px 12px; text-align: center; background: rgba(255,255,255,.02); }
+.mint-heat-stats p { font-size: 1.25rem; font-weight: 700; color: #f3ead2; margin: 0; font-variant-numeric: tabular-nums; }
+.mint-heat-stats span { font-size: 9px; letter-spacing: .2em; text-transform: uppercase; color: #8d97b3; display: block; margin-top: 3px; }
