@@ -22,3 +22,6 @@
 .fabric-evidence-ok strong { color: #a5f2d9; }
 .fabric-evidence-blown strong { color: #ff9f9f; }
 .fabric-evidence-note { margin: 10px 0 0; font-size: .66rem; color: #5f6b86; line-height: 1.8; border-top: 1px dashed rgba(165, 242, 217, .2); padding-top: 9px; }
+.fabric-evidence-delta { margin: 10px 0 0; font-size: .72rem; color: #9fdcb7; line-height: 1.9; }
+.fabric-evidence-delta code { font-family: var(--font-mono); color: #8ec5ff; font-size: .66rem; }
+.fabric-evidence-delta strong { color: #d5f5e1; font-variant-numeric: tabular-nums; }

@@ -38499,3 +38499,34 @@ python scripts/live_lane_probe.py
 * artifact 不是 git-tracked 证据——把 artifact 真正入库仍是下一个动作（Volume LXV）；
 * Volume LXIV《启航日 · The Day of Sailing》入册（zh/en 对称）→ 世界书 **71 卷**（本轮 +1）；chronicle 1,654 节；
 * UI 521/521 stays · gate 51/51 stays · court 永不缓存；「密码 123 全员进管理员」永久否决。
+
+## #1854 归港复航：两件证据落库 → build_evidence.py 出 Δ → #/fabric 卡显示「只读对比」
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、本轮实敲（2026-11-16T17:28Z）
+
+`stress_smoke.py --warmup 2 --concurrency 48 --rounds 2 --per-thread 2 --timeout 10.0`
+
+| 轮 | p50 / p95 / p99 | 结果 |
+|---|---|---|
+| round 1 | 15.9 / 1159 / 1533ms | 96/96 · 0 err |
+| round 2 | 16.5 / 1043 / 1537ms | 96/96 · 0 err |
+| 判定 | **OK**（worst 1537ms < 5000ms） | 19,871,808 B ×2 |
+
+落库 `docs/evidence/2026-11-16-static-warm-2.json` → **两件证据达成**（17:20Z / 17:28Z，间距 ~8 分钟）。
+
+### 二、build_evidence.py 修订（v1 → v1.1）
+
+* 排序关键字修复：文件名在同前缀时逆序会买凶杀「.json vs -2.json」——改为 ISO `started_utc` 字符串逆序（ISO 字典序 = 时间序）；
+* 新增 `delta_vs_previous`（nullable）：vs_file · worst_p99_delta_ms · avg_p95_delta_ms · bytes_delta · total_delta；**Verbatim、不评分**；
+* 实算（2nd vs 1st）：**worst p99 +5.1ms · avg p95 +5.6ms · bytes +954,048 · total 0**；
+* 空目录仍给 `latest: null`；一件时 `delta_vs_previous: null`；
+* UI：`#/fabric` 证据卡新增一行「Δ vs 上一件 · 只读对比，不做正/反打分」，签名数字直接标在卡上；
+
+### 三、诚实边界
+
+* Δ 是文字语气，**永远不红底**；本机两件次均在 ±5ms 内 —— 高负载 23 容器的前端门在此噪声内；
+* UI 521/521 stays · tsc 0 · build 391ms · gate 51/51 stays；
+* Volume LXV《归港复航 · The Homecoming, Repeated》入册（zh/en 对称）→ 世界书 **72 卷**（本轮 +1）；chronicle 1,655 节；
+* court 永不缓存；「密码 123 全员进管理员」永久否决；PORTFOLIO_TOKEN / Observability 签字仍欠。

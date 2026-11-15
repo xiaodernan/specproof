@@ -68,6 +68,18 @@ export default function FabricStress(): JSX.Element {
             <span>{L("最差 p99", "worst p99")} <strong>{Math.round(evidence.latest.worst_p99_ms)}ms</strong></span>
             <span className={evidence.latest.verdict === "OK" ? "fabric-evidence-ok" : "fabric-evidence-blown"}>{L("判定", "verdict")} <strong>{evidence.latest.verdict}</strong></span>
           </div>
+          {evidence.delta_vs_previous && (
+            <p className="fabric-evidence-delta">
+              {L("Δ vs 上一件", "Δ vs previous")} (<code>{evidence.delta_vs_previous.vs_file}</code>):{" "}
+              {L("最差 p99", "worst p99")}{" "}
+              <strong>{evidence.delta_vs_previous.worst_p99_delta_ms >= 0 ? "+" : ""}{evidence.delta_vs_previous.worst_p99_delta_ms.toFixed(1)}ms</strong>
+              {" · avg p95 "}
+              <strong>{evidence.delta_vs_previous.avg_p95_delta_ms >= 0 ? "+" : ""}{evidence.delta_vs_previous.avg_p95_delta_ms.toFixed(1)}ms</strong>
+              {" · "}{L("流量", "traffic")}{" "}
+              <strong>{evidence.delta_vs_previous.bytes_delta >= 0 ? "+" : ""}{(evidence.delta_vs_previous.bytes_delta / 1048576).toFixed(2)}MB</strong>
+              {" — "}{L("只读对比；不做正/反打分。", "read-only comparison, no up/down score.")}
+            </p>
+          )}
           <p className="fabric-evidence-note">
             {L(
               "本卡片由 scripts/build_evidence.py 在构建期从证据件原样摘录；要让它更新，就敲一份新证据：stress_smoke.py --json-report docs/evidence/<名称>.json",

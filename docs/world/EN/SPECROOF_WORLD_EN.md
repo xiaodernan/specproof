@@ -2503,3 +2503,45 @@ This CI lane sails only after it merges into master — first strike Monday 03:0
 It will never auto-merge numbers into git — git accepts only human-certified evidence.
 
 ---
+## Volume LXV · The Homecoming, Repeated（卷六十五 · 归港复航）
+
+> One ship docking is a story; two dockings are a timetable —
+> five milliseconds slower on the second pass is not an ending, it is the starting line of every honest compare.
+> This volume delivers the ruler that can match flights: with two evidence files on the shelf, comparison may begin.
+
+### 65.1 Two real exhibits (same day, twenty minutes apart)
+
+| Exhibit | p99 (two rounds) | Verdict |
+|---|---|---|
+| 2026-11-16-static-warm.json (17:20Z) | 1532 / 1529ms · 19,394,784 B ×2 | OK |
+| 2026-11-16-static-warm-2.json (17:2xZ) | 1533 / 1537ms · 20,349,568 B ×2 | OK |
+
+**Δ (second vs first): worst p99 +5.1ms · avg p95 +5.6ms · traffic +0.91 MB.**
+Both files repeat 96×2 zero-error at p99 ≈ 1530ms — the front door on this host, under 23 containers, holds within ±5ms — **this is reproducibility, not a concert.**
+
+### 65.2 The route got updated (v1 → now)
+
+* `build_evidence.py` ordering is now ISO `started_utc` descending (filename ties at equal prefix sorted wrong — fixed);
+* the emitted doc gained `delta_vs_previous` (vs_file · worst_p99_delta_ms · avg_p95_delta_ms · bytes_delta · total_delta);
+* the `#/fabric` evidence card gained a "Δ vs previous · read-only comparison, no up/down score" line (numbers are signed, sourced from started_utc);
+* no SLO score, no pass-fraction banner, no "YoY +X%" applause — **there is no such persuasion in this repo; none of it is evidence.**
+
+### 65.3 Additions to the house rules
+
+1. **same-source comparison only** — both exhibits from this host, this lane;
+2. **Δ is never painted red** — Δ is a tone, never a verdict of good or bad;
+3. **Δ vanishes below two exhibits** — one file means one shelf, no compare.
+
+### 65.4 The chart (LXII → LXIV → LXV)
+
+```
+--warmup 2 strike → 2026-11-16-…json   (LXII·#1851)
+     ↓ build_evidence.py verbatim distillation
+evidence.json v1: latest + delta       (LXIII·#1852, LXV·#1854)
+     ↓ import · #/fabric card
+GIT EVIDENCE + Δ vs previous           (LXV·this volume)
+     ↓
+weekly-stress.yml every Monday strike  (LXIV·#1853)
+```
+
+---

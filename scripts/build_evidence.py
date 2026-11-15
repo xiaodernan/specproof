@@ -1,12 +1,3 @@
-#!/usr/bin/env python
-"""Build evidence.json — the git-tracked stress evidence, distilled for `#/fabric`.
-
-Reads docs/evidence/*.json (written by scripts/stress_smoke.py --json-report) and
-emits a compact summary into apps/web/src/pages/evidence.json. The figures are
-verbatim from the machine that produced them; nothing is recomputed, averaged,
-or smoothed. If the directory is empty we emit an honest "no evidence filed yet"
-document instead of fabricating a green row.
-"""
 import io
 import json
 import sys
@@ -18,20 +9,16 @@ ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE = ROOT / "docs" / "evidence"
 OUT = ROOT / "apps" / "web" / "src" / "pages" / "evidence.json"
 
-files = sorted(EVIDENCE.glob("*.json"), key=lambda p: p.name)
-picked = []
-for f in files:
-    try:
-        data = json.loads(f.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        picked.append({"file": f.name, "readable": False})
-        continue
+
+def distill(f: Path) -> dict:
+    data = json.loads(f.read_text(encoding="utf-8"))
     rounds = data.get("rounds", [])
     worst_p99 = max((r.get("p99_ms", 0) for r in rounds), default=0.0)
+    avg_p95 = sum(r.get("p95_ms", 0) for r in rounds) / len(rounds) if rounds else 0.0
     total_ok = sum(r.get("ok", 0) for r in rounds)
     total = sum(r.get("total", 0) for r in rounds)
     bytes_read = sum(r.get("bytes_read", 0) for r in rounds)
-    picked.append({
+    return {
         "file": f.name,
         "readable": True,
         "started_utc": data.get("started_utc", ""),
@@ -49,20 +36,51 @@ for f in files:
             for r in rounds
         ],
         "worst_p99_ms": worst_p99,
+        "avg_p95_ms": avg_p95,
         "total": total,
         "total_ok": total_ok,
         "bytes_read": bytes_read,
         "verdict": data.get("verdict", "unknown"),
-    })
+    }
 
-# newest first by filename convention (YYYY-MM-DD-name.json)
-picked.sort(key=lambda p: p.get("file", ""), reverse=True)
+
+files = sorted(EVIDENCE.glob("*.json"))
+picked = []
+for f in files:
+    try:
+        picked.append(distill(f))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        picked.append({"file": f.name, "readable": False})
+
+# newest first: ISO started_utc sorts lexicographically; unreadable files sink.
+def sort_key(p: dict) -> tuple[int, str]:
+    if p.get("readable") is False:
+        return (0, "")
+    return (1, str(p.get("started_utc", "")))
+
+
+picked.sort(key=sort_key, reverse=True)
+
+latest = picked[0] if picked else None
+delta = None
+if len(picked) >= 2 and picked[0].get("readable") is not False and picked[1].get("readable") is not False:
+    cur, prev = picked[0], picked[1]
+    delta = {
+        "vs_file": prev["file"],
+        "worst_p99_delta_ms": cur["worst_p99_ms"] - prev["worst_p99_ms"],
+        "avg_p95_delta_ms": cur["avg_p95_ms"] - prev["avg_p95_ms"],
+        "bytes_delta": cur["bytes_read"] - prev["bytes_read"],
+        "total_delta": cur["total"] - prev["total"],
+    }
+
 doc = {
     "version": 1,
     "source": "docs/evidence/*.json (stress_smoke.py --json-report output; this host)",
     "files_count": len(picked),
-    "latest": picked[0] if picked else None,
+    "latest": latest,
+    "delta_vs_previous": delta,
     "all": picked,
 }
 OUT.write_text(json.dumps(doc, ensure_ascii=False, indent=1), encoding="utf-8")
-print(f"evidence.json: {len(picked)} file(s); latest -> {(picked[0]['file'] if picked else 'none')}")
+latest_name = latest["file"] if latest else "none"
+print(f"evidence.json: {len(picked)} file(s); latest -> {latest_name}; delta -> {delta!r}")

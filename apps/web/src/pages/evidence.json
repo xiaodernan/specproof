@@ -1,11 +1,11 @@
 {
  "version": 1,
  "source": "docs/evidence/*.json (stress_smoke.py --json-report output; this host)",
- "files_count": 1,
+ "files_count": 2,
  "latest": {
-  "file": "2026-11-16-static-warm.json",
+  "file": "2026-11-16-static-warm-2.json",
   "readable": true,
-  "started_utc": "2026-11-15T17:20:51.540914+00:00",
+  "started_utc": "2026-11-15T17:28:07.829162+00:00",
   "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
   "concurrency": 48,
   "warmup_rounds": 2,
@@ -13,25 +13,63 @@
    {
     "total": 96,
     "ok": 96,
-    "p50_ms": 16.13070000166772,
-    "p95_ms": 1158.9732499996899,
-    "p99_ms": 1532.1360349968018
+    "p50_ms": 15.885849999904167,
+    "p95_ms": 1159.1339250016972,
+    "p99_ms": 1533.4500549995937
    },
    {
     "total": 96,
     "ok": 96,
-    "p50_ms": 16.63774999906309,
-    "p95_ms": 1031.5708749994883,
-    "p99_ms": 1528.5063649995209
+    "p50_ms": 16.519099999641185,
+    "p95_ms": 1042.5807250003345,
+    "p99_ms": 1537.2671949984579
    }
   ],
-  "worst_p99_ms": 1532.1360349968018,
+  "worst_p99_ms": 1537.2671949984579,
+  "avg_p95_ms": 1100.8573250010159,
   "total": 192,
   "total_ok": 192,
-  "bytes_read": 38789568,
+  "bytes_read": 39743616,
   "verdict": "OK"
  },
+ "delta_vs_previous": {
+  "vs_file": "2026-11-16-static-warm.json",
+  "worst_p99_delta_ms": 5.131160001656099,
+  "avg_p95_delta_ms": 5.585262501426769,
+  "bytes_delta": 954048,
+  "total_delta": 0
+ },
  "all": [
+  {
+   "file": "2026-11-16-static-warm-2.json",
+   "readable": true,
+   "started_utc": "2026-11-15T17:28:07.829162+00:00",
+   "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
+   "concurrency": 48,
+   "warmup_rounds": 2,
+   "rounds": [
+    {
+     "total": 96,
+     "ok": 96,
+     "p50_ms": 15.885849999904167,
+     "p95_ms": 1159.1339250016972,
+     "p99_ms": 1533.4500549995937
+    },
+    {
+     "total": 96,
+     "ok": 96,
+     "p50_ms": 16.519099999641185,
+     "p95_ms": 1042.5807250003345,
+     "p99_ms": 1537.2671949984579
+    }
+   ],
+   "worst_p99_ms": 1537.2671949984579,
+   "avg_p95_ms": 1100.8573250010159,
+   "total": 192,
+   "total_ok": 192,
+   "bytes_read": 39743616,
+   "verdict": "OK"
+  },
   {
    "file": "2026-11-16-static-warm.json",
    "readable": true,
@@ -56,6 +94,7 @@
     }
    ],
    "worst_p99_ms": 1532.1360349968018,
+   "avg_p95_ms": 1095.272062499589,
    "total": 192,
    "total_ok": 192,
    "bytes_read": 38789568,

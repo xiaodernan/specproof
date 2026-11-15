@@ -2630,3 +2630,45 @@ CI artifact（每周）              LXIV        自动亮灯
 它永远不自动把数字合进 git——git 只收人类确证的证据件。
 
 ---
+## 卷六十五 · 归港复航（The Homecoming, Repeated）
+
+> 一艘船回港一次是消息；回港两次是船期表——
+> 第二次比第一次慢了 5 毫秒，这不是故事的结尾，这是故事的起跑线。
+> 本卷交付的是「可以对航的尺子」：两件证据落库之后，才配谈比较。
+
+### 65.1 两件真证据（同一天、前后二十分钟）
+
+| 件 | p99（两轮） | 判定 |
+|---|---|---|
+| 2026-11-16-static-warm.json（17:20Z） | 1532 / 1529ms · 19,394,784 B ×2 | OK |
+| 2026-11-16-static-warm-2.json（17:2xZ） | 1533 / 1537ms · 20,349,568 B ×2 | OK |
+
+**Δ（第二件 vs 第一件）：worst p99 +5.1ms · avg p95 +5.6ms · 流量 +0.91 MB。**
+两件件重复同样 96×2、0 err、p99 ≈ 1530ms——本机前端门在 23 容器高负载下稳定于 ±5ms——**这才是可复核性，不是演唱会。**
+
+### 65.2 航线更新（v1 → 当前）
+
+* `build_evidence.py` 排序从文件名改为 ISO `started_utc` 逆序（文件名在同前缀时出错，已修复）；
+* 输出对象新增 `delta_vs_previous`（vs_file · worst_p99_delta_ms · avg_p95_delta_ms · bytes_delta · total_delta）；
+* `#/fabric` 证据卡新增「Δ vs 上一件 · 只读对比，不做正/反打分」一行（签名数字注明基于 started_utc 比较）；
+* 没有加任何 SLO 分数、没有百分比达标线、没有「同比 +X%」营销——**没有这种张罗，它们不是证据。**
+
+### 65.3 家规追加
+
+1. **比较必须同源**——两件都是同机同车道；
+2. **Δ 不许红底渲染**——Δ 只是一种文字语气，永远不暗示"好或坏"；
+3. **Δ 为 null 时卡面不会出现**——少于两件时宁缺毋现。
+
+### 65.4 航程图（LXII→LXIV→LXV）
+
+```
+--warmup 2 实敲 → 2026-11-16-…json   (LXII·#1851)
+     ↓ build_evidence.py verbatim distill
+evidence.json v1: latest+delta       (LXIII·#1852, LXV·#1854)
+     ↓ import · #/fabric 卡
+git 证据件 + Δ vs 上一件              (LXV·本卷)
+     ↓
+weekly-stress.yml 每周一自动敲        (LXIV·#1853)
+```
+
+---
