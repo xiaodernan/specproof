@@ -2774,3 +2774,35 @@ unsigned.json → #/last-call 欠签行          (LXVII #1856 · LXVIII #1857)
 「真·fleet 遥测」永远停在琥珀。它不撒谎——灯只有两种颜色是假的，第三种人人都认识。
 
 ---
+## 卷六十九 · 灯下书停（The Quiet Read）
+
+> 看书看到忘了关灯，这叫「灯下读书」。
+> 「灯下书停」是另一件事：灯下读完了，把书放下，趁没人看把那页抄成一张船员卡——
+> 卡上只有 git 有的东西，没有人按的印章。
+
+### 69.1 船员卡长什么样
+
+| 区块 | 内容 | 出厂源 |
+|---|---|---|
+| 头 | xiaodernan/specproof · SPECROOF · 船员卡 · 打印日期 | 仓库名 · `new Date()` |
+| 数字墙（8 格） | commits · 账本节数 · 世界书卷数 · 源码行数 · Python 测试文件 · 前端测试文件 · 证据 worst p99 · 证据判定（**全部以打印时 repoStats.json / evidence.json 为准，本卷不写死**） | repoStats.json · evidence.json |
+| 欠签（三条） | OBSERVABILITY.md：awaiting-signature · weekly-stress：merged · port 8000：port-free | unsigned.json（live 审计） |
+| 页脚 | 「本卡只刻本仓库 git-tracked 的事实，不是签证、不是验收、不是承诺——每一字节都敲得开：」 + 三段复核命令 | git 命令行 |
+
+### 69.2 灯下书停的家规
+
+1. **卡上不盖章**——没有签字行、没有「本人已确认」，一根红印也没有；
+2. **字节可复产**——卡上每一个数字都来自 locked 的 JSON（git show 立见原形）；
+3. **打印即福利**——A4 只保留这张卡；工作屏与宣传屏互不越界；
+4. **卡片只是一张卡片**——它永远不假装是「船的证书」；正式证书在 `#/dossier`。
+
+### 69.3 航程图（至 #1858）
+
+```
+weekly-stress · audit · evidence · repo stats
+     ↓  全部 git-tracked 的 JSON
+#/last-call 「打印船员卡」 → A4 舷窗
+CSS：screen 不显示 · print 才显示 · 边纸不属于卡里
+```
+
+---

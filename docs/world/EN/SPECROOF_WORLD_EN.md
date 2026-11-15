@@ -2648,3 +2648,35 @@ Green or not? It only turns jade the day a human signs — until that commit lan
 the lamp's third colour has always been the one everyone in this room knows.
 
 ---
+## Volume LXIX · The Quiet Read（卷六十九 · 灯下书停）
+
+> Reading until you forget to switch off the light is "reading under the lamp".
+> The quiet read is the other thing: after the book closes, before anybody notices, you copy down the page into a field card —
+> with only what git holds on it, and not one pressed stamp.
+
+### 69.1 What the crew card carries
+
+| Block | Contents | Source |
+|---|---|---|
+| head | xiaodernan/specproof · FIELD CARD · the printing date | repo name · `new Date()` |
+| the wall of eight | commits · ledger sections · world books · source lines · Python files · web suites · evidence worst p99 · evidence verdict (**all resolved at print time from repoStats.json / evidence.json — never hard-coded**) | repoStats.json · evidence.json |
+| still-unsigned (three) | OBSERVABILITY.md: awaiting-signature · weekly-stress: merged · port 8000: port-free | unsigned.json (live audit) |
+| foot | "This card prints only git-tracked facts — not a signature, not a seal, not a promise. Every digit re-opens:" + three re-verification commands | git shell |
+
+### 69.2 House rules of the quiet read
+
+1. **no stamps on the card** — no signature line, no "verified by me"; not a single red vermilion seal;
+2. **bytes, reproducible** — every number comes from a locked JSON (`git show` is one shell away);
+3. **print is the gift** — A4 keeps only this card; the reading screen and the flyer never overlap;
+4. **a card is only a card** — it never pretends to be "the certificate"; formal certificates live in `#/dossier`.
+
+### 69.3 The chart (through #1858)
+
+```
+weekly-stress · audit · evidence · repo stats
+     ↓  all git-tracked JSON
+#/last-call "Print the field card" → A4 at the porthole
+CSS: invisible on screen · visible in print · the workstation and the flyer never mix
+```
+
+---

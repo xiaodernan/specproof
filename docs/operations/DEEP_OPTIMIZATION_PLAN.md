@@ -38609,3 +38609,33 @@ python scripts/live_lane_probe.py
 * `weekly-stress-merged` 只证明文件在 repo，不证明首班已敲；`observability-signature` 只查存在性、不查身份；
 * Volume LXVIII《巡天一夜 · The Astronomer's Night》入册（zh/en 对称）→ 世界书 **75 卷**（本轮 +1）；chronicle 1,658 节；
 * court 永不缓存；「密码 123 全员进管理员」永久否决；真·fleet 遥测仍欠签字。
+
+## #1858 《灯下书停》：#/last-call 新增「船员卡」——A4 可打印的 git-tracked 字段卡（screen 隐藏 · 只有打印才显）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、改动
+
+* 新组件 `apps/web/src/pages/CrewCard.tsx` — 挂 `#/last-call`（在 WeeklyVoyage 之后）：
+  * **屏上**：唯一可见元素是一枚「打印船员卡 · Print the field card」按钮（`window.print()`）；
+  * **A4 打印**：整张卡独占一页（`@media print` 下 display:flex，其余 chrome 全部 display:none）：
+    - 头：xiaodernan/specproof · FIELD CARD · 打印日期；
+    - **数字墙（8 格）**：commits **2,499** · ledger **1,658** · worldbook **75** · LOC **499,125** · Python tests **609** · Web tests **69** · 证据 p99 **1537ms** · 判定 **OK**；
+    - **欠签（三条）**：OBSERVABILITY.md **awaiting-signature** · weekly-stress **merged** · port 8000 **port-free**；
+    - 页脚：「本卡只刻本仓库 git-tracked 的事实——不是签字、不是验收、不是承诺——每一字节敲得开：」 + 三条复核命令 + 出厂源署名。
+* `crew.css`：屏幕 display:none · @media print 才显 · A4 双线边框 · Georgia 衬线；
+* 数字全部来自 `repoStats.json / evidence.json / unsigned.json` **import 直读**——零重算、零硬编码；
+* 不含任何签字行、验收入章、密码——**一根红印也没有**；
+* Volume LXIX《灯下书停 · The Quiet Read》入册（zh/en 对称）→ 世界书 **76 卷**（本轮 +1）；chronicle 1,659 节；
+* UI **533/533** · build 271ms · tsc 0 · gate 51/51 stays。
+
+### 二、家规补充
+
+* 正式证书永远在 `#/dossier`——船员卡只是一张卡；本页按钮的名字永远不叫「签字」或「验收」；
+* 打印卡上的数字每一个都能 `git show` 复核（repoStats/evidence/unsigned 都在 repo 里）。
+
+### 三、诚实边界
+
+* 船员卡**不是**法律证书、**不是**生产许可、**不是**对任何人的承诺；
+* 真·fleet 遥测仍欠 OBSERVABILITY.md 签字（灯仍琥珀）；court 永不缓存；
+* 「密码 123 全员进管理员」永久否决；联网搜索仍 402。
