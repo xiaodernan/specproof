@@ -36662,3 +36662,30 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 本轮只清 `AgentJobDetail.tsx` 一个文件；**全量去夹杂仍是遗留大项**，按桶逐步收——不用一次假装完成；
 * file:// 目验能证明渲染不崩、徽章计数正确、localStorage 写入 ok；**未证明任何后端行为**；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1793 CommandPalette 去夹杂（全局搜索入口，双语实测通过）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `ui/CommandPalette.tsx`（Ctrl/Cmd+K 全局面板）全量双语化：
+  - `AGENT_ROUTES` / `CONSOLE_ROUTES` / `SECTION_LABELS` / `AGENT_JOB_SUBROUTES` → 全部 `Record<Locale,string>` + 调用时 `pick(locale)`；
+  - 主题行（"Switch to light/dark theme" 或 "切换到深色主题"——双 locale，单语输出）；
+  - 搜索框 placeholder、dialog aria-label、空状态、页脚词键（选择/navigate、打开/open、关闭/close、开启/toggle）；
+  - keywords 刻意保留双语（**两个语言用户的搜索行为都受益**；注释里写明这是有意设计）；
+  - zh：全中文；en：全英文——**任何一屏不再出现「工作台 Dashboard」这种残留**；
+* 一个普通缺陷顺手抓：agent 路由 `sub` 此前与 `label` 完全相同（同为 "Agent 总览"），
+  CommandPalette.test.tsx 唯一匹配门失败 → sub 改为独立 gloss（代理调度中枢 Console hub 等）；
+* **浏览器双语实测**（file:// 冒烟 + gate 临时 bypass，已恢复）：
+  - zh：Ctrl+K 打开 → 文本逐字为中文（「操作 / 切换到深色主题 / AGENT 路由 / Agent 总览 / 代理调度中枢 / 控制台 / 控制台 / 需求覆盖 / 逐项验收矩阵……」）；
+  - en：切换 locale → 文本逐字为英文（`ACTIONS / Agent overview / Console hub / CONSOLE / Dashboard / Overview & next steps...`）、**`hasChinese == false`**；
+  - 本地存储 specproof_locale 已切回 zh；
+* **187/187 UI 测试绿；全量 vitest 502/502 绿（含 #1790 的 5 个 coachData pins）；i18n parity 11/11；tsc 0；build ✅ in 262ms**。
+
+### 二、诚实边界
+
+* keywords 保留双语是**有意设计**（中英各匹配各自语言用户）——不是漏网残留，注释也写了；
+* 本文件以外还有约 50 个 A 桶文件（含 UiKit.tsx 75 处、drillQuestions、healthCategories 等）尚未收口——本条只证 CommandPalette 完成双语化；
+* 未验证 Tab 键盘焦点环序（无头环境无法枚举屏幕读屏顺序）；
+* 全量 `pytest tests/unit` 仍未跑完。

@@ -12,8 +12,19 @@ import { useTheme } from "../theme/useTheme";
 import { Kbd } from "./Kbd";
 import { MoonIcon, SearchIcon, SunIcon } from "./icons";
 import { listRecentJobs, recordRecentJob } from "./recentJobs";
+import { useI18n, type Locale } from "../i18n";
+
+// Every label on this surface renders per stored locale — zh mode shows 中文,
+// en mode shows English, never a "工作台 Dashboard" hybrid on a screen.
+// `keywords` are deliberately mixed-script: they serve BOTH locales' search
+// behavior (a zh query matches the zh terms, an en query matches the en
+// terms), so leaving them bilingual is a feature, not residue.
 
 type SectionId = "actions" | "recent" | "agent" | "console";
+
+type LocaleText = Record<Locale, string>;
+const pick = (locale: Locale, rec: LocaleText): string => rec[locale];
+const T = (zh: string, en: string): LocaleText => ({ zh, en });
 
 interface PaletteEntry {
   id: string;
@@ -27,50 +38,57 @@ interface PaletteEntry {
 
 interface RouteDef {
   path: string;
-  label: string;
-  sub?: string;
+  label: LocaleText;
+  sub?: LocaleText;
   keywords?: string;
 }
 
-const AGENT_ROUTES: RouteDef[] = [
-  { path: "#/agent", label: "Agent 总览", sub: "Agent overview" },
-  { path: "#/agent/new", label: "新建任务 · 仓库", sub: "New task — repo" },
-  { path: "#/agent/new/spec", label: "新建任务 · 规范", sub: "New task — spec" },
-  { path: "#/agent/new/review", label: "新建任务 · 提交", sub: "New task — review" },
-  { path: "#/agent/approvals", label: "审批收件箱", sub: "Approvals inbox" },
-  { path: "#/agent/settings", label: "Agent 设置", sub: "Console settings" },
+const agentRoutes = (): RouteDef[] => [
+  { path: "#/agent", label: T("Agent 总览", "Agent overview"), sub: T("代理调度中枢", "Console hub") },
+  { path: "#/agent/new", label: T("新建任务 · 仓库", "New task · repo"), sub: T("选择仓库", "Pick the repo") },
+  { path: "#/agent/new/spec", label: T("新建任务 · 规范", "New task · spec"), sub: T("编辑需求规格", "Write the spec") },
+  { path: "#/agent/new/review", label: T("新建任务 · 提交", "New task · review"), sub: T("审阅并提交", "Review & run") },
+  { path: "#/agent/approvals", label: T("审批收件箱", "Approvals inbox"), sub: T("等待你的审批", "Awaiting you") },
+  { path: "#/agent/settings", label: T("Agent 设置", "Agent settings"), sub: T("控制台配置", "Console settings") },
 ];
 
-const CONSOLE_ROUTES: RouteDef[] = [
-  { path: "#/dashboard", label: "工作台", sub: "总览与下一步行动 Dashboard" },
-  { path: "#/jobs/new", label: "新建验证", sub: "检查代码变更是否满足需求 Verify" },
-  { path: "#/jobs", label: "变更验收", sub: "验证任务与结果 Jobs" },
-  { path: "#/matrix", label: "需求覆盖", sub: "逐项验收矩阵 Matrix" },
-  { path: "#/contracts", label: "验收规则", sub: "契约与版本 Contracts" },
-  { path: "#/identity", label: "团队与权限", sub: "成员管理 Identity — users" },
-  { path: "#/identity/tokens", label: "访问令牌", sub: "Identity — tokens" },
-  { path: "#/billing", label: "用量与账单", sub: "套餐、订阅和使用量 Billing" },
-  { path: "#/settings", label: "模型连接", sub: "配置模型 API Key、协议与推理强度，测试真实连接" },
-  { path: "#/eval", label: "效果评测", sub: "Eval" },
-  { path: "#/health", label: "服务状态", sub: "环境检查与排障 Health" },
-  { path: "#/guide", label: "上手指南", sub: "SpecProof 是什么、怎么用、如何读结果" },
-  { path: "#/ui-kit", label: "UI Kit 设计系统", sub: "Design system style guide" },
+const consoleRoutes = (): RouteDef[] => [
+  { path: "#/dashboard", label: T("工作台", "Dashboard"), sub: T("总览与下一步行动", "Overview & next steps") },
+  { path: "#/jobs/new", label: T("新建验证", "New verification"), sub: T("检查代码变更是否满足需求", "Verify a change against its requirement") },
+  { path: "#/jobs", label: T("变更验收", "Verifications"), sub: T("验证任务与结论", "Verification jobs & verdicts") },
+  { path: "#/matrix", label: T("需求覆盖", "Requirement Coverage"), sub: T("逐项验收矩阵", "Requirement-by-requirement matrix") },
+  { path: "#/contracts", label: T("验收规则", "Contracts"), sub: T("契约与版本", "Contracts & versions") },
+  { path: "#/identity", label: T("团队与权限", "Team & Access"), sub: T("成员管理 · RBAC", "Members · RBAC") },
+  { path: "#/identity/tokens", label: T("访问令牌", "Access tokens"), sub: T("API 令牌管理", "Manage API tokens") },
+  { path: "#/billing", label: T("用量与账单", "Usage & Billing"), sub: T("套餐、订阅和使用量", "Plans, subscriptions and usage") },
+  { path: "#/settings", label: T("模型连接", "Model Connection"), sub: T("配置模型 API Key、协议与推理强度", "Configure the model gateway, keys, protocol and reasoning") },
+  { path: "#/eval", label: T("效果评测", "Effectiveness"), sub: T("F1 / 召回 / Precision", "F1 / recall / precision") },
+  { path: "#/health", label: T("服务状态", "Service Status"), sub: T("环境检查与排障", "Environment checks & triage") },
+  { path: "#/guide", label: T("上手指南", "Onboarding guide"), sub: T("SpecProof 是什么、怎么用、如何读结果", "What SpecProof is, how to run it, how to read results") },
+  { path: "#/ui-kit", label: T("UI Kit 设计系统", "UI Kit"), sub: T("设计系统样式指南", "Design system style guide") },
 ];
 
-const AGENT_JOB_SUBROUTES: Array<{ suffix: string; label: string }> = [
-  { suffix: "", label: "详情" },
-  { suffix: "/plan", label: "计划" },
-  { suffix: "/gates", label: "门禁" },
-  { suffix: "/diff", label: "差异" },
-  { suffix: "/result", label: "结果" },
+const AGENT_JOB_SUBROUTES: Array<{ suffix: string; label: LocaleText }> = [
+  { suffix: "", label: T("详情", "Detail") },
+  { suffix: "/plan", label: T("计划", "Plan") },
+  { suffix: "/gates", label: T("门禁", "Gates") },
+  { suffix: "/diff", label: T("差异", "Diff") },
+  { suffix: "/result", label: T("结果", "Result") },
 ];
 
 const SECTION_ORDER: SectionId[] = ["actions", "recent", "agent", "console"];
-const SECTION_LABELS: Record<SectionId, string> = {
-  actions: "操作 Actions",
-  recent: "最近任务 Recent jobs",
-  agent: "Agent 路由",
-  console: "控制台 Console",
+const sectionLabels = (locale: Locale): Record<SectionId, string> => ({
+  actions: pick(locale, T("操作", "Actions")),
+  recent: pick(locale, T("最近任务", "Recent jobs")),
+  agent: pick(locale, T("Agent 路由", "Agent routes")),
+  console: pick(locale, T("控制台", "Console")),
+});
+
+// Keywords stay bilingual on purpose — see the note at the top of the file.
+const KEYWORDS = {
+  theme: "theme dark light 主题 toggle",
+  recent: "recent job 最近任务",
+  agent: "agent 代 理",
 };
 
 function chipIcon(text: string): ReactNode {
@@ -96,6 +114,8 @@ function navigate(path: string): void {
 }
 
 export function CommandPalette(): JSX.Element | null {
+  const { locale } = useI18n();
+  const L = useCallback((zh: string, en: string) => (locale === "zh" ? zh : en), [locale]);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -141,10 +161,10 @@ export function CommandPalette(): JSX.Element | null {
     out.push({
       id: "action-theme",
       section: "actions",
-      label: resolved === "dark" ? "切换到浅色主题" : "切换到深色主题",
-      sub: resolved === "dark" ? "Switch to light theme" : "Switch to dark theme",
+      label: resolved === "dark" ? L("切换到浅色主题", "Switch to light theme") : L("切换到深色主题", "Switch to dark theme"),
+      sub: resolved === "dark" ? L("Switch to light theme", "Switch to light theme") : L("Switch to dark theme", "Switch to dark theme"),
       icon: resolved === "dark" ? <SunIcon size={12} /> : <MoonIcon size={12} />,
-      keywords: "theme dark light 主题 toggle",
+      keywords: KEYWORDS.theme,
       action: toggle,
     });
 
@@ -154,49 +174,52 @@ export function CommandPalette(): JSX.Element | null {
       const routes: RouteDef[] = isAgentJob
         ? AGENT_JOB_SUBROUTES.map((r) => ({
             path: base + r.suffix,
-            label: job.label + (r.suffix ? " · " + r.label : ""),
+            label: T(job.label + (r.suffix ? " · " : "") + pick(locale, r.label), job.label + (r.suffix ? " · " : "") + pick(locale, r.label)),
           }))
-        : [{ path: base, label: job.label }];
+        : [{ path: base, label: T(job.label, job.label) }];
       for (const route of routes) {
         const path = route.path;
+        const label = pick(locale, route.label);
         out.push({
           id: "recent-" + path.replace(/[^a-zA-Z0-9]/g, "-"),
           section: "recent",
-          label: route.label,
+          label,
           sub: path.replace(/^#\//, ""),
           icon: chipIcon("J#"),
-          keywords: "recent job " + path,
+          keywords: KEYWORDS.recent + " " + path,
           action: () => {
-            recordRecentJob(path, route.label);
+            recordRecentJob(path, label);
             navigate(path);
           },
         });
       }
     }
 
-    for (const route of AGENT_ROUTES) {
+    for (const route of agentRoutes()) {
       const path = route.path;
+      const label = pick(locale, route.label);
       out.push({
         id: "agent-" + path.replace(/[^a-zA-Z0-9]/g, "-"),
         section: "agent",
-        label: route.label,
-        sub: route.sub ?? path.replace(/^#\//, ""),
+        label,
+        sub: route.sub ? pick(locale, route.sub) : path.replace(/^#\//, ""),
         icon: chipIcon(routeChip(path)),
-        keywords: "agent " + (route.keywords ?? "") + " " + path,
+        keywords: KEYWORDS.agent + " " + path,
         action: () => {
-          if (/^#\/(jobs|agent\/jobs)\/[^/]+/.test(path)) recordRecentJob(path, route.label);
+          if (/^#\/(jobs|agent\/jobs)\/[^/]+/.test(path)) recordRecentJob(path, label);
           navigate(path);
         },
       });
     }
 
-    for (const route of CONSOLE_ROUTES) {
+    for (const route of consoleRoutes()) {
       const path = route.path;
+      const label = pick(locale, route.label);
       out.push({
         id: "console-" + path.replace(/[^a-zA-Z0-9]/g, "-"),
         section: "console",
-        label: route.label,
-        sub: route.sub ?? path.replace(/^#\//, ""),
+        label,
+        sub: route.sub ? pick(locale, route.sub) : path.replace(/^#\//, ""),
         icon: chipIcon(routeChip(path)),
         keywords: (route.keywords ?? "") + " " + path,
         action: () => navigate(path),
@@ -204,7 +227,7 @@ export function CommandPalette(): JSX.Element | null {
     }
 
     return out;
-  }, [resolved, toggle]);
+  }, [locale, resolved, toggle]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -218,11 +241,13 @@ export function CommandPalette(): JSX.Element | null {
 
   // Sections in fixed order, only those with matching entries.
   const sections = useMemo(() => {
+    const labels = sectionLabels(locale);
     return SECTION_ORDER.map((section) => ({
       section,
+      label: labels[section],
       items: filtered.filter((e) => e.section === section),
     })).filter((s) => s.items.length > 0);
-  }, [filtered]);
+  }, [filtered, locale]);
 
   const itemCount = sections.reduce((n, s) => n + s.items.length, 0);
 
@@ -290,7 +315,7 @@ export function CommandPalette(): JSX.Element | null {
   })();
 
   return (
-    <div className="ui-palette-root" role="dialog" aria-modal="true" aria-label="命令面板 Command palette">
+    <div className="ui-palette-root" role="dialog" aria-modal="true" aria-label={L("命令面板", "Command palette")}>
       <div
         className="ui-palette-backdrop"
         aria-hidden="true"
@@ -311,7 +336,7 @@ export function CommandPalette(): JSX.Element | null {
             aria-expanded="true"
             aria-controls="ui-palette-list"
             aria-activedescendant={activeId ? "ui-palette-opt-" + activeId : undefined}
-            placeholder="搜索路由、任务或切换主题…"
+            placeholder={L("搜索路由、任务或切换主题…", "Search routes, jobs, or toggle the theme…")}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -323,11 +348,11 @@ export function CommandPalette(): JSX.Element | null {
         </div>
         <div className="ui-palette-list" id="ui-palette-list" role="listbox" ref={listRef}>
           {sections.length === 0 ? (
-            <div className="ui-palette-section">无匹配结果 No results</div>
+            <div className="ui-palette-section">{L("无匹配结果", "No results")}</div>
           ) : (
             sections.map((section) => (
               <div key={section.section}>
-                <div className="ui-palette-section">{SECTION_LABELS[section.section]}</div>
+                <div className="ui-palette-section">{section.label}</div>
                 {section.items.map((entry) => {
                   cursor += 1;
                   const index = cursor;
@@ -349,7 +374,7 @@ export function CommandPalette(): JSX.Element | null {
                         {entry.sub ? <span className="ui-palette-item-sub">{entry.sub}</span> : null}
                       </span>
                       <span className="ui-palette-enter" aria-hidden="true">
-                        ↵
+                        ⏎
                       </span>
                     </button>
                   );
@@ -361,17 +386,17 @@ export function CommandPalette(): JSX.Element | null {
         <div className="ui-palette-foot">
           <span className="ui-palette-hint">
             <Kbd>↑</Kbd>
-            <Kbd>↓</Kbd> 选择
+            <Kbd>↓</Kbd> {L("选择", "navigate")}
           </span>
           <span className="ui-palette-hint">
-            <Kbd>↵</Kbd> 打开
+            <Kbd>⏎</Kbd> {L("打开", "open")}
           </span>
           <span className="ui-palette-hint">
-            <Kbd>Esc</Kbd> 关闭
+            <Kbd>Esc</Kbd> {L("关闭", "close")}
           </span>
           <span className="ui-palette-hint">
             <Kbd>Ctrl</Kbd>
-            <Kbd>K</Kbd> 开关
+            <Kbd>K</Kbd> {L("开启", "toggle")}
           </span>
         </div>
       </div>
