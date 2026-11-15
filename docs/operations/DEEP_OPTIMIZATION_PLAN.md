@@ -36627,3 +36627,38 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 文字层交付，无运行时变更；
 * 本卷的门扉表格以"现状快照"记读，若将来增/拆/合某扇门，本卷不自动进化——必须新卷补注；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1792 AgentJobDetail 去夹杂 + `scripts/i18n_audit.py`：全站混合残留审计
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、AgentJobDetail.tsx 混合标签本地化（35 处 → 0  suspicious）
+
+* 全部展示字符串改为 `L(zh, en)`（`storedLocale()` 在调用时读取）：
+  时间线条目（任务创建/计划已生成/正在执行）、404 错误盒、返回总览链接、取消确认条、
+  状态/进度/计划步骤/事件/审批 StatCard、状态时间线标题、实时连接、最近事件、完整事件日志链接、任务信息 kv、需求规格面板；
+* AgentPolling.test.tsx 一处期望同步为单语（`"取消 Cancel"` → `"取消"`，与 #1778 同源的 zh 默认策略）；
+* agent 测试 **92/92 绿**；tsc 0；vitest 全量 **64 个测试文件绿**（本机再跑一遍确认）；
+* **file:// 冒烟**（临时 bypass）：`#/agent/jobs/new` 渲染出错盒 + 错误文案但无崩溃，
+  侧栏 H 徽章计数 = **17**、点击「全部看懂了 · 关闭教学」后徽章 17→0、localStorage `specproof_coach_marks=0`、console 0 error（仅既有 dashboard API 被 file:// 阻断）；**门禁已原样恢复**。
+
+### 二、`scripts/i18n_audit.py` 入库（粗筛，非门禁）
+
+计数（2026-11-15 实测）：
+
+| 分桶 | 数量 | 含义 |
+|---|---|---|
+| A（可疑，需人眼） | **331** | 疑似残留混合——其中许多为 `.copy.ts`/zh/en 双键设计的原生双语标注（如给中文配英文名词） |
+| B（有意技术词/产品名） | **700** | git/docker/cached_tokens/`specproof`/`base_pass_head_fail`……合法的中文正文夹技术词 |
+
+* 分类规则：字面量含 CJK + ≥4 字母的 Latin 串，Latin 部分全部落在技术词/产品名白名单内 → B；否则 → A；
+* A 桶前列：UiKit（75，内部 showcase，dev-only）、drillQuestions（27，zh/en 双键文件内的 zh 文案含技术词，实际不可见面向英文用户）、
+  healthCategories 16、CommandPalette 15、AgentJobDetail **1**（已修至 1）、TenantTokens/TenantUsers 各 14/11；
+* 本条只立工具 + 基线；全量 A 桶收口是后续多节的活，不在本节吹完。
+
+### 三、诚实边界
+
+* 审计工具是**粗筛**：它会把双语词表里的 zh 文案（如"缓存完整性"配英文术语）错报为 A——人眼必看；
+* 本轮只清 `AgentJobDetail.tsx` 一个文件；**全量去夹杂仍是遗留大项**，按桶逐步收——不用一次假装完成；
+* file:// 目验能证明渲染不崩、徽章计数正确、localStorage 写入 ok；**未证明任何后端行为**；
+* 全量 `pytest tests/unit` 仍未跑完。

@@ -129,7 +129,7 @@ describe("Agent polling", () => {
     expect(screen.getByRole("alert").textContent).toContain("Model is unavailable");
     expect(screen.queryByText(/Plan approved/)).toBeNull();
     expect(screen.queryByText(/Gate decided/)).toBeNull();
-    expect((screen.getByText("取消 Cancel").closest("button") as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByText("取消").closest("button") as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("surfaces the live event stream state on the detail page", async () => {
