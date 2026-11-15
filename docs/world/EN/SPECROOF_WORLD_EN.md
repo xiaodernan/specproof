@@ -1650,3 +1650,50 @@ After thirty-nine volumes, every LLM lane is a lamp in this repo: draft rides la
 the real test is not this receipt, nor #1810; it is whether, next time you ping `scripts/live_lane_probe.py`, the lamp still ticks.
 
 ---
+## Volume XLII · The Threshold of the Gathered Whole（卷四十二 · 收山的山门）
+
+> A threshold is not an ending; it is knowing exactly where you stand;
+> this volume does not fanfare; it points, plainly:
+> **what is complete here, and what is not, one by one named out loud* —
+> nothing walks through a threshold unexclaimed.
+
+### 42.1 What this round laid out on the table
+
+A reader opens at the end — these are not adjectives, these are `git show` pointers:
+
+- **48 volumes of the World Book** (Frontispiece → Volume XLI «The Proven Cache»), zh/en symmetric;
+- **14卷 epic · Genesis** (SpecProof Genesis);
+- **1,622 chronicle sections** — every entry anchored 1:1 to a commit hash;
+- **2,463 commits** (`git rev-list --count HEAD`); **Python 1,342 files · TS/TSX 255 · Java 133 · Markdown 280** — **~490k LOC**;
+- **35+ first-class routes** alive in the sidebar — `/dashboard` through `/pulse` Service Pulse;
+- **42 volumes of story + 111 golden cases + the Book itself** — on-path;
+- **51/51 gate reproducible** (guide + ledger quartet) — every PR landing here keeps the floor;
+- **48 vols · 14 vols · 1,622 sections · 2,463 commits · ~490k LOC** — all pointing at verifiable numbers, never hallucinated.
+
+### 42.2 The ink is dry on these truths
+
+- The veil is lifted: `responses`-protocol lane returned before the policy branch was ever reached — silent-fail;
+  fix `87118ba`: draft/diagnose auto-route to the chat completions lane; real 3.0 ms replay;
+- `include_usage=True` lane alone returns `usage` — not synonymous with streaming per se, but with `stream=True`;
+- `cached_tokens` **does** exist — nested inside `prompt_tokens_details` (Volume XLI verified: 4,224) —
+  `4470 − 4224 = 246` tokens were freshly read this round — 94.5% static prefix cache;
+- Volume XL lists twelve truths all `git show`-verifiable; the Spring lane off-line: **137/137** (#1788);
+  RAG two-level cache true container warm 142/142 (#1773); load lane: 432 req / 0 err (#1801);
+- v0.90.0 ships: a hill exists this wide only because it could grow taller — this threshold is half-open on purpose: the first time someone opens the door from outside, this is the seal it meets.
+
+### 42.3 The shelves left open (not sealed)
+
+| Empty shelf | Waiting for | By whom |
+|---|---|---|
+| Real production | one deployed run of `app/v0.90.0` | deployment environment |
+| Full `pytest tests/unit` scoreboard | a bigger machine than this 2 GB host | upgraded CI runner |
+| `#/insight` cohort → real telemetry | privacy sign-off + OBSERVABILITY.md sign-off | product + counsel + privacy |
+| "123 gives all-users glimpse" | **never** — pinned in the forbidden list | **all hands** |
+| Real fleet | TLS + cross-region + prod load | next book |
+
+### 42.4 The vow of the threshold
+
+**The threshold is open and closed at once; every inch counted with iron pinned to it.**
+Whoever walks through next: know this—see how wide this mountain is; every next pass adds another door, another name on the gate.
+
+---

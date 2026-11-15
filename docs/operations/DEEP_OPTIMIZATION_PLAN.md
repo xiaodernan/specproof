@@ -37487,3 +37487,39 @@ no third-party links in reply ✅
 * `/usage` 的 hit_rate 显示的是 **ledger 事件聚合**，不代表产品整体，也不代表 `#1800` 之后任何一轮调用；
 * 全量 pytest 内存限制不变（guide+ledger 51/51）；Spring off-line 137/137（#1788）；
 * 「密码 123」否决维持；本节唯一改变的，是一眼能看见的 `cached_tokens`。
+
+## #1822 卷四十二 · 收山的山门（The Threshold of the Gathered Whole）——写 v0.90.0 的背面自省
+
+**记录基准**：本节只追加；master = 本提交。本节摘要出精确的 1,621 节编年事实的路径索引。
+
+### 一、本节罗列的对账锚点
+
+- **49 卷**世界书（Frontispiece → 卷四十二《收山的山门 · The Threshold of the Gathered Whole》）—— 不是 48！
+- **14 卷**史诗·创世记
+- **1,622 节**编年史（本节将重建为 1,623）
+- **2,463 次提交**（当前 grep）＋本节 1 笔 = 2,464；以 `git rev-list --count HEAD` 读数为准
+- Python 1,342 文件（303,375 LOC · 62%）· TypeScript/TSX 255 文件（35,344 LOC）· Java 133 文件（11,851 LOC）· Markdown 280 文件（61,077 LOC）
+- Spring off-line **137/137**（#1788 mvn -o）· RAG warm 142/142（#1773）· 压测双车道 432 req/0 err（#1801）
+- 语义缓存根因修复（#1781 · `87118ba` · draft 10.25s→3.0ms）· 滚轮修复（#1800 · `567f604`）· 非流/include_usage 实测（#1777 · `e657631`）
+
+### 二、卷四十二未封存的架（明说等谁，不上色）
+
+| 空架 | 等谁 | 不是什么 |
+|---|---|---|
+| 真 production（至少一次跑通） | 部署环境 | 演示替代品 |
+| 全量 `pytest tests/unit` | 升级机器 — 本机 2 GB 不够 | 空吹 |
+| `#/insight` 的真实遥测 | 隐私签字 | 假装今天就是生产 |
+| 「123 统计所有人行为」 | **永远不做** · 禁忌清单已收录 | — |
+| `/metrics` 去真正 collector | OTel/Prom 基础设施 | 未签字 |
+
+### 三、v0.90.0 标签
+
+* 提议在本掌（含新卷）打 `v0.90.0` 标签；
+* PORTFOLIO_TOKEN 仍未配置——自动同步 xiaodernan.github.io 不会跑；
+* 本节账本锚点：#1822（本条）。
+
+### 四、诚实边界
+
+* 账本有测量 → 不以"所有已完成"作为标题——本节标题"卷四十二 · 收山的山门"读作**自白未完成*；
+* 全量 pytest 仍内存受限（guide+ledger 51/51）；UiKit.smoke 已知 flake；
+* 「密码 123」永久否决；Observability 真实遥测仍需签字；Spring 证据止于 137/137 离线——不夸不下彩车。
