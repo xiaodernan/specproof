@@ -38038,3 +38038,26 @@ python scripts/live_lane_probe.py
 * If a user disables localStorage: this degrades cleanly to `status: "unreadable"` — the seal entirely does not work; **this tells the truth, not "you've done nothing".**
 * 全量 pytest 仍内存受限（guide + ledger 51/51）；UiKit.smoke 全量 514/514；
 * 「密码 123」永久否决（禁忌清单 §2）；「agent 自己 Approve」永久否决；Observability 签字仍欠。
+
+## #1839 典藏馆修正 / The Archive note update — tour 入场门即将换样（already landed in #1838）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、发动的改动
+
+* `pages/Archive.tsx` 的一个 trivial 补录：tour 卡 note 从 `「六盖印 · 交互通关」` → `「六盖印 · 到访才能盖印」`（zh）+ English → `"six seals · must visit first"`；
+* 修正后新用户过 Archive 看到的 tour 就是他们第一脚走过即将撞上的铁门：盖章前你必须亲手走六站；
+* 之前的话 "interactive" 表述被误读为「用手动一顿就盖完」事实上是了 · 本次删除以移除误会；
+* 凡遇到Tour的文案都 updated ——这种机械的扫一遍在 commit `42d6ae6` 的Coach tooltip 之后已经完成；本节继续其他遗漏；
+
+### 二、诚实边界
+
+* 本节是除 Archive 之外的其余页面对 tour 走路风格有「说 nit 差实」的统一；
+* 任何其它 ticket 都只是表象；新的 tour visit-footstamp 写进 Tour.tsx 入账 `#1838`；
+* 全量 pytest 仍内存受限；Spring off-line 137/137 stays；
+* 「密码 123」否决维持；Observability 仍然要求签字；PORTFOLIO_TOKEN 仍需你自备。
+
+### 三、近因
+
+* 同 commit：tour 改造的完整背景见 `#1838`；此节登记的是除 `pages/Archive.tsx` 之外寻戏所有 tour-as-"clicker seal" 的文案清理；
+* 「到访才能盖印」 用法不阻塞任何入口，

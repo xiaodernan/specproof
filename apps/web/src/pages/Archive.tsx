@@ -38,7 +38,7 @@ const CARDS: Card[] = [
   { icon: "agent", route: "agent", group: "palace", title: { zh: "SpecCraft 开发助手", en: "SpecCraft" }, note: { zh: "人签才落地", en: "a human signs to land" } },
 
   // ── The Doors In ────────────────────────────────────
-  { icon: "guide", route: "tour", group: "doors", title: { zh: "巡览", en: "Grand Tour" }, note: { zh: "六盖印 · 交互通关", en: "six seals, interactive" } },
+  { icon: "guide", route: "tour", group: "doors", title: { zh: "巡览", en: "Grand Tour" }, note: { zh: "六盖印 · 到访才能盖印", en: "six seals · must visit first" } },
   { icon: "scroll", route: "manual", group: "doors", title: { zh: "袖中手札", en: "The Pocket Card" }, note: { zh: "5 件纪律 · 3 条红线", en: "5 disciplines · 3 red lines" } },
   { icon: "hammer", route: "drill", group: "doors", title: { zh: "验收快问", en: "Verify Drill" }, note: { zh: "12 题 · 看你是谁", en: "12 questions — who are you" } },
   { icon: "scroll", route: "lexicon", group: "doors", title: { zh: "铁证词典", en: "Iron Lexicon" }, note: { zh: "14 条逐条中英双语", en: "14 entries, bilingual" } },
