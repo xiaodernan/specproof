@@ -60,7 +60,7 @@
 .atlas-exp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 .atlas-exp-card { display: flex; gap: 16px; align-items: flex-start; padding: 18px 18px 16px; background: linear-gradient(160deg, var(--color-surface) 0%, rgba(255,255,255,.02) 100%); border: 1px solid var(--color-border); border-radius: var(--radius-xl); text-decoration: none; transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease; }
 .atlas-exp-card:hover { transform: translateY(-3px); border-color: var(--accent-text); box-shadow: 0 18px 44px -18px rgba(0,0,0,.75); }
-.atlas-exp-num { font-family: var(--font-mono); font-size: var(--text-2xl); font-weight: 700; color: transparent; -webkit-text-stroke: 1.1px var(--accent-text); letter-spacing: .02em; line-height: 1; }
+.atlas-exp-num { font-family: var(--font-mono); font-size: var(--text-2xl); font-weight: 700; color: var(--accent-text); opacity: .95; letter-spacing: .02em; line-height: 1; }
 .atlas-exp-body strong { display: block; color: var(--color-text); font-size: var(--text-base); letter-spacing: .01em; }
 .atlas-exp-body small { display: block; color: var(--color-text-2); font-size: var(--text-xs); line-height: 1.9; margin: 6px 0 10px; }
 .atlas-exp-cta { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); letter-spacing: .14em; text-transform: uppercase; color: var(--accent-text); }

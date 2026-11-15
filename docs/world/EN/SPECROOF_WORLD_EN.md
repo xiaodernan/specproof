@@ -1221,3 +1221,36 @@ the moment the next volume is written, its lamp lights again.
 
 ---
 
+## Volume XXIX · The Insight Deck（卷二十九 · 洞察舱）
+
+> A product may have no man past midnight, but may never pretend it saw everyone;
+> when it sees, it sees only what may be shown — never the flesh; what walks out is not a person.
+> This volume is the SpecProof's regulation for itself — **the manager's telescope**, never the wall's camera.
+
+### 29.1 What the telescope showed (all figures, never flesh)
+
+| Panel | What it sees | What it does **not** see |
+|---|---|---|
+| Six KPI tiles | population=240, tour completion, drill pass, median dwell, 14-day slope, R² | any one's name, employee id, email, device fingerprint |
+| Funnel | 240 → 201 started tour → 113 cleared → 84 first verification → 41 sealed (synthetic · mulberry32(20261115)) | who exited at which door |
+| 28-day trend + 7-day forecast | least-squares slope, R², fit quality | any real user's behaviour sequence |
+| Feature adoption | which page got opened most (synthetic · mulberry32) | who opened it |
+| Six personas | The Skeptic / the First-timer / the Tourist / the Archivist / the Speedrunner / the Night Watch — anonymous shapes | who you are |
+| This-browser trace (¥ you) | the visited table in this browser's localStorage (read-only, never uploaded) | anything on any other browser |
+| Recommendation engine | six moves derived from the numbers — every one with evidence figure + confidence + P-grade | execution power (the engine advises; it never fires) |
+
+### 29.2 One iron rule: insight may **never** become a backdoor
+
+- The Insight Deck (`#/insight`) opens with the same key as `/identity` (`IDENTITY_ROLES = admin/operator`); a viewer always lands on `PermissionDenied` — fail-closed, server-enforced, UI visibility-only;
+- **there is no "123 password"** — it is not a one-line UI change: a shared secret turns everyone's privacy contract into "whoever knows may watch", and SpecProof does not do that;
+- synthetic data is **calibration for demos, not evidence**: every panel prints "synthetic calibration cohort"; any brief that leaves this product must drop those numbers first;
+- real fleet telemetry (which *could* see every user) has exactly one road: `docs/operations/OBSERVABILITY.md` + privacy review sign-off + a user-visible "what is measured" manifest + an opt-out;
+- engine recommendations never self-execute — every card prints its confidence; delete one figure and the recommendation is void.
+
+### 29.3 The Insight Deck's vow
+
+**Who sees fit to see others, earns the right to see them; when truth overflows, we carry untruth — untruth is the loyalty to iron.**
+From this volume on, SpecProof owns one mirror: mirrors shape, never person; mirrors the trend, never the privacy.
+The admin in this mirror sees *which door to fix next*, never *what Zhang San watched today* — the former is a product owner; the latter is an informant. The iron recognises the former only.
+
+---

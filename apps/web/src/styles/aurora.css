@@ -104,12 +104,12 @@
   background: linear-gradient(135deg, var(--color-text) 0%, var(--color-text-2) 100%);
   -webkit-background-clip: text;
   background-clip: text;
-  color: transparent;
+  color: transparent; -webkit-text-fill-color: transparent;
 }
-.stat-ok .stat-value { background: linear-gradient(135deg, var(--success), var(--success-fg)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.stat-bad .stat-value { background: linear-gradient(135deg, var(--danger), var(--danger-fg)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.stat-warn .stat-value { background: linear-gradient(135deg, var(--warning), var(--warning-fg)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.stat-info .stat-value { background: linear-gradient(135deg, var(--accent-2-fg), var(--accent-400)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.stat-ok .stat-value { background: linear-gradient(135deg, var(--success), var(--success-fg)); -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; }
+.stat-bad .stat-value { background: linear-gradient(135deg, var(--danger), var(--danger-fg)); -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; }
+.stat-warn .stat-value { background: linear-gradient(135deg, var(--warning), var(--warning-fg)); -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; }
+.stat-info .stat-value { background: linear-gradient(135deg, var(--accent-2-fg), var(--accent-400)); -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; }
 
 /* ── Brand mark: a soft, breathing glow ───────────────────── */
 @keyframes brand-glow {
@@ -160,20 +160,21 @@
   background: var(--gradient-aurora);
   -webkit-background-clip: text;
   background-clip: text;
-  color: transparent;
+  color: transparent; -webkit-text-fill-color: transparent;
 }
 .welcome-story h1 span,
 .welcome-brand {
   background: var(--gradient-aurora);
   -webkit-background-clip: text;
   background-clip: text;
-  color: transparent;
+  color: transparent; -webkit-text-fill-color: transparent;
 }
 .welcome-brand { display: inline-flex; align-items: center; gap: 12px; font-weight: var(--fw-800); font-size: var(--text-xl); }
 .welcome-brand span {
   display: inline-flex; align-items: center; justify-content: center;
   width: 30px; height: 30px; border-radius: var(--radius-md);
-  color: var(--color-on-accent); font-family: var(--font-mono); font-size: var(--text-sm);
+  color: var(--color-on-accent); -webkit-text-fill-color: var(--color-on-accent);
+  font-family: var(--font-mono); font-size: var(--text-sm);
 }
 
 /* ── Page entrance: content rises in, staggered ───────────── */

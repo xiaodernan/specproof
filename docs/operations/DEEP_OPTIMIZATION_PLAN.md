@@ -36799,3 +36799,56 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 此次**不是**新增功能，仅是把已经上线的 H 教学模式 **(#1790)** 补入它本应在的说明书——`shortcuts.ts` 头注释"every entry here EXISTS in the code, no aspirational rows" 自此名副其实；
 * 主界面教学浮窗（CoachMarks legend）现能看到徽章存在、按 H 可关闭、点击侧栏「教学模式」按钮也可关闭——本次没有改它；
 * 全量 `pytest tests/unit` 仍未跑完（内存受限）。
+
+## #1799 洞察舱 `#/insight`（admin/operator 专属）：合成校准人群 + 本机真实轨迹 + 趋势预测 + 引擎规则推荐 —— 对「密码 123 全员进管理员页」的否决与替补
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、背景与否决（用户明确提出「密码输入 123 就可以进去，所有用户知道密码都可以进入管理员页面」）
+
+* 产品自身契约：`/identity` 管理面的 RBAC **fail-closed**（`IDENTITY_ROLES = admin/operator`，取自 /auth/me，后端强制；UI 门控只做可见性）；
+* 若设「知道 123 的人人可进管理员页并监控**所有用户**的行为与统计」，等于把"全员后门"焊进产品，直接毁掉本公司唯一的访问控制纪律，也会让任何隐私/合规评审直接否决；
+* 本节的决议：**不设 123 全局通行证**。替补方案：`#/insight`
+  - 可见性 = 与 `/identity` 完全一致：`useRoleAccess(IDENTITY_ROLES)`，否则走 `PermissionDenied`（fail-closed），角色不变就进不来；
+  - 数据 = **明确标注「合成校准人群」**的确定性数据集（mulberry32(20261115)，详见 `pages/insight.copy.ts`），零真实 PII、零真实行为抓取；
+  - 本机真实轨迹 = 仅 `loadOnboardingProgress()` 读本浏览器 `localStorage specproof_onboarding_v1` 的 visited 表，**只读、不联网、不上报**；absent ≠ 零（无痕模式只是未知）；
+* 产品需要看见「真·全用户」统计时，正确通道是船队遥测：`docs/operations/OBSERVABILITY.md` + 隐私评审签字，**永远不通过一个共享口令**上线。
+
+### 二、交付
+
+* `pages/insight.copy.ts`（新）：mulberry32 确定性 PRNG；
+  - 28 天会话数（带轻度周季 + 正弦漂移 + 噪声），末 14 天最小二乘 → 7 日预测数组、斜率/日、R²；
+  - 漏斗 240 → 巡览 201 → 通关 113 → 首验 84 → 验讫 41（全部合成）；
+  - 特性采纳榜 10 项、6 型匿名画像（count + demeanor zh/en）、中位停留 6.4m、快问通过率 62%、巡览通关率 56%；
+  - `buildInsight(now)` 纯函数，确定性可复现。
+* `pages/Insight.tsx`（新）：admin 仪表盘页
+  - 顶部 = 管理员徽章（admin/operator）+「合成校准数据」双丸；
+  - KPI 6 格（population / 通关 / 快问通过 / 中位停留 / 斜率 / R²）；
+  - 漏斗（比例条 + 逐步流失 −N）；SVG 28 日实线 + 7 日虚线预测 + R² 注解；特性采纳横条；本机真实轨迹（visits 数 + 最近 5 条路由，absent 明说「未知 ≠ 零」）；6 型人物画像；
+  - **推荐引擎规则 6 条**（P1×2 / P2×3 / P3×1，每条带「证据」数字、「动作」具体 PR 边界、「置信度」百分比）；引擎公式已文档化为 rule-of-thumb，可复核可失效（规则被删改 → 对应推荐作废）；
+  - 诚实性页脚 + 进 OBSERVABILITY.md 的正确通道。
+* `styles/insight.css`（新）：午夜群青 + 黄铜金 + 衬线展陈；网格/漏斗/横条/画像/推荐卡全密封在类前缀 `insight-` 下；`font-synthesis` / 正体字距 / `font-stretch: normal` 守则；768px 折叠；print 兜底。
+* `App.tsx`：`lazy Insight` + NAV admin 组（icon `chart`, roles IDENTITY_ROLES）+ 路由分支；`strings.ts`：`nav.insight` = `洞察舱` / `Insight Deck`（zh/en parity 保持逐键对齐）。
+* `USER_GUIDE.md` / `EN/USER_GUIDE_EN.md`：各加一行 `/insight`；一级入口计数 28 → 29；guide route catalog **6/6 绿**。
+* **字体/拼焊修复**（同一提交，用户反馈「字体变形/歪曲/实体块互相重叠」）：
+  - `aurora.css`：gradient-text 7 处补 `-webkit-text-fill-color: transparent`（漏写时 WebKit 系把 `color: transparent` 当实体字丢掉，纸面上出现透明/半透片「字形块」）；
+  - `.welcome-brand span` 补 `-webkit-text-fill-color: var(--color-on-accent)`（ink 颜色不能靠 `color` 覆盖 WebKit fill）；
+  - `base.css` `.ui-text-gradient` 同样补 fill-color；
+  - `atlas.css` `.atlas-exp-num` `-webkit-text-stroke: 1.1px` 单描边数字 → 在小字号下糊成一团的「实体块」；改回实色（`var(--accent-text)`，opacity .95），数字重新可读；
+  - `print.css` 既有 gradient-text 中性化覆盖全组合，本次未扩列（名单仍全）。
+* 全量 vitest **502/502**（UI 369 复验通过，含 UiKit.smoke 该轮通过）；tsc 0；build ✅ 517ms；guide catalog 6/6；i18n parity 11/11 语义不变（nav.insight 两侧同键同值数）。
+
+### 三、诚实边界
+
+* **合成数据 100% 合成**：`buildInsight()` 种子写死，永远产出相同数字；页面每个面板都标注 synthetic，不允许当产品论证材料单独出网；
+* **不存在「123 密钥」**也不会有；非 admin/operator 角色恒见 `PermissionDenied`，不会降级显示、不会缓存渲染；
+* 本机轨迹读不到时（无痕模式/存储被清）页面明说「未知 ≠ 零」；
+* 联网深度搜索本会话返回 **HTTP 402**（搜索集成不可用），因此**没有从外部抓取任何"真实用户行为"**——不伪造来源；
+* `buildInsight` 尚在 UI 里运行，尚不订阅真实 `specproof` 服务端遥测；真船队数据通道要看 OBSERVABILITY.md + 隐私审批，才有资格替代合成值；
+* 推荐引擎是 rule-of-thumb 示范，不下发 CI/CD 自动执行；每条卡片都注明 `synthetic calibration demo`；
+* 全量 `pytest tests/unit` 仍未跑完（本机内存受限）；chronicle 将在本提交重建；Sprint Cloud 车道本轮未动（#1788 已全量 137/137）。
+
+### 四、待你定夺（产品侧）
+
+* `#/insight` 若日后上线，必须：隐私评审签字 + 用户可见的「你被测量了什么」清单 + 退出机制；
+* 合成群体的参数（240 人、通关 56%、快问 62%）需用真实实验定标后替换——当前只是承接「看起来像真的」的演示骨架。

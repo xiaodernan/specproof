@@ -46,6 +46,7 @@ const Gazette = lazy(() => import("./pages/Gazette"));
 const Calendar = lazy(() => import("./pages/Calendar"));
 const Manual = lazy(() => import("./pages/Manual"));
 const Chronicle = lazy(() => import("./pages/Chronicle"));
+const Insight = lazy(() => import("./pages/Insight"));
 
 type NavItem = {
   path: string;
@@ -82,6 +83,7 @@ const NAV: NavItem[] = [
   { path: "census", labelKey: "nav.census", icon: "verify", groupKey: "group.evidence" },
   { path: "manual", labelKey: "nav.manual", icon: "guide", groupKey: "group.evidence" },
   { path: "identity", labelKey: "nav.identity", icon: "team", groupKey: "group.admin", roles: IDENTITY_ROLES },
+  { path: "insight", labelKey: "nav.insight", icon: "chart", groupKey: "group.admin", roles: IDENTITY_ROLES },
   { path: "billing", labelKey: "nav.billing", icon: "billing", groupKey: "group.admin", roles: BILLING_ROLES },
   { path: "usage", labelKey: "nav.usage", icon: "chart", groupKey: "group.admin" },
   { path: "audit", labelKey: "nav.audit", icon: "health", groupKey: "group.admin", roles: AUDIT_ROLES },
@@ -139,6 +141,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "billing") return <Billing />;
   if (seg[0] === "usage") return <Usage />;
   if (seg[0] === "audit") return <Audit />;
+  if (seg[0] === "insight") return <Insight />;
   return <NotFoundPage />;
 }
 
