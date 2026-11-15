@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "../hooks/navigate";
-import { DEMO_AGENT, DEMO_VERIFY, DEMO_VERIFY_ABS_PATH_NOTE } from "../demo";
+import { DEMO_VERIFY, demoAgentSample, demoVerifyNotes } from "../demo";
 import { EMPTY_WIZARD_DRAFT, saveWizardDraft } from "../agent/util";
 import { apiGet, getApiKey, getBearerToken, type JobsPage } from "../api";
 import { Button, GLOSSARY, Kbd } from "../ui";
@@ -125,8 +125,8 @@ export default function Guide() {
   function startDemoAgent() {
     saveWizardDraft({
       ...EMPTY_WIZARD_DRAFT,
-      task_name: DEMO_AGENT.task_name,
-      spec_text: DEMO_AGENT.spec_text,
+      task_name: demoAgentSample(locale).task_name,
+      spec_text: demoAgentSample(locale).spec_text,
     });
     navigate("/agent/new/spec");
   }
@@ -204,7 +204,7 @@ export default function Guide() {
 
       <section className="guide-section guide-example" aria-labelledby="guide-example">
         <div className="guide-section-head"><span className="guide-section-number">{c.exampleKicker}</span><div><h2 id="guide-example">{c.exampleTitle}</h2><p>{c.exampleBody}</p></div></div>
-        <div className="guide-example-grid"><dl><div><dt>{locale === "zh" ? "演示仓库" : "Demo repo"}</dt><dd><code>demo/spring-backend</code></dd></div><div><dt>{locale === "zh" ? "改动前 → 改动后" : "Base → Head"}</dt><dd><code>{DEMO_VERIFY.base_ref} → {DEMO_VERIFY.head_ref}</code></dd></div><div><dt>{locale === "zh" ? "需求文件" : "Requirement file"}</dt><dd><code>demo/requirement.txt</code></dd></div></dl><div className="guide-example-outcome"><span className="guide-kicker">{c.expectedKicker}</span><h3>{c.expectedTitle}</h3><p>{c.expectedBodyBefore}<code>{DEMO_VERIFY.head_ref}</code>{c.expectedBodyAfter}<code>BLOCKED</code>）{locale === "zh" ? "——铁证在手再决定。" : " — the iron speaks first."}</p><div className="guide-example-actions"><Button variant="primary" onClick={startDemoVerify}>{c.verifyNow}</Button><span>{c.demoCommands}<code>pwsh scripts/prepare_demo_repo.ps1</code>{locale === "zh" ? "创建演示仓库" : " to create the demo repo"}{DEMO_VERIFY_ABS_PATH_NOTE}</span></div></div></div>
+        <div className="guide-example-grid"><dl><div><dt>{locale === "zh" ? "演示仓库" : "Demo repo"}</dt><dd><code>demo/spring-backend</code></dd></div><div><dt>{locale === "zh" ? "改动前 → 改动后" : "Base → Head"}</dt><dd><code>{DEMO_VERIFY.base_ref} → {DEMO_VERIFY.head_ref}</code></dd></div><div><dt>{locale === "zh" ? "需求文件" : "Requirement file"}</dt><dd><code>demo/requirement.txt</code></dd></div></dl><div className="guide-example-outcome"><span className="guide-kicker">{c.expectedKicker}</span><h3>{c.expectedTitle}</h3><p>{c.expectedBodyBefore}<code>{DEMO_VERIFY.head_ref}</code>{c.expectedBodyAfter}<code>BLOCKED</code>）{locale === "zh" ? "——铁证在手再决定。" : " — the iron speaks first."}</p><div className="guide-example-actions"><Button variant="primary" onClick={startDemoVerify}>{c.verifyNow}</Button><span>{c.demoCommands}<code>pwsh scripts/prepare_demo_repo.ps1</code>{locale === "zh" ? "创建演示仓库" : " to create the demo repo"}{demoVerifyNotes(locale).absPath}</span></div></div></div>
         <div className="demo-prefill"><strong>{c.demoHeadline}</strong><p>{c.demoBody}</p><div className="demo-prefill-row"><Button size="sm" onClick={startDemoAgent}>{c.demoCta}</Button><span className="demo-prefill-status">{c.demoNote}</span></div></div>
       </section>
 

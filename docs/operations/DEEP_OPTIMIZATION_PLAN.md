@@ -37104,3 +37104,32 @@ python scripts/stress_smoke.py --target http://127.0.0.1:8000/health --rounds 3 
 * 全量 `pytest tests/unit` 仍内存受限；chronicle 1,609 节；
 * UiKit.smoke 全量未红；
 * 「密码 123」永久否决（#1799 / #1804 条款）；观察性遥测上生产仍需隐私评审签字（本节不变）。
+
+## #1809 首访演示素材双语化：Guide / 新建验收 / 装配向导不再强迫英文用户吃中文
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、问题（三处英文 UI 的陪看者、合理的潜伏者）
+
+* `pages/NewVerification.tsx`：`DEMO_VERIFY_REPO_NOTE`（首次使用先运行 specproof demo…）**中文唯一**，英文 UI 完整渲染中文 → 英文用户读不懂首访说明；
+* `pages/Guide.tsx`：`DEMO_VERIFY_ABS_PATH_NOTE`（若执行服务运行在其他目录…）同上 → 英文引导页内联裸中文；`DEMO_AGENT.task_name/spec_text` 同 bug；
+* `agent/pages/AgentWizard.tsx`：填入示例需求按钮 `{L("填入示例需求", "Use the demo task")}「{DEMO_AGENT.task_name}」` —— zh 示例任务名 `修复 double 函数` 横空出世到 en 模式；
+* `demo.ts` 的导出在文件头注释里说"DEMO_VERIFY_PREPARE_NOTE 两条独立句子"——两条独立句子，对两个 locale 是对的；对一个 locale 是半拉子英语。
+
+### 二、修复（zh 字节级保留 · 一行不少新增 en 孪生）
+
+* `demo.ts` 重写为 locale-aware：`DEMO_VERIFY_NOTES: Record<Locale, {prepare, absPath, repo}>` + `DEMO_AGENTS: Record<Locale, {task_name, spec_text}>`；函数读取点调用 `demoVerifyNotes(locale)` / `demoAgentSample(locale)`，`storedLocale()` 缺省；**旧的三个 zh 别名原样保留**（`DEMO_VERIFY_PREPARE_NOTE` 等向后兼容，`demo.test.ts` 字节级断言不动）；DEMO_AGENTS 的 task_name 在 en 为 `Fix the double function`；en spec_text 无一汉字残留
+  （`Fix the bug in calc.py's double function: … 
+ Acceptance … Forbidden … Scope …`）；
+* `Guide.tsx`：两处改用 locale 函数；`NewVerification.tsx` 一处；`AgentWizard.tsx` 两处（填入示例按钮 + 按钮文案）；
+* `demo.test.ts`：新增 "(en) zero Chinese residue" 断言一条（含 `/[一-鿿]/` 零匹配、完整 `notes.repo` 合成、en task_name 断言），3 → **4/4**；
+* `i18n_audit` 本文件命中仍在（zh 分支本就含汉字），不影响任何用户；
+* tsc 0；build ✅ 403ms；vitest **507/507**（+1）；chronicle 1,610 节待本提交重建。
+
+### 三、诚实边界
+
+* 向后兼容别名保留了 zh 内容——这是**有意**，不是遗漏；移动方向上，所有渲染路径都是 locale-aware 的，不再消费别名；
+* spec_text 只允许中文 demo 用户看到中文样本、英文 demo 用户看到英文样本；样本本身语义等值，锚点同为 `calc.py`；
+* 全量 pytest 仍内存受限；UiKit.smoke 全量未红；
+* 「密码 123」否决维持；PORTFOLIO_TOKEN 仍欠；
+* 这笔不是新功能——是"全内容中英切换"的继续执行。下一目标卷：Volume XXXIV《铜铃之声》（gate 51/51 的正史）。

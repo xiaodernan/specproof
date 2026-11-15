@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createAgentJob } from "../../api";
-import { DEMO_AGENT } from "../../demo";
+import { demoAgentSample } from "../../demo";
 import { Button, ErrorBox, Panel } from "../../ui";
 import {
   WizardDraft,
@@ -229,9 +229,9 @@ export default function AgentWizard(props: { step: WizardStep }) {
             <div className="wizard-example">
               <span>{L("不知道怎么写？", "Not sure how to write it?")}</span>
               <Button size="sm" onClick={() => set({
-                task_name: DEMO_AGENT.task_name,
-                spec_text: DEMO_AGENT.spec_text,
-              })}>{L("填入示例需求", "Use the demo task")}「{DEMO_AGENT.task_name}」</Button>
+                task_name: demoAgentSample(isZh() ? "zh" : "en").task_name,
+                spec_text: demoAgentSample(isZh() ? "zh" : "en").spec_text,
+              })}>{L("填入示例需求", "Use the demo task")}「{demoAgentSample(isZh() ? "zh" : "en").task_name}」</Button>
               <small>{L("示例包含任务、验收条件、禁止事项和影响范围 — 这是最容易被验证的写法。", "The example includes task, acceptance criteria, prohibitions and impact scope — the shape easiest to verify.")}</small>
             </div>
           ) : null}

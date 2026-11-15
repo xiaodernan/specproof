@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { createVerification, prepareDemoRepo, type ApiError, type VerificationRequest } from "../api";
-import { DEMO_VERIFY, DEMO_VERIFY_REPO_NOTE } from "../demo";
+import { DEMO_VERIFY, demoVerifyNotes } from "../demo";
 import { Breadcrumbs, Button, ErrorBox, Input, Term } from "../ui";
 import { useI18n } from "../i18n";
 import { NEW_VERIFICATION_BY_LOCALE, type NewVerificationCopy } from "./newVerification.copy";
@@ -219,7 +219,7 @@ export default function NewVerification() {
             </div>
             {prepareStatus ? <span className="demo-prefill-status" role="status">{prepareStatus}</span> : null}
             {prepareError ? <span className="demo-prefill-error" role="alert">{prepareError}</span> : null}
-            <code className="demo-prefill-code">{DEMO_VERIFY_REPO_NOTE}</code>
+            <code className="demo-prefill-code">{demoVerifyNotes(locale).repo}</code>
           </div>
           <p className="verification-note">{c.note}</p>
           <a href="#/guide">{c.openGuide}</a>
