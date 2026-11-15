@@ -51,6 +51,7 @@ const Dossier = lazy(() => import("./pages/Dossier"));
 const Mint = lazy(() => import("./pages/Mint"));
 const LastCall = lazy(() => import("./pages/LastCall"));
 const Inkwell = lazy(() => import("./pages/Inkwell"));
+const Gallery = lazy(() => import("./pages/Gallery"));
 
 type NavItem = {
   path: string;
@@ -88,6 +89,7 @@ const NAV: NavItem[] = [
   { path: "mint", labelKey: "nav.mint", icon: "seal", groupKey: "group.evidence" },
   { path: "last-call", labelKey: "nav.lastCall", icon: "lantern", groupKey: "group.evidence" },
   { path: "inkwell", labelKey: "nav.inkwell", icon: "book", groupKey: "group.evidence" },
+  { path: "gallery", labelKey: "nav.gallery", icon: "gazette", groupKey: "group.evidence" },
   { path: "census", labelKey: "nav.census", icon: "verify", groupKey: "group.evidence" },
   { path: "manual", labelKey: "nav.manual", icon: "guide", groupKey: "group.evidence" },
   { path: "identity", labelKey: "nav.identity", icon: "team", groupKey: "group.admin", roles: IDENTITY_ROLES },
@@ -142,6 +144,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "mint") return <Mint />;
   if (seg[0] === "last-call") return <LastCall />;
   if (seg[0] === "inkwell") return <Inkwell />;
+  if (seg[0] === "gallery") return <Gallery />;
   if (seg[0] === "atlas") return <Atlas />;
   if (seg[0] === "worldbook") return <WorldBook />;
   if (seg[0] === "nightwatch") return <NightWatch />;

@@ -37304,3 +37304,31 @@ python scripts/stress_smoke.py --target http://127.0.0.1:8000/health --rounds 3 
 * UiKit.smoke 全量未红；
 * 全量 pytest 内存限制不变（guide+ledger 51/51）；
 * "密码 123" 否决维持；PORTFOLIO_TOKEN 仍欠。
+
+## #1816 卷墙 `#/gallery`：44 张世界书原文敲门纸一墙罗列
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、动机
+
+* 世界书拉到 44 卷之后，单本入戏反而变难——「我想知道这一块到底有多少册」、「哪一册讲 collapsar？」——之前没有一面墙；
+* 本节交付 `#/gallery`：一眼 44 卷并列原文敲门纸（卷号蜡封 + 卷目 + 字数轨距 + 首句摘录）；
+  搜索卷号/卷目/id 实时过滤；点击直链 `#/worldbook`（世界书页读完整地图：可读/可搜/可盖印）；
+* 与 `#/last-call`（随机接客）不同——这面墙是**全部登场、无一遗漏**的；两者互补：一个展陈，一个摇奖。
+
+### 二、交付
+
+* `pages/Gallery.tsx` + `styles/gallery.css`：
+  - 顶栏 KICKER + 三格统计（44 卷 / 万字符总量 / 眼前剩余数量）+ 搜索框（`type=search`，`aria-label` 双语）；
+  - 每卷一张卡（蜡封 `seal` 色块 + `tile-title` 衬线 + `firstProseExcerpt`（剥离 blockquote/代码围栏/标题符号/表格行后截断 zh 96 / en 150） + 字节轨 + 直链 `去翻`）；
+  - 搜索结果 0 时退路：「这面墙上没有这个卷目」+ 一键 `清空搜索`；
+  - 诚实页脚：每一块都是 worldbook.json 的一次搬运，git show 可查；不是展览海报。
+* `App.tsx` 懒加载 + NAV evidence 组（`icon: gazette`）+ 路由分支；`strings.ts` `nav.gallery` = `卷墙` / `Gallery`；
+* `USER_GUIDE.md` + EN mirror：各加 `/gallery` 一行；一级入口 **33 → 34**；guide route catalog **6/6**；
+* build ✅ 287ms（Gallery chunk 4.6 kB JS / 2.08 kB gzip + CSS 3.81 kB）；lint 过滤完零 TS 错；tsc 0；vitest **514/514**；gate 51/51。
+
+### 三、诚实边界
+
+* 卷目预览摘录在 build 时算一次（`firstProseExcerpt` 是**展示用摘要，不是内容解释**；如 wall 全文 747 万 chars 全文敲满墙会不可读）；
+* 册数 `44` 是 `build_worldbook.py` 当场扫出来——不是记忆值；
+* 全量 pytest 内存限制不变；Spring 车道 137/137 离线绿；UiKit.smoke 未红；'密码 123'否决维持。
