@@ -19,7 +19,7 @@
 | **R07** | Archive.tsx 写死 `worldbook: 50` + 文案硬编码「世界书 50 卷·编年 1,625 节」（存在很久；本次修订 #1863） | **此刻全假**：build 链早把它们涨成 81/1,664 等数字 | 全部改为 import lock 的 locked JSON，计数与 build_*.py 实时对账（并新增「史诗卷」KPI tile） | §#1863 |
 | **R08** | `audit_unsigned.py` 首次敲出「branch-cleanliness: no-upstream」（2026-11-15，#1863 上线时） | subprocess 没被 import → 异常被 `except` 静默吞 → 返回 "" → 误判为 no-upstream | `import subprocess` 入模块 + 补充 docstring（4 灯）；复敲 → 正确读出 dirty-tree → 提交后转 clean | §#1863 |
 | **R09** | 同一轮里 build_roadmap_live.py 入库 ≠ 它是确定性的——「commit 只修输出没跟脚本」（#1865 主提交遗漏生成器） | 出书面 v2 修复并提交 `27d632b`（follow-up）：ROADMAP-LIVE item 5 输出与生成器保持一致 | DEEP_OPTIMIZATION_PLAN 不为此另立节；提交 `27d632b` 直接记账（见 git log） | git show 27d632b |
-| **R10** | RageCoach 测试断言 `"Sign & seal"` 期望 approve —— 实际规则在 tour-seal（规则内含 seal 关键词先吃掉） | 规则命名本来就有重叠；测试 expectation 错了不是代码错了 | 测试期望改为 tour-seal；`approve` 规则加空白容错（`批\s*准` 等） | #1846：`tests/unit/rage.test.ts` |
+| **R10** | RageCoach 测试断言 `"Sign & seal"` 期望 approve —— 实际规则在 tour-seal（规则内含 seal 关键词先吃掉） | 规则命名本来就有重叠；测试 expectation 错了不是代码错了 | 测试期望改为 tour-seal；`approve` 规则加空白容错（`批\s*准` 等） | #1846：`apps/web/src/ui/rage.test.ts` |
 
 ## 使用约束
 
