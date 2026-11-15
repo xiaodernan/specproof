@@ -208,7 +208,7 @@ real commits, real tests.
 SpecProof  = (AI writes code) → (Differential execution) → (The Matrix) → (Human signs)
 ```
 
-This is not allegory — `experiments/differential.py`, the contract compiler, `apps/web/src/pages/Matrix.tsx`,
+This is not allegory — `experiments/differential.py（文件不在本仓库——计划中的实验车道，本书保留它的废弃事实，不保留文件）`, the contract compiler, `apps/web/src/pages/Matrix.tsx`,
 and the 「史诗纪要」 button are the four concrete terms of the same equation.
 
 ---
@@ -2996,5 +2996,41 @@ Every R reads one sentence aloud: "I was wrong, and I did not let the wrong walk
 The spine does not grow wings — it simply does not get crushed.
 Snow keeps falling under the timeline; we count by days:
 **after this volume, R11, R12... will come — good. The later flakes are still beautiful.**
+
+---
+## Volume LXXIX · The Gap and the Light（卷七十九 · 缺口与光）
+
+> A gap is not the book's failure — a gap is where the light gets in.
+> This volume does only one thing: put every open debt of this repository on a public wall at once —
+> not to shame it, but so each IOU has its source, its owner, and its knocking point.
+
+### 79.1 The open-debts wall (docs/operations/DEBTS_OPEN.md{ + EN })
+
+| Class | Entries | Who pays |
+|---|---|---|
+| Signature (human) | D1 OBSERVABILITY.md sign-off (only door to fleet telemetry) · D2 PORTFOLIO_TOKEN · D3 #/gazette copy decision | **a human** |
+| Machine | M1 weekly-stress first strike · M2 weekly evidence Δ · M3 audit_evidence drift sentinel (7/7 this round) · M4 verify_links 141 files zero dead links | **the machine** |
+| Both | B1 app stack truly up end-to-end · B2 evidence auto-backfill weekly | **machine + human** |
+| Never | password-123 · court cached · fake-green CI · demo-as-prod | **never payable** |
+
+### 79.2 The wall's house rules
+
+1. **never dyed green** — writing an IOU on this wall does not mark it paid;
+2. **struck through, not torn** — when paid, the line stays visible, never silently deleted;
+3. **D1 is the smallest human unit in this book** — one signature, one person, never a proxy;
+4. **M1–M4 need nobody** — the machine already pays;
+5. **B1 waits on your one sentence**: "go."
+
+### 79.3 Where the light is
+
+Every ledger, every lamp, every snapshot, every Δ you see — all photographs of "machine-paid".
+The D1–D2 spot — written on this page, waiting for you.
+
+### 79.4 Also filed this volume: 141 docs, zero dead links (audit artefact)
+
+`scripts/verify_links.py` (141 files scanned · zero dead links · 1 annotated-planned entry recorded) —
+`docs/evidence/audit-links.json` is now git-tracked. Nobody will ever see a 404 reference in this repo again.
+
+(The audit: 18 references repaired — 8 wrong paths, planned-artifacts correctly tagged "doesn't exist", the .24dfe6-style suspicion formally retracted in the corrections scroll.)
 
 ---

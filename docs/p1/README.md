@@ -18,14 +18,14 @@
 | 内容 | 处理 | 理由 |
 |---|---|---|
 | `evidence/matrix.py`（p1 + release 共有） | **已收编**（`#1593`），→ `evidence/matrix.py`，带出处 docstring | Requirement-to-Evidence Matrix builder，当时无调用方；annotations 最小现代化以过 mypy strict；行为由 `tests/unit/test_evidence_matrix.py` 钉住（4 条） |
-| `scripts/run_differential.sh`（两分支共有） | **已收编为 legacy**（`#1593`）→ `scripts/legacy/run_differential_p0_5_c6.sh`，verbatim body + 出处说明 | P0.5-C6 差分 JUnit harness（demo/spring-backend，写死 `base`/`head-v1` tag）；当前运行真实 demo 的人才可能用得上；`JAVA_HOME` 采用环境覆盖，原 demo refs 仍有效 |
+| `scripts/run_differential.sh（计划产物：P1 差分运行器；今天不存在）`（两分支共有） | **已收编为 legacy**（`#1593`）→ `scripts/legacy/run_differential_p0_5_c6.sh`，verbatim body + 出处说明 | P0.5-C6 差分 JUnit harness（demo/spring-backend，写死 `base`/`head-v1` tag）；当前运行真实 demo 的人才可能用得上；`JAVA_HOME` 采用环境覆盖，原 demo refs 仍有效 |
 | `docs/p1/p1a-final-report.md` | **已收编**（`#1593`）→ `docs/p1/`，verbatim | 旧分支自己的验收报告（2026-07-13），内容保持原样 |
 | `docs/p1/wip-migration-matrix.md` | **已收编**（`#1593`）→ `docs/p1/`，verbatim | 旧库的迁移矩阵快照（来自 `D:/experim/specproof-phase0`）；内容保持原样 |
-| `storage/migrations/001_p1_baseline.sql` | **未收编** | master 已有 `storage/migrations/001_job_state_machine.sql`（同序号，同代际演进，含 8 态 ENUM 与 idx_status/idx_worker）；加入会让 001 出现两份互相矛盾的 DDL |
-| `storage/migrations/002_failed_terminal.sql` | **未收编** | 该"迁移"实为一句变更说明（FAILED 终态化），已在代码 `_VALID_TRANSITIONS` 与 master 002_outbox.sql 代际里落地 |
+| `storage/migrations/001_p1_baseline.sql（计划产物；今天不存在）` | **未收编** | master 已有 `storage/migrations/001_job_state_machine.sql`（同序号，同代际演进，含 8 态 ENUM 与 idx_status/idx_worker）；加入会让 001 出现两份互相矛盾的 DDL |
+| `storage/migrations/002_failed_terminal.sql（计划产物；今天不存在）` | **未收编** | 该"迁移"实为一句变更说明（FAILED 终态化），已在代码 `_VALID_TRANSITIONS` 与 master 002_outbox.sql 代际里落地 |
 | `Dockerfile.api`（p1 单 Dockerfile） | **未收编** | master 已有 `docker/Dockerfile.api`（多服务建案，compose.*.yml 的 `build:` 指向它；镜像语义完整、与当前 app 布局一致） |
 | `compose.p1.yml` | **未收编** | master 已有 `compose.phase0.yml` / `compose.production.yml` / `compose.observability.yml` 覆盖同一层 |
-| `.github/workflows/quality.yml` | **未收编** | P1-only 触发范围；master 的 `.github/workflows/ci.yml` 承载现行门（mypy/ruff/pytest/集成腿） |
+| `.github/workflows/quality.yml（计划工作流；今天不存在，现行为 ci.yml）` | **未收编** | P1-only 触发范围；master 的 `.github/workflows/ci.yml` 承载现行门（mypy/ruff/pytest/集成腿） |
 | interview-hardening 全部 | **无需收编** | 相对 master 零独有文件；其有价值内容于 #1550 已搬回 |
 
 ## 前提与边界

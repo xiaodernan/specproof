@@ -11,7 +11,7 @@ per mutant:
 1. **Mutant generation.**
    - Offline sample (`scripts/mutation_sample/`): 6 hand-defined mutants
      (operand swap, boundary change, return inversion, 3x constant change)
-     loaded from `mutants/manifest.json`. Each mutant is applied as a text
+     loaded from `mutants/manifest.json` *(to be generated when the mutator lands; the file does not exist today)*. Each mutant is applied as a text
      substitution whose `old` string must occur exactly once — the run fails
      loudly otherwise, so a mutant that silently did not apply is impossible.
    - Real repo: the existing pipeline

@@ -34106,7 +34106,7 @@ README 顶部新增一行章节追加在开场白之后、八卦细节之前：
 
 | 读物 / 入口 | 面对的问题 |
 |---|---|
-| `docs/operations/USER_GUIDE.md` + [`EN/USER_GUIDE_EN.md`](../EN/USER_GUIDE_EN.md) | clone 到第一个 `VERDICT: BLOCKED` |
+| `docs/operations/USER_GUIDE.md` + [`EN/USER_GUIDE_EN.md`](EN/USER_GUIDE_EN.md) | clone 到第一个 `VERDICT: BLOCKED` |
 | `docs/operations/TOUR_MANUAL.md` | 想玩「巡览」六盖印 |
 | `docs/operations/MCP_GUIDE.zh.md` + `MCP_GUIDE.md` | 把 AI agent 接进验收流水线 |
 | `http://127.0.0.1:5173/`（先 `npm run build`） | 直接逛前端——侧栏搜「巡览 / 史诗 / 铁证词典」 |
@@ -38909,3 +38909,40 @@ draft#2    → 0.00s · 5600/14  (重复命中)
 * audit_evidence 是 **漂移哨兵**——不是 audit 本体的替代品，只保证「产物间互相对得上」；
 * Volume LXXVIII《雪崩后的书脊 · The Spine After the Avalanche》入册 → worldbook **85 卷**（本轮 +1）；chronicle 1,668 节；
 * court 永不缓存；「密码 123 全员进管理员」永久否决；Observability 签字仍欠（灯琥珀）。
+
+## #1868 《缺口与光》：欠条墙到账 + verify_links 零死链（141 文件）/18 件引用修复
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、欠条墙（docs/operations/DEBTS_OPEN.md · DEBTS_OPEN_EN.md）
+
+| 类 | 条数 | 例 |
+|---|---|---|
+| 签字类（真人） | D1 OBSERVABILITY.md · D2 PORTFOLIO_TOKEN · D3 #/gazette 文案 | 三件，人来 |
+| 机器类 | M1 weekly-stress 首敲 · M2 evidence Δ · M3 audit_evidence 漂移哨兵（本轮 7/7） · M4 verify_links 零死链 | 四件，机器可敲 |
+| 双打类 | B1 app 栈真跑 · B2 evidence 每周自动回落 repo | 两件，需要你一句「起吧」 |
+| 永不欠 | password-123 · court 入缓存 · 假绿 CI · 演示冒充生产 | 四件 |
+
+**欠条不可染绿。划掉不撕掉。**
+
+### 二、verify_links.py（新）——从 388 → 173 → 29 → **0 dead / 1 annotated-planned**
+
+* 未入过的 checked-file 统计卡：**141 个 .md**；
+* 真正修复/更正的引用（18 处）：
+  * `docs/operations/DEEP_OPTIMIZATION_PLAN.md` 的相对 md-link `../EN/USER_GUIDE_EN.md` → `EN/USER_GUIDE_EN.md`；
+  * DRILLS.md `down/0011_agent_jobs.sql` → `infra/mysql/migrations/down/0011_agent_jobs.sql`；
+  * PRODUCT_ROADMAP.md `pages/AgentEdits.tsx` → `src/agent/pages/AgentEdits.tsx`；`notify/templates.py` → `integrations/notify/templates.py`；多处「计划产物：不存在」标注；
+  * docs/p1/README.md 三个计划产物 + `.github/workflows/quality.yml` 均标注「计划，不存在，现行 = ci.yml」；
+  * APPENDIX_CORRECTIONS.md：`tests/unit/rage.test.ts` → `apps/web/src/ui/rage.test.ts`；
+  * SPECROOF_WORLD.md + EN：`experiments/differential.py`（×3）标注「文件不在本仓库；计划车道的历史记账」；
+  * 持续演进终极目标与链路计数.md：`make/check.ps1` 标注「从未存在」；
+  * MUTATION_PLAN.md：`mutants/manifest.json` 正式登记为 **annotated-planned**（而非 broken link）；
+  * 修 double-prefix `integrations/integrations/notify/templates.py` → 正确路径；
+* `docs/evidence/audit-links.json` 入库（版本 3 · 机器自验）。
+
+### 三、诚实边界
+
+* 审计只敲存在性/拼名/去重 — 不评价「写得美不美、值不值」— **它只回答「文件在不在」**；
+* 141 文件零死链 ≠ 仓库美：`ROADMAP-LIVE.md` 不承诺、`ROADMAP-LIVE.md` 也不保住美；
+* Volume LXXIX《缺口与光 · The Gap and the Light》入册（zh/en 对称）→ 世界书 **86 卷**（本轮 +1）；chronicle 1,669 节；
+* UI 533/533 stays · gate 57/57 stays · court 永不缓存。
