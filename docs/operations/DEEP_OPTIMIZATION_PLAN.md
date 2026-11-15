@@ -36711,3 +36711,23 @@ Direct view: `#/manual`. For anyone opening the product without docs: 侧边栏�
 * 健康页 `en` 侧 token（REACHABLE / NORMAL / DEGRADED / QUERYABLE）刻意保留英文大小写——它们是英文单语、无 CJK，不是夹杂；
 * toneMap pill 词表的"未知 UNKNOWN"仍属双语徽记，属于Matrix 契约改动；本节不动它；
 * 全量 `pytest tests/unit` 仍未跑完。
+
+## #1795 AgentResult 独立验收投影页去夹杂（全文 L(zh, en) 双语）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付
+
+* `agent/pages/AgentResult.tsx`（独立验收投影页 · ACCEPT 面板 + 执行结果面板）**全部展示文案**改 `L(zh, en)`（`storedLocale()` 调用时读取）：
+  - 投影读不出/未运行/已取消/还未签发/已回滚/未记录状态… 全部英文 twin（"Independent acceptance record · ACCEPT" 等）；
+  - 门禁汇总/逐条门禁/发现列表/发现描述缺省/完整投影 JSON 入口/关联发现条数/执行未完成/取消轮次不补出结果/未执行的检查不算通过……；
+  - 缺省验收投影里的**整个面板层级**都在 L() 内（本文件此前 ~45 处中英夹杂硬编码）；
+* 一个小细节：「· 关联发现 N 条 / · N linked finding(s)」按 locale 分支（复数正确）；
+* 92/92 agent 测试绿；tsc 0；build ✅ in 1.00s；i18n parity 11/11；
+* `i18n_audit.py` A 桶 331→**299**；AgentResult.tsx 17→**7**（剩余 7 项全部是 L() 内的中文+产品名如 `Web`/`supervisor`——合法 L() 参数，非未本地化残留；一条在注释里，一条是模板插值）；
+
+### 二、诚实边界
+
+* `（无说明）` / 无描述缺轨发现 等缺省描述属于中文侧文案继续存在于 L() zh 侧——那是本地化设计本身；
+* 不触碰任何 API / 不改证据计算与投影逻辑；
+* 全量 `pytest tests/unit` 仍未跑完。
