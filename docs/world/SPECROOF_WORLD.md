@@ -2734,3 +2734,43 @@ artifact（每周一 03:00 UTC）       → 本卷的船签+下一班          (
 ```
 
 ---
+## 卷六十八 · 巡天一夜（The Astronomer's Night）
+
+> 天文学家看银河，不是为了证明它亮——是为了知道它到底亮不亮。
+> 本卷把「这个项目还差什么才能算活」拆成一件件欠条，挂上一盏不撒谎的灯：
+> 真 fleet · 签不签字、周班车 · 合没合、端口 8000 · 此刻谁在答——三件欠条，三盏灯。
+
+### 68.1 巡天的眼睛：scripts/audit_unsigned.py（#1857 落库）
+
+| 检查 | 此刻（2026-11-16 实测） | 灯色 |
+|---|---|---|
+| observability-signature | **awaiting-signature**——OBSERVABILITY.md 里**没有**任何真人签字块（签字人/sign-off/signed by/批准人/验收签字 — 全部没匹配到） | 琥珀 |
+| weekly-stress-merged | **merged**——`.github/workflows/weekly-stress.yml` 在 repo 里 | 玉绿 |
+| port-8000-answers | **port-free**——`127.0.0.1:8000/health` 此刻**拒绝连接**（今早占着它的 career-os-ai-service 今天不在那里了，或者搬了去别处） | 灰 |
+
+三件灯的状态**逐时刻真实敲**——`--warmup` 一样敲一次，不存、不缓、不代。
+
+### 68.2 巡天的家规
+
+1. **欠债画红绿灯，不画口号**——没有「即将完成」；有「已合并」与「此刻 port-free」——成果就是事实；
+2. **免费且免费地重复**——audit 在每个 commit 前可跑一次（10ms）——它不占 CI；
+3. **欠条可以转绿**——签字一落（human commit `OBSERVABILITY.signed`），灯自动转玉；那天到来前不许改橙灯；
+4. **审计本人是可执行的**——`python scripts/audit_unsigned.py`，零依赖、零 key、零 SLA。
+
+### 68.3 航程图（LXII→LXVIII）
+
+```
+--warmup · stress → docs/evidence/*.json    (LXII #1851)
+     ↓ build_evidence.py                    (LXIII #1852 · LXV #1854)
+evidence.json → #/fabric 卡 + Δ             (LXV #1854)
+     ↓ weekly-stress.yml (每周一)           (LXIV #1853)
+     ↓ audit_unsigned.py                    (本卷 #1857 · 巡天)
+unsigned.json → #/last-call 欠签行          (LXVII #1856 · LXVIII #1857)
+```
+
+### 68.4 巡天的终章从来不在天上
+
+灯绿了没？只有真人拿笔签字了才绿——直到本书合入的那天，#/last-call 里
+「真·fleet 遥测」永远停在琥珀。它不撒谎——灯只有两种颜色是假的，第三种人人都认识。
+
+---

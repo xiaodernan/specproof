@@ -2,17 +2,19 @@ import { useMemo } from "react";
 import { useI18n } from "../i18n";
 import { ProductIcon } from "../ui/ProductIcon";
 import evidence from "./evidence.json";
+import unsigned from "./unsigned.json";
 import "../styles/voyage.css";
 
 /**
  * The Weekly Voyage — a living cover page next to Last Call:
  *
  *   row 1 · the ship's stamp — the latest committed stress evidence
- *   row 2 · what is still unsigned — honest absences, no invented fixes
+ *   row 2 · what is still unsigned — LIVE audit (scripts/audit_unsigned.py),
+ *           rebuilt at build time; green/amber/red honesty, never fabricated
  *   row 3 · the next knock — next Monday 03:00 UTC, computed live
  *
- * Evidence facts come from the build-time distilled evidence.json (verbatim).
- * The two dates are the only live clock reads on the page.
+ * Evidence facts and the audit details come from build-time JSON (verbatim).
+ * The next-knock date is the only clock read on the page.
  */
 function nextMondayKnock(from: Date): Date {
   const d = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate(), 3, 0, 0));
@@ -22,6 +24,22 @@ function nextMondayKnock(from: Date): Date {
   return d;
 }
 
+const STATUS_META: Record<string, { icon: string; zh: string; en: string; tone: "ok" | "warn" | "idle" | "bad" }> = {
+  "signature-block-found": { icon: "✓", zh: "签字在场（未核实身份）", en: "signature found (identity NOT verified)", tone: "ok" },
+  "awaiting-signature": { icon: "○", zh: "等待真人签字", en: "awaiting a human signature", tone: "warn" },
+  "merged": { icon: "✓", zh: "已合入（首班等下个周一）", en: "merged (first strike next Monday)", tone: "ok" },
+  "missing": { icon: "✗", zh: "未合入", en: "missing", tone: "bad" },
+  "specproof-answering": { icon: "✓", zh: "本仓库在答", en: "specproof answering", tone: "ok" },
+  "other-project-answering": { icon: "✗", zh: "别的项目在答", en: "another project answering", tone: "bad" },
+  "port-free": { icon: "~", zh: "空门（无人答）", en: "port free (nothing answers)", tone: "idle" },
+};
+
+const CHECK_LABEL: Record<string, { zh: string; en: string }> = {
+  "observability-signature": { zh: "真·fleet 遥测 · OBSERVABILITY.md 签字", en: "real fleet telemetry · OBSERVABILITY.md signature" },
+  "weekly-stress-merged": { zh: "每周一敲门 · weekly-stress.yml 合入状态", en: "Monday knock · weekly-stress.yml merged" },
+  "port-8000-answers": { zh: "端口 8000 · 此刻谁在答", en: "port 8000 · who answers right now" },
+};
+
 export default function WeeklyVoyage(): JSX.Element {
   const { locale } = useI18n();
   const zh = locale === "zh";
@@ -29,6 +47,7 @@ export default function WeeklyVoyage(): JSX.Element {
 
   const knock = useMemo(() => nextMondayKnock(new Date()), []);
   const latest = evidence.latest ?? null;
+  const audit = unsigned.checks ?? [];
   const fmt = (d: Date) =>
     d.toISOString().slice(0, 16).replace("T", " ") + "Z (" + d.toLocaleString(locale === "zh" ? "zh-CN" : "en-GB", { weekday: "short", month: "short", day: "numeric" }) + ")";
 
@@ -59,15 +78,28 @@ export default function WeeklyVoyage(): JSX.Element {
           )}
           <p className="voyage-source">{L("出厂源：docs/evidence/（git-tracked，原样摘抄）", "source: docs/evidence/ (git-tracked, verbatim)")}</p>
         </div>
-        {/* row 2 — what is still unsigned */}
+
+        {/* row 2 — live unsigned audit */}
         <div className="voyage-cell">
-          <span className="voyage-lane">{L("欠签 · 仍然没有真人签字的欠条", "STILL UNSIGNED")}</span>
-          <ul className="voyage-unsigned">
-            <li>{L("真·fleet 遥测——需要 OBSERVABILITY.md 的真人签字，永远不够随手一按", "Real fleet telemetry — needs a human signature on OBSERVABILITY.md; never one click away")}</li>
-            <li>{L("weekly-stress.yml 的船还没启航——合入 master 后，下一个周一 03:00 UTC 才敲第一班", "weekly-stress.yml has not sailed — its first strike is the Monday 03:00 UTC after merge into master")}</li>
-            <li>{L("127.0.0.1:8000 不是本仓库的门——那一扇属于 career-os-ai-service（com.docker.backend）", "127.0.0.1:8000 is not this repo's door — it belongs to career-os-ai-service (com.docker.backend)")}</li>
+          <span className="voyage-lane">{L("欠签 · 审计于本机", "UNSIGNED · audited on this host")}</span>
+          <ul className="voyage-audit">
+            {audit.map((c) => {
+              const meta = STATUS_META[c.status] ?? { icon: "?", zh: c.status, en: c.status, tone: "idle" as const };
+              const label = CHECK_LABEL[c.id]?.[locale === "zh" ? "zh" : "en"] ?? c.id;
+              return (
+                <li key={c.id} title={c.detail}>
+                  <span className={`voyage-chip voyage-chip-${meta.tone}`}>{meta.icon}</span>
+                  <span className="voyage-audit-label">
+                    <strong>{label}</strong>
+                    <em>{zh ? meta.zh : meta.en}</em>
+                  </span>
+                </li>
+              );
+            })}
           </ul>
+          <p className="voyage-source">{L(`审计时间：${unsigned.generated_utc.replace("T", " ").slice(0, 19)}Z · scripts/audit_unsigned.py 现场实测`, `audited at ${unsigned.generated_utc.replace("T", " ").slice(0, 19)}Z · live, by scripts/audit_unsigned.py`)}</p>
         </div>
+
         {/* row 3 — the next knock */}
         <div className="voyage-cell">
           <span className="voyage-lane">{L("下一次敲门的时间 · 下一班船", "NEXT KNOCK · next departure")}</span>

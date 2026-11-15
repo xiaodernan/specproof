@@ -2607,3 +2607,44 @@ artifact (Mon 03:00 UTC)          → ship's stamp + next knock  (LXIV·#1853 ·
 ```
 
 ---
+## Volume LXVIII · The Astronomer's Night（卷六十八 · 巡天一夜）
+
+> Astronomers read the galaxy not to prove it shines — but to know whether it shines at all.
+> This volume turns "what this project still lacks to count as alive" into three studio IOUs, each under a lamp that does not lie:
+> real fleet · is it signed? — the Monday shuttle · is it merged? — port 8000 · who answers right now?
+
+### 68.1 The astronomer's eye: scripts/audit_unsigned.py (landed in #1857)
+
+| Check | This hour (struck live, 2026-11-16) | Lamp |
+|---|---|---|
+| observability-signature | **awaiting-signature** — OBSERVABILITY.md carries **no human signature block** at all (signature-person / sign-off / signed by / approver / acceptance signature — all patterns unmatched) | amber |
+| weekly-stress-merged | **merged** — `.github/workflows/weekly-stress.yml` sits in the repo | jade |
+| port-8000-answers | **port-free** — `127.0.0.1:8000/health` currently **refuses the connection** (the morning's occupant, career-os-ai-service, is no longer there) | grey |
+
+The three lamps are **struck live every run** — like --warmup, nothing is remembered, nothing is cached, nothing is impersonated.
+
+### 68.2 House rules of the night watch
+
+1. **red-green not slogans** — no "coming soon"; there is "merged" and there is "port-free right now" — the fact IS the result;
+2. **re-runnable for free** — the audit costs ~10ms, and any human may re-strike it before any commit — it never occupies CI;
+3. **IOUs can turn jade** — the moment a human signs OBSERVABILITY.md the lamp turns jade on the next run; not metaphorically, in the very next rebuild;
+4. **the audit is executable** — `python scripts/audit_unsigned.py`, zero deps, zero keys, zero SLA.
+
+### 68.3 The chart (LXII → LXVIII)
+
+```
+--warmup · strike → docs/evidence/*.json     (LXII #1851)
+     ↓ build_evidence.py                     (LXIII #1852 · LXV #1854)
+evidence.json → #/fabric card + Δ            (LXV #1854)
+     ↓ weekly-stress.yml (every Monday)      (LXIV #1853)
+     ↓ audit_unsigned.py                     (this volume #1857 · the night watch)
+unsigned.json → #/last-call unsigned row     (LXVII #1856 · LXVIII #1857)
+```
+
+### 68.4 The finale does not happen in the sky
+
+Green or not? It only turns jade the day a human signs — until that commit lands, the
+"real fleet telemetry" line on #/last-call stays amber forever. It does not lie —
+the lamp's third colour has always been the one everyone in this room knows.
+
+---

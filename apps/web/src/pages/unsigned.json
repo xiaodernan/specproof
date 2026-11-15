@@ -1,0 +1,25 @@
+{
+ "version": 1,
+ "source": "scripts/audit_unsigned.py (this host, this moment)",
+ "generated_utc": "2026-11-15T17:43:54+00:00",
+ "checks": [
+  {
+   "id": "observability-signature",
+   "status": "awaiting-signature",
+   "detail": "OBSERVABILITY.md exists with no human signature block; this audit does not manufacture one",
+   "anchor": "docs/operations/OBSERVABILITY.md"
+  },
+  {
+   "id": "weekly-stress-merged",
+   "status": "merged",
+   "detail": "specproof-weekly-stress present (schedule 0 3 * * 1; first strike is the Monday 03:00 UTC after merge)",
+   "anchor": ".github/workflows/weekly-stress.yml"
+  },
+  {
+   "id": "port-8000-answers",
+   "status": "port-free",
+   "detail": "127.0.0.1:8000 refused/unreachable (URLError); no project answered",
+   "anchor": "live probe 127.0.0.1:8000/health"
+  }
+ ]
+}

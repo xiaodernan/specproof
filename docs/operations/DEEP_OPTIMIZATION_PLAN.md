@@ -38583,3 +38583,29 @@ python scripts/live_lane_probe.py
 * 下一次敲门是计算值不是承诺——cron 未合入前的第一个周一，它正在海里等着；
 * Volume LXVII《收帆时刻 · The Furling Hour》入册（zh/en 对称）→ 世界书 **74 卷**（本轮 +1）；chronicle 1,657 节；
 * gate 51/51 stays · court 永不缓存；「密码 123 全员进管理员」永久否决。
+
+## #1857 巡天一夜：scripts/audit_unsigned.py → unsigned.json → #/last-call 欠签行 live chip
+
+**记录基准**：本节只追加；master = 本提交。本次 audit 实测时间：2026-11-15T17:43Z (UTC)（以 unsigned.json 为准）。
+
+### 一、巡天三盏灯（2026-11-16 实测，**逐时刻敲**）
+
+| 检查 | 实测值 | 灯 | UI 色 |
+|---|---|---|---|
+| observability-signature | **awaiting-signature**（OBSERVABILITY.md 无签字块——五种正则全部未匹配，脚本不伪造） | 琥珀 | `voyage-chip-warn` |
+| weekly-stress-merged | **merged**（`.github/workflows/weekly-stress.yml` 在 repo） | 玉绿 | `voyage-chip-ok` |
+| port-8000-answers | **port-free**（`127.0.0.1:8000/health` **URLError 拒绝连接**；career-os-ai-service 已不答） | 灰 | `voyage-chip-idle` |
+
+### 二、交付物
+
+* `scripts/audit_unsigned.py` — 零依赖（urllib + re）· 退出码恒 0 · 输出 `unsigned.json`；
+* `apps/web/src/pages/unsigned.json` — git-tracked，字段：version / source / **generated_utc** / checks[3]（id · status · detail · anchor）；
+* `WeeklyVoyage.tsx` 欠签行从「静态三条」升级为 **live chip 列表**：LABEL（双语）+ 状态（✗/✓/○/~ 四符号）+ 审计时间页脚；**不验证身份、不伪造签字**；
+* UI **533/533** stays · tsc 0 · build 289ms。
+
+### 三、诚实边界
+
+* 审计灯色是**当时敲的**——port-free 随时可能被任何项目补上监听（反正也不可能永远 free）；
+* `weekly-stress-merged` 只证明文件在 repo，不证明首班已敲；`observability-signature` 只查存在性、不查身份；
+* Volume LXVIII《巡天一夜 · The Astronomer's Night》入册（zh/en 对称）→ 世界书 **75 卷**（本轮 +1）；chronicle 1,658 节；
+* court 永不缓存；「密码 123 全员进管理员」永久否决；真·fleet 遥测仍欠签字。
