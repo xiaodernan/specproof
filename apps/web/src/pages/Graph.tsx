@@ -56,6 +56,11 @@ export default function Graph() {
             ? "条件边：_abort_on_preflight → publish_report（环境缺工具链就直接出炉）、_abort_on_errors → publish_report（任何错误短路跳过）。"
             : "Conditional edges: _abort_on_preflight → publish_report (missing toolchain? skip the whole trial), _abort_on_errors → publish_report (any error short-circuits straight to the verdict)."}
         </p>
+        <p>
+          {locale === "zh"
+            ? "同行的 StateGraph：agent/graphs/evidence_graph.py——本仓库的「证据复核子图」。intake → collect_series → verdict → emit_report → END，一次运行 10ms，逐件敲 docs/evidence/*.json——每逢考核体检，它自己知道答案在 OK 还是 REGRESSION。"
+            : "a kin StateGraph lives right here: agent/graphs/evidence_graph.py — the repo's own evidence-review subgraph: intake → collect_series → verdict → emit_report → END; one run, ~10ms; it walks docs/evidence/*.json itself and knows OK from REGRESSION."}
+        </p>
       </div>
     </div>
   );

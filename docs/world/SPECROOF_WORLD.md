@@ -3159,3 +3159,49 @@ D1–D2 的位置——写在这一页、等你。
 （docs/链接的细节：修复了 18 处引用——8 条指错路径、计划产物标注了「不存在」、残片误解（鹦鹉 .24dfe6 类文件）正式勘误。）
 
 ---
+## 卷八十 · 图的语言（The Cartographer's Graph）
+
+> 地图不是山的图——地图是山和人之间的一段约定。
+> LangGraph 早就是本仓库的主引擎（phase0verify），本卷补上最缺的那一块：
+> **一个小到可以被人类在 10 毫秒内整洁看完、大到能决定账本 OK 的子图。**
+
+### 80.1 新增：证据复核子图 `agent/graphs/evidence_graph.py`
+
+```
+intake → collect_series → verdict → emit_report → END
+```
+
+| 节点 | 做什么 | 不做 |
+|---|---|---|
+| intake | 扫描 docs/evidence/*.json（只计含 `rounds` 的压测件） | 任何 LLM/网络调用 |
+| collect_series | 按 started_utc 排序、算出相邻件 Δp99 序列 | 平滑/平均（两件就是两件） |
+| verdict | 任一非 OK → REGRESSION；任一 Δ>25 → REGRESSION；否则 OK；否则 EVIDENCE-MISSING（fail-closed） | 永远不许 "probably OK" |
+| emit_report | 写 docs/evidence/evidence-tick.md | 任何自动关闭"欠条" |
+
+实跑（本卷落稿时）：**verdict = OK · entries = 3** （三件皆 OK·192/192，p99 轮廓 1532ms → 1537ms → 1030ms）。
+
+### 80.2 测试（`tests/unit/test_evidence_graph.py` · 3/3 ✅）
+
+| 用例 | 钉住的事 |
+|---|---|
+| regression-when-blown | verdict 非 OK ⇒ REGRESSION；报告仍写出 |
+| ok-when-all-pass | 两件 OK ⇒ `entries=2` 汇报 |
+| missing-dir-is-explicit | 目录不存在 ⇒ EVIDENCE-MISSING + 依然写 tick.md |
+
+### 80.3 家规
+
+1. **子图是确定性的**——同输入同输出；没 LLM、没别的；
+2. **登记但不是许可证**——tick 文件不是 SLA；它只是机器的诚实报告；
+3. **不自动结案**"——`graph 子图`不许替代人类的合并决策。
+
+### 80.4 App 里的提示
+
+#/graph 页脚现在指名 `agent/graphs/evidence_graph.py`——任何点开 React Flow-ish 图谱页的人，
+都会看到 "The kinned StateGraph lives right here…"。**它指的不是 Graph.tsx——它说的是要敲的东西。**
+
+### 80.5 欠债清点
+
+DEBTS_OPEN.md 新增 M2（weekly evidence Δ）的机器完成度——本卷之后，`weekly-strike` 可以跑：
+`agent/graphs/evidence_graph.py docs/evidence` → `evidence-tick.md`。**欠债部分位居此卷后面等待输入。**
+
+---

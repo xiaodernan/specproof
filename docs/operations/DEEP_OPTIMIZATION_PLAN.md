@@ -38946,3 +38946,29 @@ draft#2    → 0.00s · 5600/14  (重复命中)
 * 141 文件零死链 ≠ 仓库美：`ROADMAP-LIVE.md` 不承诺、`ROADMAP-LIVE.md` 也不保住美；
 * Volume LXXIX《缺口与光 · The Gap and the Light》入册（zh/en 对称）→ 世界书 **86 卷**（本轮 +1）；chronicle 1,669 节；
 * UI 533/533 stays · gate 57/57 stays · court 永不缓存。
+
+## #1869 《图的语言》：LangGraph 证据复核子图落地 + 3/3 测试绿 + 端点 `evidence-tick.md` 实敲 OK
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付物
+
+* `agent/graphs/evidence_graph.py` — 四节点 StateGraph（intake → collect_series → verdict → emit_report → END）：
+  * 只读 `docs/evidence/*.json`（**只计含 `rounds` 的压测件**；audit-* 系列 JSON 被正确跳过）；
+  * 明确文本 fail-closed：任一非 OK ⇒ REGRESSION；Δp99 > 25 ⇒ REGRESSION；否则 OK；未就绪 ⇒ EVIDENCE-MISSING；
+  * 实现库 LawGraph 1.0，零 LLM、零网络、零子进程；
+  * `evidence-tick.md` 由该子图亲写；
+* `tests/unit/test_evidence_graph.py`（3/3 ✅）：三用例钉死 — regression-when-blown · ok-when-all-pass（assert `entries=2`）· missing-dir-is-explicit；
+* `#/graph` 页脚现在指名为 `agent/graphs/evidence_graph.py`（双语两句）；
+* 实敲（2026-11-15T18:51Z）：**verdict = OK · entries 3**（1532→1537→1030ms p99）。
+
+### 二、家规声明（World Volume LXXX）
+
+* 子图不替代人合并判断；`evidence-tick.md` 不是 SLA；同输入同输出；
+* 非 `OK` → `REGRESSION` 不会被遮蔽；tick 文件不许自动「还欠条」。
+
+### 三、本 commit 含
+
+* 2 新 test · 1 新 graph · tick 工件入库；
+* worldbook **87 卷**（本轮 +1）；chronicle 1,670 节；
+* UI **533/533** · tsc 0 · build 879ms · gate 合计 **60/60**（57 + 3 graph）。

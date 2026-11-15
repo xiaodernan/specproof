@@ -3034,3 +3034,49 @@ The D1–D2 spot — written on this page, waiting for you.
 (The audit: 18 references repaired — 8 wrong paths, planned-artifacts correctly tagged "doesn't exist", the .24dfe6-style suspicion formally retracted in the corrections scroll.)
 
 ---
+## Volume LXXX · The Cartographer's Graph（卷八十 · 图的语言）
+
+> A map is not a picture of a mountain — a map is a three-way agreement of mountain and human.
+> LangGraph has been this repo's main engine (phase0 verify) from day one; this volume fills the one piece it lacked:
+> **a subgraph small enough for a human to see clearly in 10ms — and large enough to decide whether the ledger says OK.**
+
+### 80.1 Added: the evidence-review subgraph `agent/graphs/evidence_graph.py`
+
+```
+intake → collect_series → verdict → emit_report → END
+```
+
+| Node | Does | Never does |
+|---|---|---|
+| intake | scans docs/evidence/*.json (only artifacts carrying a `rounds` list) | any LLM/network call |
+| collect_series | sorts by started_utc, computes the Δp99 gap between consecutive pieces | smoothing, averaging — two exhibits are two exhibits |
+| verdict | any non-OK → REGRESSION; any Δ>25ms → REGRESSION; else OK; else EVIDENCE-MISSING (fail-closed) | "probably OK" |
+| emit_report | writes docs/evidence/evidence-tick.md | auto-closing any IOU |
+
+Struck live (as this volume was written): **verdict = OK · entries = 3** (all OK · 192/192 each · p99 1532 → 1537 → 1030ms).
+
+### 80.2 Tests (`tests/unit/test_evidence_graph.py` · 3/3 ✅)
+
+| Case | Anchored fact |
+|---|---|
+| regression-when-blown | any non-OK verdict ⇒ REGRESSION; the tick is still written |
+| ok-when-all-pass | both OK ⇒ `entries=2` reported |
+| missing-dir-is-explicit | missing directory ⇒ EVIDENCE-MISSING and the tick is still produced |
+
+### 80.3 House rules
+
+1. **the subgraph is deterministic** — same input, same output; no LLM, nothing else;
+2. **it files but never licenses** — `evidence-tick.md` is not an SLA; it is a machine's honest report;
+3. **it never closes anything** — this subgraph never substitutes for a human merge decision.
+
+### 80.4 A sign inside the app
+
+The #/graph footer now names `agent/graphs/evidence_graph.py` — anyone visiting the map page meets
+"the kin StateGraph lives right here…" — **not a screenshot of Graph.tsx; a pointer to the thing you敲.**
+
+### 80.5 The open-debt ledger update
+
+DEBTS_OPEN.md gains M2's machine side — with this volume, `weekly-strike` is runnable:
+`agent/graphs/evidence_graph.py docs/evidence` → `evidence-tick.md`. **The rest of the debt sits behind this volume, waiting for its input.**
+
+---
