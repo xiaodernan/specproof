@@ -37875,3 +37875,24 @@ lanes={'direct': 29, 'policy': 12}  kinds={'(unspecified)': 29, 'draft': 6, 'cou
 * 所有 hotspot → 真路由，无 demo 无妥协；
 * 全量 pytest 仍内存受限；Spring off-line 137/137 stays；
 * 「密码 123 全员进」永远否决；Observability 真实遥测仍需签字。
+
+## #1834 卷四十九《沉默的潮汐 · The Tide of Quiet》：本机这一小时的五件真实物证入史
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、卷四十九入史（56 卷 · 129,675 chars）
+
+* A — 8000 `/health` 答过又 refused（事后核对）
+* B — `live_lane_probe.py` 真敲 wkapi 双重断面（`iron evidence does not lie`）
+* C — Spring off-line **137/137** `mvn -o` · JDK 25.0.1 · they are real test-walking runs (gateway 84 + discovery 1 + config 1 + control-plane 51) — `#1825`
+* D — RAG 两级缓存真容器：cold 142 → warm **l2_hit = 142** — `#1773`
+* E — 压测双车道：static front door **432 req / 0 err** · live backend /health **432 req / 0 err**（#1801 · #1811 · #1825）
+
+### 二、诚实边界
+
+* 本卷写的是 **观测**，不是解决方案；不去修本机某个早早停掉的 `specproof-534-plane`（13 天前 exit 255 in .scratch）；
+* 全量 pytest 本机依旧 ~2 GB 内存限制（`guide + ledger` 51/51 全绿）；
+* Spring CI 仍离线——`mvn -o` 不能也不该外推到生产机；
+* 「密码 123 全员进」永久否决；Observability 签字仍欠；PORTFOLIO_TOKEN 仍欠；
+* 本轮 worldbook 为 56/56 (Volume L)；chronicle 即将重建至 1,635 节；
+* 下一步：**Volume XLIX → Volume L《第一卷？》——本轮书脊完毕**。

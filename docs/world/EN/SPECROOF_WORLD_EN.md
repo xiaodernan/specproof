@@ -1897,3 +1897,32 @@ Everything unwritten is not missing — it is in flight.
 Everything complex exists without pretense — just because it is difficult, it is never folded.
 
 ---
+## Volume XLIX · The Tide of Quiet（卷四十九 · 沉默的潮汐）
+
+> This volume puts down the load of observable absence — this host standing quiet right now, the Docker containers that do exist, the ports that simply refuse —
+> exactly as they fell.
+
+### 49.1 Five real stakes (every one `git show`-visible)
+
+| # | What happened | Status | Anchor |
+|---|---|---|---|
+| A | Earlier today port 8000 answered `{"status":"ok","db":true,"llm_ready":true,"build_sha":"dev"}` — later the same door refuses contact: `Test-NetConnection -Port 8000 => False` | the door slammed | #1812 · #1827 |
+| B | `live_lane_probe.py` real kick-off returned `iron evidence does not lie` with `prompt_tokens_details.cached_tokens=4224` | always recoverable | `live_lane_probe.py` · #1812 |
+| C | Four Spring lanes, offline, `mvn -o`: gateway 84 · discovery 1 · config 1 · control-plane 51 = **137/137** (Java 25.0.1, not JDK 17) | prior entry | #1825 |
+| D | RAG two-level cache on a real container: cold miss=142 → warm **l2_hit=142, miss=0** | golden lane (live) | #1773 |
+| E | Load lanes: static front door 432 req / 0 err; live backend `/health` 432 req / 0 err | both open | #1801 · #1811 |
+
+### 49.2 Three utterances this tide utters (iron that does not wear out)
+
+- **a test is a claim; a claim is a ledger line; a ledger line points to a commit** —
+  every section carries a hash you can name with your eyes; no "at the time of writing", only what `git show` shows;
+- **silence is not absence** — it is submerged spacing; when your host quiets, the right thing is to read the book, not mock the door;
+- **a book's aquarium** — the 50 volumes here are not grandeur — they are tides that come in to anchor your eyes to one more fact; a quiet world is still full.
+
+### 49.3 The vow of the tide
+
+**Silence is not a verdict — it is a receipt shaped like an unfinished footnote in `## #NNNN`.**
+Volume XLIX latches this one: your eyes on `git log` can watch real commits arrive; nobody calls from inside the repo to say "wait a minute";
+and if you want to know what the next volume is — go knock on GitHub; the book neither promises nor retrades.
+
+---
