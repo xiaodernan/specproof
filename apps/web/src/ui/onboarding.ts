@@ -142,18 +142,71 @@ export function routeKeyFor(hash: string): string | null {
   return null;
 }
 
+/**
+ * A broader, honest map used ONLY for Tour visit verification. Tracks a visit
+ * to the TOP-LEVEL route (not a detail), because the Tour's contract is
+ * "the visitor opened the route at least once in this browser".
+ * Anything not in this list intentionally returns null (unknown = untracked).
+ */
+export function routeKeyForVisit(hash: string): string | null {
+  const path = hash.replace(/^#/, "").split("?")[0].toLowerCase();
+  if (path === "" || path === "/" || path === "/dashboard") return "dashboard";
+  switch (path) {
+    case "/jobs": return "jobs";
+    case "/matrix": return "matrix";
+    case "/contracts": return "contracts";
+    case "/eval": return "eval";
+    case "/usage": return "usage";
+    case "/audit": return "audit";
+    case "/health": return "health";
+    case "/billing": return "billing";
+    case "/settings": return "settings";
+    case "/agent": return "agent";
+    case "/explorer": return "explorer";
+    case "/ide": return "ide";
+    case "/graph": return "graph";
+    case "/drill": return "drill";
+    case "/gestures": return "gestures";
+    case "/museum": return "museum";
+    case "/lexicon": return "lexicon";
+    case "/epic": return "epic";
+    case "/tour": return "tour";
+    case "/chronicle": return "chronicle";
+    case "/atlas": return "atlas";
+    case "/nightwatch": return "nightwatch";
+    case "/gazette": return "gazette";
+    case "/calendar": return "calendar";
+    case "/census": return "census";
+    case "/manual": return "manual";
+    case "/worldbook": return "worldbook";
+    case "/archive": return "archive";
+    case "/inkwell": return "inkwell";
+    case "/mint": return "mint";
+    case "/last-call": return "last_call";
+    case "/trace": return "trace";
+    case "/engine": return "engine";
+    case "/fabric": return "fabric";
+    case "/insight": return "insight";
+    case "/identity": return "identity";
+    case "/pulse": return "pulse";
+    case "/guide": return "guide";
+    default: return null;
+  }
+}
+
 export function recordRouteVisit(hash: string): void {
-  const key = routeKeyFor(hash);
-  if (!key) return;
   const current = loadOnboardingProgress();
-  // A corrupt store is not overwritten by a single navigation: that would turn
-  // "we cannot read it" into "you have done nothing".
   if (current.status === "unreadable") return;
-  if (current.progress.visited[key]) return;
-  saveOnboardingProgress({
-    ...current.progress,
-    visited: { ...current.progress.visited, [key]: new Date().toISOString() },
-  });
+  // 1) existing narrow keys — used by stepState (read_results watch-on)
+  const narrowKey = routeKeyFor(hash);
+  const visitKey = routeKeyForVisit(hash);
+  const nextVisit = { ...current.progress.visited };
+  const at = new Date().toISOString();
+  if (narrowKey && !nextVisit[narrowKey]) nextVisit[narrowKey] = at;
+  // 2) board keys — used only by tour visit postconditions
+  if (visitKey && !nextVisit[visitKey]) nextVisit[visitKey] = at;
+  if (narrowKey === null && visitKey === null) return;
+  saveOnboardingProgress({ ...current.progress, visited: nextVisit });
 }
 
 // ── Step status ─────────────────────────────────────────────────────────────

@@ -161,8 +161,14 @@ describe("route recording", () => {
     expect(window.localStorage.getItem(KEY)).toBe("{broken");
   });
 
-  it("ignores routes that are not evidence of anything", () => {
+  it("records top-level visits as well (dashboard now counts as having been there)", () => {
     recordRouteVisit("#/dashboard");
+    const read = loadOnboardingProgress();
+    expect(read.progress.visited.dashboard).toBeTruthy();
+  });
+
+  it("ignores routes outside the known map", () => {
+    recordRouteVisit("#/definitely-not-a-page");
     expect(loadOnboardingProgress().status).toBe("absent");
   });
 });

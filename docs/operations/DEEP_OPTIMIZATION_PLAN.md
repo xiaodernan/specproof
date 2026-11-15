@@ -38004,3 +38004,37 @@ python scripts/live_lane_probe.py
 - worldbook 卷 → **58 卷** / zh 68,167 chars + en 133,339 chars
 - git_commit_count = 2,479
 - chronicle `#1837` 入账（chronicle count 本次重建）
+
+## #1838 巡览盖章=到访过才亮：巡览不再凭空按印
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、为什么这条必须做（不是 nice-to-have）
+
+* 用户一直说「要有充分游玩教程」——现有的 `/tour` 六卷都是 valid：六卷内容、六个盖印都能读、能点；但 `.seal` 按钮是一个纯 boolean toggle——
+  任何人不打开 `/jobs`、`/matrix`、`/epic` 都能把六卷盖一遍，然后发现自己手里什么都没有
+  —— **盖章 ≠ 没走过**
+* 本仓库承诺「所有教学必须以真实证据为依据」——本条不再是形而上的承诺：本行代码就是证据。
+* 原理极简：用 localStorage 里本浏览器自己点的 `specproof_onboarding_v1.visited` 当裁判——没有更重的。
+
+### 二、实现内容
+
+* `ui/onboarding.ts` 新增 broad 函数 `routeKeyForVisit(hash)`：
+  - 返 30+ 个 top-level route key: `dashboard / jobs / matrix / contracts / eval / usage / audit / health / billing / settings / agent / explorer / ide / graph / drill / gestures / museum / lexicon / epic / tour / chronicle / atlas / nightwatch / gazette / calendar / census / manual / worldbook / archive / inkwell / mint / trace / engine / fabric / insight / identity / pulse / guide` —
+  - 这些才是"这页在场过一次"的证据单位；`routeKeyFor` 保持不变 — job_detail / agent_job_detail 仍然作为 read_results 步进的信号
+  - `recordRouteVisit` 现在记两种，不互相覆盖、不写无关的 key（outsider key returns null）
+* `pages/Tour.tsx`：六卷每卷 Seal 键受控屏幕：
+  - 没到访过 → disabled + Tooltip "先开这个链接至少一次"（zh/en）
+  - 到访过了 → 高亮
+  - 显示"已验证 N / 6 站" 小字样本（被用户主动打开过的站点数）
+  - `hashchange` 触发时重新读过本地 store（来访立刻生效）
+* Tests：`onboarding.test.ts` +1（`#/dashboard` now record as `visited.dashboard=TRUE`；未知路由返回 unrecorded）
+* Docs：本节入账；guide route catalog 中 `pages/Tour.tsx` 不是一等公民（tour 无 href — Tour 内 route reference）—— 6/6 green per existing behavior。
+
+### 三、诚实边界
+
+* This is a local browser-only instrument; every user tracking element is below the clean-room bar — no network, no beacon, no service worker, no tracking in flight. The opt-in model is literal: **localStorage is your own home of data**.
+* It cannot read other sessions (cookies/users); it only checks `visited["jobs"]` etc.
+* If a user disables localStorage: this degrades cleanly to `status: "unreadable"` — the seal entirely does not work; **this tells the truth, not "you've done nothing".**
+* 全量 pytest 仍内存受限（guide + ledger 51/51）；UiKit.smoke 全量 514/514；
+* 「密码 123」永久否决（禁忌清单 §2）；「agent 自己 Approve」永久否决；Observability 签字仍欠。
