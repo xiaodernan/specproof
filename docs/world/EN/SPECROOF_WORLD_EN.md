@@ -2233,3 +2233,41 @@ The new key `specproof_heat_v1` is cut precisely for impatience: quick bounces (
 When the blossoms fill the ground, the vault's seal is complete — until that day, this volume is just one letter written by one browser, never mailed.
 
 ---
+## Volume LVIII · The Echolocation（卷五十八 · 回声定位）
+
+> Dolphins never speak human, but they click at a wall over and over — until they remember where the wall is.
+> This volume is about the echo of the local climate log (specproof_heat_v1): when one browser calls into the same button three times,
+> what the library hands back is not a scolding — it is a note: "perhaps the door you want is over there."
+
+### 58.1 The three triggers of the echo (all required)
+
+| Trigger | Value |
+|---|---|
+| this device holds >= 3 rage-tap events | `deriveHeat().rageTotal >= 3` |
+| this batch has not been acknowledged yet | `specproof_heat_ack_v1 < rageTotal` (ack counts only) |
+| anywhere in the app | any App route; H toggles the teaching layer |
+
+### 58.2 The three voices of the echo (all offline, bilingual zh/en)
+
+| Signature matched | The note to a newcomer |
+|---|---|
+| approve / 批准 / sign | "Approve is always a human one click — open the evidence first." |
+| seal / 盖印 / tour / 巡览 | "No page visited, no seal — visit the station first." |
+| run / verify / 执行 | "Three blind taps are three blind taps — peek at the Evidence tab." |
+| jobs/new / 新建 | "Repo path, base/head, requirements file — missing one refuses the click; load demo data at the top." |
+| model/provider/settings / 模型 | "Keep the /v1 suffix; gpt-6-sol, exactly spelled; else the test button quotes your typo back." |
+| anything else | "This spot made you impatient — press H; gold marks are the manual." |
+
+### 58.3 The three boundaries of the echo
+
+1. **no gaslighting**: the climate log knows "tapped again", never "why"; the echo never accuses, only routes;
+2. **no nagging**: `specproof_heat_ack_v1` stores how many rage-taps were already acknowledged; only growth re-pings;
+3. **no extraterritoriality**: nothing leaves the device; no server ever sorts the fingertips of strangers.
+
+### 58.4 The echo always flies the same way: wall to ear
+
+Nothing is pushed from outside; the only push is this — "the next time this device opens any screen, a small note waits bottom-right."
+The note carries two doors: press H (焊 the hints onto the interface) · or "remember on this device".
+It never rings the same bell twice — unless the wanderer calls into the same button three times again.
+
+---

@@ -38303,3 +38303,33 @@ python scripts/live_lane_probe.py
 * 气候图默认空白页就是「沉默」——不会用假数据填充；
 * web 搜索 402 未变；spring off-line **137/137** stays；guide+ledger **51/51** stays；
 * Volume LVII《静默的梨花 · The Silent Pear Blossom》入册（zh/en 对称）→ **64 卷**（本轮 +1）。
+
+## #1847 气候回吐：本机暴怒点按 ≥3 次 → 右下角一张便条（zh/en 双语 · RBAC 后无关 · 可永久记住）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、改动
+
+* 新组件 `apps/web/src/ui/RageCoach.tsx` — 挂在 ThemeProvider/ToastProvider 内、⌘H 快捷键之后：本机 `specproof_heat_v1` 的 `rageTotal >= 3` 且尚未被记住时，渲染右下角便条卡：
+  - 标题：「气候图回报 · CLIMATE REPORT · this device」；
+  - 每条提示：匹配到的签名 → 对应的新手便条（approve / tour-seal / run / new-verification / model-path / generic）；**zh/en 双语**；
+  - 动作 1：按 H → 直接 `dispatchEvent(coachToggleEvent())` 点亮金色教学层；
+  - 动作 2：「本机记住，不再提醒」→ 写 `specproof_heat_ack_v1=rageTotal`（只记数目，不存内容）；
+  - 动作 3：右上角 × 关闭（不记住、可再弹——下一次增长才会重新评估）；
+* `apps/web/src/ui/rage.ts` — 纯函数 `hintForRage` + `hintsForRage`（规则优先级 + 去重聚合 + 上限 2）；
+* `apps/web/src/ui/RageCoach.tsx` 的触发副作用全程 `try/catch`——localStorage 不可读时**沉默**而非抛错；
+* style：`apps/web/src/styles/rage.css`（冰火对比的暖黑卡 · 入场动画仅 no-preference · 移动端避让）；
+* UI **521/521**（新增 rage.test.ts ×3）· tsc 0 · build 339ms。
+
+### 二、它到底缝合了什么
+
+用户第十节的原话是「真实用户可能在页面上瞎点，因为不知道要去哪」——上一轮拿气候图**看见**了瞎点；本轮让瞎点本人**得到一张便条**。
+
+闭环：敲击（behavior.ts）→ 入册（specproof_heat_v1）→ 洞察舱看见（#1846）→ **印章庭上弹回一张便条（本卷）**→ 新手知道该按哪个键。
+
+### 三、诚实边界
+
+* 卡片只读本机；不上传、不汇总、不排序到服务端；
+* 不指责、不断言原因；「回吐的频率」由 ack 计数严格控制——acknowledged 那几次不再弹；
+* Volume LVIII《回声定位 · The Echolocation》入册（zh/en 对称）→ 世界书 **65 卷**（本轮 +1，数字由 build_worldbook 实算）；
+* court 车道白光永不进缓存（§LVI）；「密码 123 全员进管理员」永久否决；OBSERVABILITY 签字仍欠。

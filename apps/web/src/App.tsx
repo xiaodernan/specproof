@@ -7,6 +7,7 @@ import TenantSwitcher from "./identity/TenantSwitcher";
 import { ThemeProvider, useTheme } from "./theme/ThemeProvider";
 import { useI18n } from "./i18n";
 import { Button, CoachMarks, CommandPalette, ErrorBoundary, Kbd, ShortcutHelp, Spinner, ToastProvider } from "./ui";
+import { RageCoach } from "./ui/RageCoach";
 import { recordRouteVisit } from "./ui/onboarding";
 import { withViewTransition } from "./ui/viewTransition";
 import { MoonIcon, SearchIcon, SunIcon } from "./ui/icons";
@@ -273,5 +274,5 @@ function Workspace() {
 }
 
 export default function App() {
-  return <ThemeProvider><ToastProvider><ErrorBoundary><Workspace /></ErrorBoundary><CommandPalette /><ShortcutHelp /><CoachMarks /></ToastProvider></ThemeProvider>;
+  return <ThemeProvider><ToastProvider><ErrorBoundary><Workspace /></ErrorBoundary><CommandPalette /><ShortcutHelp /><CoachMarks /><RageCoach /></ToastProvider></ThemeProvider>;
 }
