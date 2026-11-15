@@ -1,0 +1,36 @@
+/* ── 典藏馆 · The Archive ───────────────────────────────────────────
+   The whole invitation on one page: every room catalogued.
+   Brass plates on deep umber. Every count read live from JSON. */
+
+.archive-page { max-width: 1240px; margin: 0 auto; color: #e9dfc6; }
+
+.archive-mast { padding: 24px 26px 20px; border: 1px solid rgba(226, 201, 130, 0.42); border-radius: 12px; background: radial-gradient(1100px 300px at 12% -25%, rgba(226, 201, 130, 0.16), transparent 60%), linear-gradient(180deg, #1c1710 0%, #141009 100%); }
+.archive-kicker { font-size: 11px; letter-spacing: 0.44em; color: rgba(226, 201, 130, 0.85); margin: 0 0 10px; font-weight: 600; }
+.archive-mast h1 { font-family: Georgia, "Noto Serif SC", "Songti SC", serif; font-size: clamp(1.9rem, 4.2vw, 2.6rem); margin: 0; color: #f4edd6; line-height: 1.1; letter-spacing: 0.03em; }
+.archive-en { display: block; font-size: 0.2em; letter-spacing: 0.3em; color: rgba(226, 201, 130, 0.8); margin-top: 8px; text-transform: uppercase; }
+.archive-lead { color: #b2a987; line-height: 1.9; margin: 12px 0 0; max-width: 66ch; font-size: 0.9rem; }
+
+.archive-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 16px; }
+.archive-kpi { border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(255, 255, 255, 0.03); border-radius: 8px; padding: 11px 13px; }
+.archive-kpi-v { font-size: 1.4rem; font-weight: 700; color: #f0e3a8; font-variant-numeric: tabular-nums; margin: 0; line-height: 1.2; }
+.archive-kpi-l { font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: #8d8062; margin: 4px 0 0; }
+@media (max-width: 720px) { .archive-kpis { grid-template-columns: repeat(2, 1fr); } }
+
+.archive-section { margin-top: 18px; }
+.archive-section-title { font-family: Georgia, "Noto Serif SC", "Songti SC", serif; font-size: 0.78rem; letter-spacing: 0.4em; text-transform: uppercase; color: rgba(226, 201, 130, 0.72); border-bottom: 1px solid rgba(226, 201, 130, 0.3); padding-bottom: 10px; margin: 0 0 12px; font-weight: 600; }
+
+.archive-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 9px; }
+
+.archive-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; border: 1px solid rgba(255, 255, 255, 0.08); background: #17130d; border-radius: 9px; padding: 13px 13px 11px; text-decoration: none; color: inherit; transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease; min-height: 92px; }
+.archive-tile:hover { transform: translateY(-2px); border-color: rgba(226, 201, 130, 0.55); box-shadow: 0 12px 30px -16px rgba(0, 0, 0, 0.8); }
+.archive-tile:focus-visible { outline: 2px solid #d6b95e; outline-offset: 2px; }
+.archive-tile-title { font-size: 0.88rem; color: #e9dfc3; line-height: 1.4; text-align: left; font-weight: 600; }
+.archive-tile-note { font-size: 9.5px; color: #8d8062; line-height: 1.55; text-align: left; }
+
+.archive-tile-locked { opacity: 0.55; border-style: dashed; }
+.archive-tile-locked .archive-tile-note { color: #b29a5e; font-style: italic; }
+
+.archive-honesty { display: flex; gap: 10px; align-items: flex-start; border: 1px dashed rgba(155, 172, 220, 0.4); background: rgba(155, 172, 220, 0.06); border-radius: 10px; padding: 12px 14px; margin-top: 16px; color: #9aa0b4; line-height: 1.9; font-size: 11.5px; }
+.archive-honesty svg { flex: 0 0 auto; margin-top: 2px; }
+
+@media print { .archive-page { color: #111; } .archive-honesty { border-color: #444; } }

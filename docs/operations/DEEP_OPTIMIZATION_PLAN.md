@@ -37625,3 +37625,32 @@ no third-party links in reply ✅
 * 「密码 123 进管理员页看所有人」——永久否决（禁忌清单第 2 位）；
 * PORTFOLIO_TOKEN 仍需你自备；Observability 接入需隐私评审签字；
 * 未触 app 源码（零代码变更，本节 docs + worldbook 更新；以后 Sprint 车单独变更再大把干）。
+
+## #1826 典藏馆 `#/archive`：37 个一级入口 · 七大回廊 · 永远不再迷路
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、动机（a new player's first step）
+
+* 用户反复要"新手入门快／防迷路"——本仓库现已 30+ 路由；目录散在 README、Guide、Archetype、Sidebar 三页之外……这并不构成"一个人能看到全局的独一走廊入口"；
+* 本轮交付的是："归档全览"——这一个页面自上到下展示每个 `nav-item`；按 §七个回廊分组，admin 回廊的两个 card 上锁（除非 admin/operator 才展开），其它人看不到 admin 内部真实内容；
+* 所有数字皆 build-time 直读 git JSON（50 卷 / 1,625 节 / 111 金案 / 490,260 LOC）——**永不编造**。
+
+### 二、交付
+
+* `pages/Archive.tsx` + `styles/archive.css`：
+  - KICKER + 四格 KPI（50 卷 / 1,625 节 / 111 件 / 490,260 源码行）；
+  - 七回廊（§正史与证词 / §验收宫 / §入口 / §静水对鉴 / §服务 / §管理员回廊 / §本地探天窗）；
+  - 每张卡片：icon + 双语 title + 注解；admin 回廊锁定提示；
+  - 诚实 footer：所有卡片连到活路由；所有统计直读 git JSON；
+* `App.tsx` 懒加载 + NAV evidence 组（icon=`scroll`）+ 路由分支；`strings.ts` `nav.archive`（典藏馆 / Archive）；
+* `USER_GUIDE.md` + EN mirror：各加 `/archive` 一行；一级入口 36 → **37**；guide catalog **6/6** 绿；
+* build ✅ 376ms（Archive chunk 9.57 kB JS / 4.11 kB gzip + CSS 2.71 kB）；tsc 0；vitest 514/514；
+* chronicle 1,627 节；tags：仍只有 v0.90.0（无 v0.91 新标签——今天没有对外 API 变更）。
+
+### 三、诚实边界
+
+* 典藏馆不是"首页 DA"或"热门推荐"——**只是 katalog**；这一页定在 evidence 组，永远不暗含"次要 entry 才能读"的等级；
+* admin 回廊**没有密码**——依然是你本人 `/identity` 里的 RBAC（admin/operator fail-closed）决定；锁门时 tile 会变灰 + 写"仅 admin/operator 可见"；视图本身没破坏 RBAC；
+* 全量 pytest 内存受限（guide+ledger **51/51**）；Spring 离线 137/137（#1825）；'密码 123' 永久否决；
+* PORTFOLIO_TOKEN 仍欠；Observability 等法务/隐私签字。
