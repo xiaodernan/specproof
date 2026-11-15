@@ -38469,3 +38469,33 @@ python scripts/live_lane_probe.py
 * Volume LXIII《归港记 · The Homecoming》入册（zh/en 对称）→ 世界书 **70 卷**（本轮 +1，zh 82,064 首 → 重建后上升）；chronicle 1,653 节；
 * UI **521/521** stays · build 509ms · tsc 0 · gate 51/51 stays · court 永不缓存；
 * 「密码 123 全员进管理员」永久否决；Observability 签字仍欠；PORTFOLIO_TOKEN 仍欠。
+
+## #1853 《启航日》：weekly-stress.yml——每周一 03:00 UTC 自动敲一次门 · 不推分支不红旗
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付物
+
+* `.github/workflows/weekly-stress.yml` — **specproof-weekly-stress**：
+  * 触发：`schedule: "0 3 * * 1"`（周一 03:00 UTC）+ `workflow_dispatch`；
+  * 步骤：checkout → setup-python 3.12 → `pip install -e ".[dev]"` → `apps/web: npm ci + npm run build` →
+    `python scripts/stress_smoke.py --warmup 2 --concurrency 48 --rounds 2 --per-thread 2 --timeout 10.0 --json-report docs/evidence/weekly-${{ github.run_id }}.json`
+    （`set +e` 捕获脚本退出码，原样写进 stress-summary.md，runner 永远 exit 0）；
+  * 产物：artifact `weekly-stress-<run_id>`（JSON + stress-run.log + stress-summary.md）；
+  * `permissions: contents: read` · `concurrency: weekly-stress`（cancel-in-progress）· `timeout-minutes: 10`；
+  * **绝不推分支、绝不红旗、绝不做 SLO 宣称**——机器门限（5000ms）是「压断前的兜底」，不是生产承诺；
+* YAML 结构验证：PyYAML safe_load 通过（`on`→YAML1.1、GitHub 正常处理，同仓库其余 workflow 惯例一致）；
+* 与 #1851（--warmup）/ #1852（evidence 卡）/ `start_local.ps1` 预热门合为同一条「敲门—索引—展示—轮询」链路。
+
+### 二、它和 portfolio-sync.yml 的区别（不许混淆）
+
+* portfolio-sync 推**作品集**（周一 06:00 UTC、依赖 PORTFOLIO_TOKEN、有大提升才发）——本班车**什么都不推**；
+* nightly-eval 会**红旗**告警——本班车**永远不红**；它只存档数字；
+* ci.yml 是合入门——本班车从不构成合入门，只构成每周一份私人有证据的体检。
+
+### 三、诚实边界
+
+* 本班车自本次合入 master 后的**下一个周一 03:00 UTC** 才真正启航；本提交不触发首航（schedule 不为 push 触发）；
+* artifact 不是 git-tracked 证据——把 artifact 真正入库仍是下一个动作（Volume LXV）；
+* Volume LXIV《启航日 · The Day of Sailing》入册（zh/en 对称）→ 世界书 **71 卷**（本轮 +1）；chronicle 1,654 节；
+* UI 521/521 stays · gate 51/51 stays · court 永不缓存；「密码 123 全员进管理员」永久否决。

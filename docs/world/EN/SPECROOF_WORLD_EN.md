@@ -2458,3 +2458,48 @@ stress_smoke.py truly struck in CI (even weekly), the card refreshing itself on 
 Until that day, every person willing to knock makes this tapestry glow a little.
 
 ---
+## Volume LXIV · The Day of Sailing（卷六十四 · 启航日）
+
+> The day the sail goes up, the wind knows it was called.
+> Volume LXIII had the evidence come home — this volume makes the homecoming a Monday routine:
+> no pushes, no red flags, no cart to pull along — just one strike, one archive, and waiting eyes.
+
+### 64.1 The Monday shuttle: weekly-stress.yml (landed in #1853)
+
+| Item | Value |
+|---|---|
+| name | specproof-weekly-stress |
+| cadence | `0 3 * * 1` (Monday 03:00 UTC) + `workflow_dispatch` manual |
+| does what | npm ci + build → `stress_smoke.py --warmup 2 --concurrency 48 --rounds 2 --per-thread 2` → `--json-report docs/evidence/weekly-<run_id>.json` |
+| produces | artifact `weekly-stress-<run_id>`: evidence JSON + stress-run.log + stress-summary.md |
+| pushes | **nothing** — no branch, no tag, no commit |
+| red? | **never** — `set +e` captures the script exit, writes it into stress-summary.md, runner always exits 0; the machine floor (5000ms) is a sanity bumper, not an SLO |
+| permissions | `contents: read` · `concurrency: weekly-stress` (cancel-in-progress) |
+| does not | push, red-flag, portfolio-sync, pretend a production SLO exists |
+
+### 64.2 The house rules of the sailing day
+
+1. **every Monday** — repeating, never cancelled for release prep nor for fatigue;
+2. **archive only, never peddle** — artifact + summary side by side; any human reviewer can byte-verify every claim;
+3. **no red hype or lying** — STRESS_EXIT is written verbatim into the summary, even "1" stays "1".
+
+### 64.3 The chart (Volumes LXII–LXIV)
+
+```
+stress_smoke.py --warmup N       #1851/LXII   anyone may strike
+     ↓ --json-report docs/evidence/…   (git-tracked)
+docs/evidence/2026-11-16-…json   #1851/LXII   first evidence on file
+     ↓ build_evidence.py
+apps/web/src/pages/evidence.json #1852/LXIII  verbatim distillation
+     ↓ import
+#/fabric git-evidence card       #1852/LXIII  jade OK / red BUDGET-BLOWN
+     ↓ weekly-stress (cron)      #1853/LXIV   the Monday shuttle
+CI artifact (weekly)             LXIV        auto-lit weekly
+```
+
+### 64.4 Not yet sailed
+
+This CI lane sails only after it merges into master — first strike Monday 03:00 UTC after today's commit.
+It will never auto-merge numbers into git — git accepts only human-certified evidence.
+
+---

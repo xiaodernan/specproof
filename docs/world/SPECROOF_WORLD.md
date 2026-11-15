@@ -2585,3 +2585,48 @@ zh 与 en 的缓存计数不一样这一事件不属于一致性实验的成功�
 在那之前，每一个肯敲的人，都能让这块织物亮一亮。
 
 ---
+## 卷六十四 · 启航日（The Day of Sailing）
+
+> 帆升起来的那一天，风才知道自己被叫到了。
+> 卷六十三让证据回港——本卷让回港成为每周一的例行：
+> 不推分支、不红旗、不挽留——只敲一次，只存档，只等人来看。
+
+### 64.1 每周一班车：weekly-stress.yml（#1853 落库）
+
+| 项 | 值 |
+|---|---|
+| 名字 | specproof-weekly-stress |
+| 班耗 | `0 3 * * 1`（每周一 03:00 UTC）+ `workflow_dispatch` 手动 |
+| 干什么 | npm ci + build → `stress_smoke.py --warmup 2 --concurrency 48 --rounds 2 --per-thread 2` → `--json-report docs/evidence/weekly-<run_id>.json` |
+| 产出 | artifact `weekly-stress-<run_id>`：证据 JSON + stress-run.log + stress-summary.md |
+| 推不推 | **不推**——不推分支、不推 tag、不 commit |
+| 红不红 | **永远不红**——`set +e` 捕获脚本退出码 → 写进 summary → runner exit 0；机器门限（5000ms）是「压断前的兜底」，不是 SLO |
+| 权限 | `contents: read` `concurrency: weekly-stress`（同组取消在途） |
+| 不做的事 | 不 push、不红旗、不 portfolio-sync、不假装 production SLO |
+
+### 64.2 启航日的家规
+
+1. **每周一敲**——周而复始，不为任何发布提前、不为任何疲劳取消；
+2. **只存档，不推销**——artifact 与 Summary 同行，任何人类 reviewer 可以 git show 出字节级证据；
+3. **不亮红也不撒谎**——STRESS_EXIT 数字原样写进 summary，连「1」也照写。
+
+### 64.3 航程图（卷六十二→六十四）
+
+```
+stress_smoke.py --warmup N      #1862/LXII   每一条命令都能敲
+     ↓ --json-report docs/evidence/…   (git-tracked)
+docs/evidence/2026-11-16-…json  #1851/LXII   首件证据
+     ↓ build_evidence.py
+apps/web/src/pages/evidence.json #1852/LXIII  verbatim 蒸馏
+     ↓ import
+#/fabric 「git 证据件」卡        #1852/LXIII   玉色 OK / 红色 BUDGET-BLOWN
+     ↓ weekly-stress (cron)      #1853/LXIV   每周一班车
+CI artifact（每周）              LXIV        自动亮灯
+```
+
+### 64.4 尚未起航
+
+这条 CI 航线从 master 合入之后才真正启航——它从今天的 commit 起每周一 03:00 UTC 敲一次。
+它永远不自动把数字合进 git——git 只收人类确证的证据件。
+
+---

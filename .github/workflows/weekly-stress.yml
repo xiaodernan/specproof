@@ -1,0 +1,74 @@
+name: specproof-weekly-stress
+
+# Every Monday 03:00 UTC, the front-door stress is struck once more —
+# unattended, archived as a build artifact, never pushed anywhere.
+#
+# What this workflow deliberately does NOT do:
+#   - it pushes nothing to any branch (no bot commits, no history noise);
+#   - it never paints the repository red: the machine gate (5000ms worst-round
+#     p99) is a sanity floor, not a service-level objective — the numbers are
+#     the product here, the verdict is a label, not a verdict on the repo;
+#   - it does NOT sync the portfolio (portfolio-sync.yml owns that role);
+#   - it records honesty: the artifact JSON carries p99/p95/p50, byte counts,
+#     warmup count and a machine verdict, verbatim as measured on a shared
+#     runner.
+#
+# The archived artifact is named with the run number so weeks can be compared
+# side by side; to make a durable git-tracked evidence file from one of these,
+# strike the same command locally and commit docs/evidence/<date>-*.json by hand.
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"  # Monday 03:00 UTC
+  workflow_dispatch: {}
+
+concurrency:
+  group: weekly-stress
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  stress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build the front door
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" >/dev/null
+          cd apps/web && npm ci --no-audit --no-fund && npm run build >/dev/null && cd ../../
+      - name: Strike the static lane (warmup 2 + measure 2, 48-way)
+        # The script exits 1 when the worst round p99 exceeds the 5000ms floor;
+        # this workflow converts that signal into information, not a red run:
+        # the numbers are the treasure.
+        run: |
+          set +e
+          python scripts/stress_smoke.py --warmup 2 --concurrency 48 \
+            --rounds 2 --per-thread 2 --timeout 10.0 \
+            --json-report "docs/evidence/weekly-${{ github.run_id }}.json" | tee stress-run.log
+          STRESS_EXIT=$?
+          set -e
+          echo "script exit: $STRESS_EXIT (artifact carries the verdict; the runner never fails)"
+          {
+            echo "# Weekly stress strike — run ${{ github.run_number }}"
+            echo "- finished_utc: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "- exit_code: $STRESS_EXIT"
+            echo "- evidence: docs/evidence/weekly-${{ github.run_id }}.json (artifact)"
+            echo ""
+            tail -n 8 stress-run.log
+          } > stress-summary.md
+      - name: Publish the strike artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-stress-${{ github.run_id }}
+          path: |
+            docs/evidence/weekly-${{ github.run_id }}.json
+            stress-run.log
+            stress-summary.md
