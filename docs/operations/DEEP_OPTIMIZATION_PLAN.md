@@ -38556,3 +38556,30 @@ python scripts/live_lane_probe.py
 * gate 51/51 不变 · court 永不缓存 · 「密码 123 全员进管理员」永久否决；
 * Volume LXVI《船期表 · The Timetable》入册（zh/en 对称）→ 世界书 **73 卷**（本轮 +1）；chronicle 1,656 节；
 * Observability 签字仍欠；PORTFOLIO_TOKEN 仍欠；真·fleet 遥测仍欠。
+
+## #1856 《收帆时刻》：末班车新增「本周航行日志 · THE WEEKLY VOYAGE」（船签 · 欠签 · 下一次敲门）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、改动
+
+* 新组件 `apps/web/src/pages/WeeklyVoyage.tsx` — 挂在 `#/last-call`（三张抽牌之上）：
+  * **此刻船签**：`evidence.json`（构建期 verbatim）— 最新证据件名、敲击时间、**worst p99**、总数、判定（OK 玉绿 / blown 红）；空→「尚未敲门」的诚实空态；
+  * **欠签**：三条永远一致的清单（OBSERVABILITY.md 签字在等真人；weekly-stress.yml 首班等合入 + 下周一；127.0.0.1:8000 是 career-os-ai-service 的门）；
+  * **下一次敲门**：`nextMondayKnock(new Date())` 运行期真推下一个周一 03:00 UTC，并附「想现在敲」的命令 `stress_smoke.py --warmup 2 …`；
+  * `@media print` 下隐藏；
+* `voyage.css`（黑金三栏 · 门边便签语气）；
+* UI **533/533** stays · tsc 0 · build 252ms。
+
+### 二、它缝补了哪个洞
+
+用户第六节问「怎么防止用户迷失在巨物里」——上轮兑现「H 金色徽章」，本轮兑现「看见船期」：
+新手打开「末班车」第一眼不是抽牌，不是叙事，**是这艘船最近没敲、什么时候再来敲**——大船没进港也不许自己撒谎。
+
+### 三、诚实边界
+
+* 船签段**没有任何实时遥测**——是构建快照，UI 上不写 live；
+* 欠签清单不是"项目缺陷列表"，只是当前三件未成事，原样列出；
+* 下一次敲门是计算值不是承诺——cron 未合入前的第一个周一，它正在海里等着；
+* Volume LXVII《收帆时刻 · The Furling Hour》入册（zh/en 对称）→ 世界书 **74 卷**（本轮 +1）；chronicle 1,657 节；
+* gate 51/51 stays · court 永不缓存；「密码 123 全员进管理员」永久否决。

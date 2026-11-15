@@ -2703,3 +2703,34 @@ UI 全绿文件数 +3
 本轮之后，「界面没有悄悄坏掉」第一次成为可以 git show 的红线。
 
 ---
+## 卷六十七 · 收帆时刻（The Furling Hour）
+
+> 出海的人要算清楚下一班什么时候来——不是为了等它，是为了安心。
+> 本卷把「这艘船接下来会怎么敲门」钉在「末班车」页面上：
+> 最近一次敲门是哪一天、上一次敲出多少 byte、下一次敲什么时候来——三行便签，安分地挂在门边。
+
+### 67.1 本周航行日志（挂在 #/last-call 顶部）
+
+| 行 | 内容 | 数据源 |
+|---|---|---|
+| 此刻船签 | 文件名 · 敲击时间 · worst p99 · 总数 · 判定（OK 玉色 / blown 红色） | `evidence.json`（构建期 verbatim） |
+| 欠签 | 真·fleet 遥测 = OBSERVABILITY.md 签字在等人；weekly-stress.yml = 首班等合入 + 下一个周一；127.0.0.1:8000 = career-os-ai-service 的门 | 本机 2026-11-16 现状，逐字登记 |
+| 下一次敲门 | 构建期计算的下一个周一 03:00 UTC + 可自敲命令 | `new Date()` 运行期推算 · 无假数据 |
+
+### 67.2 收帆时刻的家规
+
+1. **三行不膨胀**——if 空证据，row 1 会安静地说「尚未敲门」；
+2. **欠签永远三条**——真 fleet / 周班 / 门归属；欠就写欠，不用「尽快」；
+3. **下一班不是梦**——nextMondayKnock() 是运行期真算出来的，不是装饰文字。
+
+### 67.3 航程图（LXII→LXV→LXVII）
+
+```
+stress_smoke.py --warmup N        → docs/evidence/*.json       (LXII·#1851)
+     ↓ build_evidence.py
+evidence.json (latest+delta)      → #/fabric 卡 per-delta      (LXV·#1854)
+     ↓ weekly-stress.yml cron
+artifact（每周一 03:00 UTC）       → 本卷的船签+下一班          (LXIV·#1853 · LXVII·#1856)
+```
+
+---

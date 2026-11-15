@@ -2576,3 +2576,34 @@ UI suites grown by 3 files
 From this hour on, "the interface has not quietly broken" is a line you can git show.
 
 ---
+## Volume LXVII · The Furling Hour（卷六十七 · 收帆时刻）
+
+> One who sets sail must count when the next departure comes — not to wait for it, but to rest easier.
+> This volume nails the question "how will this ship knock next" onto the Last Call page:
+> which day it knocked last, how many bytes it pushed, and when it knocks next — three sticky notes, honestly pinned by the door.
+
+### 67.1 The Weekly Voyage (pinned atop #/last-call)
+
+| Row | Content | Source |
+|---|---|---|
+| Ship's stamp | file · struck-at · worst p99 · totals · verdict (OK jade / blown red) | `evidence.json` (verbatim, build time) |
+| Still unsigned | real fleet telemetry = OBSERVABILITY.md awaits a human; weekly-stress = first strike waits merge + next Monday; 127.0.0.1:8000 = career-os-ai-service's door | host reality of 2026-11-16, verbatim |
+| Next knock | next Monday 03:00 UTC computed live + the knock-now command | `new Date()` at runtime · no invented data |
+
+### 67.2 House rules of the furling hour
+
+1. **three rows, never more** — empty evidence yields an honest "no knock yet" in row 1;
+2. **the unsigned list always says the same three** — fleet / weekly shuttle / port ownership; unsigned is said unsigned, never "soon";
+3. **the next departure is computed, not imagined** — `nextMondayKnock()` is a real runtime calculation, not decorative text.
+
+### 67.3 The chart (LXII → LXV → LXVII)
+
+```
+stress_smoke.py --warmup N        → docs/evidence/*.json       (LXII·#1851)
+     ↓ build_evidence.py
+evidence.json (latest+delta)      → #/fabric per-delta card    (LXV·#1854)
+     ↓ weekly-stress.yml cron
+artifact (Mon 03:00 UTC)          → ship's stamp + next knock  (LXIV·#1853 · LXVII·#1856)
+```
+
+---

@@ -3,6 +3,7 @@ import { useI18n } from "../i18n";
 import worldbook from "./worldbook.json";
 import dossier from "./dossier.json";
 import chronicle from "./chronicle.json";
+import WeeklyVoyage from "./WeeklyVoyage";
 import { ProductIcon } from "../ui/ProductIcon";
 import "../styles/last-call.css";
 
@@ -92,6 +93,7 @@ export default function LastCall(): JSX.Element {
         </button>
       </header>
 
+      <WeeklyVoyage />
       <div className="last-call-cards">
         <article className="last-call-card last-call-card-book">
           <p className="last-call-card-kicker">{L("世界书的一次抽见", "A SPILL FROM THE WORLD BOOK")}</p>
