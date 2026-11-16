@@ -6,6 +6,7 @@ import { buildInsight } from "./insight.copy";
 import { loadOnboardingProgress } from "../ui/onboarding";
 import { clearHeat, deriveHeat, loadHeat } from "../telemetry/behavior";
 import { ProductIcon } from "../ui/ProductIcon";
+import unsigned from "./unsigned.json";
 import "../styles/insight.css";
 
 /**
@@ -289,6 +290,32 @@ export default function Insight() {
           <p className="insight-heat-foot">{zh ? "事件仅存本机、随缓存清理消失；本块永不上传——即便 D1 于 2026-11-16 签落（身份未加密实证），本页依然只是这个浏览器的痕迹，不是船队遥测。。" : "Events live only on this device and vanish with your cache; this block never uploads — even with D1 signed 2026-11-16 (identity not crypto-verified), this page is still this browser's trace, not fleet telemetry."}</p>
         </section>
 
+
+        {/* ── Debt ledger · D1/D2 evidence to their faces ───────────────── */}
+        <section className="insight-panel insight-debt-panel" role="note" aria-label={zh ? "欠条现场" : "The ledger of owed things"}>
+          <h2>{zh ? "欠条现场 · 今天谁还在欠着谁？" : "The IOUs · who owes what today?"}</h2>
+          <ul className="insight-debt-list">
+            {unsigned.checks.map((check) => {
+              const isSigned = check.status === "signature-block-found";
+              const waiting = check.status === "awaiting-signature";
+              const ready = check.status === "merged";
+              const tone = isSigned || ready ? "ok" : waiting ? "warn" : "muted";
+              return (
+                <li key={check.id} className={`insight-debt-row insight-debt-row-${tone}`}>
+                  <code>{check.id}</code>
+                  <span className="insight-debt-status">{check.status}</span>
+                  <span className="insight-debt-detail">{check.detail}</span>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="insight-reco-footnote">
+            {zh
+              ? "本面只敲现敲 JSON —— 本页任何时刻停驻时记的都是当时状态，不卷未签、不补签、不推给别人。"
+              : "This panel reads the struck JSON verbatim — whatever the audit said on this very strike is what you see, never dressed up."}
+          </p>
+        </section>
+
         {/* ── Personas ───────────────────────────────────────── */}
         <section className="insight-panel insight-personas-panel">
           <h2>{zh ? "合成用户型谱（匿名画像 · 6 型）" : "Synthetic personas (anonymous · 6 archetypes)"}</h2>
@@ -328,8 +355,8 @@ export default function Insight() {
       <p className="insight-honesty">
         <ProductIcon name="shield" size={14} />{" "}
         {zh
-          ? "本页的人群面板是确定性合成校准数据（mulberry32(20261115)），不含任何真实用户身份或行为字段；本机真实轨迹只读 localStorage，不联网、不上报。admin/operator 可见并受 RBAC fail-closed 约束——不设「123 密钥」这类全员通行证。真·船队级遥测的接入方式见 docs/operations/OBSERVABILITY.md；上线前必须由产品与隐私评审签字。"
-          : "The cohort on this page is a deterministic synthetic calibration (mulberry32(20261115)) — no real user identity or behaviour fields anywhere. This browser's real trace reads localStorage only — never uploads. Visible to admin/operator under the same fail-closed RBAC; there is deliberately no “123 key” golden ticket. Real fleet telemetry wiring is documented in docs/operations/OBSERVABILITY.md and must pass product/privacy review before it ever ships."}
+          ? "本页的人群面板是确定性合成校准数据（mulberry32(20261115)），不含任何真实用户身份或行为字段；本机真实轨迹只读 localStorage，不联网、不上报。admin/operator 可见并受 RBAC fail-closed 约束——不设「123 密钥」这类全员通行证。真·船队遥测的接入方式见 docs/operations/OBSERVABILITY.md——D1 已于 2026-11-16 签落（signature on file · identity 未加密实证）；签字不等于上线；产品与隐私评审仍然悬。"
+          : "The cohort on this page is a deterministic synthetic calibration (mulberry32(20261115)) — no real user identity or behaviour fields anywhere. This browser's real trace reads localStorage only — never uploads. Visible to admin/operator under the same fail-closed RBAC; there is deliberately no “123 key” golden ticket. Real fleet telemetry wiring is documented in docs/operations/OBSERVABILITY.md; D1 is signed as of 2026-11-16 (signature on file · identity not crypto-verified). Signed ≠ live: a product/privacy review is still required before real fleet data can ship."}
       </p>
     </div>
   );

@@ -67,4 +67,22 @@ describe("insight deck RBAC", () => {
     render(<Insight />);
     expect(window.localStorage.getItem(ACK_KEY)).toBe("3");
   });
+
+  it("renders the debt ledger panel reading unsigned.json — signature/current verbatim, no dressing", () => {
+    access.canManage = true;
+    render(<Insight />);
+    const panel = document.querySelector(".insight-debt-panel") as HTMLElement;
+    expect(panel).not.toBeNull();
+    expect(panel.textContent).toContain("observability-signature");
+    expect(panel.textContent).toContain("signature-block-found");
+    expect(panel.textContent).toContain("weekly-stress-merged");
+    expect(panel.textContent).toContain("port-8000-answers");
+    expect(panel.textContent).toContain("branch-cleanliness");
+  });
+
+  it("keeps the debt ledger shut for non-admins (fail-closed parity)", () => {
+    access.canManage = false;
+    render(<Insight />);
+    expect(document.querySelector(".insight-debt-panel")).toBeNull();
+  });
 });

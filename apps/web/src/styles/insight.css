@@ -317,3 +317,13 @@
 .insight-heat-rage span { color: #ffd97a; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .insight-heat-foot { margin: 14px 0 0; font-size: .68rem; color: #5f6b86; border-top: 1px solid rgba(255,255,255,.07); padding-top: 10px; line-height: 1.8; }
 @media (max-width: 980px) { .insight-heat-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } .insight-heat-cols { grid-template-columns: 1fr; } }
+.insight-debt-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.insight-debt-row { display: grid; grid-template-columns: auto auto 1fr; gap: 12px; padding: 10px 12px; border-radius: var(--radius-md); border: 1px solid var(--color-border); background: var(--color-surface); align-items: baseline; font-size: var(--text-sm); }
+.insight-debt-row code { font-family: var(--font-mono); font-size: .75rem; letter-spacing: .04em; color: var(--accent-text); }
+.insight-debt-row-ok { border-left: 3px solid rgba(165, 242, 217, .5); }
+.insight-debt-row-ok .insight-debt-status { color: #a5f2d9; }
+.insight-debt-row-warn { border-left: 3px solid rgba(255, 184, 76, .5); }
+.insight-debt-row-warn .insight-debt-status { color: #ffbf4a; }
+.insight-debt-row-muted { border-left: 3px solid rgba(160, 160, 180, .35); }
+.insight-debt-row-muted .insight-debt-status { color: var(--color-text-2); }
+.insight-debt-detail { color: var(--color-text-2); font-size: var(--text-xs); }

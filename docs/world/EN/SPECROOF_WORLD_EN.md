@@ -4304,3 +4304,40 @@ the composite subgraph deliberately ignores "rolling windows" — a sliding wind
 3. "Δ<25ms three strikes in a row" is a *signal*, not a *promise*: longer series make the floor firmer, but the floor never makes the exhibit disappear.
 
 ---
+## Volume CXI · The IOU Wall, In Person（卷一百一十一 · 欠条现场）
+
+> The wall asks questions of the people who see it, not promises.
+> Every IOU displayed is, right now, a string in a file — never a grin of submission.
+
+### 111.1 `#/insight` gained a wall
+
+Admin-operator gets `.insight-debt-panel` — a panel read directly from `unsigned.json` at build time, rows verbatim:
+
+```
+observability-signature  signature-block-found   "human signature block matched … identity NOT verified"
+weekly-stress-merged     merged                  "specproof-weekly-stress present …"
+port-8000-answers        port-free               "127.0.0.1:8000 refused/unreachable …"
+branch-cleanliness       dirty-tree              "work tree has 25 dirty entries …"
+```
+
+* The gate stays fail-closed — non-admins cannot reach this; the test keeps the parity gate
+* `role="note"` + `aria-label` — assistive tech finds it
+* every row is just HTML — no decorative diode, no favicon fade; the data is the decoration;
+* "git diff unsigned.json" is how this panel is audited — any hand-tweak of the JSON that changes a lamp is a bug.
+
+### 111.2 What it answers
+
+| before | after |
+|---|---|
+| D1 popped up only on `/last-call` + `/atlas` | the admin page now shows the same four rows at a glance |
+| stale "still awaiting signature" copy in four+ places | honesty paragraph refreshed; four stale references gone |
+| admin could not answer "what still owed?" without a terminal | the wall answers without one |
+
+### 111.3 Refused
+
+* court untouched; court never caches; court is always stream=True + include_usage=True;
+* `4117d2b0ca5fb23a` is locked as of the day before and every day after;
+* no fifth signature state is invented; D1 signed stays signed — and identity still unverified;
+* 「password-123」permanently vetoed.
+
+---

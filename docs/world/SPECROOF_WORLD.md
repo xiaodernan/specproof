@@ -4424,3 +4424,40 @@ OBSERVABILITY.md 不是一份配置、一份说明书、一份百科；它是一
 3. "permanence of the lament" 是铁证谱系的固有属性——exhibit #4 不删、不移、不加权衰减。
 
 ---
+## 卷一百一十一 · 欠条现场（The IOU Wall, In Person）
+
+> 一堵墙摆出来就够了，不摆出来就不够了——
+> 有多少个 IOU 在墙上挂着，不告诉你结清了没有，只告诉你"此刻在敲的是这些字节"。
+
+### 111.1 本卷在 `#/insight` 里挂了一堵墙
+
+Admin/operator 的页面多了 `.insight-debt-panel`（双语）——一张从 `unsigned.json` 直接 git-tracked、build-time 敲下的欠条面板：
+
+```
+observability-signature  signature-block-found   "human signature block matched ... · presence only, identity NOT verified"
+weekly-stress-merged     merged                 "weekly-stress present (schedule 0 3 * * 1 …)"
+port-8000-answers        port-free              "127.0.0.1:8000 refused/unreachable …"
+branch-cleanliness       dirty-tree             "work tree has 25 dirty entries …"
+```
+
+* 角色门槛仍是 RBAC fail-closed（`admin/operator`）；non-admin 仍出不了 `#/insight`；
+* 面板角色 note `role="note"` + aria-label 让 screen reader 直接读出；
+* debt row `insight-debt-row-{ok|warn|muted}` 四种灯色，没有被任何 gradient 滤镜装饰；
+* 抽一行就撼动它：`git diff apps/web/src/pages/unsigned.json` 的每次 regenerate 是机器的；**不允许任何人手工改里面那一行来让灯光亮一点**。
+
+### 111.2 本卷解决的是
+
+| 之前 | 现在 |
+|---|---|
+| D1 只在 `/last-call` 和 `/atlas` 的 Radar 上出现；真正欠条的 4 条分散在跨页里 | `#/insight` 里 admin 看一次即得；没有 DM 就能问"此刻现况是哪一条还没结" |
+| D1 stale copy（"仍需签字" → 应该「已签落但 fleet 不上 rack」）四处硬编 | `#/insight` honesty paragraph 及上一屏 sync，**不再有**四处都摆着写着"未签"的新手可见字 |
+| D1 在 RBAC 门里只是可读数据——现在 admin 可以把它当墙面打印出来 | 打印件 / audio 同步，admin 任何想要的人都可以用 DOM trace 出来
+
+### 111.3 本卷不做
+
+* 不动 court；不碰 `lock 4117d2b0ca5fb23a`；不改 fallback 阈值；
+* 不制造第五种签名状态；#1897 之下签落的签字就是签落的；
+* 真·船队遥测仍然是「未确认的连接」——port 8000 现在谁也没应答（port-free）；
+* 「密码-123」永久否决。
+
+---

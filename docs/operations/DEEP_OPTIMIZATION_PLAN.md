@@ -39866,3 +39866,28 @@ Delta 小于 25 ms 连续三件了（#5-#4=−491 · #6-#5=+23.28 · #7-#6=+21.3
 4. court 永远 stream+include_usage；「密码-123」永远否决；有 live prod 不是事实；
 
 Volume CX《永远不灭的红 · The Lamp That Never Goes Quiet》入册 → worldbook **117 卷** · chronicle **1,701 节**。
+
+## #1901 《欠条现场》：#/insight 增 `.insight-debt-panel`（unsigned.json 直读 · 4 行 verbatim · role=note）· 测试 +2 锁死 non-admin 不可见 & admin 可见 · Volume CXI
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1900。
+
+### 一、交付物
+
+* `apps/web/src/pages/Insight.tsx` — admin/operator 面板增「欠条现场」一节：`role="note"` · aria-label zh/en · 行内显示 `unsigned.json` 4 条 check 原文（D1 签落状态、weekly-stress merged · port-free · branch-cleanliness）
+* `apps/web/src/styles/insight.css` — `.insight-debt-list` / `.insight-debt-row`（ok / warn / muted 三色轴）· 无任何装饰 · 整页不产生第二套 cream
+* `apps/web/src/pages/Insight.test.tsx` — +2 断言（admin 见 vs non-admin 不见）· UI **546/546**（+2）
+* `Insight.tsx` honesty footnote 同步 D1 已签落文案（去除「仍需签字」老词）
+* Volume CXI《欠条现场 · The IOU Wall, In Person》入册 → worldbook **118 卷** · chronicle **1,702 节**
+
+### 二、对照
+
+| 页 | 之前 | 现在 |
+|---|---|---|
+| `#/insight` | 欠条四行散在别页；D1 文案不一 | 同某行直读 unsigned.json；inner roles 一致 |
+| 看板 | 双盲屏幕：非 admin 看不到、不冒泡 | 本页 admin-gate-fail-closed（仍由 RBAC 把门） |
+
+### 三、不变
+
+* court=4117d2b0ca5fb23a LOCKED；court 永远 stream+include_usage；purity CLEAR；「密码-123」永远否决；
+* exhibit #4 那行数字不加不减；Night Watch 仍 CRACKED；
+* D1 ✅ D2 ⏸（owner 财的 2 件事，这一行不骗任何人）。
