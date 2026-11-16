@@ -39977,3 +39977,28 @@ docs/evidence/
 - D1 ✅ 签落 · D2 ⏸ 仍悬（等你的 PAT：Settings → Secrets → PORTFOLIO_TOKEN）
 
 Volume CXIV《The Three-Pin Caliper》入册 → worldbook **121 卷** · chronicle **1,705 节**。
+
+## #1905 《灯不会自己停》：Volume CXV — 从「签落」到「敲上层」从 1881~1904 24 个提交一条线 · chronicle 1,706 节 · worldbook 122 卷
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1904。
+
+### 一、一个线
+
+本 round 自 #1881 起至今， master 走了 24 个 commit —— hybrid shelve：从 `#1881` LLM 扉页换 api.aizzz.xyz → `#1904` 三针饱和刻度入册。D1 已签 · D2 待你的 PAT。Night-Watch CRACKED—— exhibit #4 forever。
+
+### 二、最近六个回顾（单件）
+
+| # | 落地 | 灯色 |
+|---|---|---|
+| 1899 | Insight copy cleanup (D1-aware zh/en) + UI 544/544 | ✅ |
+| 1900 | exhibit #7 (96 并发 · OK · Δ+21.36ms) — three-strike settled under threshold | ✅ |
+| 1901 | Insight admin debt-panel · fail-closed parity test | ✅ |
+| 1902 | Volume CXII — shortest volume in the book | ✅ |
+| 1903 | exhibit #8 — p99 跳涨 Δ+999.08ms；Night-Watch stays CRACKED forever | ✅ honest |
+| 1904 | exhibit Light-1 (24×4=192 req OK) — saturation caliper in book form | ✅ |
+
+### 三、下一册
+
+Volume CXV《灯不会自己停 · The Light That Does Not Stop Itself》入册；这一条不是写完的——是边走边敲的。 chronicle **1,706** 节。
+
+Court Lock 仍 LOCKED · court 永远 stream+include_usage ·「密码-123」永远否决 · UI 546/546 · mvn -o 137/137

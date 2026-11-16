@@ -4434,3 +4434,49 @@ Evidence doesn't get better because we wish it; it only gets honest because we w
 - D1 signed, D2 owed; 「password-123」permanently vetoed; demo never impersonates production.
 
 ---
+## Volume CXV · The Light That Does Not Stop Itself（卷一百一十五 · 灯不会自己停）
+
+> A lamp that stays lit is not because it is told to —
+> it is because it has started to stay.
+> In this volume, the staying is organised.
+
+### 115.1 One paragraph
+
+- worldbook **121** sections (today, #1904)
+- chronicle **1,705** entries · master `8c1f8b1` · origin 0/0 · purity CLEAR · court `4117d2b0ca5fb23a` **LOCKED**
+- D1 ✅ signed (identity NOT crypto-verified — always stated, never fabricated)
+- D2 **PENDING** (PORTFOLIO_TOKEN · the book will never stand inside that key)
+- UI 546/546 · `mvn -o` 137/137 · web build ✓
+- Exhibits #4 and #8 **remain on file** — the night watch remains **CRACKED**; no threshold is tampered with
+- Three pins on the saturation curve: 24 / 48 / 96 concurrent → 192 / 384 / 768 req — the cliff appears clearly between 48 and 96
+- LLM lane: aizzz/gpt-6.1-terra/max — through Clash Verge (mihomo 7897) — `provider_smoke.py` **7/7 PASS** · cached 4224→6400 · `live_lane_probe.py` HTTP **200** (9 chunks)
+- anyone can run `python scripts/llm_cache_probe.py` — output is deterministic
+
+### 115.2 The arcing recap
+
+| # | what |
+|---|---|
+| #1896 | providers.outbound_client + 11 unit mount-tests (no network) — the lane climbs the ladder |
+| #1897 | D1 signed — `audit_unsigned.py` flips `signature-block-found` |
+| #1898 | stale copy cleaned from /insight after D1 flip |
+| #1899 | `.insight-debt-panel` lands · admin-only, verbatim from `unsigned.json` |
+| #1900 | exhibit #7 (96×2×4 · OK) — third exhibit under 25ms Δ |
+| #1901 | `insight-debt-panel` rebalanced · tests +2 |
+| #1902 | Volume CXII — the whole book reduced to two lines |
+| #1903 | exhibit #8 — **1,058.3 → 2,078.7 ms · err 0.52%** — exhibit #8 refuses to smooth itself out |
+| #1904 | exhibit Light-1 — 24 concurrent · 192 req · p99 1,025 ms · the saturation ladder is on file |
+| **#1905** | this volume is on file |
+
+### 115.3 This volume refuses to admit
+
+1. a demo passed off as production — no curl claim will ever land here; port 8000 remains unanswered by SpecProof;
+2. Night-Watch quietly turning jade — exhibit #4 remains; neither threshold nor exhibit has been touched;
+3. any key crossing any git boundary — `.gitignore` has kept `.local/llm.json` unreachable; `git log -S<key>` never printed;
+4. a signature being re-branded as a live rack — never;
+5. the court ever relying on non-stream lane for its own verdict — court is always `stream=True + include_usage=True`.
+
+### 115.4 The micro-shine
+
+This book is not here to manufacture cheer. When a lamp lights, it is because someone struck a match. When this one refuses to, it is because something—so far, exhibit #4—remains broken.
+
+---
