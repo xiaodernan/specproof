@@ -4905,3 +4905,34 @@ R16 sits beside this, unrewritten: R16 was two **different-prefix** strikes → 
 UI **559/559** · build ✓ · guide 6/6 · parity 15/15 · mvn -o **137/137** · court `4117d2b0ca5fb23a` **LOCKED** ·「password‑123」vetoed · D1 ✅ · D2 pending owner's PAT · purity **CLEAR** · Night Watch **CRACKED** (exhibit #4 stays on file) · corrections **16**.
 
 ---
+## Volume CXXXVII · Two Lamps Redden Together（卷一百三十七 · 第两盏灯一起红了）
+
+> Two exhibits crossed the line together —
+> and nobody put either of them away.
+
+### 137.1 Exhibit #10 and exhibit #11 struck live tonight
+
+| exhibit | concurrency | requests | err | worst p99 | verdict |
+|---|---|---|---|---|---|
+| #10 | 128c × 2 × 4r | 1,024 | **15.23%** | 2,225.7 ms | **BUDGET-BLOWN** |
+| #11 | 256c × 2 × 4r | 2,048 | **45.12%** | 2,253.8 ms | **BUDGET-BLOWN** |
+
+Both exhibits landed on the same sort of wall — host saturation, not falsified config, not threshold tampering. p50 stayed 386→541 ms (exhibit #10) / 515→2,020 ms (exhibit #11); rounds eventually settled down to 2.15% err and 99% success, because this host eventually re-acquired capacity, but the artifacts exist forever.
+
+* `evidence_graph.py` re-struck: entries=**12** REGRESSION;
+* `night_watch_graph.py` re-struck: CRACKED — two consecutive exhibits breached Δ>25 ms across the full time series;
+* `/fabric` gained LANE D (128c · 512 req · worst p99 2,225.7 ms · BUDGET-BLOWN, struck #1919);
+* `/exhibits` (new page, #1925): the timeline of every **real** front-door strike — 12 exhibits verbatim, each with its p99 and verdict; exhibits never demoted, never archived;
+* court locked · purity CLEAR · Night Watch forever CRACKED.
+
+### 137.2 What this volume refuses to say
+
+* this is a **host fact**, not a production claim — no rack here; this repo has never been anything but a demo-host spec;
+* rounds recovered (round3/4 ≈ 99% success, p50 back to the 1000-ish / 500-ish range) — the host came back; that is recorded verbatim;
+* exhibits never deleted, never glazed, never redressed — Night Watch forever CRACKED; no threshold moves; no exhibit gets retired "because inconvenient".
+
+### 137.3 The floor never moved
+
+UI **562/562** (+3 /exhibits) · build ✓ · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · D1 ✅ · D2 pending owner's PAT · purity **CLEAR** · Night Watch still **CRACKED** ·「password-123」vetoed.
+
+---

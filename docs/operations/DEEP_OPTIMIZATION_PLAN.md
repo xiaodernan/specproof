@@ -40470,3 +40470,29 @@ mvn -o **137/137** · UI **559/559** · guide 6/6 · corrections **16** · court
 mvn -o **137/137** · UI **559/559** · vitest ✓ · build ✓ · guide 6/6 · parity 15/15 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · purity **CLEAR** · D1 ✅ · D2 ⏸ ·「密码-123」否决。
 
 Volume CXXXVI《把灯重新拧亮了 · The Lamps Were Re‑welted Light》入册 → worldbook **136 卷** · chronicle **1,722 节**。
+
+## #1925 《实测回廊》：新公页 `#/exhibits`（EXHIBIT TIMELINE · 19 files · 11 static entries · 锚 back 到 exhibit #4/#8/#10/#11 的真值）· Volume CXXXVII《Two Lamps Redden Together》
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1924。
+
+### 一、新页
+
+* `apps/web/src/pages/Exhibits.tsx`：skills 下载 timeline — 12 个 static-warm/light exhibits — 每件按 `started_utc` 排序（ earliest first）；显示：
+  * exhibit idx（`warm-N` or name）· `p99` bar · verdict badge · concurrency · bytes · Δ vs 上一件；
+  * 每条都标 `evidence.json · all[<filename>]` 锚点；
+  * 4 张 callout：court = `4117d2b0ca5fb23a` LOCKED · exhibit #4 1,526.1 ms 永在册 · exhibit #8 2,078.7 ms · exhibit #11 2,253.8 ms BUDGET-BLOWN；
+  * 条目中文"+Entries: 19 files · exhibit_entries=12"始终显在屏底；
+* `apps/web/src/styles/exhibits.css`（新）；
+* i18n `nav.exhibits`（ZH「实测回廊」· EN「The Exhibits Hall」）· coach nav:exhibits 对称；
+* Guide zh+en 各增一行 `/exhibits` · guide cat 6/6 仍绿；
+* 新测试 `Exhibits.test.tsx`（3/3：双语挂载 + 按 started_utc 有序 + #4=1,526.1 & #11=2,253.8 上屏）；
+
+### 二、为什么 — 为什么不让它静悄悄
+
+两个 exhibit（#10, #11）接连穿透 err≤1% 那条线；世界的院落、/atlas 已经把「Exhibit count: 0/12」印出来了（#1924）。这一页只需把 `.fabric` 的 LANE D 复制成真正 page — **每一件展品从 git log 真敲**。展品全是真的，不伪造、不归档、不抹；Night Watch 永远 CRACKED。
+
+### 三、裁判
+
+UI **562/562**（+3 Exhibits）· build ✓ · guide 6/6 · parity 15/15 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · purity **CLEAR** · D1 ✅ · D2 ⏸ ·「密码-123」否决。
+
+mvn -o **137/137** · exhibit #10/#11 BUDGET-BLOWN 永在册 · entries=**12** · worldbook **137 卷** · chronicle **1,724 节**。

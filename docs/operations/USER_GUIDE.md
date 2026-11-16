@@ -183,6 +183,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/archive` | 典藏馆 | 全部路由一目了然：正史/史诗 · 验收宫 · 入口 · 静水对鉴 · 服务 · 管理员回廊 — 37 一级入口全图示 · 每张牌连真实路由 · 直读 git JSON · 永不迷路 |
 | `/engine` | 引擎 | 本仓库真实往复 aizzz/gpt-6.1-terra 的 prompt/completion/cached tokens 全部来自 .local/llm_usage.jsonl，nothing else · p50/p95 真延迟 · 直读 byte 数，不估计一行 · 不是 marketing page |
 | `/fabric` | 织物 | 仓库的全部房间展开在一幅织物上：37 节点 · 7 经线（正史 / 验收宫 / 入口 / 静水对鉴 / 服务 / 管理员回廊 / 本地探天窗）· 点击节点直达对应路由 |
+| `/exhibits` | 实测回廊 | 本仓库亲压自己 front door 的每一击 · 并发 / 判决 / worst p99 · 每一条锚回 exhibit #N · exhibit #4（1,526.1 ms）永在册 · Night Watch 永远 CRACKED；全是 git log 真敲实测 |
 | `/ui-kit` | 设计系统 | 全 Aurora 组件对照 |
 | `/epic` | 史诗 | 十八卷创世记，每卷锚死 git 哈希 |
 | `/tour` | 巡览 | 新手交互式走廊，六盖一齐验讫 |

@@ -118,6 +118,12 @@ export const COACH_MARKS: readonly CoachMark[] = [
       zh: "按 H 或点此——全主界面的每个按键、按钮、入口，都带了一句教学说明。",
       en: "Press H or this button — every control on the main screen gets its one-line lesson.",
     } },
+  { key: "nav:exhibits",
+    title: { zh: "实测回廊", en: "The Exhibits Hall" },
+    body: {
+      zh: "本仓库亲手压过自己 front door 的每一击——并发、判决、worst p99；exhibit #4 永 1,526.1 ms，Night Watch 永远 CRACKED。",
+      en: "Every strike of this repo against its own front door — concurrency, verdict, worst p99. Exhibit #4 permanently 1,526.1 ms; Night Watch forever CRACKED.",
+    } },
   { key: "boot.brand",
     title: { zh: "回首页", en: "Home" },
     body: {

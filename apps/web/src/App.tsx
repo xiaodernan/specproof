@@ -61,6 +61,7 @@ const Trace = lazy(() => import("./pages/Trace"));
 const Archive = lazy(() => import("./pages/Archive"));
 const Engine = lazy(() => import("./pages/Engine"));
 const Fabric = lazy(() => import("./pages/Fabric"));
+const Exhibits = lazy(() => import("./pages/Exhibits"));
 
 type NavItem = {
   path: string;
@@ -106,6 +107,7 @@ export const NAV: NavItem[] = [
   { path: "archive", labelKey: "nav.archive", icon: "scroll", groupKey: "group.evidence" },
   { path: "engine", labelKey: "nav.engine", icon: "chart", groupKey: "group.evidence" },
   { path: "fabric", labelKey: "nav.fabric", icon: "map", groupKey: "group.evidence" },
+  { path: "exhibits", labelKey: "nav.exhibits", icon: "chart", groupKey: "group.evidence" },
   { path: "census", labelKey: "nav.census", icon: "verify", groupKey: "group.evidence" },
   { path: "recall", labelKey: "nav.recall", icon: "echo", groupKey: "group.evidence" },
   { path: "manual", labelKey: "nav.manual", icon: "guide", groupKey: "group.evidence" },
@@ -169,6 +171,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "archive") return <Archive />;
   if (seg[0] === "engine") return <Engine />;
   if (seg[0] === "fabric") return <Fabric />;
+  if (seg[0] === "exhibits") return <Exhibits />;
   if (seg[0] === "atlas") return <Atlas />;
   if (seg[0] === "worldbook") return <WorldBook />;
   if (seg[0] === "nightwatch") return <NightWatch />;

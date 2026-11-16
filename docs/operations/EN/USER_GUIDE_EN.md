@@ -182,6 +182,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/archive` | Archive | one page every room — annals, verification, doors-in, still water, services, admin corridor, engineer's loft — 37 routes on a wall, every tile live, every count direct from git JSON — never get lost again |
 | `/engine` | Engine | every token this repo actually sent to aizzz/gpt-6.1-terra on this host · real cache-rate from usage · p50/p95 real · .local/llm_usage.jsonl is the source — no extrapolation, no marketing gloss |
 | `/fabric` | Fabric | the whole workshop spread on one cloth — 37 nodes on seven warps (annals / verification / doors / still water / services / admin / loft), hover a node to title it, click to enter its room |
+| `/exhibits` | The Exhibits Hall | every strike of this repo against its own front door · concurrency / verdict / worst p99 · each anchored to exhibit #N · exhibit #4 permanently on file · Night Watch forever CRACKED |
 | `/ui-kit` | Design System | the full Aurora component wall |
 | `/epic` | Chronicles | bilingual genesis; every anchor a real commit hash |
 | `/tour` | Grand Tour | interactive onboarding corridor; six stamps seal 「验讫」 |

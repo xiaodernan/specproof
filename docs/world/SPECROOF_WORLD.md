@@ -5031,3 +5031,34 @@ R16 的证伪与此并排放着：R16 是两次不同前缀的敲（同一 messa
 UI **559/559** · build ✓ · guide 6/6 · parity 15/15 · mvn -o **137/137** · court `4117d2b0ca5fb23a` **LOCKED** ·「密码-123」否决 · D1 ✅ · D2 ⏸ · purity CLEAR · Night Watch **CRACKED**（evidence REGRESSION entries=12 · exhibit #4 永在册）· corrections **16**。
 
 ---
+## 卷一百三十七 · 第两盏灯一起红了（Two Lamps Redden Together）
+
+> 两个展品一起够到了那条线——
+> 然后谁都没把它们藏起来。
+
+### 137.1 exhibit #10 与 exhibit #11 同时钉在册上
+
+| exhibit | concurrency | requests | err | worst p99 | verdict |
+|---|---|---|---|---|---|
+| #10 | 128c × 2 × 4r | 1,024 | **15.23%** | 2,225.7 ms | **BUDGET-BLOWN** |
+| #11 | 256c × 2 × 4r | 2,048 | **45.12%** | 2,253.8 ms | **BUDGET-BLOWN** |
+
+两个 exhibit 连续扛上了那条 err≤1% 的线；它们不是炮弹驱逐，是整个服务器一卡两下——但它们没有燃尽。p50 分别 386–541 ms / 515–2,020 ms，部分 rounds 仍维持 99% 成功率（exhibit #11 round4：2.15%），并不是机器全丢瓷。
+
+* `evidence_graph.py` 重敲：entries=**12** REGRESSION；
+* `night_watch_graph.py` 重敲：CRACKED → 上一次，这是它第一次 alert **数 falsy regression proven artifacts (>1 exhibit struck)；**
+* `/fabric` 上新增 LANE D 卡（识「128c × 512 req · worst p99 2,225.7ms（Δ+628.7ms vs 64c）BUDGET-BLOWN」），at #1919；
+* /exhibits （#1925）：按时间顺序列出**全部真实展品**，每件展品都钉它带的 p99 — 138.12 KB 视觉；展品不缩编、不归档；
+* court locked；purity CLEAR；night watch 绝不减色。
+
+### 137.2 这卷推refus什么
+
+* 不宣称生产环境崩了——这 **是这台宿主的事实**，不是云机架上 1,200 台目标机器任何意义上的生产结论；
+* 不宣称 err 45% = 不可用——但 **read:** round 3 p50 1025 ms, round 4 p50 515 ms，恢复能力诚实记录；
+* 不删展品、不擦疤痕、不改阈值、不涂绿；夜巡依旧 CRACKED。
+
+### 137.3 裁判
+
+UI **562/562**（+3 /exhibits） · build ✓ · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · D1 ✅ · D2 ⏸ · purity CLEAR · D/dev/Night Watch 依旧 **CRACKED** ·「密码-123」否决。
+
+---
