@@ -3864,3 +3864,69 @@ Report：`artifacts/p0.5/provider-smoke-20261116T070508Z/provider-smoke-report.j
 （下一个周末若 aizzz 再被关回 402，本卷记的是这一刻它亮过。）
 
 ---
+## 卷九十六 · 炉火熄灭的上午（The Morning the Furnace Went Out）
+
+> 炉火浇灭了不是风把它吹灭——是屋子里的人把它熄了，然后看着它再点亮。
+> 今天开发中途 Docker Desktop 沉寂了整整三十几分钟；本卷记录那半小时里，铁证托起的东西。
+
+### 96.1 炉落未判——是宿主，不是仓库
+
+2026-11-16T15:26Z 的某个时间点，本机 Docker Desktop 进程退出（dockerd 不可达；npipe 找不到 `dockerDesktopLinuxEngine`）。
+本卷不猜成因——按本机事实登记：**那个时刻，容器全都在睡觉**（7 个 specproof 容器 + 15+ 个用户项目的容器）。
+
+规范的判断顺序是：**先看是宿主的问题，还是代码的问题**——不是一上来就改代码。
+
+### 96.2 炉熄之前最浅的涟漪：gateway 五个用例先红了
+
+ 我当时在做 #1884/#1885 的延续工作。`GatewayActuatorRoutesTests`×5 + `Metrics`×1 + `PrometheusEndpoint`×1 全红了——
+body 全是「circuit-open」。**一开始我以为是代码回归**——查了半小时，直到敲开 Docker 才摸到底：
+
+`services/gateway` 的 `spring.config.import=optional:configserver:http://localhost:8888`
+在测试时依然会**合并**任何爬在 8888 的东西进这套 test context。
+本机 8888 上当时有一个**陈旧的 config-server 镜像**（serve `management.endpoints.web.exposure.include=health,info`）——
+它把 gateway/prometheus/refresh 全悄悄挤掉了 → 5+2+1 全部浇灭。
+
+### 96.3 钉子钉死：测试 JVM 不再依赖宿主任何东西
+
+应用测试环境（`application-test.yml`）现在把 import 钉到 **discard port 127.0.0.1:9/**：
+
+```yaml
+spring:
+  cloud:
+    config:
+      enabled: false
+      import: optional:configserver:http://127.0.0.1:9/
+```
+
+`optional:` 前缀的语义=死了算了，不要。GatewayOfflineResilienceTests 早就这么做——本卷把这条普适化了：
+**任何测试不能被自己机器上的容器状态左右。**
+
+`services/gateway` 和 `services/control-plane` 都钉了；`config/discovery` 本无此 import。
+`gateway 84 · discovery 1 · config 1 · control-plane 51` —— **全绿BUILD SUCCESS · 137/137**。
+
+### 96.4 Docker 复归的过程（真记录）
+
+曾在 Docker Desktop 下线时**未擅动宿主服务状态**：只定位、只记录、只加钉；
+Docker 15:46 左右自行复归（用户的全部容器自启：SpecProof 7×；另有 career-os、football_os 项目 15+ 容器一并就位），健康状态逐盏转绿——
+**不吹它，也不补它：我只负责项目里的东西；宿主有自己的节奏。**
+
+### 96.5 另一顶锅：压力实测的诚实退步
+
+`docs/evidence/2026-11-16-static-warm-4.json`（新，#1886 落账）：
+
+| 指标 | exhibit#3 | exhibit#4 |
+|---|---|---|
+| rounds × per-thread × concurrency | 4×2×48 | 4×2×48 |
+| 总请求 | 384 | 384 |
+| 错误率 | 0.000 | 0.000 |
+| **p99 最坏** | 1,030.1 ms | **1,526.1 ms** |
+| verdict | OK | **OK** |
+
+有退步，如实记：p99 +496 ms——不抹、不美化、不回炉重试到"好看"。规格 OK。
+
+### 96.6 本卷之后
+
+UI 539/539 · guide-route 6/6 · corrections **15**（R15 入卷轴）· worldbook **103 卷**（本卷）· chronicle **1,687 节**（含本卷对应账本节）。
+court Lock 4117d2b0ca5fb23a LOCKED · purity CLEAR · D1/D2 欠着 · 「密码-123」永久否决。
+
+---

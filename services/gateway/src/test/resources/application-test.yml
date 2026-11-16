@@ -22,10 +22,18 @@
 #     becomes a no-op, so `optional:configserver:...` resolves instantly to
 #     nothing instead of opening a socket. The `optional:` prefix already makes
 #     a dead server non-fatal; disabling it only removes the wait.
+# IMPORTANT: spring.cloud.config.enabled=false alone does NOT stop the eager
+# import resolver in spring-boot: @SpringBootTest and surefire still merge
+# whatever crawls on localhost:8888 (this dev host runs a stale config-server
+# container serving management.endpoints.web.exposure.include=health,info —
+# shadowing the gateway, prometheus and refresh endpoints and breaking this
+# suite). Pin the import at a discard port: optional: means a dead server is
+# silently ignored, exactly what GatewayOfflineResilienceTests already does.
 spring:
   cloud:
     config:
       enabled: false
+      import: optional:configserver:http://127.0.0.1:9/
 
 eureka:
   client:

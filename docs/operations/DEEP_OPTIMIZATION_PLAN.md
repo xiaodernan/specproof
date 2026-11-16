@@ -39445,3 +39445,58 @@ python scripts/live_lane_probe.py   # HTTP 200 · 9 chunks
 
 这是本仓库第一次：从 `.local/llm.json` 的新扉页上，用**自己的生产代码路径**把门敲通、JSON 出、JUnit 生成并编译过。
 不是 stub、不是 SKIP、不是「这次别打网络」——是真敲的。只是钱是你的，章是我的，账我如实记。
+
+## #1886 《炉火熄灭的上午》：Docker Desktop 于开发中途坠落（宿主，不是仓库）· gateway/control-plane 测试钉 discard 口（import=http://127.0.0.1:9/）→ 137/137 绿 · 压力 exhibit #4（OK，p99 +496ms 如实退步）· portfolio-sync C7 · 更正 R15 · Volume XCVII（卷九十六《炉火熄灭的上午》）
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1885，并在 2026-11-16 晚些时候把场记下来。
+
+### 一、宿主之问（Docker Desktop 沉寂 · 不动宿主）
+
+2026-11-16T15:26Z 前后：本机 Docker Desktop 异常退出（dockerd 不可达；管道 `dockerDesktopLinuxEngine` 找不到）。
+**判别顺序执行（宿主 vs 仓库）：先证宿主、再判仓库。** 本卷不猜成因：本机全宿容器全部沉睡——SpecProof 7×（mysql/redis/mongo/es/rabbitmq/minio/prometheus）+ 用户其他项目约 15+ 容器；当前 15:46Z 已自行复归（careeros-ai 8000 healthy，SpecProof-mysql rows healthy），未经过我对容器状态做任何人为触发。「炉熄了 · 不是它背的锅。」
+
+### 二、No.1 真 bug（found in the wild）— 测试 JVM 被宿主容器绑架
+
+| 车道 | 烧红 | 真因 |
+|---|---|---|
+| `services/gateway` | 5 actuator 路由 + 2 指标 + 1 refresh（初轮 7/84 红）| `spring.config.import=optional:configserver:http://localhost:8888` 在测试里**照样合并 8888 的东西**：宿主 8888 当时 crawls 着一个陈旧 config-server 镜像（serve `management.endpoints.web.exposure.include=health,info`），shadow 了 include 里的 gateway/prometheus/refresh |
+| 第二次全红 | 同名 7 红 + 1 refresh | 同上（Docker 复归后 stale image 又爬起来）|
+
+| 修法 | 钉 |
+|---|---|
+| gateway `application-test.yml` | `spring.cloud.config.import=optional:configserver:http://127.0.0.1:9/`（discard port，optional=静默忽略；GatewayOfflineResilienceTests 早这么做）+ 注释为何不能只靠 enabled=false |
+| control-plane `application-test.yml` | 同钉；那两个 404 端点（prometheus/refresh）从此平静 |
+| discovery / config-server | 未导入该 config ⇒ 未波及 |
+
+### 三、验证（本机复敲）
+
+| 车道 | 结果 |
+|---|---|
+| gateway `mvn -o -B -ntp test` | **84/84 green · BUILD SUCCESS** |
+| discovery-server | **1/1 green** |
+| config-server | **1/1 green** |
+| control-plane | **51/51 green**（先经 Docker down 时 50/51 红→复绿，即 H2 与 stale artifact 两回合） |
+| **合计** | **137/137 全绿** |
+| pytest（probe：purity/court/audit/evidence/guide-route/court_never_caches） | **19 passed** |
+| `scripts/audit_evidence.py` | **CONSISTENT (7/7)** |
+
+### 四、Stress exhibit #4（`docs/evidence/2026-11-16-static-warm-4.json`）
+
+4 rounds × 48 并发 × 2 per-thread = 384 请求 · 100% OK · worst p99 **1,526.1 ms**（vs #3 的 1,030.1 ms；**退步 +495.998 ms，如实登记**）· verdict OK。
+（exhibit 4 系 #1886 的证据，`build_evidence.py` 已合入；tally.json 同步过。）
+
+### 五、portfolio-sync.yml 的安全性 C7
+
+`sync → Decide whether the portfolio actually changed` 原本直接 `run:` 内插 `${{ secrets.PORTFOLIO_TOKEN }}`——密钥在 runner log / 进程树里可被读到。改 `${{ secrets.PORTFOLIO_TOKEN }}` 到 `env:` 节（`GATEWAY_...` 一样改）；`test_C7_no_run_command_interpolates_a_secret` 复绿（全套 9/9）。job 行为不变（no_token=true 时仅重算 artifacts、不推送，判断照旧）。
+
+### 六、更正 R15 入卷轴（现 15 条）
+
+测试环境被 8888 宿主容器裹架的这次红——「测试不能被宿主的状态左右」被钉成永久策规；corrections JSON **15 条**。
+Volume XCVI《炉火熄灭的上午 · The Morning the Furnace Went Out》入册（zh/en 对称）→ worldbook **103 卷** · chronicle **1,687 节**。
+
+### 七、诚实边界
+
+* Docker Desktop 当天两次熄灭、并自行复归：是**宿主的**，不是仓库的；曾短暂影响的是车道**信仰**，不是路的成色；
+* 137/137 是本机本刻本 JDK 25 `mvn -o` 的离线实敲；生产仍无实活（应用层无 rack，演示数据不冒充生产）；
+* gateway 绿不含义端口 8888 任何东西、也不含义宿主任何质量——**只含义测试 JVM 不再依赖宿主任何东西**；
+* court=4117d2b0ca5fb23a LOCKED · D1/D2 欠着 ·「密码-123」永久否决 · 演示数据永不冒充生产 · LLM 车道仍是 aizzz（梯复通、pr smoke ALL 7 PASS — see #1884/#1885）。

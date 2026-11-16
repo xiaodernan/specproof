@@ -1,7 +1,7 @@
 {
  "version": 1,
  "source": "docs/world/APPENDIX_CORRECTIONS.md (append-only)",
- "count": 14,
+ "count": 15,
  "ids": [
   "R01",
   "R02",
@@ -16,7 +16,8 @@
   "R11",
   "R12",
   "R13",
-  "R14"
+  "R14",
+  "R15"
  ],
  "items": [
   "chronicle 1,645 节（2026-11-16T13:2xZ，#1845 入册时写错）",
@@ -32,6 +33,7 @@
   "证据复核子图的 `test_graph_ok_when_all_pass` 曾 flaky 红了一次",
   "Volume XCI 扉页切到 `api.aizzz.xyz/gpt-6.1-terra/responses/max` 后，我把「换钥」写得像「车道已通」",
   "`ChainBanner.tsx`（#1878）的 className 写的是 `chain-banner--ok/bad`，样式表定义的是 `.chain-banner-ok/.chain-banner-bad`",
-  "Volume XCI/XCII 把「换钥后敲不通」登记为 **CLOSED_FOR_THIS_CHANNEL**（如实照抄了 6/6 红字节：「本站不对您所在的国家及地区进行商业服务」）"
+  "Volume XCI/XCII 把「换钥后敲不通」登记为 **CLOSED_FOR_THIS_CHANNEL**（如实照抄了 6/6 红字节：「本站不对您所在的国家及地区进行商业服务」）",
+  "gateway 测试套件的脱环境性：5 个 actuator 路由 / 2 个指标 / 1 个 refresh 用例，2026-11-16 本机两次爆红，每次都是「127.0.0.1:8888 上当时有没有活着的 config-server」在变"
  ]
 }

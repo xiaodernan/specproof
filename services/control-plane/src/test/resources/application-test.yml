@@ -1,4 +1,12 @@
+# Do not let anything that answers at localhost:8888 leak into this suite.
+# A stale config-server container (health,info exposure) previously shadowed
+# the control-plane's prometheus/refresh endpoints. Artefact of THIS host:
+# pin the import at a discard port; optional = silently ignored.
 spring:
+  cloud:
+    config:
+      enabled: false
+      import: optional:configserver:http://127.0.0.1:9/
   sql:
     init:
       mode: never

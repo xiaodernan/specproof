@@ -1,11 +1,11 @@
 {
  "version": 1,
  "source": "docs/evidence/*.json (stress_smoke.py --json-report output; this host)",
- "files_count": 3,
+ "files_count": 10,
  "latest": {
-  "file": "2026-11-16-static-warm-3.json",
+  "file": "2026-11-16-static-warm-4.json",
   "readable": true,
-  "started_utc": "2026-11-15T18:11:05.399299+00:00",
+  "started_utc": "2026-11-16T07:37:38.817508+00:00",
   "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
   "concurrency": 48,
   "warmup_rounds": 2,
@@ -13,33 +13,91 @@
    {
     "total": 96,
     "ok": 96,
-    "p50_ms": 33.74489999987418,
-    "p95_ms": 1021.8602749991987,
-    "p99_ms": 1029.9240800019106
+    "p50_ms": 21.790799999962474,
+    "p95_ms": 1024.6431000000484,
+    "p99_ms": 1522.7399049999349
    },
    {
     "total": 96,
     "ok": 96,
-    "p50_ms": 38.698200001817895,
-    "p95_ms": 1012.6659499983361,
-    "p99_ms": 1030.0573850001456
+    "p50_ms": 21.527899999455258,
+    "p95_ms": 1024.1426000000047,
+    "p99_ms": 1057.191384999895
+   },
+   {
+    "total": 96,
+    "ok": 96,
+    "p50_ms": 21.654950000083772,
+    "p95_ms": 1521.9085250000717,
+    "p99_ms": 1526.0554449999745
+   },
+   {
+    "total": 96,
+    "ok": 96,
+    "p50_ms": 32.72944999980609,
+    "p95_ms": 1021.8928749995939,
+    "p99_ms": 1030.834785000161
    }
   ],
-  "worst_p99_ms": 1030.0573850001456,
-  "avg_p95_ms": 1017.2631124987674,
-  "total": 192,
-  "total_ok": 192,
-  "bytes_read": 42578624,
+  "worst_p99_ms": 1526.0554449999745,
+  "avg_p95_ms": 1148.1467749999297,
+  "total": 384,
+  "total_ok": 384,
+  "bytes_read": 97346176,
   "verdict": "OK"
  },
  "delta_vs_previous": {
-  "vs_file": "2026-11-16-static-warm-2.json",
-  "worst_p99_delta_ms": -507.20980999831227,
-  "avg_p95_delta_ms": -83.59421250224841,
-  "bytes_delta": 2835008,
-  "total_delta": 0
+  "vs_file": "2026-11-16-static-warm-3.json",
+  "worst_p99_delta_ms": 495.9980599998289,
+  "avg_p95_delta_ms": 130.88366250116223,
+  "bytes_delta": 54767552,
+  "total_delta": 192
  },
  "all": [
+  {
+   "file": "2026-11-16-static-warm-4.json",
+   "readable": true,
+   "started_utc": "2026-11-16T07:37:38.817508+00:00",
+   "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
+   "concurrency": 48,
+   "warmup_rounds": 2,
+   "rounds": [
+    {
+     "total": 96,
+     "ok": 96,
+     "p50_ms": 21.790799999962474,
+     "p95_ms": 1024.6431000000484,
+     "p99_ms": 1522.7399049999349
+    },
+    {
+     "total": 96,
+     "ok": 96,
+     "p50_ms": 21.527899999455258,
+     "p95_ms": 1024.1426000000047,
+     "p99_ms": 1057.191384999895
+    },
+    {
+     "total": 96,
+     "ok": 96,
+     "p50_ms": 21.654950000083772,
+     "p95_ms": 1521.9085250000717,
+     "p99_ms": 1526.0554449999745
+    },
+    {
+     "total": 96,
+     "ok": 96,
+     "p50_ms": 32.72944999980609,
+     "p95_ms": 1021.8928749995939,
+     "p99_ms": 1030.834785000161
+    }
+   ],
+   "worst_p99_ms": 1526.0554449999745,
+   "avg_p95_ms": 1148.1467749999297,
+   "total": 384,
+   "total_ok": 384,
+   "bytes_read": 97346176,
+   "verdict": "OK"
+  },
   {
    "file": "2026-11-16-static-warm-3.json",
    "readable": true,
@@ -129,6 +187,96 @@
    "total_ok": 192,
    "bytes_read": 38789568,
    "verdict": "OK"
+  },
+  {
+   "file": "audit-evidence.json",
+   "readable": true,
+   "started_utc": "",
+   "note": "",
+   "concurrency": null,
+   "warmup_rounds": 0,
+   "rounds": [],
+   "worst_p99_ms": 0.0,
+   "avg_p95_ms": 0.0,
+   "total": 0,
+   "total_ok": 0,
+   "bytes_read": 0,
+   "verdict": "CONSISTENT"
+  },
+  {
+   "file": "audit-links.json",
+   "readable": true,
+   "started_utc": "",
+   "note": "",
+   "concurrency": null,
+   "warmup_rounds": 0,
+   "rounds": [],
+   "worst_p99_ms": 0.0,
+   "avg_p95_ms": 0.0,
+   "total": 0,
+   "total_ok": 0,
+   "bytes_read": 0,
+   "verdict": "unknown"
+  },
+  {
+   "file": "audit-portfolio.json",
+   "readable": true,
+   "started_utc": "",
+   "note": "",
+   "concurrency": null,
+   "warmup_rounds": 0,
+   "rounds": [],
+   "worst_p99_ms": 0.0,
+   "avg_p95_ms": 0.0,
+   "total": 0,
+   "total_ok": 0,
+   "bytes_read": 0,
+   "verdict": "READY_WITHOUT_TOKEN"
+  },
+  {
+   "file": "audit-scratch-residue.json",
+   "readable": true,
+   "started_utc": "",
+   "note": "",
+   "concurrency": null,
+   "warmup_rounds": 0,
+   "rounds": [],
+   "worst_p99_ms": 0.0,
+   "avg_p95_ms": 0.0,
+   "total": 0,
+   "total_ok": 0,
+   "bytes_read": 0,
+   "verdict": "intentional evaluation evidence — do not delete"
+  },
+  {
+   "file": "purity-sift.json",
+   "readable": true,
+   "started_utc": "",
+   "note": "",
+   "concurrency": null,
+   "warmup_rounds": 0,
+   "rounds": [],
+   "worst_p99_ms": 0.0,
+   "avg_p95_ms": 0.0,
+   "total": 0,
+   "total_ok": 0,
+   "bytes_read": 0,
+   "verdict": "CRACKED"
+  },
+  {
+   "file": "tally.json",
+   "readable": true,
+   "started_utc": "",
+   "note": "",
+   "concurrency": null,
+   "warmup_rounds": 0,
+   "rounds": [],
+   "worst_p99_ms": 0.0,
+   "avg_p95_ms": 0.0,
+   "total": 0,
+   "total_ok": 0,
+   "bytes_read": 0,
+   "verdict": "unknown"
   }
  ]
 }

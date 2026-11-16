@@ -1,6 +1,6 @@
 {
  "version": 1,
- "generated_utc": "2026-11-16T07:08:01+00:00",
+ "generated_utc": "2026-11-16T07:38:05+00:00",
  "verdict": "CONSISTENT",
  "checks": [
   {
@@ -16,7 +16,7 @@
   {
    "id": "evidence_verdict_present",
    "ok": true,
-   "detail": "latest=2026-11-16-static-warm-3.json verdict=OK"
+   "detail": "latest=2026-11-16-static-warm-4.json verdict=OK"
   },
   {
    "id": "unsigned_four_unique_lamps",

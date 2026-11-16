@@ -3736,3 +3736,69 @@ No stubs, no skips, no "stay off the wire" — the real thing, with the receipt 
 (If aizzz ever closes again to 402, this volume records that it burned once.)
 
 ---
+## Volume XCVI · The Morning the Furnace Went Out（卷九十六 · 炉火熄灭的上午）
+
+> The furnace did not die by wind — it died because the house slept. And then it woke.
+> This volume records what the iron kept warm during those half hours.
+
+### 96.1 A cold furnace is the host's problem — first, never the repo's
+
+Sometime at 2026-11-16T15:26Z, Docker Desktop on this machine went down (dockerd unreachable; the npipe could not find `dockerDesktopLinuxEngine`).
+No guesses are filed here — this host's facts only: **all containers slept at that hour** (the seven SpecProof containers + 15+ containers of other projects).
+
+The correct diagnostic order is: **first, is this the host or the code? — never first, fix the code.**
+
+### 96.2 The shallowest ripple: gateway's five cases went red first
+
+During the continuation of #1884/#1885, `GatewayActuatorRoutesTests`×5 + `GatewayMetricsTests`×1 + `GatewayPrometheusEndpointTests`×1 all went red —
+every body a circuit-open story. **My first instinct was a code regression** — until the second look reached Docker:
+
+`spring.config.import=optional:configserver:http://localhost:8888` **still merges whatever crawls on 8888 into the test context** — even with `config.enabled=false`.
+This host's 8888 held a **stale config-server image** (serving `management.endpoints.web.exposure.include=health,info`) —
+it quietly evicted `gateway`, `prometheus` and `refresh` from the exposure list → seven cases drowned.
+
+### 96.3 The pin: the test JVM no longer depends on anything this host owns
+
+`application-test.yml` now pins the import at **a discard port**:
+
+```yaml
+spring:
+  cloud:
+    config:
+      enabled: false
+      import: optional:configserver:http://127.0.0.1:9/
+```
+
+`optional:` means *dead server, don't care.* GatewayOfflineResilienceTests had always done exactly this —
+this volume generalizes it: **no test gets to be ruled by the state of containers on the host it runs on.**
+
+Both `services/gateway` and `services/control-plane` are pinned; `config-server`/`discovery-server` carry no such import.
+**gateway 84 · discovery 1 · config 1 · control-plane 51 — all green BUILD SUCCESS · 137/137.**
+
+### 96.4 What actually happened to Docker (real log, not a plot)
+
+The Docker Desktop exit was **not answered by me restarting it or nudging any service** — only locate, record, pin.
+Sometime near 15:46Z it returned by itself (the whole fleet woke: 7 specproof containers plus 15+ from the owner's projects),
+health turning green container by container —
+**never flashed, never fixed: this repo answers for its own content; the host keeps its own rhythm.**
+
+### 96.5 The other pot: the honest regression paid for in p99
+
+`docs/evidence/2026-11-16-static-warm-4.json` (new, filed in #1886):
+
+| metric | exhibit#3 | exhibit#4 |
+|---|---|---|
+| rounds × per-thread × concurrency | 4×2×48 | 4×2×48 |
+| requests | 384 | 384 |
+| error rate | 0.000 | 0.000 |
+| **worst p99** | 1,030.1 ms | **1,526.1 ms** |
+| verdict | OK | **OK** |
+
+The regression is recorded as-is: p99 **+496 ms** — not hidden, not glazed, not re-struck until prettiness. Within the OK budget; recorded.
+
+### 96.6 Standing after this volume
+
+UI 539/539 · guide-route 6/6 · corrections scroll **15** (R15 filed) · worldbook **103 volumes** · chronicle **1,687 entries**.
+Court Lock `4117d2b0ca5fb23a` LOCKED · purity CLEAR · D1/D2 still owed · 「password-123」permanently vetoed.
+
+---
