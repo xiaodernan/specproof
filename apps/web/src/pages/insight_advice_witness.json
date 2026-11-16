@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "started_utc": "2026-11-16T18:11:14+00:00",
+  "packet_chars": 730,
+  "fingerprint": "7f0b1173704325da",
+  "model": "gpt-6.1-terra",
+  "latency_ms": 46519,
+  "prompt_tokens": 4935,
+  "completion_tokens": 1202,
+  "reasoning_tokens": 1034,
+  "cached_tokens": 0,
+  "advice_chars": 335,
+  "verdict": "ANSWERED"
+}

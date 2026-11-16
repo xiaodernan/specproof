@@ -40890,3 +40890,35 @@ UI **570/570** · build ✓ · mvn -o **137/137**（Java 零触碰）· guide **
 ### 三、裁判
 
 UI **570/570** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **148 卷**。
+
+## #1942 《第七张图——洞察舱自己会敲铃》：`agent/graphs/insight_advice_graph.py` 落册——洞察舱「AI 解读」车道见证（`intake → strike → verdict → report → END` · `AdviceWitnessState`）· **实敲 2026-11-16T18:11:14Z：verdict=ANSWERED** · packet **730 B** · fingerprint `7f0b1173704325da` · model `gpt-6.1-terra` · latency **46,519 ms**（比上一发 17,032 ms 慢——记下不解释）· usage prompt 4,935 / completion 1,202 / reasoning 1,034 · cached **0 / 4,935**（这段 prompt 前缀 ≠ 驻留 prefix；诊断属于事实，不是退步、也不是进步）· advice_chars 335 · 证物 `docs/evidence/insight-advice-witness.{json,md}` + git-tracked 快照 `apps/web/src/pages/insight_advice_witness.json` · /stategraph 挂牌**第七张卡**（live 判词 verbatim）· 双语（UserGuide · README_EN · Graph 七盏 · epic.copy 现役卷）· `StateGraph.test.tsx` **6/6**（+1：第七张卡 verbatim + colophon 两出网图两名俱备）· Scroll CXLIX 双语落册
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1941。
+
+### 一、这一刻（打表时间轴）
+
+- 18:11:14Z 签下 `insight-advice-witness.json`：**ANSWERED** · 按钮面板到底交上去没事，车道真通了——但真正结论由题板说出，不由本节说出；
+- 扇区计数：**出网图=2**（cache_witness · insight_advice）· 离线图=5（recall · evidence · purity · auditor · night_watch）· 整图=7；
+- court 一次都没参与：它不是 judge，也不是被 witness 的对象。
+
+### 二、/stategraph 七张活着的图（今日）
+
+| # | 图 | 车道性质 |
+|---|---|---|
+| 1 | recall_graph.py | 离线 · 问铁 · BM25 |
+| 2 | evidence_graph.py | 离线 · 复核 |
+| 3 | purity_graph.py | 离线 · 验血 |
+| 4 | auditor_graph.py | 离线 · 五灯一链 |
+| 5 | night_watch_graph.py | 离线 · 合体脊椎 |
+| 6 | cache_witness_graph.py | 出网 · 量前缀缓存（#1933） |
+| 7 | insight_advice_graph.py | 出网 · 盯洞察舱车道（#1942） |
+
+### 三、不涂不动
+
+1. 「洞察舱答得好」——**没人知道**：图只敲「车道通不通」，没人评忠告；
+2. `cached 0` 与 4224 敲的是不同前缀——各自敲各自的事实；
+3. exhibit `entries=16` 不动 · Night Watch 依旧 **CRACKED** · 四处门槛零移动 · court `4117d2b0ca5fb23a` **LOCKED** ·「密码-123」否决 · D1 ✅ D2 ⏸。
+
+### 四、裁判
+
+UI **571/571** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **卷一百四十九 · 149 卷**。

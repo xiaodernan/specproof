@@ -5486,3 +5486,56 @@ warmup 基本绿（725/768 · 718/768）· verdict **BUDGET-BLOWN** · exhibits_
 UI **570/570** · build ✓ · guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **卷一百四十八 · 148 卷**。
 
 ---
+## 卷一百四十九 · 第七张图——洞察舱自己会敲铃
+
+> 洞察舱已经会问模型了，可是没人看见它自己敲的是不是真响。
+> 这一卷不给它 judge，只给它一口铃——敲一下，有没有人理。
+
+### 149.1 第七张图落册（#1942 · `insight_advice_graph.py`）
+
+| 件 | 值 |
+|---|---|
+| 节点链 | `intake → strike → verdict → report → END` · `AdviceWitnessState(TypedDict, total=False)` |
+| 见证什么 | /insight「AI 解读」车道是否**应答**——同一份 allowlist 匿名聚合包（合成人群逐字派生 + 本机真实热度 count）敲一遍模型 |
+| 判词词表 | **ANSWERED / UNAVAILABLE**（非内容、非 judge：它不知道忠告对不对，只知道车道通不通） |
+| 证物 | `docs/evidence/insight-advice-witness.{json,md}` · git-tracked 快照 `apps/web/src/pages/insight_advice_witness.json` |
+
+### 149.2 实敲在 2026-11-16T18:11:14Z
+
+```
+verdict       : ANSWERED
+model         : gpt-6.1-terra
+packet        : 730 B · fingerprint 7f0b1173704325da
+latency_ms    : 46,519  （⚠️ 比之前的 17,032 ms 慢得多——只记录不解释，网关当时可能在飞）
+usage         : prompt 4,935 · completion 1,202 · reasoning 1,034 · cached 0 / 4935
+advice_chars  : 335
+```
+
+`cached 0` 本身是一枚事实：这段 prompt 前缀不是那个驻留 prefix（驻留 prefix 是「铁证不可伪造」密文那段）——cache_witness 敲出 4224 的那一段和 advice 车道的 prompt 结构不同，**这不是退步，也不是北辰星指路**；只是两张图各自敲到了各自的事实。
+
+### 149.3 /stategraph 七张活着的图（本卷）
+
+| # | 图 | 车道性质 |
+|---|---|---|
+| 1 | recall_graph.py | 离线·问铁·BM25 |
+| 2 | evidence_graph.py | 离线·量骨·证据复核 |
+| 3 | purity_graph.py | 离线·验血·纯度 |
+| 4 | auditor_graph.py | 离线·五灯一链 |
+| 5 | night_watch_graph.py | 离线·合体脊椎 |
+| 6 | cache_witness_graph.py | **出网·量前缀缓存**（← #1933） |
+| 7 | insight_advice_graph.py | **出网·盯洞察舱车道**（← #1942） |
+
+页面文案、UserGuide 双语、README_EN、`Graph.tsx` 七盏、epic.copy.ts 现役卷细节追加——全部与七张图同步；`StateGraph.test.tsx` **6/6**（新增第 7 图 verbatim + colophon 两张出网图的名俱备、不再用「全部离线」的旧幌子）。
+
+### 149.4 这一卷拒绝说的话
+
+1. 「洞察舱答得好」——**没人知道**：图只敲「有没有人理」，不评忠告好坏；替它说好就是僭越；
+2. 「命中率掉了」——没有这回事：cached=0 与 cached 4224 敲的是两段不同前缀，这次根本没碰驻留 prefix，只是两张图各自敲到各自的事实，不存在「掉了」；
+3. exhibit #15 的 2-4% err 未成单调，exhibit entries=**16**；Night Watch 依旧 **CRACKED**；
+4. court `4117d2b0ca5fb23a` **LOCKED** · 永远 stream+include_usage · 永远不缓存 ·「密码-123」否决 · D1 ✅ D2 ⏸。
+
+### 149.5 裁判
+
+UI **571/571** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **卷一百四十九 · 149 卷**。
+
+---

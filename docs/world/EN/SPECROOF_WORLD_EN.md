@@ -5373,3 +5373,57 @@ warmup mostly green (725/768 · 718/768) · verdict **BUDGET-BLOWN** · exhibit_
 * UI **570/570** · build ✓ · guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **16** · the chronicle grows with this commit · worldbook **Scroll CXLVIII · 148 scrolls**.
 
 ---
+## Scroll CXLIX · The Deck That Strikes Itself
+
+> The Insight Deck could already ask the model something —
+> nobody had asked whether the bell actually rings on this host tonight.
+> This scroll does not grade the answer. It strikes the bell and hears.
+
+### 149.1 The seventh graph on file (#1942 · `insight_advice_graph.py`)
+
+| piece | what |
+|---|---|
+| node chain | `intake → strike → verdict → report → END` · `AdviceWitnessState(TypedDict, total=False)` |
+| what it witnesses | whether the /insight "AI Advice" lane **answers at all** — the same allowlisted anonymous aggregate packet the panel itself renders (the synthetic cohort re-derived verbatim + this browser's real taps as counts), struck once |
+| verdict lexicon | **ANSWERED / UNAVAILABLE** (not content, not a judge — it never rates the advice; it only watches the lane) |
+| evidence | `docs/evidence/insight-advice-witness.{json,md}` · git-tracked snapshot `apps/web/src/pages/insight_advice_witness.json` |
+
+### 149.2 Struck live at 2026-11-16T18:11:14Z
+
+```
+verdict       : ANSWERED
+model         : gpt-6.1-terra
+packet        : 730 B · fingerprint 7f0b1173704325da
+latency_ms    : 46,519  (⚠️ far slower than the previous 17,032 ms — recorded, never explained away)
+usage         : prompt 4,935 · completion 1,202 · reasoning 1,034 · cached 0 / 4935
+advice_chars  : 335
+```
+
+`cached 0` is an honest fact: this packet's prefix is not the resident prefix (the resident prefix belongs to the 「铁证不可伪造」-style seal, not to the advice-deck system prompt). The cache witness struck 4,224 on its own prefix; this one struck 0 on its. **Not a regression, not a triumph — just this lane, tonight, as measured.**
+
+### 149.3 /stategraph: the seven living graphs (this scroll)
+
+| # | graph | lane nature |
+|---|---|---|
+| 1 | recall_graph.py | offline · ask-the-iron · BM25 |
+| 2 | evidence_graph.py | offline · measure-the-bones |
+| 3 | purity_graph.py | offline · the blood test |
+| 4 | auditor_graph.py | offline · five doors, one knock |
+| 5 | night_watch_graph.py | offline · the composite spine |
+| 6 | cache_witness_graph.py | **networked · prefix cache** (← #1933) |
+| 7 | insight_advice_graph.py | **networked · the advice deck's lane** (← #1942) |
+
+Page copy, the bilingual user guide, README_EN, `Graph.tsx`'s seven lamps, `epic.copy.ts` (the present-tense scroll) — all updated in lockstep; `StateGraph.test.tsx` **6/6** (the seventh card's verbatim render + the colophon naming BOTH networked graphs instead of dressing the page as "all offline").
+
+### 149.4 What this scroll refuses to claim
+
+1. "the deck answers well" — **nobody knows**: the graph strikes "whether someone answers", never "whether the answer is good"; rating the advice is the court's seat, and the court is vacant tonight too;
+2. "the cache regressed" — there is no cache regression (this strike simply did not hit the resident prefix; the two witnesses strike two different prompts; 4224 ≠ 0 in two different worlds);
+3. exhibit #15's non-monotone wave remains on file; exhibit_entries=**16**; Night Watch remains **CRACKED**;
+4. court `4117d2b0ca5fb23a` **LOCKED** · always stream+include_usage · always never cached · "password-123" vetoed · D1 ✅ · D2 pending owner's PAT.
+
+### 149.5 The floor never moved
+
+* UI **571/571** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **16** · the chronicle grows with this commit · worldbook **Scroll CXLIX · 149 scrolls**.
+
+---

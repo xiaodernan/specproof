@@ -297,8 +297,8 @@ export const SCROLLS_ZH: Scroll[] = [
     era: "2026-11 · 至今",
     verses: [
       "一个屏幕说两种话，不是双语——是噪音；中文模式全中文，英文模式全英文。",
-      "状态图不是装饰——它是契约：六张图在线跑，判词 fail-closed；Night Watch 永远 CRACKED。",
-      "铁证之书的每一页都能被敲开：/errata 是十六条亲笔更正，/stategraph 是八词说明书和六张活着的图。",
+      "状态图不是装饰——它是契约：七张图在线跑，判词 fail-closed；Night Watch 永远 CRACKED。",
+      "铁证之书的每一页都能被敲开：/errata 是十六条亲笔更正，/stategraph 是八词说明书和七张活着的图。",
     ],
     details: [
       { label: "纯度闸已上 · i18n.purity.test.ts", value: "en 零 CJK / CJK 标点 / 全宽；zh 零英语连词三连——随 vitest 生效（#1909）" },
@@ -312,6 +312,7 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "砂箱咬住 pytest · #1938", value: "砂箱三段式合成落册：venv → wheelhouse 离线装机（pytest 9.2.0 已播种）→ pytest（effective docker mode 才重写）· local 模式一字不动 · 25/25 runner 断言 · **run_test 首次全绿**（155 s · exit 0）· Docker Desktop 曾当场死一次（unexpected EOF）如实在案；SpecProof 验证器 REJECTED（Java/Maven-first · No pom.xml）——墙的名字被写下（#1938）" },
       { label: "Δ 对最早一篇 · #1939", value: "exhibit #14（2026-11-16T17:48Z · 48c ×2×4）落册：err 0.00% · 最糟 p99 1,074.4 ms · OK；对最早一篇 exhibit #2（2026-11-15T17:28Z）核 Δ——p99 −462.9 ms · p50 约 2.5× 抬升 · 只记录不吹；exhibit_entries 14 → 15（#1939）" },
       { label: "384c · #1940", value: "exhibit #15（2026-11-16T17:56Z · 384c ×2×4 rounds + 3 warmup）落册：rounds err 4.43/2.34/4.30/4.04% · p50 ~530–547 ms · 最糟 p99 2,061.0 ms · BUDGET-BLOWN——192→256→384 今晚不成单调（64–70% → 34–45% → 2–4%）· 饱和曲线 x 轴加 384c；exhibit_entries 15 → 16（#1940）" },
+      { label: "第七张图 · #1942", value: "insight_advice_graph.py 落册：intake → strike → verdict → report → END——盯洞察舱模型车道，「ANSWERED」即唯一表态；实敲 ANSWERED · latency 46,519 ms · cached 0（Prefix 不同）——七张活着的图（5 离线 + 2 出网）/stategraph 挂牌（#1942）" },
     ],
   },
   {
@@ -599,8 +600,8 @@ export const SCROLLS_EN: Scroll[] = [
     era: "2026-11 · today",
     verses: [
       "A screen that speaks two languages is not bilingual — it is noise. Chinese mode is all Chinese; English mode is all English.",
-      "Graphs are not decoration; they are the contract. Six run live here — every verdict fail-closed; Night Watch stays CRACKED.",
-      "Every page in this book is knockable: /errata keeps the sixteen corrections; /stategraph is the eight words with the six living graphs.",
+      "Graphs are not decoration; they are the contract. Seven run live here — every verdict fail-closed; Night Watch stays CRACKED.",
+      "Every page in this book is knockable: /errata keeps the sixteen corrections; /stategraph is the eight words with the seven living graphs.",
     ],
     details: [
       { label: "The purity gate · i18n.purity.test.ts", value: "zero CJK / punctuation / fullwidth in en; zero English link-word runs in zh — shipped with vitest (#1909)" },
@@ -614,6 +615,7 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "The sandbox bites pytest · #1938", value: "the three-phase composite is on file: venv → offline wheelhouse install (pytest 9.2.0 seeded) → pytest (rewritten in effective docker mode only; local mode byte-identical) · 25/25 runner assertions · **run_test green for the first time** (155 s · exit 0) · Docker Desktop died once on the spot (unexpected EOF), recorded as-is; SpecProof REJECTED (Java/Maven-first · No pom.xml) — the wall got named, never smoothed (#1938)" },
       { label: "The delta against the earliest one · #1939", value: "exhibit #14 (2026-11-16T17:48Z · 48c ×2×4) on file: err 0.00% · worst p99 1,074.4 ms · OK; re-struck against exhibit #2 (2026-11-15T17:28Z): Δp99 −462.9 ms · p50 drifted up ~2.5× — recorded as-is, never spun; exhibit_entries 14 → 15 (#1939)" },
       { label: "The 384 rung · #1940", value: "exhibit #15 (2026-11-16T17:56Z · 384c ×2×4 rounds + 3 warmup) on file: rounds err 4.43/2.34/4.30/4.04% · p50 ~530–547 ms · worst p99 2,061.0 ms · BUDGET-BLOWN — 192→256→384 tonight is non-monotone (64–70% → 34–45% → 2–4%) · the saturation curve gained the 384c tick; exhibit_entries 15 → 16 (#1940)" },
+      { label: "The seventh graph · #1942", value: "insight_advice_graph.py lands: intake → strike → verdict → report → END — watches the Insight Deck model lane; ANSWERED is its only utterance; struck live: ANSWERED · latency 46,519 ms · cached 0 (a different prefix) — the seven living graphs (5 offline + 2 networked) on /stategraph (#1942)" },
     ],
   },
   {

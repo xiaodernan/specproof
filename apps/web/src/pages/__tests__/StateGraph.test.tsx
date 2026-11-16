@@ -6,16 +6,18 @@ import StateGraph from "../StateGraph";
 
 /**
  * The State Graphs page teaches LangGraph's StateGraph by pointing at the
- * six graphs this repository actually runs. Every claim it makes is either
+ * seven graphs this repository actually runs. Every claim it makes is either
  * a concept note about LangGraph as used here, or a byte visible in the same
  * repo (file names, state fields, verdict lexicon).
  *
- * One of the six is networked on purpose: cache_witness strikes this host's
- * model lane to count the prefix cache. The page must say so — never let the
- * browser learn to phone home through this book.
+ * Two of the seven are networked on purpose: cache_witness strikes this
+ * host's model lane to count the prefix cache, and insight_advice strikes the
+ * /insight Advice lane to witness it answering at all. The page must say so —
+ * it must never let the browser learn to phone home through this book, and
+ * never let a judge call hide behind a witness's name.
  */
 describe("StateGraph — LangGraph as wired in this repository", () => {
-  it("renders both locales with all eight concept terms and six graphs", () => {
+  it("renders both locales with all eight concept terms and seven graphs", () => {
     for (const locale of ["zh", "en"] as const) {
       window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
       const { container } = render(
@@ -73,7 +75,7 @@ describe("StateGraph — LangGraph as wired in this repository", () => {
     }
   });
 
-  it("does not let the networked graph wear an offline colophon", () => {
+  it("quotes the advice-lane witness verbatim from insight_advice_witness.json (ANSWERED)", () => {
     for (const locale of ["zh", "en"] as const) {
       window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
       const { container } = render(
@@ -81,9 +83,28 @@ describe("StateGraph — LangGraph as wired in this repository", () => {
           <StateGraph />
         </I18nProvider>,
       );
-      // the colophon must name the exception, not erase it
+      const witness = GRAPHS.find((g) => g.id === "insight_advice");
+      expect(witness?.live).toBeTruthy();
+      expect(witness?.file).toBe("agent/graphs/insight_advice_graph.py");
+      expect(witness?.chain).toEqual(["intake", "strike", "verdict", "report", "END"]);
+      expect(container.textContent).toContain("insight_advice_graph.py");
+      expect(container.textContent).toContain("ANSWERED");
+      expect(container.textContent).toContain("730");
+      cleanup();
+    }
+  });
+
+  it("does not let the two networked graphs wear an offline colophon — names both", () => {
+    for (const locale of ["zh", "en"] as const) {
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+      const { container } = render(
+        <I18nProvider>
+          <StateGraph />
+        </I18nProvider>,
+      );
       expect(container.textContent).toContain("cache_witness");
-      expect(container.textContent).not.toContain("six graphs run offline; none");
+      expect(container.textContent).toContain("insight_advice");
+      expect(container.textContent).not.toContain("all seven run offline");
       cleanup();
     }
   });

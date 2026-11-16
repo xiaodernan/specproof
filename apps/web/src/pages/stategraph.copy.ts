@@ -1,10 +1,11 @@
 import type { Locale } from "../i18n/strings";
 import nightWatch from "./night_watch.json";
 import cacheWitness from "./cache_witness.json";
+import adviceWitness from "./insight_advice_witness.json";
 
 /**
  * 状态图谱 · The State Graphs — everything this page says is either
- * copied verbatim from the six graphs in `agent/graphs/`, or is a concept
+ * copied verbatim from the seven graphs in `agent/graphs/`, or is a concept
  * note about LangGraph's StateGraph as used by this repository.
  *
  * No LLM writes anything here; no network is involved; the browser re-draws
@@ -54,24 +55,24 @@ export const CONCEPTS: Concept[] = [
     id: "reducer",
     term: { zh: "Reducer / channel 通道", en: "Reducer / channel" },
     gloss: {
-      zh: "LangGraph 的每个字段都是一条通道；append 是 reducer（比如 add_messages）。这本书的六个图全是 overwrite 通道——没有对话，不需要累积。",
-      en: "Every field in LangGraph is a channel; append is a reducer (add_messages). All six graphs in this book use overwrite channels — there is no dialogue to accumulate.",
+      zh: "LangGraph 的每个字段都是一条通道；append 是 reducer（比如 add_messages）。这本书的七个图全是 overwrite 通道——没有对话，不需要累积。",
+      en: "Every field in LangGraph is a channel; append is a reducer (add_messages). All seven graphs in this book use overwrite channels — there is no dialogue to accumulate.",
     },
   },
   {
     id: "entry",
     term: { zh: "Entry point 入口", en: "Entry point" },
     gloss: {
-      zh: "graph.set_entry_point(\"intake\") ——没有 set_entry_point 的图画得出来但跑不起来。六个图的入口全部是 intake / 第一个真相采集节点。",
-      en: "graph.set_entry_point(\"intake\") — a graph without an entry point draws fine and runs never. All six graphs enter at intake / the first truth-gathering node.",
+      zh: "graph.set_entry_point(\"intake\") ——没有 set_entry_point 的图画得出来但跑不起来。七个图的入口全部是 intake / 第一个真相采集节点。",
+      en: "graph.set_entry_point(\"intake\") — a graph without an entry point draws fine and runs never. All seven graphs enter at intake / the first truth-gathering node.",
     },
   },
   {
     id: "end",
     term: { zh: "END 终态哨兵", en: "END" },
     gloss: {
-      zh: "哨兵 END 只做一件事：宣告这一轮结束。它不判断好坏——好坏看 verdict。六张图都以 END 收尾，这是 LangGraph 唯一的硬规则。",
-      en: "The sentinel END does one thing: declare this round over. It passes no judgement — the verdict does that. All six graphs end there; it is the one hard rule LangGraph gives you.",
+      zh: "哨兵 END 只做一件事：宣告这一轮结束。它不判断好坏——好坏看 verdict。七张图都以 END 收尾，这是 LangGraph 唯一的硬规则。",
+      en: "The sentinel END does one thing: declare this round over. It passes no judgement — the verdict does that. All seven graphs end there; it is the one hard rule LangGraph gives you.",
     },
   },
   {
@@ -111,6 +112,22 @@ const hitPct = ((CW.hit_rate_b ?? 0) * 100).toFixed(1);
 const liveCacheWitness = {
   zh: `strike A cached=${CW.cached_tokens_a ?? "?"} · strike B cached=${CW.cached_tokens_b ?? "?"}（prompt ${CW.prompt_tokens_b ?? "?"}）· hit_rate ${hitPct}% → ${CW.verdict ?? "?"}`,
   en: `strike A cached=${CW.cached_tokens_a ?? "?"} · strike B cached=${CW.cached_tokens_b ?? "?"} on prompt ${CW.prompt_tokens_b ?? "?"} · hit_rate ${hitPct}% → ${CW.verdict ?? "?"}`,
+};
+const AW = adviceWitness as unknown as {
+  packet_chars?: number;
+  fingerprint?: string;
+  model?: string;
+  latency_ms?: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  reasoning_tokens?: number;
+  cached_tokens?: number;
+  advice_chars?: number;
+  verdict?: string;
+};
+const liveInsightAdvice = {
+  zh: `packet ${AW.packet_chars ?? "?"} B · fingerprint ${AW.fingerprint ?? "?"} · ${AW.model ?? "?"} · ${AW.latency_ms ?? "?"} ms · advice ${AW.advice_chars ?? "?"} 字 → ${AW.verdict ?? "?"}`,
+  en: `packet ${AW.packet_chars ?? "?"} B · fingerprint ${AW.fingerprint ?? "?"} · ${AW.model ?? "?"} · ${AW.latency_ms ?? "?"} ms · advice ${AW.advice_chars ?? "?"} chars → ${AW.verdict ?? "?"}`,
 };
 
 const liveNightWatch = {
@@ -196,5 +213,18 @@ export const GRAPHS: GraphCard[] = [
     },
     fields: ["started_utc", "prompt_tokens_a", "cached_tokens_a", "prompt_tokens_b", "cached_tokens_b", "hit_rate_b", "verdict"],
     live: liveCacheWitness,
+  },
+  {
+    id: "insight_advice",
+    file: "agent/graphs/insight_advice_graph.py",
+    stateName: "AdviceWitnessState(TypedDict, total=False)",
+    chain: ["intake", "strike", "verdict", "report", "END"],
+    verdicts: { zh: "ANSWERED / UNAVAILABLE", en: "ANSWERED / UNAVAILABLE" },
+    role: {
+      zh: "盯洞察舱——用面板上同一份匿名聚合包敲一遍模型（合成人群逐字派生 + 本机真实热度 count）：ANSWERED 是模型答出来了，UNAVAILABLE 是诚实沉默；它判词的验收餐厅不出内容——只盯车道畅通。",
+      en: "Watch the deck — strike the model once with the same allowlisted aggregate packet the panel renders (synthetic cohort re-derived verbatim + this browser's taps as counts): ANSWERED means the model answered; UNAVAILABLE means an honest silence — the graph never grades content, it watches the lane.",
+    },
+    fields: ["packet_chars", "fingerprint", "model", "latency_ms", "prompt_tokens", "completion_tokens", "reasoning_tokens", "cached_tokens", "advice_chars", "verdict"],
+    live: liveInsightAdvice,
   },
 ];
