@@ -81,6 +81,10 @@
     "GET /api/v1/health": [
       "200"
     ],
+    "GET /api/v1/jobs/{job_id}/ai-summary/stream": [
+      "200",
+      "422"
+    ],
     "GET /api/v1/jobs/{job_id}/capsule": [
       "200",
       "422"
@@ -102,6 +106,10 @@
       "422"
     ],
     "GET /api/v1/jobs/{job_id}/stages": [
+      "200",
+      "422"
+    ],
+    "GET /api/v1/llm/usage/summary": [
       "200",
       "422"
     ],
@@ -149,6 +157,10 @@
       "200",
       "422"
     ],
+    "POST /api/v1/admin/insight-advice": [
+      "200",
+      "422"
+    ],
     "POST /api/v1/admin/tenants": [
       "201",
       "422"
@@ -175,6 +187,10 @@
     ],
     "POST /api/v1/demo/prepare": [
       "200"
+    ],
+    "POST /api/v1/jobs/{job_id}/ai-summary": [
+      "200",
+      "422"
     ],
     "POST /api/v1/jobs/{job_id}/feedback": [
       "201",

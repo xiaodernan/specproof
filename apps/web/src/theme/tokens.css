@@ -17,6 +17,11 @@
   --glow-primary: 0 0 20px 1px rgba(124, 92, 255, 0.35);
   --glow-focus: 0 0 28px -6px rgba(124, 92, 255, 0.35);
 
+  /* Print-lane tokens: the Hall prints black on white regardless of theme. */
+  --print-paper: #ffffff;
+  --print-ink: #000000;
+  --print-mid: #999999;
+
   /* Brand — aurora pair (violet -> cyan) */
   --accent-100: #ede9ff;
   --accent-200: #d9d0ff;

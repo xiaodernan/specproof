@@ -74,6 +74,6 @@
 .engine-nightwatch-findings { list-style: disc; padding-left: 20px; margin: 8px 0 0; color: #d49a8a; font-size: .8rem; line-height: 1.7; }
 
 /* Prefix-cache double-strike witness — struck 2026-11-16 (this host only) */
-.engine-witness { margin: 16px 0 0; padding: 16px 18px; border: 1px solid var(--color-line, #2c2f42); border-radius: var(--radius-lg, 12px); background: var(--color-panel, rgba(255,255,255,.02)); }
-.engine-kpis-witness { margin-top: 10px; }
-.engine-kpi-verdict .engine-kpi-v { color: var(--color-accent-jade, #35d07f); }
+.engine-witness { margin: var(--sp-4) 0 0; padding: var(--sp-4); border: 1px solid var(--accent-500); border-radius: var(--radius-lg); background: var(--gradient-aurora-soft); }
+.engine-kpis-witness { margin-top: var(--sp-2); }
+.engine-kpi-verdict .engine-kpi-v { color: var(--success); }

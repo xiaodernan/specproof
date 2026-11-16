@@ -1,8 +1,14 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { ThemeProvider } from "../../theme/ThemeProvider";
 import { ToastProvider } from "../../ui/Toast";
 import UiKit from "../UiKit";
+
+// UiKit renders hundreds of atoms on one page — the smoke is an integration
+// assert that the guide composes without crashing, not a speed trial.
+// Under parallel workers the render crosses vitest's 5s default; pin a
+// ceiling that measures composition, not the runner's mood.
+const RENDER_TIMEOUT_MS = 30_000;
 
 function mockStorage() {
   const store = new Map<string, string>();
@@ -33,38 +39,46 @@ afterEach(() => {
 });
 
 describe("UiKit style guide (smoke)", () => {
-  it("renders the full style guide in the dark theme without crashing", () => {
-    render(
-      <ThemeProvider>
-        <ToastProvider>
-          <UiKit />
-        </ToastProvider>
-      </ThemeProvider>
-    );
-    expect(screen.getByText("SpecProof 设计系统 ·", { exact: false })).toBeTruthy();
-    expect(screen.getAllByText(/Aurora/).length).toBeGreaterThan(0);
-    expect(screen.getByRole("heading", { name: /色彩 Colors/ })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: /按钮 Buttons/ })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: /数据展示 Data display/ })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: /反馈 Feedback/ })).toBeTruthy();
-    // The preview dashboard is mounted and shows its data.
-    expect(screen.getAllByText(/差分验证 ·/).length).toBeGreaterThan(0);
-    expect(screen.getByText("SP-2481")).toBeTruthy();
-  });
+  it(
+    "renders the full style guide in the dark theme without crashing",
+    { timeout: RENDER_TIMEOUT_MS },
+    () => {
+      render(
+        <ThemeProvider>
+          <ToastProvider>
+            <UiKit />
+          </ToastProvider>
+        </ThemeProvider>
+      );
+      expect(screen.getByText("SpecProof 设计系统 ·", { exact: false })).toBeTruthy();
+      expect(screen.getAllByText(/Aurora/).length).toBeGreaterThan(0);
+      expect(screen.getByRole("heading", { name: /色彩 Colors/ })).toBeTruthy();
+      expect(screen.getByRole("heading", { name: /按钮 Buttons/ })).toBeTruthy();
+      expect(screen.getByRole("heading", { name: /数据展示 Data display/ })).toBeTruthy();
+      expect(screen.getByRole("heading", { name: /反馈 Feedback/ })).toBeTruthy();
+      // The preview dashboard is mounted and shows its data.
+      expect(screen.getAllByText(/差分验证 ·/).length).toBeGreaterThan(0);
+      expect(screen.getByText("SP-2481")).toBeTruthy();
+    },
+  );
 
-  it("switches to the light theme and keeps rendering", () => {
-    render(
-      <ThemeProvider>
-        <ToastProvider>
-          <UiKit />
-        </ToastProvider>
-      </ThemeProvider>
-    );
-    fireEvent.click(screen.getByRole("button", { name: /浅色/ }));
-    expect(document.documentElement.getAttribute("data-theme")).toBe("light");
-    expect(screen.getByRole("heading", { name: /色彩 Colors/ })).toBeTruthy();
-    // Fire a toast to prove the provider + viewport are wired up.
-    fireEvent.click(screen.getByRole("button", { name: "成功" }));
-    expect(screen.getByText("验证通过")).toBeTruthy();
-  });
+  it(
+    "switches to the light theme and keeps rendering",
+    { timeout: RENDER_TIMEOUT_MS },
+    () => {
+      render(
+        <ThemeProvider>
+          <ToastProvider>
+            <UiKit />
+          </ToastProvider>
+        </ThemeProvider>
+      );
+      fireEvent.click(screen.getByRole("button", { name: /浅色/ }));
+      expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+      expect(screen.getByRole("heading", { name: /色彩 Colors/ })).toBeTruthy();
+      // Fire a toast to prove the provider + viewport are wired up.
+      fireEvent.click(screen.getByRole("button", { name: "成功" }));
+      expect(screen.getByText("验证通过")).toBeTruthy();
+    },
+  );
 });

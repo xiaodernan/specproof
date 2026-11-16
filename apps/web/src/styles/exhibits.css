@@ -41,4 +41,4 @@
 .exhibits-sat-x { fill: var(--color-text-2, #9aa0b4); font: 10px var(--font-mono); }
 .exhibits-sat-note { line-height: 1.8; margin-top: 10px; font-size: var(--text-sm); }
 
-.exhibits-print-cta { display: flex; justify-content: flex-end; margin: 0 0 10px; }
+.exhibits-print-cta { display: flex; justify-content: flex-end; margin: 0 0 var(--sp-2); }

@@ -40922,3 +40922,36 @@ UI **570/570** · build ✓ · mvn -o **137/137** · guide **6/6** · correction
 ### 四、裁判
 
 UI **571/571** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **卷一百四十九 · 149 卷**。
+
+## #1943 《测试护栏的账》：本夜全量 tests/unit 首次实敲：**6,538 绿 · 63 红 · 44 跳过**（MySQL 隔离族被诚实跳过）· 发现护栏塌方一地——多为前人历史债移交下来的、本夜绝大多数「非本夜引入」；此前没人敲过完整 tests/unit，所以今日前不算「本夜封板」· 不动当前 red gates 的状态：未假装 green · 只修掉我本人认账的那一小块
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1942。
+
+### 一、我修掉的——三笔
+
+1. **openapi baseline 补登（1 红 → 3/3 绿）**：`python scripts/openapi_diff.py docs/openapi/baseline.json --update`。此前基线长期停在某个旧状态上：`GET /api/v1/jobs/{job_id}/ai-summary/stream`、`GET /api/v1/llm/usage/summary`、`POST /api/v1/jobs/{job_id}/ai-summary` 三条已经上线多时的端点一直没入册；本夜的 `/api/v1/admin/insight-advice` 也排队补。此次 baseline 重新生成为 schema 对账（add-only；没有端点被移出），**不是给 gate 递礼物，是把欠条一并结清**；
+2. **UiKit.smoke 超时钉在 30 s**：两个断言的渲染入度争不过 vitest 默认 5 s× 大页。本来就间歇红；固化 30 s 钉子——不是「祈求绿灯」，是承认「渲染计组合、不计工人情绪」；UI **571/571**；
+3. **我自己的 CSS 增砖全量 token 化**（`engine.css`、`insight.css`、`exhibits.css`、`print.css`）：零字面色 / 零 off-ladder 圆角 / 零 off-scale 字号 / 零 off-grid 间距。**设计系统四道门（4 px grid / theme-blind colors / radius ladder / shadows / type scale）在本 HEAD 上早就红着**，stash 对比 HEAD 复核计数完全一致：**608 间距 literals · 1,315 色 literals · 101 圆角 · 71 阴影 · 406 字号** · 这些门从来没有被这本书宣称过 green。本次我没有把计数抹平，也没有把我的字增进那些计数里。
+
+### 二、我没涂的——全部归位在册（stash HEAD 对比 ·  identical 红→红）
+
+| 家族 | 在册错误 | 为什么在册 |
+|---|---|---|
+| `test_the_payload_the_frontend_declares_is_the_payload_a_route_publishes`（**24 红**） | pins against late-November snapshot line-words (`Audit.tsx 59→61`, `Matrix.tsx 22→26` …) | HEAD 复核：同消息同位置，早于本夜 ·「route × frontend payload」ledger 漂移一年没人修 |
+| `audit_disposition_labels`（**16 红**） | uuid-pinned ids bind old audit artifacts | HEAD 复核：同形态失败 · 与本夜的审计 JSON 无关（该 family pins 历史快照） |
+| `verdict_channel_parity`（**2 红**） | `auditor_graph.py:104/109/117/122/…` — 月前起落伍 | HEAD 复核：完全一致 · 与本夜 `insight_advice_graph.py` 无关 |
+| `web_css_stays_on_the_design_system.py` / `web_radius_ladder` / `web_shadows` / `web_type_scale`（**5 红**） | 406·608·101·71·1315 等既存计数 | HEAD 复核：完全一致 · MDE 欠条请走 remediation knight，不问大本这一章里改头 |
+| `worker_notify_outbox` 等（若干） | 队列/MySQL/codec 序列编年基形 | HEAD 复核：带同形状 · 本夜 Zero 改动入 |
+
+**修正附记**（2026-11-17T00:4xZ，this-session）：CSS design-system 四道门的本机计数现在是 **601 / 1,296**——这一夜我自己的增砖里有 7 处 off-grid 间距、19 处 theme-blind 颜色被迁进 tokens（`.insight-ai-*` · `.engine-witness` · `.exhibits-print-cta` · `--print-*`）。总数依旧红着（这些门从来没有绿过），但本夜之后是往正确方向走了一点点——绝不会更多。
+
+### 三、恒量 + 裁判
+
+UI **571/571** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（entries=**16**）· court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries **16** · exhibit #4/#10-#15 一件没动 · chronicle 随本提交增员
+
+### 四、这一刻不能说的话
+
+1. 「63 都修完了」——**只修掉了我认账的 3 笔**；其余归位在册不动——fail-closed also means **past red stays visible**；
+2. 「明天的 Suite 就绿了」——没人说这一句；若有 subsidiaries 来 pokes them, 还得再敲一遍 head；
+3. 「Suite 可以每天先跑」——**恰恰相反**：这份先敲是它第一份完完整整的 transcript · ROADMAP-LIVE item 收 #8 待增（next: the user may push back with closed PRs on the payload-ledger）；
+4. exhibit entries=**16** · court `4117d2b0ca5fb23a` **LOCKED** ·「密码-123」否决 · D1 ✅ D2 ⏸
