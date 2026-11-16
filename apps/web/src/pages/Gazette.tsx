@@ -5,6 +5,7 @@ import stats from "./repoStats.json";
 import worldbook from "./worldbook.json";
 import evidence from "./evidence.json";
 import unsigned from "./unsigned.json";
+import auditChain from "./audit_chain.json";
 import { ProductIcon } from "../ui/ProductIcon";
 import "../styles/gazette.css";
 
@@ -132,6 +133,7 @@ export default function Gazette() {
             <li>{zh ? `git 证据件 Δ ${baro === null ? "无钟" : (baro >= 0 ? "+" : "") + baro.toFixed(1) + "ms"} · 端门 ${evidence.latest ? evidence.latest.verdict : "未敲"}` : `git evidence Δ ${baro === null ? "none" : (baro >= 0 ? "+" : "") + baro.toFixed(1) + "ms"} · door ${evidence.latest ? evidence.latest.verdict : "unstruck"}`}</li>
             <li>{obsUnsigned ? (zh ? "巡天仍琥珀：等待真人 OBSERVABILITY.md 签字（灯下篇章等你）" : "the night watch stays amber: a human signature on OBSERVABILITY.md is still pending") : (zh ? "签字在场（巡天转玉绿）" : "signature present (night watch is jade)")}</li>
             <li>{zh ? "本周每周一 03:00 UTC · weekly-stress.yml 自动敲门（artifact 存档）" : "every Monday 03:00 UTC · weekly-stress.yml strikes (artifact archive)"}</li>
+            <li>{zh ? `审计链 · ${auditChain.verdict}（${auditChain.lane_count || 5} 盏灯）· 幽灵灯不亮` : `audit chain · ${auditChain.verdict} (${auditChain.lane_count || 5} lanes) · the ghost switch stays off`}</li>
           </ul>
         </aside>
       </div>

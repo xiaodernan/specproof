@@ -1,0 +1,35 @@
+{
+ "version": 1,
+ "verdict": "CLEAR",
+ "lanes": [
+  {
+   "lane": "unsigned",
+   "exit": 0,
+   "verdict": "four-lit lamps live — wrote <repo>/apps\\web\\src\\pages\\unsigned.json"
+  },
+  {
+   "lane": "court_lock",
+   "exit": 0,
+   "verdict": "verdict=LOCKED"
+  },
+  {
+   "lane": "evidence",
+   "exit": 0,
+   "verdict": "verdict=CONSISTENT"
+  },
+  {
+   "lane": "scratch_residue",
+   "exit": 0,
+   "verdict": "verdict=intentional evaluation evidence — do not delete files=21"
+  },
+  {
+   "lane": "portfolio",
+   "exit": 0,
+   "verdict": "verdict=READY_WITHOUT_TOKEN"
+  }
+ ],
+ "lane_count": 5,
+ "generated_utc": "2026-11-16T05:10:33+00:00",
+ "source": "agent/graphs/auditor_graph.py · docs/evidence/audit-chain.md",
+ "emitted_utc": "2026-11-16T05:15:27+00:00"
+}

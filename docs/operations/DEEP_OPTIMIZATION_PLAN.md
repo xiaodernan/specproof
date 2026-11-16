@@ -39157,3 +39157,22 @@ draft#2    → 0.00s · 5600/14  (重复命中)
 * audit_portfolio.py 真敲两个 HTTPS（xiaodernan.github.io HTTP 200 · 匿名 HEAD repo = 200）；
 * Volume LXXXVI《链印法约 · The Mark of the Chain》入册（zh/en 对称）→ worldbook **93 卷**；chronicle 1,677 节；
 * court 永不缓存；Court Lock 不动（4117d2b0ca5fb23a）。
+
+## #1877 《敲门的人》：audit_chain.json 入 Gazette + evidence_dir 参数化 + ($-版)volume87
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、本轮把敲门的人门外放进去了
+
+* `scripts/emit_audit_notice.py`（新）→ `apps/web/src/pages/audit_chain.json` 入库（verdict · lane_count=5 · emitted_utc）；
+* `#/gazette` NOTICES 新增 live 行：「审计链 · CLEAR（5 盏灯）· 幽灵灯不亮」——每次 build 都刷着；
+* `agent/graphs/auditor_graph.py` 参数化 `evidence_dir`（默认仍 docs/evidence · 测试写入 tmp）——测试不再污染 repo · §1876 发现的真·bug（test 污染了 audit-chain.md）现根修；
+* `_run` 改为 utf-8 + stderr or ""（不惩罚空 stderr，原 GBK crash 了）；
+* Volume LXXXVII《敲门的人 · The Knocker》入册 → worldbook **94 卷**（本轮 +1）；chronicle 1,678 节。
+
+### 二、诚实边界
+
+* 这轮里发生了一件麻烦但该登记的事：测试（test_audit_graph.py 猴补 court_lock exit=2）把 CRACKED 写进了 audit-chain.md · 真诚登记 R11 同次测试覆盖器的 bug · R12 应登记于卷八十八；
+* 真·3 次 struck 全部 CLEAR（19:32 / 19:36 / 05:08Z）；
+* Court Lock 不变（4117d2b0ca5fb23a）· gate 合计 **64/64** stays（2 audit_graph + 62 others）· UI 533/533 stays；
+* court 永不缓存；「密码 123 全员进管理员」永久否决。

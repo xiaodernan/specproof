@@ -30,7 +30,11 @@ from langgraph.graph import END, StateGraph
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = ROOT / "scripts"
-EVIDENCE_DIR = ROOT / "docs" / "evidence"
+
+
+def _evidence_dir(state) -> Path:
+    d = state.get("evidence_dir")
+    return Path(d) if d else ROOT / "docs" / "evidence"
 
 
 class AuditChainState(TypedDict, total=False):
@@ -38,6 +42,7 @@ class AuditChainState(TypedDict, total=False):
     verdict: str
     report_path: str
     summary: str
+    evidence_dir: str
 
 
 def _run(script: str, *args: str) -> tuple[int, str]:
@@ -45,13 +50,15 @@ def _run(script: str, *args: str) -> tuple[int, str]:
         [sys.executable, str(SCRIPTS / script), *args],
         capture_output=True, text=True,
         cwd=ROOT, timeout=30,
+        encoding="utf-8", errors="replace",
         env={**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"},
     )
-    return proc.returncode, (proc.stdout + proc.stderr).strip()
+    out = (proc.stdout or "") + (proc.stderr or "")
+    return proc.returncode, out.strip()
 
 
-def _read_json(name: str) -> dict[str, Any] | None:
-    p = EVIDENCE_DIR / name
+def _read_json(state, name: str) -> dict[str, Any] | None:
+    p = _evidence_dir(state) / name
     if not p.exists():
         return None
     return json.loads(p.read_text(encoding="utf-8"))
@@ -59,7 +66,7 @@ def _read_json(name: str) -> dict[str, Any] | None:
 
 def unsigned_node(state: AuditChainState) -> AuditChainState:
     code, out = _run("audit_unsigned.py")
-    doc = _read_json("../pages/unsigned.json")  # built in apps/web/src/pages
+    doc = _read_json(state, "../pages/unsigned.json")  # built in apps/web/src/pages
     fallback = ROOT / "apps" / "web" / "src" / "pages" / "unsigned.json"
     if doc is None and fallback.exists():
         doc = json.loads(fallback.read_text(encoding="utf-8"))
@@ -76,7 +83,7 @@ def unsigned_node(state: AuditChainState) -> AuditChainState:
 
 def court_lock_node(state: AuditChainState) -> AuditChainState:
     code, out = _run("audit_court_lock.py")
-    doc = _read_json("../../apps/web/src/pages/courtLock.json")
+    doc = _read_json(state, "../../apps/web/src/pages/courtLock.json")
     if doc is None:
         p = ROOT / "apps" / "web" / "src" / "pages" / "courtLock.json"
         if p.exists():
@@ -93,7 +100,7 @@ def court_lock_node(state: AuditChainState) -> AuditChainState:
 
 def evidence_node(state: AuditChainState) -> AuditChainState:
     code, out = _run("audit_evidence.py")
-    doc = _read_json("audit-evidence.json") or {}
+    doc = _read_json(state, "audit-evidence.json") or {}
     verdict = doc.get("verdict") or "UNKNOWN"
     return {
         "results": state.get("results", []) + [{
@@ -106,7 +113,7 @@ def evidence_node(state: AuditChainState) -> AuditChainState:
 
 def scratch_node(state: AuditChainState) -> AuditChainState:
     code, out = _run("audit_scratch_residue.py")
-    doc = _read_json("audit-scratch-residue.json") or {}
+    doc = _read_json(state, "audit-scratch-residue.json") or {}
     verdict = doc.get("verdict") or "unknown"
     return {
         "results": state.get("results", []) + [{
@@ -119,7 +126,7 @@ def scratch_node(state: AuditChainState) -> AuditChainState:
 
 def portfolio_node(state: AuditChainState) -> AuditChainState:
     code, out = _run("audit_portfolio.py")
-    doc = _read_json("audit-portfolio.json") or {}
+    doc = _read_json(state, "audit-portfolio.json") or {}
     verdict = doc.get("verdict") or "unknown"
     return {
         "results": state.get("results", []) + [{
@@ -158,8 +165,9 @@ def report_node(state: AuditChainState) -> AuditChainState:
         "",
         "_who wrote this: agent/graphs/audit_graph.py — deterministic subgraph; nobody edits the verdict by hand._",
     ]
-    EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
-    report = EVIDENCE_DIR / "audit-chain.md"
+    out_dir = _evidence_dir(state)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    report = out_dir / "audit-chain.md"
     report.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     return {
         "report_path": str(report),

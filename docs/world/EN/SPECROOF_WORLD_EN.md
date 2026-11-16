@@ -3336,3 +3336,41 @@ Struck at this volume's writing: **CLEAR · 5 lanes · zero leakage.**
 > **Not how many times it was made — but how many links truly hold every single time.**
 
 ---
+## Volume LXXXVII · The Knocker（卷八十七 · 敲门的人）
+
+> One who knocks does not knock in vague curiosity —
+> they knock once, and then tell all in one shot: "it" or "it is not".
+> This house knows its own doors; every door knows its own lock.
+
+### 87.1 The audit-chain now has a face indoors
+
+A new face on the `#/gazette` "today's weather" column:
+
+> **audit chain · CLEAR (5 lanes) · the ghost switch stays off**
+
+Five lamps, one knock, one word: **it** or **it isn't**. No ambiguity, no courtroom.
+
+### 87.2 Two recorded strikes (printed, at length)
+
+| Moment | Struck | Verdict |
+|---|---|---|
+| 2026-11-15T19:32Z (first clean strike) | all 5 lanes, real-knock | **CLEAR** · 5/5 |
+| 2026-11-15T19:36Z (re-struck) | full 5 lanes | **CLEAR** · 5/5 |
+| 2026-11-16T05:08Z (post-test) | — | **CLEAR** · 5/5 |
+
+### 87.3 House rules
+
+1. **the knock is audit_chain.py's** — no test, no debug, no script convenience;
+2. **the knocker never lingers** — one strike, one announcement, then step back;
+3. **a red answer awakens everyone** — knock red, then handle now; never delay sleep;
+4. **the knocker is never afraid** — if the chain cracks, the knocker names it; if not, the knocker names that too.
+
+### 87.4 Where this shadow actually walks
+
+```
+a late knock → five doors struck in one pass
+the day that follows → one small strip of paper
+it says CLEAR or CRACKED — either belongs in the paper
+```
+
+---
