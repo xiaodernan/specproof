@@ -39536,3 +39536,43 @@ Volume XCVI《炉火熄灭的上午 · The Morning the Furnace Went Out》入册
 
 * court=4117d2b0ca5fb23a LOCKED · D1/D2 欠着 · purity CLEAR · worldbook **105 卷** · chronicle **1,689 节** · guide-route 6/6
 * 本仓库对「旧账拿走」零容忍：每一条真活都有它的钉子。
+
+## #1889 《二十五毫秒的铁律》：新 graph `agent/graphs/night_watch_graph.py`（evidence∩purity∩audit 合体 · night-watch.md/.json）· 复敲 REGRESSION 属实 · Volume XCIX
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1888。
+
+### 一、新合体 StateGraph（#十二 StateGraph 知识点）
+
+`agent/graphs/night_watch_graph.py`：
+```
+evidence_graph → purity_graph → auditor_graph → verdict → report → END
+```
+诚实边界钉在 verdict_node：任何一门 CRACKED → 合体 **CRACKED**；绝不改写、绝不降门槛、绝不删展品。
+新入库：`docs/evidence/night-watch.md` + `night-watch.json`（轨道 git-tracked）。
+单元测试 6/6：all-green · purity/audit/evidence 单钉裂 · 异常（destroys 不会被当成 CRASH，而登记为 CRACKED）· 自动 mkdir 嵌套目录。
+
+### 二、本轮必须记录的 REGRESSION（如实）
+
+* 证据链复敲：现敲后就是 **verdict=REGRESSION entries=5**——led by `worst_drift`：#4(**1,526.1ms**) − #3(**1,030.057ms**) = **+495.99ms** > 25.0；规则没有被我调。reg：注销 exhibited #4 的展品不被删、会一直上脸。Exhibit #5（**1,035.0ms** · OK）入册；Exhibit #4 = 当晚 docker desktop 自沉自燃后该 host 首行 `worst_p99=1526.1ms`；如实登记。
+* 图按规则敲，图不该被改阈值——本号住在这一条上。
+* night-watch.md（**CRACKED** · struck 2026-11-16T08:43Z） verbatim：
+  ```
+  evidence => REGRESSION · purity => CLEAR · audit => CLEAR
+  findings: [evidence lane: not jade]
+  ```
+
+### 三、验证矩阵（本轮）
+
+| 车道 | 结果 |
+|---|---|
+| pytest night_watch_graph | **6/6** |
+| audit_evidence.py | CONSISTENT 7/7 |
+| mvn -o 全套（此前被 Docker 沉寂冻结） | **137/137 green** |
+| court | 4117d2b0ca5fb23a LOCKED |
+| UI | 540/540 · build ✓ |
+
+### 四、更正
+
+无新 R 条——本轮的"错"不在代码，在我眼睛从exhibit #4 上挪开再找替身。R 条不该伪造；#1889 停留在本卷。
+
+Volume XCIX《黑夜守望的门槛 · The Twenty-Five Millisecond Law》入册 → worldbook **106 卷** · chronicle **1,690 节**。

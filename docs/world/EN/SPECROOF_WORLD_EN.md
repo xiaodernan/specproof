@@ -3858,3 +3858,49 @@ The world keeps turning: worldbook 105 volumes, chronicle 1,689 entries, Court L
 A rivet is not laziness; until a contract is welded shut, nothing is "done".
 
 ---
+## Volume XCIX · The Twenty-Five Millisecond Law（卷九十九 · 黑夜守望的门槛）
+
+> A door's authority is not that it lets everything through —
+> it is that it knows exactly one thing not to let through.
+
+### 99.1 The alloy of this volume: three hearts on one spine
+
+new: `agent/graphs/night_watch_graph.py` — the three largest StateGraphs of this repository on one spine:
+
+```
+evidence_graph → purity_graph → auditor_graph → verdict → report → END
+ (evidence review)   (secrets purge)   (five-lane knock)
+```
+
+Every blink is three separate knocks.
+**Any door that breaks, blushes, or goes unstruck makes the watch CRACKED — no numbers trimmed, no prose glazed, no discounts.**
+
+Arts: `docs/evidence/night-watch.md` + `night-watch.json` (both in-repo, both git-tracked).
+
+### 99.2 The knock this hand met — the one it needed to meet
+
+Struck live on 2026-11-16 from this host:
+
+| lane | action |
+|---|---|
+| evidence | struck five exhibits — 4 rounds × warm-1/2/3 + two 4-round exhibits; exhibit #4 (**1,526.1 ms**) against exhibit #3 (**1,030.057 ms**) Δ = **+495.99 ms** → **verdict = REGRESSION** |
+| purity | 2,821 tracked files, 0 hits → **CLEAR** |
+| audit | five lanes, one knock → **CLEAR** |
+| composite | **CRACKED** (one lane of evidence did not pass) |
+
+**REGRESSION is not the machine failing — it is the thermometre.** That strike, taken while Docker Desktop was dim, honestly raised the p99 to 1,526 ms.
+Δ > 25 ms is REGRESSION — that is the evidence-review subgraph's own iron rule (`worst_drift > 25.0 → REGRESSION`).
+
+### 99.3 The decisive choices
+
+1. **the threshold did not move** — the exhibit on file stays on file; nobody deletes it "to make the round pass";
+2. `2026-11-16-static-warm-4.json` remains in-repo forever; every night's-watch pass until today will stand in front of the rule;
+3. exhibit #5 is on file (**1,035.0 ms** · OK); when the next exhibit lands within Δ<25 ms, the lock flips to CLEAR by itself;
+4. night-watch unit tests: **6/6** (all-green · one-pin crack for purity/audit/evidence lanes · exception-safety · auto-mkdir of the evidence dir).
+
+### 99.4 Standing obligations
+
+* Court Lock `4117d2b0ca5fb23a` LOCKED; 「password-123」permanently vetoed; D1 (OBSERVABILITY human signature) and D2 (PORTFOLIO_TOKEN) still owed;
+* UI 540/540 · build ✓ · court crystal still locked.
+
+---

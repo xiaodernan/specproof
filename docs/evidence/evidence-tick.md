@@ -1,8 +1,10 @@
-# Evidence Tick — generated 2026-11-15T18:51:19+00:00
+# Evidence Tick — generated 2026-11-16T08:43:18+00:00
 
-verdict: **OK**
-entries: 3
+verdict: **REGRESSION**
+entries: 5
 
+- `2026-11-16-static-warm-5.json` — p99≈1035.0ms · verdict=OK · 384/384 ok · delta_vs_prev=-491.1ms
+- `2026-11-16-static-warm-4.json` — p99≈1526.1ms · verdict=OK · 384/384 ok · delta_vs_prev=+496.0ms
 - `2026-11-16-static-warm-3.json` — p99≈1030.1ms · verdict=OK · 192/192 ok · delta_vs_prev=-507.2ms
 - `2026-11-16-static-warm-2.json` — p99≈1537.3ms · verdict=OK · 192/192 ok · delta_vs_prev=+5.1ms
 - `2026-11-16-static-warm.json` — p99≈1532.1ms · verdict=OK · 192/192 ok

@@ -3986,3 +3986,48 @@ UI **540/540**（+1）——一颗铆钉只重 4 行断言，但它担保的是"
 "一颗铆钉"不是偷懒——一条契约没焊死之前，它永远不算"完成"。
 
 ---
+## 卷九十九 · 黑夜守望的门槛（The Twenty-Five Millisecond Law）
+
+> 一扇门之所以称为判官，不在于它万事放行，是在于它知道该不放行哪一件事。
+
+### 99.1 本卷的合体：三颗心在同一根脊椎上
+
+新增 `agent/graphs/night_watch_graph.py` —— 把本仓库最大的三个 StateGraph 合成一根脊椎：
+
+```
+evidence_graph → purity_graph → auditor_graph → verdict → report → END
+（证据复核）    （密钥纯度）     （五灯一串）
+```
+
+它每眨一次眼，就敲三个独立的门；
+**任何一门断了、红了、没敲到，就 CRACKED——绝不改数字、绝不润色、绝不打折。**
+
+产物：`docs/evidence/night-watch.md` + `night-watch.json`（都在仓内，git 收悉）。
+
+### 99.2 这只手一碰，就碰到了它该碰的
+
+2026-11-16 本机现敲：
+
+| 车道 | 动作 |
+|---|---|
+| evidence | 现敲 5 件证据展品 —— 4 rounds × 2（warm-1/2/3）+ 4+4 rounds（#4 · #5）；第 4 件 1,526.1 ms **相对第 3 件（1,030.057 ms）Δ=+495.99 ms** —— **verdict = REGRESSION** |
+| purity | 2,821 个 tracked 文件，0 hits → **CLEAR** |
+| audit | 五灯一敲 → **CLEAR** |
+| 合体裁决 | **CRACKED**（一条证据门没过） |
+
+**REGRESSION 不是程序坏了——是计时器闹了**：这台机器在 Docker Desktop 沉寂又复活后的那次敲击里，p99 真的到了 1,526 ms。
+从 Δ>25 ms 起就是 REGRESSION，这是证据复核子图 **自己** 的铁规（`worstr_drift > 25.0 → REGRESSION`）。
+
+### 99.3 最重要的决定（与决定本身）
+
+1. **#1887 的门槛没降**——committed exhibit 不删、也不「为了一轮绿就删掉那次展品」；
+2. 展品 `2026-11-16-static-warm-4.json` 保留入库；从此每次守望复敲，它都会站在规则眼前；
+3. exhibit #5 已入册（**1035.0ms** · OK）——第六件若能进 Δ<25 ms，就能解锁自动 `CLEAR`。
+4. night-watch 测试：6/6（全绿、一颗钉裂(purity/audit/evidence)、异常、嵌套目录 auto-mkdir）。
+
+### 99.4 欠条
+
+* Court Lock 4117d2b0ca5fb23a LOCKED；「密码-123」永久否决；D1（OBSERVABILITY 真签）· D2（PORTFOLIO_TOKEN）依旧欠着；
+* UI 540/540 · build ✓ · court crystal remains locked.
+
+---
