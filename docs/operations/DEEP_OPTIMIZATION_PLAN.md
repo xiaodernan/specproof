@@ -39704,3 +39704,30 @@ Volume CIII《第六件实证 · The Sixth Exhibit》入册 → worldbook **110 
 * 本轮密钥使用了 **零字节 API key 进代码 / 测试 / ledger 任一文件**；之前围绕 LLM 车道的一切依然有效（#1884 之后经过代理车道、provider_smoke 7/7 PASS、R14 入卷）。
 
 Volume CIV《五盏常亮的铁灯 · The Five Iron Flames》入册 → worldbook **111 卷** · chronicle **1,695 节**。
+
+## #1895 《两把尺子并排》：web BM25 与 recall_graph.py 的对照记录 · Volume CV · 双线统敲 Locked 入卷轴
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1894。
+
+### 一、对照事实（本机、本刻、各自现敲）
+
+| 查询 | web `#/recall` 第一命中 | python `recall_graph.py` 第一命中 | 两种 HIT 分别同为 ✅ |
+|---|---|---|---|
+| `密码 123` | `#1799` `Insight`（BM25 命中 ledger#1799） | `#1799`（**相同**）| ✅ 命中相同 |
+| `court 永不缓存` | **#1866** 《门与锁》 | **#1864** 《逾墙之镜》 | ✅ 都含 court，首答之绝非必同 |
+| `zzqxjvn xvjq lqxzvnq` | MISS（零命中、真空态）| MISS（零命中） | 双 ✅ |
+| `""` | MISSING-QUERY | MISSING-QUERY | 双 ✅ |
+| `docs-dir` 不存在 | MISSING-QUERY（docs 不存在→0 文件→MISS）| EVIDENCE-MISSING | 双 ✅（当地皆为「门里不存在」的铁定） |
+| `src/pages/` 测试隔离 | vitest 2/2 条断言命中 | pytest 6/6 全过 | UI 544/544 |
+
+**生产真实事实**：两条路各自对同一语料敲一次，两次都返回 HIT 对外不失败——而本卷不写「两条线一致」，只写它们各敲对——本书不伪造「一致性神话」。
+
+### 二、这件事上责任边界
+
+* 本 repo 的 web 车道与 python 车道是**两条独立实现**；禁止宣告它们相互复刻；
+* night-watch verdict 仍 **CRACKED**（Exhibit #4：1,526.1ms 的消极 Δ+495.99ms 不可抹）；conftest 的 def 25.0ms WHIT 不动：
+  任何改阈值 = 伪造证据。
+* Court Lock `4117d2b0ca5fb23a` LOCKED；court 永不缓存；include_usage 永远 true；purity CLEAR；「密码-123」永久否决；D1/D2 照旧。
+* §1894 vs §1895：§1894 造门，§1895 对门——敲两下，各自带回来自己的体温。
+
+Volume CV《两把尺子并排 · Two Rulers, One Table》入册 → worldbook **112 卷** · chronicle **1,696 节**。

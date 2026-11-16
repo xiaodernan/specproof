@@ -4064,3 +4064,43 @@ query    CJK/latin tokenizer + dual-field BM25 (title × 2.4, body × 1, k1=1.5,
 - D1 · D2 unchanged; 「password-123」permanently vetoed.
 
 ---
+## Volume CV · Two Rulers, One Table（卷一百零五 · 两把尺子并排）
+
+> One ruler tells you the size; two rulers tell you the truth.
+> This volume puts the web's BM25 and the Python graph side by side on the table.
+
+### 105.1 Two ledgers, one answer — and two different rulers
+
+| lane | file | algorithm | answer (query `"court 永不缓存"`) |
+|---|---|---|---|
+| #/recall (web) | `apps/web/src/pages/Recall.tsx` | TS BM25 (k1=1.5 · b=0.75 · title ×2.4 · CJK unigram+bigram · latin runs) | **#1866** |
+| recall_graph (python) | `agent/graphs/recall_graph.py` | Python BM25 (same constants, same fields) | **#1864** |
+| court lock | `scripts/audit_court_lock.py` | five SHA-256 byte slices spliced | **4117d2b0ca5fb23a · LOCKED** (machine-re-verified) |
+
+### 105.2 The point of the comparison — and the honesty of the split
+
+Two BM25 implementations find the same answer for `"密码 123"` (both **#1799**) but different first entries for `"court 永不缓存"` —
+**that is fine**；both are HIT，both answered factually；nobody fabricates "algorithm parity" that does not exist.
+The two lanes are independent implementations — the table is where you can see the difference, not where we pretend it away.
+
+### 105.3 The matrix of assertions
+
+| strike | assertion | status |
+|---|---|---|
+| `court 永不缓存` (python) | verdict=HIT · first hit contains `court` | ✅ |
+| `密码 123` (python) | verdict=HIT · first hit contains `1799` | ✅ |
+| `zzqxjvn xvjq lqxzvnq` (python) | verdict=MISS | ✅ |
+| `""` (python) | verdict=MISSING-QUERY | ✅ |
+| `docs-dir` missing (python) | verdict=EVIDENCE-MISSING | ✅ |
+| `top=3` (python) | ≤ 3 hits | ✅ |
+| `court 永不缓存` (web · vitest) | ≥ 1 hit; first hit contains `court` | ✅ |
+| `密码 123` (web · vitest) | hit reaches `#1799` / `Insight` | ✅ |
+
+### 105.4 What this volume refuses to stage
+
+- no JSON gets rewritten for show; the corpus sits on the table as-is;
+- night-watch keeps its CRACKED verdict — exhibit #4 is still on file, never paraphrased;
+- exhibit #6 (1,058.3 ms) adds a new notch to the ruler, nothing more;
+- D1/D2 still owed; OBSERVABILITY.md needs a human hand; 「password-123」permanently vetoed.
+
+---

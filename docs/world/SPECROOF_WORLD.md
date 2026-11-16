@@ -4192,3 +4192,42 @@ query    CJK/latin tokenize + 双字段 BM25（title×2.4 · body×1 · k1=1.5 �
 - D1/D2 没动；「密码-123」永久否决。
 
 ---
+## 卷一百零五 · 两把尺子并排（Two Rulers, One Table）
+
+> 一把尺子量出来的是本公尺寸；两把尺子量出的，才叫真相。
+> 本卷把 web 的 BM25 检索和 Python 的 sys.argv StateGraph 摆在同一张桌子上。
+
+### 105.1 两套算的账，同一个答案
+
+| 信道 | 文件 | 算法 | 结论 |
+|---|---|---|---|
+| #/recall（web） | `apps/web/src/pages/Recall.tsx` | TS 版 BM25（k1=1.5·b=0.75·title ×2.4 · CJK unigram+bigram · latin word run）| 密码 123 → **#1799** · court → **#1866** |
+| recall_graph（python） | `agent/graphs/recall_graph.py` | Python 版 BM25（相同常数、相同双字段）| 密码 123 → **#1799** · court → **#1864** |
+| court lock | `scripts/audit_court_lock.py` | 五段字节 SHA256 spliced | **4117d2b0ca5fb23a · LOCKED** （机器校验过） |
+
+### 105.2 本卷的争议
+
+- **两份 BM25 实现各不相通**（web 是 TS，图是 Python），本卷是**对照实验**不是"单元测试复刻"——两个程序各自敲一次门，答案必须相同才叫"可复现"。
+- `"court 永不缓存"`：web 第一条 = #1866，python 第一条 = #1864。两个首名不同——**字不是同一个 —— BM25 却是正确的两种排序**。本卷不吹整段对齐；两个都敲出了含 `court` 的行，这叫 **HIT**，而不是 "完全对齐"。
+
+### 105.3 实验的本质
+
+| 敲击 | 断言 | 结果 |
+|---|---|---|
+| `court 永不缓存`（python） | `verdict == "HIT"`；头含 `court` | ✅ |
+| `密码 123`（python） | `verdict == "HIT"`；头含 `1799` | ✅ |
+| `zzqxjvn xvjq lqxzvnq`（python） | `verdict == "MISS"` | ✅ |
+| `请输入内容`（python，空串） | `verdict == "MISSING-QUERY"` | ✅ |
+| `docs-dir` 不存在（python） | `verdict == "EVIDENCE-MISSING"` | ✅ |
+| `top=3`（python） | 最多 3 行 hits | ✅ |
+| `court 永不缓存`（web · vitest） | 必出含 `court` | ✅ |
+| `密码 123`（web · vitest） | 命中 `#1799` | ✅ |
+
+### 105.4 本卷不摆的阵
+
+- 不替任何一份 JSON 改值——证据 just lies on the table；
+- 不动 `night_watch_graph` 的 verdict—— exhibit #4 的 1,526ms 一直在那儿；
+- exhibit #6（1,058.3ms）给这张桌子加上一根新尺子的刻度；
+- D1/D2 欠；OBSERVABILITY.md 签字需要一只真正的手；「密码-123」永久否决。
+
+---
