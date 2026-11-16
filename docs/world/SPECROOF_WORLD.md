@@ -4061,3 +4061,20 @@ evidence_graph → purity_graph → auditor_graph → verdict → report → END
 - court 永不缓存，Court Lock 4117d2b0ca5fb23a；「密码-123」永久否决；D1/D2 欠；纯度 CLEAR。
 
 ---
+## 卷一百零一 · 真实的 README（The Honest README）
+
+> 路人不会看账本，他只看门牌。
+> 本卷给门牌刷上这天应该有的字。
+
+### 101.1 《最新验收 · 2026-11-16》进了门牌
+
+`README.md` 的新节「最新验收 · 2026-11-16」直接写在 README 最前排（真相区），英文镜像 `README_EN.md` 同步进去；内容如实：LLM 扉页（aizzz.xyz/gpt-6.1-terra）、Clash Verge 出网、provider smoke 7/7、137/137 Java 车道绿、Night Watch 合体判定（CRACKED 是真相），UI 542/542，欠账 D1/D2 明确列出。
+**铁证先行：从 README 进来的路人不再被某个月以前的"全绿"蒙过去。**
+
+### 101.2 这页仍然拒绝的三件事
+
+1. 不把 demonstrated 冒充 deployed（这台机器从来没上过 rack）；
+2. 不把「演示数据」冒充生产」；
+3. 不把未签的 `OBSERVABILITY.md` 签成"已签"，也不把欠用户的 PAT 代为 mint。
+
+---

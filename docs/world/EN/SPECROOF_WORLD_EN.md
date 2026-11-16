@@ -3933,3 +3933,20 @@ This volume surfaces that output directly to the eye of the visitor:
 - court never caches; Court Lock `4117d2b0ca5fb23a`; purity CLEAR; 「password-123」permanently vetoed; D1/D2 still owed.
 
 ---
+## Volume CI · The Honest README（卷一百零一 · 真实的 README）
+
+> Nobody crawls into the ledger for the first sight — they read the sign on the door.
+> This volume repaints it, in the exact strokes tonight got.
+
+### 101.1 《What's new on the record》 now sits first
+
+`README.md` gained a new section up front — 「最新验收 · 2026-11-16」 (English mirror `README_EN.md`): the model door (`aizzz.xyz/gpt-6.1-terra`), the Clash Verge egress clause, provider smoke 7/7, `mvn -o` 137/137 green lane, Night Watch's composite verdict (CRACKED is the truth), UI 542/542, D1/D2 still owed.
+**Evidence first: the README will no longer mislead a newcomer into a stale green.**
+
+### 101.2 Three things this page still refuses
+
+1. demonstrating never impersonates deployed (this host never wore a rack);
+2. demo data impersonates production, never;
+3. the signature owed on OBSERVABILITY.md is not put there by any of us, and the PAT owed to the owner is not minted on their behalf.
+
+---

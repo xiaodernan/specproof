@@ -39598,3 +39598,22 @@ Volume C《夜眼睁开 · The Night Eye Opens》入册（zh/en 对称）→ wor
 * 这一页**不会争取额外好处**——Night Watch 只是把 `/engine` 页面读者侧得可观：任何人看到的 verdict 与 docs/evidence/night-watch.json 的字节一致；
 * exhibit #4 的 REGRESSION 是宿主当时的真实钟声，不会被任何后续努力核销；
 * court 永远 stream + include_usage；「密码-123」永久否决；D1（OBSERVABILITY 真签）· D2（PORTFOLIO_TOKEN）欠。
+
+## #1891 《真实的 README》：README.md / README_EN.md 增「最新验收 · 2026-11-16」为新手第一眼 · Volume CI
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1890。
+
+### 一、门把 README 刷成今天的真相
+
+- 根 `README.md`：新节「最新验收 · 2026-11-16」位列「新手入口」之前——如实记录扉页切换（aizzz/gpt-6.1-terra ·
+  Responses API · max · 走 Clash Verge 127.0.0.1:7897 出网）、provider smoke 7/7、mvn -o 137/137 车道绿、Night Watch 合体 verdict = CRACKED、UI 542/542、D1/D2 欠条
+- 根 `README_EN.md`：镜像节《What's new on the record · 2026-11-16》；与中文 1:1 对应，英文统一英语、不夹中
+- 编辑原则：**路过重看最新状态**——新手先看到「现在是样子」，再看到「曾经是样子」（「本轮真实实验」与「Notable verifications」保留）
+- 关键材料：任何测试都没走，secrets 查零
+
+Volume CI《真实的 README · The Honest README》入册 → worldbook **108 卷**（Volume CI · 第 108 卷）· chronicle **1,692 节**。
+
+### 二、诚实边界不变
+
+* court=4117d2b0ca5fb23a LOCKED · D1/D2 欠（OBSERVABILITY.md 签字 + PORTFOLIO_TOKEN）·「密码-123」永久否决 · 演示不冒充生产
+* 任何 roadmap、任何 portfolio 同步按 clock 安排——这一页只讲实情，不编进度。

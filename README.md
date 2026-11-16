@@ -120,6 +120,17 @@ Craft（AI 开发）的**独立验收摘要**现在也显示在执行结果页�
 - **“没跑验收”与“读不出验收”是两种话术**：任务尚未进入终态时说清还不会运行；已进入终态但没有摘要时给出补做命令 `specproof craft accept --job <任务号>`；已落库却解析不出来时明说“读不出来 ≠ 没有验收”。
 - **Craft 通道的 `BLOCKED` 有两种含义，页面按投影里的 `gates.overall` 区分**：内部门禁 FAIL 时按失败显示；门禁摘要都过了、但完整闭包（SpecProof 验证 + 证书 + 签名）需要 git base/head 与签名密钥而留给 accept CLI 时，按“尚未签发合并证书”的警示显示，而不是失败。投影里连门禁摘要都没有时，页面明说**无法区分原因**，不替用户猜。
 
+## 最新验收 · 2026-11-16
+
+- **LLM 扉页已切换**：`https://api.aizzz.xyz` · 模型 `gpt-6.1-terra` · Responses API · reasoning effort `max`；`.local/llm.json` 是未跟踪的本机配置（gitignore 守门）；任何密钥都不会进入 git；网关需要流式（`stream_required`，本仓所有应答车道本就是 stream）。
+- **本机 Clash Verge 梯子（mihomo 127.0.0.1:7897）** 是出网前提；这台机器的一切 LLM 车道测试都走这条混合端口。
+- **provider smoke 全绿**（through the proxy）：probe → chat → JSON 5 字段 · JUnit 7 项断言全部通过 · Maven 编译 exit 0 · secret scan · digest 链；证据 `artifacts/p0.5/provider-smoke-20261116T070508Z/`（git-ignored）。
+- **137/137 车道绿**：`mvn -o test` gateway 84 · discovery 1 · config 1 · control-plane 51（应用层 fixture，offline，不是生产绿灯）。
+- **Night Watch 合体 StateGraph**（`agent/graphs/night_watch_graph.py`）：evidence∩purity∩audit 一条脊椎 verdict→report→END，当前 verdict = **CRACKED**（exhibit #4 p99 1,526ms 对 exhibit #3 的 1,030ms → Δ=+495.99ms > 25ms 铁规；图自己敲自己，不降门槛、不删 exhibit）；exhibit #5（1,035ms）OK。
+- **UI 542/542**（Engine night-watch 面板 × ChainBanner 六页 × Wheel 自然滚动 reform × /recall BM25 本地检索）。
+- 尚欠：**OBSERVABILITY.md 签字**（D1，真人）、**PORTFOLIO_TOKEN**（D2，你自己的 PAT）。这两件事这台机器不做，演示数据不冒充生产签名。
+- 依赖：Docker Desktop（容器栈）+ Python 3.12+ + Node 18+ + Java 21+；应用层没人上 rack；这些灯不可能被我涂绿。
+
 ## 本轮真实验证
 
 2026-09-23：**JavaScript/TypeScript 的"仓库自带测试差分"已在真实 Docker 沙箱内实测跑通**（临时 node:test 仓库：绿例 exit 0 / 改坏后 exit 1，容器内非 root uid 1000、`--network none`、`/work` 只读）。同时修掉一个更影响使用的缺陷：**真实验收任务的"需求覆盖"页此前是空的**——逐条矩阵（含"改前通过 / 改后失败"的差分归因）以前只落计数，明细从未进入持久层；现在它随任务摘要一起落库并透出到网页，生产端与消费端由一条往返测试钉住。**诚实边界（2026-09-25 更新）**：Node 沙箱现在可以对 lockfile 仓库做**离线依赖安装**（#56：依赖只来自预先播种的 npm 缓存卷，见 `scripts/seed_npm_cache.ps1`），已播种的仓库实测离线绿；未播种的包安装失败 `ENOTCACHED`、不跑测试、如实判"无法复现"——零依赖仓库的行为与之前完全一致。
