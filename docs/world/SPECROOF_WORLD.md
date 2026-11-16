@@ -4231,3 +4231,45 @@ query    CJK/latin tokenize + 双字段 BM25（title×2.4 · body×1 · k1=1.5 �
 - D1/D2 欠；OBSERVABILITY.md 签字需要一只真正的手；「密码-123」永久否决。
 
 ---
+## 卷一百零六 · 磁场与针（The Magnet and the Needle）
+
+> 一根磁针会永远指向北方——只要它完好，只要北线没有被搬动。
+> 本卷给铰链装上一根针的轴承。
+
+### 106.1 这只轴承的名字：代理不是钥匙，只是磁场
+
+`providers/net.py` 长久以来就知道本机该有一条出口——历史上用过的所有代理都走这里：
+https_proxy ➜ `_async_mounts` / `_sync_mounts` ➜ `proxy:` transport ➜ trust_env Client。
+这一池子的**钥匙**不在磁场里——磁场只是磁铁；真正的密码在 `.local/llm.json`（不 tracked、不进仓）。
+
+从 2026-11-16 起，本仓库的所有 `outbound_client / outbound_async_client / environment_proxy_mounts` 路径都被一套单位测试钉死：
+
+**`tests/unit/test_providers_net_mounts.py` · 11/11 passed**（同一 env 变量、同一挂架、同一时间戳——这些都是**机器**读的，不是人眼读的）。
+
+| 用例 | 期望 | 结果 |
+|---|---|---|
+| `https://` → mounts → transport | `127.0.0.1:7897`（本机的 Clash Verge mixed-port）| ✅ OK |
+| 省略 scheme（`127.0.0.1:7897`） | 补 `http://` 后 mount 成功 | ✅ OK |
+| IPv6 `[::1]:7897`（方括号） | 原样映出——httpx 的 tzf bug 已在 #602 修复 | ✅ OK |
+| `no` 含 `*` | 所有 mount 清空！本机 loopback 不出代理 | ✅ OK |
+| `no` 含 `localhost,127.0.0.1` | 它们等于"不代理"→`None` 值 | ✅ OK |
+| 畸形 proxy 条目 | 抛 `UnusableProxyEnv`，**不 silent drop** | ✅ OK |
+| 空 env | 客户端正常建造，不抛 | ✅ OK |
+| make_async_client | 默认 timeout = `DEFAULT_TIMEOUT`（30s） | ✅ OK |
+| outbound_client（同步版） | timeout + mounts 都到位 | ✅ OK |
+
+### 106.2 这条记录的机械结论
+
+1. **任何 env-proxy 场景都只属于 `.local` 或 CI env，不属于代码逻辑**——本卷不复制任何 key；
+2. 任何一条 1894/1895/1896 的 repair 都可以被复敲出**一样的行为**（单位测试确定性，零字节网络调用）；
+3. 磁铁的存在无法让钥匙呈现在 `git diff` 里——`.gitignore` 从头到尾护送 `.local/`；
+4. court 永远 stream=True · include_usage=True；`4117d2b0ca5fb23a` **LOCKED**。
+
+### 106.3 本卷拒绝的陈辞
+
+- 不把任何 key 写进本卷哪怕一行；
+- 不把攻击模型缩为「跑起来就行」——no proxy means no egress, period;
+- D1/D2 仍然欠着；
+- 「密码-123」「他乡之钥」永久否决。
+
+---

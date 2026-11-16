@@ -39731,3 +39731,32 @@ Volume CIV《五盏常亮的铁灯 · The Five Iron Flames》入册 → worldboo
 * §1894 vs §1895：§1894 造门，§1895 对门——敲两下，各自带回来自己的体温。
 
 Volume CV《两把尺子并排 · Two Rulers, One Table》入册 → worldbook **112 卷** · chronicle **1,696 节**。
+
+## #1896 《磁场与针》：env-proxy 专线 _(direct from the #1892 / #1884 repair chain)_  落为单位契约 · Volume CVI
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1895。
+
+### 一、链路（锁死）
+
+`tests/unit/test_providers_net_mounts.py`（**11/11**）：
+
+| 7 项 mounts 行为 | 2 项 client 构造 | 2 项安全崩溃 |
+|---|---|---|
+| `https://` mount → 127.0.0.1:7897-ish（stub only, no socket） | `outbound_async_client(timeout=3.0)` 构造 | 畸形 entry 抛 `UnusableProxyEnv`（从 §1892 的 bracket repair 派生） |
+| `127.0.0.1:7897` 无 schee → 自动前缀 `http://` | `outbound_client(timeout=5.0)` 构造 | 不静默 drop — bug 类记忆（#602·bracket repair） |
+| IPv6 `[::1]:7897` 原样（httpx §#602 修完） |  |  |
+| `no=*` → mounts 全清空 |  |  |
+| `no=localhost,127.0.0.1` → `None`（不代理） |  |  |
+| `HTTPS_PROXY=<host:7897>` 注入 env |  |  |
+| 空 env → 仍能建造（client 失败但不崩溃） |  |  |
+
+所有用例纯内存、零字节网络调用。**不靠人眼看绿就敢叫绿**这件事，又多了一层.
+
+### 二、本号同时生效
+
+* ledger： 本 PR 全链路均为本机/本刻证的现敲；CI 中的 enforcement 不变；
+* court： 4117d2b0ca5fb23a LOCKED；`test_court_never_caches.py` 4/4
+* uvicorn： 本机仍无 live 部署；演示不冒充生产
+* D1/D2 照旧欠着 ·「密码-123」永久否决 · purity CLEAR · R14/R15 依然挂在卷轴上
+
+Volume CVI《磁场与针 · The Magnet and the Needle》入册 → worldbook **113 卷** · chronicle **1,697 节** · corrections **15**。

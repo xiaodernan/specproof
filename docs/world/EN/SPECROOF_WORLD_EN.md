@@ -4104,3 +4104,45 @@ The two lanes are independent implementations — the table is where you can see
 - D1/D2 still owed; OBSERVABILITY.md needs a human hand; 「password-123」permanently vetoed.
 
 ---
+## Volume CVI · The Magnet and the Needle（卷一百零六 · 磁场与针）
+
+> A magnetic needle always points north—so long as it holds and north has not moved.
+> This volume puts a bearing on the hinge.
+
+### 106.1 The name of this bearing: a proxy is a magnetic field, never a key
+
+`providers/net.py` has long known this host needs exactly one out-channel—every proxy in history walks through here:
+proxy env → `_async_mounts` / `_sync_mounts` → `httpx.HTTP[...].Transport` → `trust_env=True` client.
+**No key lives in the magnetic field**——the field is a magnet; the password lives in `.local/llm.json` (untracked, never in git).
+
+Since 2026-11-16, every one of these paths lives under one test file:
+
+**`tests/unit/test_providers_net_mounts.py` · 11/11 passed** — all written for a machine to re-strike; none of this is eyeballed.
+
+| case | outcome | result |
+|---|---|---|
+| `https://` → mounts → transport | binds to the local mixed-port | ✅ |
+| bare `127.0.0.1:7897` (no scheme) | scheme is added → mount ok | ✅ |
+| IPv6 `[::1]:7897` | preserved as bracketed (httpx's bug repaired at #602) | ✅ |
+| `no_proxy=*` | every mount erased — loopback never sees a proxy | ✅ |
+| `no_proxy=localhost,127.0.0.1` | becomes `None` (= never proxy) | ✅ |
+| malformed proxy entry | raises `UnusableProxyEnv` — never silently dropped | ✅ |
+| empty env | client builds without exception | ✅ |
+| `make_async_client` | timeout == `DEFAULT_TIMEOUT` (30s) | ✅ |
+| `outbound_client(sync)` | timeout + mounts land intact | ✅ |
+
+### 106.2 What this volume concludes
+
+1. any env-proxy scenario belongs to `.local`/CI env, never to code logic — this volume reproduces no key;
+2. recovery #1884/#1887/#1896 can be re-struck **with identical outcomes** — it is a unit-test contract, zero bytes of network go at this step;
+3. the magnet cannot leak the key onto `git diff` — `.gitignore` has been guarding `.local/` from day one;
+4. court stays stream=True / include_usage=True; `4117d2b0ca5fb23a` **LOCKED**.
+
+### 106.3 What this volume refuses to say
+
+- no key, not even one character, in this page;
+- no shorthand of "just make it work" — no proxy, no egress, period;
+- D1 and D2 remain unpaid;
+- 「password-123」permanently vetoed.
+
+---
