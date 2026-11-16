@@ -5323,3 +5323,41 @@ slope_per_day       : 3.341     r2 : 0.07     sessions_today : 287
 UI **570/570**（79 → **80** 个文件）· build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · tests/unit **10/10** · exhibit_entries **14** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · D1 ✅ · D2 ⏸ · chronicle 随本提交增员 · worldbook **卷一百四十四 · 144 卷**。
 
 ---
+## 卷一百四十五 · 模型写完了补丁，门却说不
+
+> 模型把补丁写对了——那是它的本事。
+> 门该不该开——那是门的本事。
+> 这一卷记的是一个飞过的子弹与一堵没动的墙。
+
+### 145.1 需求是一句中文，全程·无 fix_registry，真敲模型
+
+| 环节 | 实况 |
+|---|---|
+| 需求 | 「修复 double 函数的逻辑错误」（临时 scratch 仓：`calc.py` 里 `double` 返回 `x / 2`） |
+| 计划（`compile_plan(mode="llm")`） | **plan.mode = llm** · fallback reason = 空 · **四步中文计划**：s1 理解 → s2 修改 → s3 测试 → s4 核查 |
+| 循环（`CraftLoop` · 不注入 fix 规则） | **LOOP_RESULT = DONE** · 模型自己提的修改：`return x / 2` → `return x * 2` |
+| 模型统计（内存） | calls=**2** · prompt 10,553 · completion 1,435 · reasoning **1,010** · **prompt_cache_hit_tokens=4,224**（第二次调用命中驻留前缀） |
+| 验收（`craft_accept` · FAST · Docker 门） | **BLOCKED** —— 因基础设施，不因代码：`run_test` 门（mode=docker）里 `python -m pytest -q` 退出 1，`/usr/local/bin/python: No module named pytest` |
+| 回滚 | HEAD 回到 base（`9fcb754`），`calc.py` 恢复 `x / 2` —— fail-closed 如设计般工作 |
+| 其余四扇门 | run_build 通过 · run_typecheck 跳过（mypy 不可用，如实 SKIPPED）· security 通过 · self_verify 通过 |
+| 证据 | `docs/evidence/2026-11-16-llm-craft-strike-accept.json` · `docs/evidence/2026-11-16-llm-craft-strike.md` |
+
+### 145.2 这条链哪些是新的（为什么值得这一卷）
+
+1. 之前的全链 E2E（2026-09-18）敲的是 wkapi 车道；这次敲的是 **aizzz/gpt-6.1-terra**——换了门锁，过了同一条链；cached 4224 当场对上第二次调用；
+2. 模型**自己**决定改哪一行（没有 fix_registry，没有任何人告诉它 double 是错的会算成变更）——编码 agent 的核心能力这次真敲了，不是脚本演戏；
+3. 验收门第一次挡住它——原因是本机 Docker python 缓存缺 pytest（上游先知照录："缓存完整性 NOT VERIFIED——profile python 挂了缓存卷 /wheelhouse，调用方却没传 cache_dir+cache_manifest"）；
+4. 整个过程没有一处把"实际上这个沙箱缓存是坏的"涂成了绿色。证据原件永在册。
+
+### 145.3 这一卷拒绝说的话
+
+1. 「模型已经跑通了端到端」——**没跑通**：验收环节 BLOCKED 在 docker 缓存里；本机真 pytest 在循环里通过了，但 SpecProof 的门不是看循环里的 pytest，是看自己的沙箱；
+2. 「沙箱坏了所以忽略它」——**不忽略**：门被挡住了，补丁被回滚了，世界回到了 base；这就是 fail-closed 该有的样子；
+3. 「缓存命中率提升了」——本次敲出的是 **cached 4224（第二次调用） ＝ 驻留前缀命中**——不是对本应用 prompt 的认证书（参看 R16）；任何时候都不许对着 "hit rate" 乱呐喊；
+4. 「下次就能过了」——不知道：不补沙箱、不迁 EXECUTOR、不涂红绿。是沙箱缓存的问题就修沙箱缓存；那是另一件活，另一卷账。
+
+### 145.4 裁判
+
+UI **570/570** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED** · exhibit_entries **14** · court `4117d2b0ca5fb23a` **LOCKED** · D1 ✅ · D2 ⏸ ·「密码-123」否决 · chronicle 随本提交增员 · worldbook **卷一百四十五 · 145 卷**。
+
+---

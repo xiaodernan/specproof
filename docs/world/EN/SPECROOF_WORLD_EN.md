@@ -5208,3 +5208,41 @@ One of three things stayed true:
 * UI **570/570** (79 → **80** files) · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · tests/unit **10/10** · exhibit_entries **14** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch remains **CRACKED** · D1 ✅ · D2 pending owner's PAT · the chronicle grows with this commit · worldbook **Scroll CXLIV · 144 scrolls**.
 
 ---
+## Scroll CXLV · The Model Wrote the Fix, The Door Said No
+
+> The model wrote the patch correctly — that was the model's skill.
+> Whether the door opens — that is the door's skill.
+> This scroll records one bullet that flew and one wall that did not move.
+
+### 145.1 One Chinese sentence, full chain, no injected fixes, real model
+
+| stage | what actually happened |
+|---|---|
+| requirement | "修复 double 函数的逻辑错误" (scratch repo: `calc.py`'s `double` returned `x / 2`) |
+| plan (`compile_plan(mode="llm")`) | **plan.mode = llm** · fallback reason = empty · **four Chinese steps**: s1 understand → s2 modify → s3 test → s4 verify |
+| loop (`CraftLoop` · no fix_registry) | **LOOP_RESULT = DONE** · the model's own edit: `return x / 2` → `return x * 2` |
+| LLM stats (in-memory) | calls=**2** · prompt 10,553 · completion 1,435 · reasoning **1,010** · **prompt_cache_hit_tokens=4,224** (second call hit the resident prefix) |
+| acceptance (`craft_accept` · FAST · docker gate) | **BLOCKED** — by infrastructure, not by code: the `run_test` gate (mode=docker) ran `python -m pytest -q`, exited 1 → `/usr/local/bin/python: No module named pytest` |
+| rollback | HEAD is back on base (`9fcb754`), `calc.py` restored to `x / 2` — fail-closed working exactly as designed |
+| the other four doors | run_build passed · run_typecheck skipped (mypy unavailable, honestly SKIPPED) · security passed · self_verify passed |
+| evidence | `docs/evidence/2026-11-16-llm-craft-strike-accept.json` · `docs/evidence/2026-11-16-llm-craft-strike.md` |
+
+### 145.2 Why this chain is new this time
+
+1. the earlier full-chain E2E (2026-09-18) struck the wkapi lane; this one struck **aizzz/gpt-6.1-terra** — a different lock, the same chain; the 4224 second-call hit showed up in person;
+2. the model edited the file **itself** (no fix_registry, nobody told it double was wrong) — the core capability of a coding agent, struck for real, not narrated;
+3. the acceptance gate blocked it for the first time's sake — because this host's Docker python cache does not carry pytest (upstream's own note, verbatim: "cache integrity NOT VERIFIED — the python profile mounts the cache volume /wheelhouse, but the caller never passed cache_dir+cache_manifest");
+4. and nothing anywhere got painted green to hurry past it. The artifacts are on file, verbatim.
+
+### 145.3 What this scroll refuses to claim
+
+1. "the model has run end-to-end" — **no it hasn't**: acceptance BLOCKED on the docker cache; the in-loop pytest did pass on this host, but the door does not read the in-loop pytest; it reads its own sandbox;
+2. "the sandbox is broken, so forget the sandbox" — the door stayed shut, the patch was rolled back, the world went back to base; that IS the designed invariant;
+3. "cache hit rate went up" — the 4224 observed here is the resident-prefix hit on the second call, not a certificate for this app's prompt (see R16);
+4. "next time it will pass" — unknown: no sandbox is reseeded, no executor flipped, no threshold recolored; if the cache is the problem, the cache is the fix — another piece of work, another scroll of the ledger.
+
+### 145.4 The floor never moved
+
+* UI **570/570** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch remains **CRACKED** · exhibit_entries **14** · court `4117d2b0ca5fb23a` **LOCKED** · D1 ✅ · D2 pending owner's PAT · "password-123" vetoed · the chronicle grows with this commit · worldbook **Scroll CXLV · 145 scrolls**.
+
+---

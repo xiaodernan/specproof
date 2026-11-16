@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "job_id": "craft-llm-strike",
+  "head_sha": "f24ebeb96d8ae65979785f696313ef9cdb45d17a",
+  "bundle_digest": "7068f9a49d47b1486292ad0a9cde54ee8529e7938064727090e06897191613fa",
+  "verdict": "BLOCKED",
+  "certificate_path": null,
+  "rejection_notice_path": null,
+  "gates_overall": "failed",
+  "gates_report": {
+    "task_id": "craft-llm-strike",
+    "overall": "failed",
+    "overall_note": "\u5b58\u5728\u5931\u8d25\u95e8\u7981 (FAIL > SKIPPED > PASS): run_test",
+    "duration_ms": 7898,
+    "gates": [
+      {
+        "gate": "run_test",
+        "status": "failed",
+        "note": "\u68c0\u6d4b\u5230 1 \u4e2a\u6d4b\u8bd5\u6587\u4ef6; python -m pytest -q: \u5931\u8d25 (exit 1, mode=docker, \u7f13\u5b58=\u7f13\u5b58\u5b8c\u6574\u6027: \u672a\u6821\u9a8c (NOT VERIFIED) \u2014\u2014 profile python \u6302\u4e86\u7f13\u5b58\u5377 /wheelhouse, \u8c03\u7528\u65b9\u5374\u6ca1\u4f20 cache_dir+cache_manifest, \u88ab\u6295\u6bd2\u7684\u7f13\u5b58\u4f1a\u88ab\u9759\u9ed8\u6d88\u8d39\u3002\u5bbf\u4e3b\u53ef\u8bfb\u76ee\u5f55\u7528 `python -m sandbox.cache_verify seed|verify` \u64ad\u79cd\u5e76\u914d\u5bf9; docker \u547d\u540d\u5377\u5bbf\u4e3b\u8bfb\u4e0d\u5230 (\u89c1 sandbox/cache_verify.py \u7684 honest gap)\u3002)",
+        "findings": [
+          {
+            "file": "",
+            "line": null,
+            "kind": "run_test",
+            "severity": "HIGH",
+            "pattern": "command_exit_nonzero",
+            "description": "python -m pytest -q: exit 1 \u2014 \n/usr/local/bin/python: No module named pytest"
+          }
+        ],
+        "duration_ms": 3543
+      },
+      {
+        "gate": "run_build",
+        "status": "passed",
+        "note": "python -m compileall -q .: \u901a\u8fc7 (exit 0, mode=docker, \u7f13\u5b58=\u7f13\u5b58\u5b8c\u6574\u6027: \u672a\u6821\u9a8c (NOT VERIFIED) \u2014\u2014 profile python \u6302\u4e86\u7f13\u5b58\u5377 /wheelhouse, \u8c03\u7528\u65b9\u5374\u6ca1\u4f20 cache_dir+cache_manifest, \u88ab\u6295\u6bd2\u7684\u7f13\u5b58\u4f1a\u88ab\u9759\u9ed8\u6d88\u8d39\u3002\u5bbf\u4e3b\u53ef\u8bfb\u76ee\u5f55\u7528 `python -m sandbox.cache_verify seed|verify` \u64ad\u79cd\u5e76\u914d\u5bf9; docker \u547d\u540d\u5377\u5bbf\u4e3b\u8bfb\u4e0d\u5230 (\u89c1 sandbox/cache_verify.py \u7684 honest gap)\u3002); python \u4ee5 compileall \u5b57\u8282\u7801\u7f16\u8bd1\u4f5c\u4e3a\u6784\u5efa\u95e8 (\u65e0\u72ec\u7acb build \u9636\u6bb5)",
+        "findings": [],
+        "duration_ms": 2982
+      },
+      {
+        "gate": "run_typecheck",
+        "status": "skipped",
+        "note": "mypy \u4e0d\u53ef\u7528 (\u9000\u51fa\u7801 1), \u65e0\u7c7b\u578b\u68c0\u67e5\u5668\u53ef\u8fd0\u884c, \u6309 skipped \u5904\u7406 (\u4e0d\u4f2a\u9020\u901a\u8fc7)",
+        "findings": [],
+        "duration_ms": 0
+      },
+      {
+        "gate": "security",
+        "status": "passed",
+        "note": "\u6539\u52a8\u6587\u4ef6 1 \u4e2a\u65e0\u5bc6\u94a5/canary finding",
+        "findings": [],
+        "duration_ms": 51
+      },
+      {
+        "gate": "self_verify",
+        "status": "passed",
+        "note": "\u65e0 Java \u6539\u52a8\u6587\u4ef6, \u5951\u7ea6\u68c0\u67e5\u5668\u4e0d\u9002\u7528; \u81ea\u6821\u9a8c\u901a\u8fc7: \u5bc6\u94a5/canary \u626b\u63cf\u4e0e\u5951\u7ea6\u68c0\u67e5\u672a\u53d1\u73b0\u786c\u95e8 finding (\u6539\u52a8\u6587\u4ef6 1 \u4e2a)",
+        "findings": [],
+        "duration_ms": 21
+      }
+    ],
+    "summary": "GATES: task=craft-llm-strike overall=failed run_test=failed run_build=passed run_typecheck=skipped security=passed self_verify=passed duration_ms=7898"
+  },
+  "issued_at": "2026-11-16T16:03:47.550110+00:00"
+}

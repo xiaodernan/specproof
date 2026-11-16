@@ -40755,3 +40755,32 @@ exhibit #13（192c）落册后的 principal 机器又在退热——本轮 live 
 ### 四、裁判
 
 UI **570/570**（80 文件）· build ✓ · mvn -o **137/137**（Java 零触碰）· guide **6/6** · corrections **17** · purity **CLEAR** · tests/unit **+10/10** · Night Watch 依旧 **CRACKED**（entries=**14**）· exhibit #13 仍在册 · court `4117d2b0ca5fb23a` **LOCKED** · D1 ✅ D2 ⏸ · chronicle 随本提交增员 · worldbook **卷一百四十四 · 144 卷**。
+
+## #1937 《模型写完了补丁，门却说不》：craft 全链对 aizzz/gpt-6.1-terra 的 free-form 中文需求实敲——「修复 double 函数的逻辑错误」· `plan.mode=**llm**` 四步中文计划 · **无 fix_registry**（模型自己挑的是 `return x / 2` → `return x * 2`）· `CraftLoop` LOOP_RESULT=**DONE** · 模型内存统计：calls **2** · prompt **10,553** · completion **1,435** · reasoning **1,010** · **prompt_cache_hit_tokens=4,224**（第 2 次调用命中驻留前缀）· `craft_accept`（FAST · Docker 门）verdict=**BLOCKED**：`run_test` 门 `python -m pytest -q` → exit 1（`/usr/local/bin/python: No module named pytest`——本机 Docker python 缓存缺 pytest · 上游先知 `缓存完整性 NOT VERIFIED`）· **门没动，补丁回滚，工作区回到 base（9fcb754）原样** · 证据 `docs/evidence/2026-11-16-llm-craft-strike.md` + `...-accept.json` · Scroll CXLV 双语落册
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1936。
+
+### 一、全过程（2026-11-16T16:02Z · 经本机代理）
+
+| 环节 | 实况 |
+|---|---|
+| 需求（free-form，无模板匹配） | 「修复 double 函数的逻辑错误」 |
+| 计划 | **plan.mode = llm** · fallback 为空 · s1 理解 → s2 修改 → s3 测试 → s4 核查 |
+| 循环 | LOOP_RESULT=**DONE** · 模型自己写下的 diff：`return x / 2` → `return x * 2` |
+| 验收门 | **BLOCKED**：`run_test` 门 · mode=docker · `No module named pytest` |
+| 回滚 | HEAD == base（9fcb754）· `calc.py` 恢复 `x / 2` |
+| 其余四门 | build 过 · typecheck 跳（mypy 缺，如实 SKIPPED）· security 过 · self_verify 过 |
+
+### 二、为什么这不是 bug
+
+这是基础设施真相：Docker python 缓存 volume 里缺 pytest（并非伪造对环境的描写，`accept.json` 原样）； SpecProof 的验收门对自己的沙箱说谎是被禁止的——要么门开，要么补丁回滚。**本机 pytest 是过的，验收门不读本机 pytest，它读自己的沙箱。**
+
+### 三、不涂红的三件事
+
+1. **模型没跑通端到端**——验收被挡住了，证书是一张空纸；
+2. **4224 不是本应用 prompt 的认证书**——是驻留前缀第二次命中（参 R16）；
+3. **不暗改参数**——不迁 EXECUTOR、不删 Docker 门、不重 seed 沙箱冒充绿灯；沙箱缓存该修是另一件活、另一卷账；本轮按红灯处理。
+
+### 四、裁判
+
+UI **570/570** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（entries=**14**）· exhibit #13 仍在册 · court `4117d2b0ca5fb23a` **LOCKED** · D1 ✅ D2 ⏸ ·「密码-123」否决 · chronicle 随本提交增员 · worldbook **卷一百四十五 · 145 卷**。
