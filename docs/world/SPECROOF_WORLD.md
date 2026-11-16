@@ -4630,3 +4630,28 @@ Court never caches。世界还知道我从不让它亮为了假希望。偶尔�
 - **key 零入仓**
 
 ---
+## 卷一百一十七 · 第三块地标（The Third Light in the Atlas）
+
+> 舆图的北极锚在 `#/atlas`——
+> 之前只看到了提交数和账本规模；今晚多看了一眼压测——
+> 这一眼看的是展品本身的件数、一件都不漏。
+
+### 117.1 本卷给 /atlas 加两根刻度
+
+* `tiles` — 新增「压测证件件数」（中文名/English "stress exhibit count"）；
+* `tiles` — 新增「最糟糕的展品 p99」（彰显本书最难看的时刻永远上屏——直敲 `2026-11-16-static-warm-8.json`：**2,078.7 ms**）。
+
+### 117.2 本卷的诚实
+
+* Atlas tiles 直接来自 `evidence.all`，**不来自被编辑过的版本**；
+* 「最糟糕的展品」——选择 `worst_p99_ms` 最大值 → 上屏就是 2078.7ms；
+* 显示 exhibit #8（§{114}）的真相 —— 不嫩墨，不落粉，就摆在那里；
+* 任何想要"不看这一行"的人都可以不点 /atlas；本卷不动任何其他 tiles。
+
+### 117.3 寸刻如此
+
+* UI **546/546**；npm run build ✓；
+* court=LOCKED；「密码-123」否决；D1 ✅ D2 ⏸；
+* exhibit #4 仍在；Night Watch 仍 CRACKED。
+
+---

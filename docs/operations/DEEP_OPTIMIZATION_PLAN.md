@@ -40024,3 +40024,22 @@ UI **546/546** · npm run build ✓ · court=4117d2b0ca5fb23a LOCKED · audit_ch
 Court 永远 stream+include_usage ·「密码-123」永远否决 · D1 ✅ · D2 ⏸ · exhibit #4 仍钉住 · night-watch 仍 CRACKED（ exhibit #4 不删、不减、不可动、不可改阈值）。
 
 Volume CXVI《不装的招牌 · The Unfakeable Sign》入册 → worldbook **123 卷** · chronicle **1,707 节**。
+
+## #1907 《第三块地标》：Atlas 新增两 tile（stress exhibit count · worst exhibit p99=2,078.7ms struck）· Volume CXVII
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1906。
+
+### 一、改动
+
+* `apps/web/src/pages/Atlas.tsx`
+  * 新增 `useMemo(() => useState imported)`;
+  * 加 `stressExhibits` useMemo：evidence.all 的 `/static-(warm|light)/` 匹配；
+  * 新增 tile `stress exhibit count`（ZH "压测证件件数" / EN "stress exhibit count"）；
+  * 新增 tile `worst exhibit p99`（此刻上值 **2,078.7 ms**，直取 2026-11-16-static-warm-8.json 的字节值）
+* UI **546/546** · npm run build ✓ · court=4117d2b0ca5fb23a LOCKED
+
+### 二、不删不改
+
+Exhibit #8（2,078.7 ms）以本书中最低的骨光出现在真宫真实页面上——不涂、不改、不抹；
+
+Volume CXVII《第三块地标 · The Third Light in the Atlas》入册 → worldbook **124 卷** · chronicle **1,708 节**。

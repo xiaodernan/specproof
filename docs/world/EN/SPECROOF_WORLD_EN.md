@@ -4507,3 +4507,28 @@ Just this one line.
 - D1 signed on the owner's own hand; D2 still owed; 「password-123」permanently vetoed.
 
 ---
+## Volume CXVII · The Third Light in the Atlas（卷一百一十七 · 第三块地标）
+
+> The north-pole of this repository's compass hangs on `#/atlas`.
+> Before tonight it read commits and ledger bytes; now it also reads
+> the exhibit you'd rather not talk about—and does not blink.
+
+### 117.1 Two more pins on `#/atlas`
+
+* new tile `stress exhibit count` (always `evidence.all.filter(/static-(warm|light)/).length`);
+* new tile `worst exhibit p99` (the largest `worst_p99_ms` in the same set)—
+  on this host, right now: **2,078.7 ms**, struck live in exhibit #8.
+
+### 117.2 What this volume refuses to do
+
+* never re-edit `evidence.all` to make the numbers prettier (they are git-tracked artifacts);
+* never index a belonging-to-the-host number as if it were global;
+* exhibit #4 1,526.1 ms and exhibit #8 2,078.7 ms both stay visible (the latter only appears if the guest's cursor passes this line);
+* court locked; 「password-123」vetoed; D1 signed; D2 owed; exhibit #4 will not be deleted by anyone.
+
+### 117.3 Status after the artifact
+
+* UI **546/546** · build ✓ · court=4117d2b0ca5fb23a LOCKED;
+* D1 signed-on-order; D2 still pending your PAT; no new IOUs.
+
+---

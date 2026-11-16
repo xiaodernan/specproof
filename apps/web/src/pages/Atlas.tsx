@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useI18n, type Locale } from "../i18n";
 import { ATLAS_REGIONS, EXPEDITIONS, type AtlasRegionId } from "./atlas.copy";
 import stats from "./repoStats.json";
@@ -34,9 +34,16 @@ export default function Atlas() {
   const evidenceGreen = (evidence as unknown as { all: Array<{ total_ok: number }> }).all.reduce((n, r) => n + r.total_ok, 0);
   const evidenceRequests = (evidence as unknown as { all: Array<{ total: number }> }).all.reduce((n, r) => n + r.total, 0);
   const stressGreenShare = evidenceRequests > 0 ? `${Math.round((evidenceGreen / evidenceRequests) * 100)}%` : "—";
+  const stressExhibits = useMemo(() =>
+    (evidence.all as Array<{ file: string; worst_p99_ms: number; verdict: string }>)
+      .filter((e) => /static-(warm|light)/.test(e.file)), []);
+  const stressExhibitsOrdered = [...stressExhibits].sort((a, b) => a.worst_p99_ms - b.worst_p99_ms);
+  const topThreeWorst = stressExhibitsOrdered.slice(-3);
   const tiles = [
     { value: stressGreenShare, label: zh ? "本月压测 · 全绿份额" : "stress green share" },
     { value: `${evidenceRequests.toLocaleString()}`, label: zh ? "本月证据·请求数" : "exhibit requests" },
+    { value: `${stressExhibits.length}`, label: zh ? "压测证件件数" : "stress exhibit count" },
+    { value: `${topThreeWorst.length >= 1 ? Math.round(topThreeWorst[topThreeWorst.length - 1].worst_p99_ms) + " ms" : "—"}`, label: zh ? "最糟糕的展品 p99" : "worst exhibit p99" },
     { value: stats.repository_files.toLocaleString(), label: zh ? "跟踪文件" : "tracked files" },
     { value: stats.total_lines_of_source.toLocaleString(), label: zh ? "源码行数" : "source lines" },
     { value: stats.git_commit_count.toLocaleString(), label: zh ? "提交次数" : "commits" },
