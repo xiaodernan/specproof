@@ -21,7 +21,7 @@ engine = json.loads((PAGES / "engine.json").read_text(encoding="utf-8"))
 latest = evidence.get("latest") or {}
 audit = {c["id"]: c["status"] for c in unsigned.get("checks", [])}
 stamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%MZ")
-latest_sec = chron[-1]["n"] if chron else 0
+latest_sec = len(chron) if chron else 0
 
 tasks = [
     (1, "等待首班 weekly-stress 实敲", f".github/workflows/weekly-stress.yml 已合入 {'是' if audit.get('weekly-stress-merged') == 'merged' else '否'}；首班 = 合入后下一个周一 03:00 UTC（cron）。**不阻吞吐、不红旗；artifact 到手后人工决定是否入库**。"),

@@ -40422,3 +40422,21 @@ strike 4: prompt=4396 hit=4224 miss=172                        （每一敲相�
 UI **559/559** · build ✓ · guide 6/6 · parity 15/15 · corrections **16** · court `4117d2b0ca5fb23a` LOCKED · Night Watch 依旧 **CRACKED** · exhibit_entries **11** · D1 ✅ · D2 ⏸ ·「密码-123」否决。
 
 Volume CXXXV《四次敲出四个数字 · Four Strikes, One Number》入册 → worldbook **135 卷** · chronicle **1,722 节**。
+
+## #1923 《引擎出口的数字别自己看错了》：build_roadmap_live.py の `latest_sec` —— 忽略 chron[-1]["n"]（最大序号 ≈2,000+），改为 len(chron) →「编年史 1,721 节」
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1922。
+
+### 一、起因
+
+Owner 指望 HOLIDAY/LIVE docs Truth。`ROADMAP-LIVE` 中的条目 6 一直显示「编年史 1,918 节」——因为 `latest_sec = chron[-1]["n"]`，而 chronicle.json 的条目 ID 是全局序号（1,192 + 这期的几个跳跃式增长），不是条目数；而 chron 条目的长度（== 存储的实数）是 1,721。
+
+### 二、改了什么
+
+* `scripts/build_roadmap_live.py`：`latest_sec = len(chron)` —— chronicle.json 的条目数 == 编年史真实条目数（1,721）
+* folio 公式不再自欺：build_roadmap_live 重写时不再打印 1,918 这样的假「节数」；
+* 任何人可复现：`scripts/build_chronicle.py` 的 chron.json 记录即真实条目数，不需要解释。
+
+### 三、不改
+
+mvn -o **137/137** · UI **559/559** · guide 6/6 · corrections **16** · court = `4117d2b0ca5fb23a` LOCKED · Night Watch 依旧 **CRACKED**（exhibit #4 永在册） · D1 ✅ · D2 ⏸ ·「密码-123」否决。
