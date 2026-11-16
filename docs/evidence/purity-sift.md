@@ -1,7 +1,7 @@
-# Purity Sift — generated 2026-11-16T16:07:30+00:00
+# Purity Sift — generated 2026-11-16T17:44:50+00:00
 
 verdict: **CLEAR**
-tracked files scanned: 2874
+tracked files scanned: 2877
 unexpected hits: 0
 
 _all tracked files are clean of secret-shaped bytes and PEM headers._

@@ -214,6 +214,13 @@ _ADMIN_SUB_RESOURCES: dict[str, str] = {
     "users": "users",
     "tokens": "tokens",
     "audit": "audit",
+    # The Insight Deck's AI advice lane is an admin/operator diagnostic: it
+    # consumes model budget on anonymous aggregates and writes nothing into
+    # credentials, tenants or evidence. It rides the `users` cell on purpose —
+    # that is the cell whose matrix grant is exactly {admin, operator} —
+    # deliberately NOT a new action (a new cell would smuggle a new privilege
+    # in under a cosmetic name; this grants none).
+    "insight-advice": "users",
 }
 
 

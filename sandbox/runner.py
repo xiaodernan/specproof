@@ -33,6 +33,7 @@ Degradation policy (honest, never silent):
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -753,6 +754,21 @@ def run_sandboxed(
             "`python -m sandbox.cache_verify seed|verify` 播种并配对; docker 命名卷宿主读不到 "
             "(见 sandbox/cache_verify.py 的 honest gap)。"
         )
+    effective_mode = mode
+    if effective_mode == "auto":
+        effective_mode = "docker" if _docker_available() else "local"
+    if (
+        effective_mode == "docker"
+        and resolved_profile is PYTHON_PROFILE
+        and _is_bare_python_pytest(command)
+    ):
+        # the slim image carries no pytest; the bare ask becomes the
+        # three-phase composite this profile exists for (venv from the
+        # /work/.venv writable sub-mount, wheels only from the read-only
+        # /wheelhouse). The caller-visible command string is unchanged —
+        # only argv inside the container grows. Local fallback keeps the
+        # original local_cmd, which was already snapshotted above.
+        command = _python_pytest_composite(command, workspace)
     if mode == "docker":
         result = _run_docker(command, workspace, timeout, resolved_profile)
     elif mode == "auto":
@@ -776,6 +792,43 @@ def run_sandboxed(
     if cache_note:
         result.cache_note = cache_note
     return result
+
+
+def _is_bare_python_pytest(command: list[str]) -> bool:
+    """True for `python -m pytest ...` (or python3) — the exact shape the
+    python craft gates issue, minus any interpreter substitution."""
+    if len(command) < 3:
+        return False
+    if command[0] not in ("python", "python3"):
+        return False
+    return command[1] == "-m" and command[2] == "pytest"
+
+
+def _python_pytest_composite(command: list[str], workspace: str) -> list[str]:
+    """venv → offline install from the read-only wheelhouse → pytest, in one
+    docker argv.
+
+    python:X-slim carries no pytest (the seed script proves the wheelhouse
+    does), so a bare `python -m pytest -q` in docker mode can never resolve
+    one. The three-phase design PYTHON_PROFILE documents (#26) is the only
+    honest way a python suite may run in the sandbox: a disposable venv on
+    the writable /work/.venv sub-mount, wheels from the read-only
+    /wheelhouse with --no-index --find-links, uid 1000, --network none. The
+    caller's arguments travel verbatim; the shell is the slim image's own sh.
+    Local mode is untouched — run_sandboxed only consults this for docker.
+    """
+    test_suffix = " ".join(shlex.quote(arg) for arg in command[3:])
+    has_requirements = os.path.isfile(os.path.join(workspace, "requirements.txt"))
+    pip_line = "/work/.venv/bin/python -m pip install --no-index --find-links /wheelhouse pytest"
+    if has_requirements:
+        pip_line += " -r /work/requirements.txt"
+    argv_line = (
+        "python -m venv /work/.venv"
+        " && " + pip_line
+        + " && /work/.venv/bin/python -m pytest"
+        + (" " + test_suffix if test_suffix else "")
+    )
+    return ["sh", "-c", argv_line]
 
 
 def _run_local(

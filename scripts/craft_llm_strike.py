@@ -60,6 +60,7 @@ def main() -> int:
     (repo / "pyproject.toml").write_text(
         "[tool.pytest.ini_options]\ntestpaths = ['.']\n", encoding="utf-8"
     )
+    (repo / ".gitignore").write_text("/.venv/\n", encoding="utf-8")
     _run(["git", "init", "-q"], cwd=repo)
     _run(["git", "add", "."], cwd=repo)
     _run(["git", "-c", "user.email=strike@example.com", "-c", "user.name=strike", "commit", "-qm", "base"], cwd=repo)

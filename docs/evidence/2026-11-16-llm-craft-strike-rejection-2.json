@@ -1,0 +1,20 @@
+{
+  "subject": {
+    "repository": "C:\\Users\\18414\\AppData\\Local\\Temp\\specproof-llm-strike-g0ggs8ad\\demo",
+    "commit_sha": "567892817be03c9dd8699d4524738c200ae3d977"
+  },
+  "requirements_digest": "sha256:119407fa650b2af07b75886e2ada1baa3305a01f3db1217a1c6b2edecf173d03",
+  "result": "REJECTED",
+  "verified_contracts": 0,
+  "unverified_contracts": 0,
+  "failed_contracts": 0,
+  "reasons": [
+    "Compilation failed (attempt 3): No pom.xml found"
+  ],
+  "issued_at": "2026-11-16T16:52:03.874257+00:00",
+  "issuer": "SpecProof",
+  "version": "0.1.0",
+  "extension": {
+    "bundle_digest": "7068f9a49d47b1486292ad0a9cde54ee8529e7938064727090e06897191613fa"
+  }
+}

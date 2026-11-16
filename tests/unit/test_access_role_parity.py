@@ -52,6 +52,11 @@ SURFACES: dict[str, tuple[str, list[str]]] = {
     ),
     "billing": ("BILLING_ROLES", ["pages/Billing.tsx"]),
     "audit": ("AUDIT_ROLES", ["pages/Audit.tsx"]),
+    # The Insight Deck (admin/operator). Its governed call is the AI 解读
+    # POST /api/v1/admin/insight-advice — derived, gated, and fail-closed —
+    # which is why the sidebar's fourth gated page now carries a derived set
+    # instead of borrowing IDENTITY_ROLES unchecked.
+    "insight": ("IDENTITY_ROLES", ["pages/Insight.tsx"]),
     # #116: a button, not a page. The governed action is the one FindingDetail
     # casts (POST /api/v1/jobs/{id}/feedback), so the derivation reads the same
     # call the click does.
@@ -62,7 +67,7 @@ SURFACES: dict[str, tuple[str, list[str]]] = {
 # SURFACES because since #116 a governed action can also be a button: the nav
 # count is a claim about the sidebar, and letting it grow to cover a button would
 # let a genuinely missing nav gate pass unnoticed.
-NAV_SURFACES = ("identity", "billing", "audit")
+NAV_SURFACES = ("identity", "billing", "audit", "insight")
 
 # Paths every principal may read, so they cannot narrow a surface's role set.
 # /auth/me answers with the caller's own principal; classify_request() returns

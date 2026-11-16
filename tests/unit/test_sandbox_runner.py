@@ -272,6 +272,70 @@ def test_node_test_profile_stays_free_of_install_mounts() -> None:
     assert not any("specproof-npm-cache" in a for a in argv)
 
 
+def test_python_bare_pytest_in_docker_becomes_three_phase(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A bare `python -m pytest -q` in docker mode rewrites to the
+    three-phase composite (venv -> wheelhouse install -> pytest) — the
+    slim image carries no pytest, the wheelhouse does."""
+    calls = _capture_docker_run(monkeypatch)
+    monkeypatch.setattr(runner, "_ensure_writable_mounts", lambda _ws, _p: "")
+    (tmp_path / "requirements.txt").write_text("iniconfig\n", encoding="utf-8")
+    result = runner.run_sandboxed(
+        ["python", "-m", "pytest", "-q"], str(tmp_path), mode="docker",
+        profile=runner.PYTHON_PROFILE,
+    )
+    assert len(calls) == 1
+    argv = calls[0]
+    joined = " ".join(argv)
+    assert "python -m venv /work/.venv" in joined
+    assert "--no-index --find-links /wheelhouse pytest" in joined
+    assert "-r /work/requirements.txt" in joined
+    assert "python -m pytest -q" in joined
+    assert argv[-3:-1] == ["sh", "-c"]
+    assert result.mode == "docker"
+
+
+def test_python_bare_pytest_without_requirements_installs_pytest_only(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = _capture_docker_run(monkeypatch)
+    monkeypatch.setattr(runner, "_ensure_writable_mounts", lambda _ws, _p: "")
+    result = runner.run_sandboxed(
+        ["python", "-m", "pytest"], str(tmp_path), mode="docker",
+        profile=runner.PYTHON_PROFILE,
+    )
+    joined = " ".join(calls[0])
+    assert "--no-index --find-links /wheelhouse pytest" in joined
+    assert "requirements.txt" not in joined
+    assert result.mode == "docker"
+
+
+def test_python_bare_pytest_local_mode_stays_literal(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Local mode is untouched: the host interpreter substitution that
+    Executor performs in explicit local dev mode runs the bare command."""
+    calls = _capture_docker_run(monkeypatch)
+    result = runner.run_sandboxed(
+        ["python", "-m", "pytest", "-q"], str(tmp_path), mode="local"
+    )
+    assert calls == [["python", "-m", "pytest", "-q"]]
+    assert result.mode == "local"
+
+
+def test_maven_command_is_not_rewritten_in_docker(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = _capture_docker_run(monkeypatch)
+    result = runner.run_sandboxed(
+        ["mvn", "-o", "test"], str(tmp_path), mode="docker"
+    )
+    joined = " ".join(calls[0])
+    assert "venv" not in joined
+    assert result.mode == "docker"
+
+
 def test_python_profile_wheelhouse_is_read_only() -> None:
     """#26: the wheelhouse mounts READ-ONLY — pip resolves with --no-index
     --find-links, which only reads, so untrusted test code in the container

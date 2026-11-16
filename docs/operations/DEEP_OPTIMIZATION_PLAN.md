@@ -40784,3 +40784,32 @@ UI **570/570**（80 文件）· build ✓ · mvn -o **137/137**（Java 零触碰
 ### 四、裁判
 
 UI **570/570** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（entries=**14**）· exhibit #13 仍在册 · court `4117d2b0ca5fb23a` **LOCKED** · D1 ✅ D2 ⏸ ·「密码-123」否决 · chronicle 随本提交增员 · worldbook **卷一百四十五 · 145 卷**。
+
+## #1938 《砂箱终于咬住了 pytest》：`specproof-pip-wheelhouse-1000` 播种 pytest 9.2.0（离线装机冒烟通过）＋ `sandbox/runner.py` 三段式合成（effective docker mode 下裸 `python -m pytest` ⇒ `venv → pip install --no-index --find-links /wheelhouse pytest [+`-r requirements.txt`] → pytest` · local 模式一字不动 · `effective_mode=auto` 识别 docker daemon）＋ `test_sandbox_runner.py` +4 条断言（**25/25 绿**）。实敲 craft×aizzz 五轮：#2（16:11Z · DONE · cached 4,224 · 门依旧 pytest-absent——播种只是必要）· #3（16:20Z · **STUCK**：模型 5 次调用不收敛 · cached 12,672——不涂不遮）· #4（16:23Z · DONE · cached 8,448 = 2×4224 同 job · **Docker 当场死**：`unexpected EOF` · run_build 如实降级 `local_fallback`）· **#5（16:3xZ · DONE · run_test 第一次全绿：exit 0 · 155 s · docker 原生 · run_build 40 s PASS** · typecheck 跳过 · security 与 self_verify 过 → **SpecProof REJECTED**：`No pom.xml found`（差分验证器 Java/Maven-first——python fixture 不是它的语言 · `verified_contracts: 0` · `rejection-notice.json` 在册））。同批 **角色平权门 `​/insight` 补完**：`classify_request` 映射 `/api/v1/admin/insight-advice → users cell`（{admin, operator}）· `SURFACES` 登记 `pages/Insight.tsx` · `NAV_SURFACES` 计四（identity/billing/audit/insight）· **11/11**。`.gitignore` `/.venv/` 入 strike fixture · 196/196 耦合测试（access/rbac/gates/sandbox/adapter/insight 全绿）· Scroll CXLVI 双语落册
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1937。
+
+### 一、两次独立发现的命门（为什么此前永远 No module named pytest）
+
+1. slim 镜像本来就没 pytest；wheelhouse 有（seed 后）；
+2. craft 的 `run_test` 门裸调 `python -m pytest -q`——三段式只活在 Node/npm 与 Maven 的暗线设计里，Python 门从没接上线。
+
+### 二、修复（全部可对账）
+
+| 件 | 值 |
+|---|---|
+| wheelhouse seed | pytest 9.2.0 安装于 `/wheelhouse`（只读）· uid 1000 · `--network none` 冒烟绿 |
+| `sandbox/runner.py` | `_is_bare_python_pytest` + `_python_pytest_composite` · effective_mode auto→docker 对齐 · local 快照先于重写 |
+| 单测增补 | +4（合成出现 / 无 requirements / local literal / maven 不动）· **25/25** |
+| Parity | `_ADMIN_SUB_RESOURCES["insight-advice"] = "users"`（{admin,operator} · 零新增特权）· `test_access_role_parity.py` 11/11 |
+
+### 三、不涂不遮
+
+1. run_test 全绿 **不是**端到端验收通过—— SpecProof REJECTED（No pom.xml）· cert=一张空纸·证据如实入册；
+2. cached 8,448 依旧是**驻留前缀**的 2×4224，不是「命中率提升」；
+3. Docker 曾当场死一次；模型曾 STUCK 一次——两个都在册，不粉饰；
+4. 全套 `tests/unit`：本轮 40 分钟走到 69% 阶段性全绿（无失败实例）· 28 个 MySQL 隔离件按设计不跑 · 提交前复敲耦合面 **230/230** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（entries=14 · exhibit #13 永在册）· exhibit #4/#10–#13 一处未动 · court `4117d2b0ca5fb23a` **LOCKED** ·「密码-123」否决 · D1 ✅ D2 ⏸。
+
+### 四、裁判
+
+UI **570/570** · build ✓ · mvn -o **137/137**（Java 零触碰）· guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **14** · worldbook **卷一百四十六 · 146 卷**。

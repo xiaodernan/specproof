@@ -309,6 +309,7 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "第六张图 · /stategraph", value: "cache_witness_graph 落册：同一固定提示连敲两下 · cached_tokens=4224×2 · hit_rate 95.3% · HIT——本仓唯一出网的一张图，按设计敲模型车道、朝你数缓存；/stategraph 六张活图（#1933）" },
       { label: "洞察 AI 解读 · /insight", value: "Insight Deck 加「AI 解读 · 数据怎么说下一件事」：admin/operator 让 aizzz/gpt-6.1-terra 读这块面板的匿名聚合数——allowlist 裁剪包（零 PII）· 首敲 730 字节 · 模型延迟 17,032 ms · 如实引用 201→113 / 84→41 · 自发说「本包数据不足以判断」 onboarding_routes=0；RBAC 不动（#1936）" },
       { label: "模型自己写补丁 · craft×aizzz", value: "free-form 中文需求「修复 double 函数的逻辑错误」→ plan.mode=llm · 四步中文计划 · 模型自己写下 x / 2 → x * 2（无 fix_registry）→ LOOP_RESULT=DONE → **验收 BLOCKED**（本机 Docker python 缓存缺 pytest · No module named pytest——门没动，补丁回滚，世界回 base）· cached 4224 命中在第二次调用（#1937）" },
+      { label: "砂箱咬住 pytest · #1938", value: "砂箱三段式合成落册：venv → wheelhouse 离线装机（pytest 9.2.0 已播种）→ pytest（effective docker mode 才重写）· local 模式一字不动 · 25/25 runner 断言 · **run_test 首次全绿**（155 s · exit 0）· Docker Desktop 曾当场死一次（unexpected EOF）如实在案；SpecProof 验证器 REJECTED（Java/Maven-first · No pom.xml）——墙的名字被写下（#1938）" },
     ],
   },
   {
@@ -608,6 +609,7 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "The sixth graph · /stategraph", value: "cache_witness_graph lands: the same fixed prompt struck twice · cached_tokens=4224×2 · hit_rate 95.3% · HIT — the only graph in this book that phones the model lane, on purpose; /stategraph now carries six living graphs (#1933)" },
       { label: "Insight AI Advice · /insight", value: "the Insight Deck gained \"AI Advice — what the data says next\": admin/operator asks aizzz/gpt-6.1-terra to read this panel\'s anonymous aggregates — allowlisted packet (zero PII) · first strike 730 B · latency 17,032 ms · model quoted 201→113 / 84→41 verbatim · volunteered \"insufficient data\" on onboarding_routes=0; RBAC untouched (#1936)" },
       { label: "The model wrote the patch · craft×aizzz", value: "a free-form Chinese requirement (\"fix the logic error in double\") → plan.mode=llm · four Chinese steps · the model itself edited x / 2 → x * 2 (no fix_registry) → LOOP_RESULT=DONE → **acceptance BLOCKED** (this host's Docker python cache carries no pytest · No module named pytest — the door never moved, the patch was rolled back, the world returned to base) · cached 4224 struck on the second call (#1937)" },
+      { label: "The sandbox bites pytest · #1938", value: "the three-phase composite is on file: venv → offline wheelhouse install (pytest 9.2.0 seeded) → pytest (rewritten in effective docker mode only; local mode byte-identical) · 25/25 runner assertions · **run_test green for the first time** (155 s · exit 0) · Docker Desktop died once on the spot (unexpected EOF), recorded as-is; SpecProof REJECTED (Java/Maven-first · No pom.xml) — the wall got named, never smoothed (#1938)" },
     ],
   },
   {

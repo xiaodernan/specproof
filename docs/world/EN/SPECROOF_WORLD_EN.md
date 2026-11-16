@@ -5246,3 +5246,51 @@ One of three things stayed true:
 * UI **570/570** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch remains **CRACKED** · exhibit_entries **14** · court `4117d2b0ca5fb23a` **LOCKED** · D1 ✅ · D2 pending owner's PAT · "password-123" vetoed · the chronicle grows with this commit · worldbook **Scroll CXLV · 145 scrolls**.
 
 ---
+## Scroll CXLVI · The Sandbox Finally Bites pytest
+
+> A door opens when the lock and the key agree.
+> This scroll opens a house that had argued with itself for three evenings:
+> why did the python suite always answer "no module named pytest" inside docker?
+> Not the model's fault. Not pytest's fault. The asker kept asking wrong.
+
+### 146.1 Two distinct failures, discovered twice
+
+1. **the slim image never carried pytest** — the wheelhouse did (`specproof-pip-wheelhouse-1000`, pytest 9.2.0 seeded, offline install verified via `scripts/seed_pip_wheelhouse.ps1`);
+2. **the craft `run_test` gate kept issuing a bare `python -m pytest -q`** — the three-phase design (venv → offline install → pytest) existed for the node/npm and Maven lanes in dark design, but the python gate never ran it: inside the slim image, a bare pytest is a bare hand.
+
+### 146.2 What this scroll knocks open (`#1938`)
+
+| piece | fix |
+|---|---|
+| `seed_pip_wheelhouse.ps1` + offline smoke | uid 1000 · `/wheelhouse` (read-only) · installing pytest with `--network none` succeeds |
+| `sandbox/runner.py` | a bare `python -m pytest` in **effective docker mode** rewrites to the three-phase composite (venv → `pip install --no-index --find-links /wheelhouse pytest [+`/requirements.txt`] → pytest); local mode is byte-identical (`local_cmd` snapshotted before the rewrite) |
+| `effective_mode` resolution | the rewrite used to match only `mode == "docker"`; `auto` (compose's `SPECPROOF_SANDBOX=docker`, or auto-detect on this host) fell straight through to the bare command — now both "docker" and "auto with a live daemon" count |
+| `test_sandbox_runner.py` | +4 assertions (composite appears × without requirements × local unchanged × maven untouched) · **25/25 green** |
+| `.gitignore` `/.venv/` (strike fixture) | the sandbox's venv never rides into the scratch repo's commits |
+
+### 146.3 The four tickets (chronological, all five kept)
+
+- 16:11Z · strike #2: DONE · cached 4,224 · the gate still said `No module named pytest` — the seed was necessary, never sufficient;
+- 16:20Z · strike #3: **STUCK** (the model failed to converge; 5 calls) — a live model has stuck mornings; recorded as-is;
+- 16:23Z · strike #4: DONE · cached **8,448** (2×4224 in one job) · **docker died on the spot** (`error waiting for container: unexpected EOF` — Docker Desktop restarted) — infra strokes the night; `run_build` honestly degraded to `local_fallback`;
+- 16:3xZ · strike #5: DONE · plan llm (s1–s4) · `x*2` · **the sandbox `run_test` went green for the first time** (exit 0 · 155 s) · `run_build` passed (40 s) · typecheck skipped (mypy absent, honoured) · security and self_verify green → **SpecProof REJECTED**: `No pom.xml found` (Java/Maven-first — a python fixture is not its language).
+
+**the medals the chain earned tonight**: model plans → model edits → sandbox measures → green.
+**the wall that stayed standing**: the differential verifier speaks only Java/Maven. The wall got named with coordinates — nobody pushed it, and no one said it wasn't there.
+
+### 146.4 Two doors knocked alongside
+
+1. **Insight `/insight` joins the role-parity gate**: App.tsx's fourth role-gated page now derives its set (`IDENTITY_ROLES` derived from the server matrix over classify_request(`/api/v1/admin/insight-advice`) → the `users` cell · {admin, operator}) · `test_access_role_parity.py` **11/11** · the fence is tight again;
+2. **`craft_llm_strike.py` on file**: one Chinese sentence in, scratch repo built on the spot, full chain struck once.
+
+### 146.5 What this scroll refuses to claim
+
+1. "the python acceptance passed" — **no it didn't**: the differential wall held;
+2. "mode=docker is the strongest guarantee" — still a fact of this host at this hour, not a certificate;
+3. exhibit #13 stays on file · entries=**14** · Night Watch remains **CRACKED** · court `4117d2b0ca5fb23a` **LOCKED** · "password-123" vetoed · **a seeded wheelhouse is not a verified cache** (the NOT VERIFIED banner still stands); the door did not move, and the rules did not bend.
+
+### 146.6 The floor never moved
+
+* UI **570/570** · build ✓ · mvn -o **137/137** (Java untouched) · guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **14** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch remains **CRACKED** · the chronicle grows with this commit · worldbook **Scroll CXLVI · 146 scrolls**.
+
+---

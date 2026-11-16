@@ -5361,3 +5361,49 @@ UI **570/570**（79 → **80** 个文件）· build ✓ · mvn -o **137/137** ·
 UI **570/570** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED** · exhibit_entries **14** · court `4117d2b0ca5fb23a` **LOCKED** · D1 ✅ · D2 ⏸ ·「密码-123」否决 · chronicle 随本提交增员 · worldbook **卷一百四十五 · 145 卷**。
 
 ---
+## 卷一百四十六 · 砂箱终于咬住了 pytest
+
+> 门要开，先得知道锁孔在哪。
+> 这一卷敲开的是一间吵了三天的屋子：Python 试卷之前在 Docker 里永远「No module named pytest」。
+> 这不是模型的错，也不是 pytest 的错——是问问题的人一直问错。
+
+### 146.1 两次独立发现的两个命门
+
+1. **slim 镜像本来就没有 pytest**——wheelhouse 里有（`specproof-pip-wheelhouse-1000`，pytest 9.2.0 已播种完成，`scripts/seed_pip_wheelhouse.ps1`，离线装机验证通过）；
+2. **craft 的 run_test 门却一直在裸调 `python -m pytest -q`**——三段式（venv → 离线装机 → pytest）此前只存在于 Node/npm 与 Maven 的暗线设计里，Python 门没接上线：在 slim 镜像里，裸 pytest 就是一指空空。
+
+### 146.2 这一卷敲开的东西（`#1938`）
+
+| 件 | 修法 |
+|---|---|
+| `seed_pip_wheelhouse.ps1` 播种 + 离线冒烟 | uid 1000 · `/wheelhouse`（只读）· `--network none` 安装 pytest 成功 |
+| `sandbox/runner.py` | 裸 `python -m pytest` 在 **effective docker mode** 下重写为三段式合成（venv → pip --no-index --find-links pytest [+ `-r requirements.txt`] → pytest）；local 模式一字不动（`local_cmd` 在合成前快照） |
+| `effective_mode` 识别 auto→docker | 此前合成只认显式 `docker`；compose 生产里 `SPECPROOF_SANDBOX=docker` 或自动检测走的 `auto` 一步也不到——现合成认 "docker" 和 "auto 但本机有 daemon" |
+| `test_sandbox_runner.py` | +4 条断言（合成出现 × 无 requirements × local 一字不动 × maven 不受影响）· **25/25 绿** |
+| `.gitignore` `/.venv/`（craft_llm_strike fixture） | 砂箱里的 venv 永远不进 scratch 仓的 commit |
+
+### 146.3 这四步票根（时间轴 · 全军）
+
+- 16:11Z · strike #2：DONE · cached 4,224 · 门依旧 `No module named pytest` — 播种了，不够；
+- 16:20Z · strike #3：**STUCK**（模型当场没收敛，5 次调用）——模型是活的，活着的会有 STUCK 的时候，原样在案；
+- 16:23Z · strike #4：DONE · cached 8,448（2×4224 一 job）· **docker 当场意外死掉**（`unexpected EOF`，Docker Desktop 重启）——infra 的天，两头为难我；run_build 如实降级 `local_fallback`；
+- 16:3xZ · strike #5：DONE · plan llm（s1–s4）· `x*2` · **砂箱 run_test 第一次全绿**（exit 0 · 155 s）· run_build 40 s 过 · typecheck 跳过（mypy 缺，如实）· security 与 self_verify 过 → **SpecProof 验证器 REJECTED**：`No pom.xml found`（Java/Maven-first——python fixture 不是它的语言）。
+
+**链到此为止的勋章**：模型计划 → 模型编辑 → 砂箱真测 → 全绿；**链的墙**：差分验证器只认 Java/Maven。墙的名字被写下来了，墙没有被推，也没人说墙不存在。
+
+### 146.4 顺带敲了两道门
+
+1. **洞察 `/insight` 面板进角色平权门**：App.tsx 第四个 role-gated 页面，派生集 `IDENTITY_ROLES`（server 矩阵 → classify_request(`/api/v1/admin/insight-advice`) cell=users · {admin, operator}）· `test_access_role_parity.py` **11/11** · 门禁再度严丝合缝；
+2. **`craft_llm_strike.py` 留册**：需求一句话、scratch 仓即建即敲、全链一次出票。
+
+### 146.5 这一卷拒绝说的话
+
+1. 「python 验收也过了」——**没有**：差分墙没过；
+2. 「mode=docker 就是最强保证」——依旧是「本主机本机本小时」的事实，不是认证书；
+3. exhibit #13 永在册 · entries **14** · Night Watch 依旧 **CRACKED** · court `4117d2b0ca5fb23a` **LOCKED** ·「密码-123」否决 · **wheelhouse seed 不等于门禁已验证**（NOT VERIFIED 的横幅依旧挂着）；门没挪，准则没动。
+
+### 146.6 裁判
+
+UI **570/570** · build ✓ · mvn -o **137/137**（Java 零触碰）· guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **14** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · chronicle 随本提交增员 · worldbook **卷一百四十六 · 146 卷**。
+
+---
