@@ -33,7 +33,7 @@ Open `http://127.0.0.1:5173/` — the sidebar carries 39 first-level entries:
 | Quality & Evidence | Requirement Coverage | requirement → contract_id → verdict matrix | real evidence |
 | Quality & Evidence | Contracts | every contract's checker_type (http/sql/…) | — |
 | Quality & Evidence | Effectiveness | real F1 / recall / precision from the 100-example golden set | 100 golden examples |
-| Admin | Usage & Billing | real LLM token spend + cache hit rate | direct to wkapi.pro |
+| Admin | Usage & Billing | real LLM token spend + cache hit rate | struck on this host: aizzz/gpt-6.1-terra |
 | Admin | Audit Trail | every audit_logs write in the chain | compliance |
 | Admin | Model Connection | switch the real key of any OpenAI-compatible gateway | — |
 | Admin | Service Status | health (mysql/redis/rabbitmq/minio) + latency distribution | — |
@@ -95,7 +95,7 @@ Open `/ui-kit` — no credentials needed; you will see Button, Breadcrumbs, Tabl
 
 ### 2.2 `#/usage` — the LLM real-cost ledger
 
-Switch to Cache Health — real wkapi.pro measurements, ~84% hit rate on a 2270-byte stable prefix.
+Switch to Cache Health — struck on this host (aizzz/gpt-6.1-terra · responses · stream=True + include_usage=True): live_lane_probe.py consistently HTTP 200 + cached_tokens=4224; only the streaming lane reports usage.
 > `hit_rate` is computed over `hit_basis_calls` (the calls the gateway actually reported for), **never** over `calls` — that is verified truth.
 
 ### 2.3 `#/tour` — the six-stamp corridor
@@ -125,21 +125,21 @@ Copy `.local/llm.json.example` as-is; it already works:
 
 ```json
 {
-  "base_url": "https://wkapi.pro/v1",
+  "base_url": "https://api.aizzz.xyz/v1",
   "api_key": "sk-your-key-here",
-  "model": "gpt-6-sol",
+  "model": "gpt-6.1-terra",
   "protocol": "chat_completions"
 }
 ```
 
 ```bash
 # smoke test + endpoint probe
-specproof probe --base-url https://wkapi.pro/v1 --model gpt-6-sol --api-key sk-yours
+specproof probe --base-url https://api.aizzz.xyz/v1 --model gpt-6.1-terra --api-key sk-yours
 specproof verify --repo demo/spring-backend --base base --head head-v1 --spec demo/requirement.txt --depth FULL
 ```
 
 > Expect: **the same BLOCKED as FAST mode** — the REAL GPT-6-sol reads the diff, explains the catch, and tokens land in `.local/llm_usage.jsonl`.
-> Note on wkapi.pro: when it is saturated, `hit_rate` hovers around `75%–84%`; `cached_tokens` may intermittently come back null.
+> Note: this gateway reports `cached_tokens` only in stream + `include_usage` mode; in non-streaming mode the field comes back absent — that is the cable, not a failure.
 
 ---
 
@@ -165,10 +165,10 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/nightwatch` | Night Watch | a 7-station, 3-oil walking quiz — every answer derived live from git/ledger/world bible; finish to set your best night |
 | `/gazette` | The Morning Gazette | the repo's daily paper: lead story, last 24 entries, live by-the-numbers fold + editorial; printable |
 | `/calendar` | The Evidence Calendar | a 365-day grid of daily commits — derived live from git log (busiest day / streak / active days) |
-| `/billing` | Usage & Billing | real wkapi.pro token spend + hit_rate |
+| `/billing` | Usage & Billing | real aizzz/gpt-6.1-terra token spend + hit_rate (or any OpenAI-compatible your deployer chooses) |
 | `/audit` | Audit Trail | every audit_logs write, nothing dropped |
 | `/health` | Service Status | 6-dependency latency distribution + 60 SLO alert triggers |
-| `/settings` | Model Connection | switch any OpenAI-compatible gateway (DeepSeek / wkapi / custom / Azure / OpenAI) |
+| `/settings` | Model Connection | switch any OpenAI-compatible gateway (this host: aizzz/gpt-6.1-terra · responses lane) |
 | `/agent` | AI Developer (SpecCraft) | let AI pair on the work — generate, self-repair, review, with a paper trail |
 | `/identity` | Team & Access | RBAC, access control, audit (admin/operator roles only, fail-closed) |
 | `/insight` | Insight Deck | admin/operator-only dashboard: a labelled synthetic calibration cohort + this browser's real local trace + 28-day session trend with 7-day least-squares forecast (r²), plus 6 engine-rule optimisation moves (clearly labelled synthetic — never real user PII) |
@@ -180,7 +180,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/pulse` | Service Pulse | this browser takes the reachable backend's pulse — current /api/v1/health latency + status/db/llm/embedding/build_sha, five-knock bench, localStorage pulse ledger (specproof_pulse_v1). NOT a fleet SLA; never claimed to be one |
 | `/trace` | Trace | type a commit short-hash, a ledger number, or any sentence — the page scans 1,624 chronicle sections + 50 world-book volumes live and tells you exactly where it was written — never uploads, never connects out, it only reads this repo's own committed JSON |
 | `/archive` | Archive | one page every room — annals, verification, doors-in, still water, services, admin corridor, engineer's loft — 37 routes on a wall, every tile live, every count direct from git JSON — never get lost again |
-| `/engine` | Engine | every token this repo actually sent to wkapi.pro on this host · real cache-rate from usage · p50/p95 real · .local/llm_usage.jsonl is the source — no extrapolation, no marketing gloss |
+| `/engine` | Engine | every token this repo actually sent to aizzz/gpt-6.1-terra on this host · real cache-rate from usage · p50/p95 real · .local/llm_usage.jsonl is the source — no extrapolation, no marketing gloss |
 | `/fabric` | Fabric | the whole workshop spread on one cloth — 37 nodes on seven warps (annals / verification / doors / still water / services / admin / loft), hover a node to title it, click to enter its room |
 | `/ui-kit` | Design System | the full Aurora component wall |
 | `/epic` | Chronicles | bilingual genesis; every anchor a real commit hash |

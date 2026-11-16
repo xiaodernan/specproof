@@ -40283,3 +40283,25 @@ worldbook 历史字节不动（Volume 上仍有 wkapi.pro 的直敲记录，那�
 
 UI **559/559** · mvn -o **137/137**（依赖未动，本次 commit 仅双语 README + 本节）· guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` LOCKED · Night Watch 依旧 CRACKED。
 
+
+## #1917 《守夜人手里的灯》：Scroll XVII（zh/en 对称 · #1912→#1916 全事件入册）· Guide 全线原创 wkapi→aizzz 替换（usage/billing/settings/engine）· Volume CXXXIII《The Watch Burns Unattended》
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1916。
+
+### 一、Epic Scroll XVII《守夜人手里的灯 / The Night Watch Inside the Badge》
+
+`apps/web/src/pages/epic.copy.ts` — SCROLLS_ZH/EN 各一追加卷，锚点 #1912 → #1916：
+
+* 卷 VERSE（zh）：exhibit #4 永远钉 · Night Watch CRACKED 不涂 · 两次敲 0/0（R16） · 8888 影子 两道门影（prometheus/refresh 被遮蔽）· README 真模型表（aizzz/gpt-6.1-terra/responses/max）· routerSmoke 43 目的地×双语/bomb 实证；
+* EN 同构，同 EVT references。
+
+### 二、USER_GUIDE.md + EN 双语三个残 wkapi 行改为 aizzz
+
+* `/billing` 行（zh/en）：换为 aizzz/gpt-6.1-terra·responses（host 实敲；可切换任意 OpenAI-compatible）；
+* `/settings` 行（zh/en）：deploy 方任选一 OpenAI 兼容网关；host 当前：aizzz/gpt-6.1-terra；
+* 缓存健康说明、`#/engine` 行 / prose 段全部换为 aizzz·gpt-6.1-terra / responses · stream · include_usage；wkapi 仅在 worldbook 历史体内保留（这是史书，不是谎言也不是 propaganda）。
+
+### 三、裁判不动摇
+
+UI **559/559** · build ✓ · guide 6/6 · parity 15/15 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED**（exhibit #4 permanent）· purity CLEAR · D1 ✅ · D2 ⏸ ·「密码-123」否决。
+mvn -o **137/137** · exhibit #9 已册（entries=10 · p99 1,596.9ms） · worldbook **133 卷**（CXXXI–CXXXIII）。

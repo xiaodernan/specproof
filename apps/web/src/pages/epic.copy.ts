@@ -308,6 +308,24 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "两道门影 · 8888 影子", value: "control-plane test profile 被遮蔽 prometheus/refresh → exposure pin 落（#1912）；mvn -o 137/137 复敲 GREEN" },
     ],
   },
+  {
+    num: "卷十七",
+    title: "守夜人手里的灯",
+    en: "The Night Watch Inside the Badge",
+    era: "2026-11 · 至今",
+    verses: [
+      "夜里没人敲门时，守夜人也不会停—— exhibit #4 永远钉着，Night Watch 判词永远是 CRACKED。",
+      "网关说过「缓存命中了一次」（4224）——史官记录了那一次，也记录了之后两次「0/0」。说「改善」的不是史官。",
+      "夜不是因为被守住才安静，而是因为守夜人一次也没让眼睛闭上。",
+    ],
+    details: [
+      { label: "exhibit #9 · 64 并发", value: "512 req · err 0.00% · worst p99 1,596.9 ms（填补 #7〔48c〕#8〔96c〕之间的空心）— Night Watch 依然 CRACKED（#1912）" },
+      { label: "两道门影 · 8888", value: "control-plane 两个 actuator 测试被宿主 8888 旧 config-paney shadowed → 404 ×2（prometheus/refresh）→ test profile 钉 exposure include 全（gateway 同防）；mvn -o 137/137 复敲 GREEN（#1912）" },
+      { label: "R16 · 第十六枚", value: "two_strike_probe.py（scripts/）同 prompt 连敲两次 → prompt_cache_hit_tokens 0/0；R16 入册：一次 4224 hit ≠ 命中率。/errata 计数 16（#1915）" },
+      { label: "README 真相重绘", value: "README / README_EN 模型表 stale 段（ynynzyy·gpt-6-astra · wkapi.pro·gpt-6-sol）全替换为 api.aizzz.xyz/v1·gpt-6.1-terra·protocol responses·max — Clash Verge 127.0.0.1:7897；注释 R14（#1916）" },
+      { label: "Collect 门放行", value: "routerSmoke 43 NAV 路由× zh/en 真挂载·render-crash 断言·bomb /graph 双语双红定位至路由 · 复绿即绿； UI 559/559（#1914）" },
+    ],
+  },
 ];
 
 export const CLOSING_ZH = [
@@ -584,6 +602,24 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "/stategraph — the eight words", value: "the state-machine field guide + recall/evidence/purity/auditor/night_watch, plus the night-watch verdict verbatim — CRACKED never painted jade (#1910)" },
       { label: "The overflow guard", value: "anywhere-wrap headings, media max-width, pre overflow-x — hidden nothing, only scroll (#1911)" },
       { label: "The two shadows · 8888", value: "the control-plane's prometheus/refresh lights were shadowed by the stale 8888 server; the exposure pin fixed it (#1912); mvn -o 137/137 re-struck GREEN" },
+    ],
+  },
+  {
+    num: "Scroll XVII",
+    title: "The Night Watch Inside the Badge",
+    en: "The Night Watch Inside the Badge",
+    era: "2026-11 · today",
+    verses: [
+      "When no one knocks, the watch does not stop — exhibit #4 stays pinned; the verdict stays CRACKED.",
+      "The gateway said “cache hit” once (4224) — the keeper recorded it, and recorded the two 0/0s after it. The one who says “improved” is never the keeper.",
+      "The night is quiet, not because it was guarded, but because the watcher never once closed their eyes.",
+    ],
+    details: [
+      { label: "exhibit #9 · 64c", value: "512 req · err 0.00% · worst p99 1,596.9 ms — the gap between #7 (48c) and #8 (96c) struck shut; Night Watch remains CRACKED (#1912)" },
+      { label: "The two shadows · 8888", value: "two actuator tests in control-plane 404'd (prometheus/refresh swallowed by the host's stale 8888 config-server) → exposure pin in both test profiles; mvn -o 137/137 re-struck GREEN (#1912)" },
+      { label: "R16 · The Sixteenth R", value: "two_strike_probe.py (scripts/) — same prompt twice, prompt_cache_hit_tokens = 0 / 0; R16 filed: one cached≠cache improvement (corrections 16 — #1915)" },
+      { label: "README re-drawn to truth", value: "stale model tables (ynynzyy·gpt-6-astra · wkapi.pro·gpt-6-sol) replaced by api.aizzz.xyz/v1 · gpt-6.1-terra · responses · stream+include_usage · max — Clash Verge 127.0.0.1:7897; R14 noted (#1916)" },
+      { label: "The gate cleared", value: "routerSmoke: 43 NAV destinations × both locales mount; render-crash boundary断言; deliberate /graph bomb → two red locale runs pinned to #/graph; revert → green; UI 559/559 (#1914)" },
     ],
   },
 ];

@@ -32,11 +32,11 @@ docker compose -f compose.phase0.yml up -d --wait
 | 质量与证据 | 需求覆盖 | 看 requirement → contract_id → 判决矩阵 | 真证据 |
 | 质量与证据 | 验证规则 | 看每一条契约的 checker_type（http/sql/…） | — |
 | 质量与证据 | 效果评测 | 看评测分数（F1/召回/Precision）的真实数字 | 100 例 golden |
-| 管理 | 用量与账单 | 看 LLM token 用量 + 缓存命中率 | 直连 wkapi.pro |
+| 管理 | 用量与账单 | 看 LLM token 用量 + 缓存命中率（本宿机：aizzz/gpt-6.1-terra·responses） |
 | 管理 | 审计轨迹 | 看每一步 audit_logs 写入链路 | 合规 |
 | 管理 | 模型连接 | 切换 OpenAI 兼容网关的真实 key | — |
 | 管理 | 服务状态 | 健康 (mysql/redis/rabbitmq/minio) + 延迟分布 | — |
-| —— | 史诗 | 十六卷竹简式 SpecProof 创世记（卷十五《欠条的钉法》、卷十六《界》） | 全部锚定真实提交 |
+| —— | 史诗 | 十七卷竹简式 SpecProof 创世记（卷十五《欠条的钉法》、卷十六《界》） | 全部锚定真实提交 |
 | —— | 巡览 | 新用户交互预演（六桩） | 你按了才算数 |
 
 > 没有 .env 也能看 —— 验收不需要 .env 才能视察；需要 `.local/llm.json` 才能跑真实 LLM。
@@ -95,7 +95,7 @@ VERDICT: BLOCKED
 
 ### 2.2 打开 `#/usage` — LLM 缓存账
 
-切换侧栏 `缓存健康` —— wkapi.pro 实测命中 ~84%（2270 字符稳定 prefix）。
+切换侧栏 `缓存健康` —— 本宿机实敲（aizzz/gpt-6.1-terra · responses · stream=True + include_usage=True）：live_lane_probe.py 稳定报 HTTP 200 + cached_tokens=4224；cached_tokens 仅随流式车道上报。
 > `hit_rate` 的分母是 `hit_basis_calls`（网关上报了缓存的调用数），不是 `calls` —— 保证诚实。
 
 ### 2.3 打开 `#/tour` —— 新手走廊
@@ -126,21 +126,21 @@ specproof mcp serve          # 启动 stdio MCP server
 
 ```json
 {
-  "base_url": "https://wkapi.pro/v1",
+  "base_url": "https://api.aizzz.xyz/v1",
   "api_key": "sk-…你的key",
-  "model": "gpt-6-sol",
+  "model": "gpt-6.1-terra",
   "protocol": "chat_completions"
 }
 ```
 
 ```bash
 # 探针 + 首次真实跑：
-specproof probe --base-url https://wkapi.pro/v1 --model gpt-6-sol --api-key sk-…
+specproof probe --base-url https://api.aizzz.xyz/v1 --model gpt-6.1-terra --api-key sk-…
 specproof verify --repo demo/spring-backend --base base --head head-v1 --spec demo/requirement.txt --depth FULL
 ```
 
 > 预期：**与 FAST 模式同样的 BLOCKED**，但这次判决由 GPT 6 sol 亲自下，且 `token 计入 .local/llm_usage.jsonl`。
-> 若 wkapi.pro 路由失稳：`hit_rate` 可能在 `75%-84%` 之间振荡；`cached_tokens` 不为 null 即可。
+> 说明（本宿机）：aizzz/responses 车道只随流式 + `include_usage` 上报 usage；非流式模式 cached_tokens 缺省返回——不是网关坏了，是这条线就是接出来的。
 
 ---
 
@@ -166,10 +166,10 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/nightwatch` | 巡夜·子时之后 | 7 站 × 3 滴灯油的快问行走模拟——答案全从 git/账本/世界书现推，通关即「最好的一夜」入册 |
 | `/gazette` | 铁证晨报 | 每日发行的仓库报纸：头版故事、最近 24 节、本期数字（全现推）+ 社论，可打印 |
 | `/calendar` | 铁证日历 | 过去 365 天每日提交数网格——git log 现推（最忙一天 / 最长连击 / 活跃天数现推） |
-| `/billing` | 用量与账单 | 真 wkapi.pro 实测 token + hit_rate |
+| `/billing` | 用量与账单 | 本宿机 aizzz/gpt-6.1-terra 实敲 token + hit_rate（或部署方任选的 OpenAI 兼容服务） |
 | `/audit` | 审计轨迹 | 每一步 audit_logs 写入，不丢任何 |
 | `/health` | 服务状态 | 6 依赖延迟分布 + 60 面板 SLO 告警触发 |
-| `/settings` | 模型连接 | 切换 OpenAI 兼容网关（DeepSeek / wkapi / 任意 / Azure / OpenAI） |
+| `/settings` | 模型连接 | 切换任意 OpenAI 兼容网关（本宿机：aizzz/gpt-6.1-terra · responses） |
 | `/agent` | AI 开发者（SpecCraft） | 让 AI 结对把活干完——生成、自修复、失败复盘，全程留痕 |
 | `/identity` | 团队与权限 | RBAC、访问控制、审计（admin / operator 角色可见，fail-closed） |
 | `/insight` | 洞察舱 | admin / operator 专属仪表盘：合成校准人群 + 本机真实轨迹 + 28 日会话趋势与 7 日预测（r²），以及 6 条引擎规则优化措施（全部明确标注「合成数据」，非真实用户 PII） |
@@ -181,10 +181,10 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/pulse` | 服务脉搏 | 这个浏览器对它能到达的后端敲一次 /api/v1/health 当场听：时延 ms + 状态/db/llm/embedding/build_sha + 五连敲击 + 本机脉搏留存（localStorage specproof_pulse_v1）。不是舰队 SLA，不撒谎见证 |
 | `/trace` | 溯源 | 输入 commit 短哈希、账本节号或任意句子，本页直接扫 1,624 节账本 + 50 卷世界书给你看哪里写过 — 不上传、不联网、只眼观 git JSON |
 | `/archive` | 典藏馆 | 全部路由一目了然：正史/史诗 · 验收宫 · 入口 · 静水对鉴 · 服务 · 管理员回廊 — 37 一级入口全图示 · 每张牌连真实路由 · 直读 git JSON · 永不迷路 |
-| `/engine` | 引擎 | 本仓库真实往复 wkapi 的 prompt/completion/cached tokens 全部来自 .local/llm_usage.jsonl，nothing else · 算 p50/p95 真延迟 · 直读 byte 数，不估计一行 · 不是 marketing page |
+| `/engine` | 引擎 | 本仓库真实往复 aizzz/gpt-6.1-terra 的 prompt/completion/cached tokens 全部来自 .local/llm_usage.jsonl，nothing else · p50/p95 真延迟 · 直读 byte 数，不估计一行 · 不是 marketing page |
 | `/fabric` | 织物 | 仓库的全部房间展开在一幅织物上：37 节点 · 7 经线（正史 / 验收宫 / 入口 / 静水对鉴 / 服务 / 管理员回廊 / 本地探天窗）· 点击节点直达对应路由 |
 | `/ui-kit` | 设计系统 | 全 Aurora 组件对照 |
-| `/epic` | 史诗 | 中文创世记，每卷锚死 git 哈希 |
+| `/epic` | 史诗 | 十八卷创世记，每卷锚死 git 哈希 |
 | `/tour` | 巡览 | 新手交互式走廊，六盖一齐验讫 |
 | `/explorer` | 案件档案 | 铁证装订 - 红印验讫封面 |
 | `/lexicon` | 铁证词典 | 十四个词，每词可搜、可点开、锚到仓库真实位置 |

@@ -4784,3 +4784,24 @@ faithful note: Volume CXV's text stays as typed (the moment it looked like victo
 * mvn -o **137/137** · UI **559/559** · guide 6/6 · corrections **16**.
 
 ---
+## Volume CXXXIII · The Watch Burns Unattended（卷一百三十三 · 错误展厅守夜人的灯在亮）
+
+> The keeper's job is: while everyone else sleeps, somebody stays awake — exhibit #8's p99 2,078.7 ms, exhibit #4's p99 1,526.1 ms, both permanently pinned, never erased, never threshold'd.
+
+### 133.1 This one pins down
+
+Scroll XVII《The Night Watch Inside the Badge》(zh/en symmetric) covers #1912–#1916: exhibit #9 (64c · p99 1,596.9 ms), the two shadows on the door (CP actuator 404s → control-plane + gateway test profiles carry the full exposure pin), R16 (one cached=4224 strike ≠ hit‑rate improvement; two strikes back‑to‑back = prompt_cache_hit_tokens 0/0), README model tables redrawn to aizzz/gpt-6.1-terra · responses · max (via Clash Verge :7897), plus Epic scrolls XV/XVI landed in #1913.
+
+The user guide's **three stale lane references** (usage/billing/settings, cache‑health, engine row) now read aizzz/gpt-6.1-terra throughout, zh and en, with the streaming note made explicit (cached_tokens only surfaces on stream+include_usage).
+
+### 133.2 The floor does not move
+
+* UI **559/559** · npm run build ✓ · guide 6/6 · parity 15/15 · corrections 16 · purity **CLEAR** · court `4117d2b0ca5fb23a` **LOCKED** ·「password-123」vetoed;
+* Night Watch **CRACKED** (exhibit #4 unchanged) · exhibit #9 (entries=10);
+* D1 ✅ · D2 ⏸ (owner PAT, never minted here).
+
+### 133.3 Nothing erased, nothing glazed
+
+Books append. Exhibits land verbatim or not at all. Night Watch is CRACKED, long may it stay so, until an exhibit under Δ<25 ms lands on its own merit. The guide no longer pretends the live lane is wkapi.pro — it isn't.
+
+---

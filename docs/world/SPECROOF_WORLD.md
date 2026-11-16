@@ -4907,3 +4907,26 @@ faithfull: Volume CXV 文本保留原样（如实记当时怎么以为通了的�
 * mvn -o **137/137** · UI **559/559** · guide 6/6 · corrections **16**。
 
 ---
+## 卷一百三十三 · 错误展厅守夜人的灯在亮（The Watch Burns Unattended）
+
+> 守夜人的工作就是：当所有人都睡着时，还有人醒着； exhibit#4 p99 2,078.7 ms（exhibit #8）、 exhibit #4 p99 1,526.1 ms（原始）——都永远钉在那里。
+> Night Watch 永远 CRACKED，不涂不改不擦。
+
+### 133.1 两条帐本真敲出的记号
+
+本轮与上轮（#1912–#1916）一起敲出：
+
+* **scroll XVII**《守夜人手里的灯》（中英对称）：exhibit #9（64c）、CP 两道门影（8888 暴露 8888 测试失败→ test profile 钉 exposure pin 同时挂 gateway）、 R16《第十六枚》（cached 4224 敲了一次说改善了；连敲两次 0/0）、 README 改真模型表（ynynzyy·wkapi → aizzz/gpt-6.1-terra/responses/max — Clash Verge 7897）， #1913 Epic 卷 XV/XVI 落地；
+* **Post-corrections**：用户指南双语全篇 wkapi 字面 → aizzz（usage、billing、settings、cache-health、engine 行）， zh/en 对称不留一处混排；AP-V 拦截全不动。
+
+### 133.2 裁判不动摇
+
+* UI **559/559** · cypress 无一条 flaky · npm run build ✓ · guide 6/6（入口门 catalog）· parity 15/15；
+* purity **CLEAR** · court `4117d2b0ca5fb23a` **LOCKED** ·「密码-123」否决 · D1 ✅ 签落 · D2 ⏸（owner PAT 仍未Mint）；
+* Night Watch **CRACKED**（exhibit #4 1,526.1 ms / exhibit #8 2,078.7 ms 永在册）· exhibit #9 在册（entries=10）。
+
+### 133.3 本卷不删不抹不伪
+
+世界书按规只增不删；exhibit 按规只拷贝入册不改写阈值；更正卷轴 R01–R16 留档；Night Watch 就 CRACKED 不变成翡翠。GUIDE 凡提到的车道/模型/事实错误全替换真实当前（README 双语、UNRACK 双语）。
+
+---
