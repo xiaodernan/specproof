@@ -40526,3 +40526,21 @@ The cliff is real but purely host-level: this Windows host, ThreadingHTTPServer 
 mvn -o **137/137** · UI **562/562** · build ✓ · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · purity **CLEAR** · D1 ✅ · D2 ⏸ ·「密码-123」否决。
 
 Volume CXXXVIII《512 这个数字怎么看 · The Notch at 512》入册 → worldbook **138 卷** · chronicle **1,725 节**。
+
+## #1927 《Exhibit-count digital：entries 从硬编码变为现场算》
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1926。
+
+### 一、谁来算
+
+`/exhibits` footer 原来写死 `exhibit_entries=12` —— exhibit #12 进册之后变成 13。改
+`Exhibits.tsx` 用 `exhibits.length` 现场算（从 evidence.json 过滤 static-warm* + static-light*）。新 exhibit 敲了 → footer 也对。
+顶部那条 "19 files" 也换 `evidence.files_count ?? 0`（现在是 20）。
+
+### 二、裁判
+
+UI **562/562**（78 文件仍全绿） · build ✓ · guide 6/6 · mvn -o **137/137**（不动） · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · purity **CLEAR** · exhibit_entries=**13** 不粉饰 · exhibit #12 (10,049.2 ms BUDGET-BLOWN) —永在册。
+
+### 三、不动的钉子
+
+* exhibit #4 / #8 / #10 / #11 / #12 永在；Night Watch 永 CRACKED；「密码-123」否决；D1 ✅ · D2 ⏸（owner PAT）

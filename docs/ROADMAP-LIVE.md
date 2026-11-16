@@ -1,6 +1,6 @@
 # ROADMAP · LIVE — SpecProof
 
-> 自动生成于 2026-11-16 14:25Z（scripts/build_roadmap_live.py）· 下次 chronicle 重推会变灯花。
+> 自动生成于 2026-11-16 14:29Z（scripts/build_roadmap_live.py）· 下次 chronicle 重推会变灯花。
 > **不含任何承诺** — 每一条都是「门下一要敲什么 + 谁来敲（机器 / 人类）」的清单。
 
 | # | 门 | 谁来敲 / 阻塞 |

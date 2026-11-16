@@ -110,7 +110,7 @@ export default function Exhibits(): JSX.Element {
               </div>
               <div className="exhibit-row-meta">
                 <span>worst p99 <strong>{Math.round(worst)} ms</strong></span>
-                <span className="exhibit-delta">entries=19 files · exhibit_entries=12</span>
+                <span className="exhibit-delta">entries={exhibits.length} · files_count={evidence.files_count ?? 0}</span>
               </div>
               <code className="exhibit-path">{`evidence.json · all[${exhibit.file}]`}</code>
             </li>
@@ -124,7 +124,7 @@ export default function Exhibits(): JSX.Element {
           : "Every exhibit comes from real strikes on this host. Any figure re-struck by stress_smoke.py. Night Watch never painted, thresholds never moved, exhibits never deleted or rewritten."}
       </p>
       <div className="exhibits-footnote">
-        <ProductIcon name="hammer" size={12} /> <code>{zh ? "entries: " : "entries: "}19 files · {"exhibit_entries: 12"} total (static-warm/light)</code>
+        <ProductIcon name="hammer" size={12} /> <code>{evidence.files_count ?? 0} files · {exhibits.length} static exhibits struck (exhibit_entries={exhibits.length})</code>
       </div>
     </div>
   );
