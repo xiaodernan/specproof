@@ -11,7 +11,11 @@ match as
 
 * bucket B — an *intentional tech term* (git, docker, cached_tokens, ...),
 * bucket A — a *suspicious* leftover (e.g. "等待计划审批 Awaiting approval"
-  in a file that renders unconditionally).
+  in a file that renders unconditionally),
+* bucket C — *coordinated bilinguals* (2026-11-17 re-derivation): literals
+  whose line carries an inline bilingual switch (`zh ?`, `isZh ?`,
+  `locale === "zh" ?`) or sits inside an `L(zh, en)` call — the EN branch is
+  the translation's sibling, not a stray English word inside zh prose.
 
 Bucket A needs a human eye; bucket B is the intentional mixed-script style
 this repo allows inside zh prose ("`base_pass_head_fail` 意味着……").
@@ -42,6 +46,19 @@ EXEMPT = re.compile(r"(strings\.ts|\.copy\.ts|__tests__|\.test\.|i18n|ui-kit/)")
 LITERAL = re.compile(r'"[^"\n]{2,300}"|\'[^\'\n]{2,300}\'|`[^`\n]{2,300}`')
 CJK = re.compile(r"[一-鿿]")
 LATIN = re.compile(r"[A-Za-z][A-Za-z0-9_-]*")
+#: An inline bilingual switch on the same line makes the pair deliberate:
+#:    {L("中文字面", "English twin")}
+#:    {zh ? "中文字面" : "English twin"}
+#:    {isZh ? "中文字面" : "English twin"}
+#:    locale === "zh" ? ...
+#: or the literal itself rides a locale record key / bilingual array key:
+#:    { zh: "中文字面", en: "English twin" }
+#:    const SUGGESTED_ZH = [...]
+#: Any of these markers on the literal's line -> bucket C, not A.
+COORDINATED = re.compile(
+    r'\bL\s*\(|\bzh\s*\?|\bisZh\s*\?|\blocale\s*===?\s*["\']zh["\']\s*\?'
+    r'|\bzh\s*:|\b[A-Za-z_][A-Za-z0-9_]*_ZH\b'
+)
 
 # Latin words that are accepted inside zh prose as tech terms / product names.
 TECH = {
@@ -51,7 +68,7 @@ TECH = {
     "await", "async", "curl", "repo", "repos", "commit", "commits", "branch", "branches", "tag",
     "tags", "readme", "diff", "loc", "cache", "caches", "cached", "tokens", "prompt", "stream",
     "streams", "usage", "latency", "flag", "hash", "hashes", "blob", "sha", "sha256", "spec",
-    "specs", "scan", "queue", "topics", "agent", "rag", "llm", "model", "model", "specproof",
+    "specs", "scan", "queue", "topics", "agent", "rag", "llm", "model", "specproof",
     "wkapi", "gpt", "sol", "log", "logs", "test", "tests", "mock", "fixture", "fixtures",
     "id", "ids", "ok", "kb", "mb", "gb", "ms", "fps", "db", "http2", "grpc", "tls", "ssh",
     "nginx", "uvicorn", "spring", "cloud", "gateway", "microservice", "microservices",
@@ -76,9 +93,10 @@ def main() -> int:
         print(f"repo not found at {REPO}", file=sys.stderr)
         return 2
     a_files = Counter()
-    a_examples = defaultdict(list)
-    b_total = 0
     a_total = 0
+    b_total = 0
+    c_total = 0
+    a_examples = defaultdict(list)
     for p in REPO.rglob("*"):
         if p.suffix not in (".ts", ".tsx"):
             continue
@@ -89,8 +107,15 @@ def main() -> int:
             text = p.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
-        for lit in LITERAL.findall(text):
+        lines = text.splitlines()
+        for m in LITERAL.finditer(text):
+            lit = m.group(0)
             if not CJK.search(lit):
+                continue
+            line_no = text.count("\n", 0, m.start())
+            on_line = lines[line_no] if line_no < len(lines) else ""
+            if COORDINATED.search(on_line):
+                c_total += 1
                 continue
             bucket = classify(lit)
             if bucket == "A":
@@ -102,6 +127,7 @@ def main() -> int:
                 b_total += 1
     print(f"bucket A (suspicious, needs human eye): {a_total} literals in {len(a_files)} files")
     print(f"bucket B (intentional tech terms / product names): {b_total} literals")
+    print(f"bucket C (coordinated bilingual ternaries / L() calls): {c_total} literals")
     print()
     for rel, n in a_files.most_common():
         print(f"{n:3}  {rel}")

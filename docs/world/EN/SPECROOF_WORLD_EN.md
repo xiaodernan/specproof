@@ -5633,3 +5633,40 @@ Same machine, same `.local/llm_usage.jsonl`, 84 calls:
 UI **571/571** · build ✓ (minified) · mvn -o **137/137** (Java untouched · carried from #1945/#1946) · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch still **CRACKED** · exhibit_entries **16** · exhibits #4 / #12 / #13 / #15, none shifted · court `4117d2b0ca5fb23a` **LOCKED** · chronicle grows with this commit · worldbook **Scroll CLIV / 154 scrolls (zh+en symmetric)** · D1 ✅ · D2 ⏸ (owner's PAT awaited) · 「密码-123」vetoed
 
 ---
+
+## Scroll CLV · The coarse measure, made honest
+
+> One measure read 366 "suspicious";
+> the cut was opened and the pairs walked out — 1,172 coordinated bilinguals on the same lines;
+> bucket A settled at **138**. The measure got sharper; the eye is still the judge.
+
+### 155.1 Three knives, one cut (2026-11-17, struck live)
+
+| knife | reading | note |
+|---|---|---|
+| before (old coarse filter) | **A 366** · B 1,231 | any same-literal CJK+latin run got stopped |
+| second cut (COORDINATED v1) | A 196 · B 491 · **C 919** | same-line `L(…)` / `zh ?` / `isZh ?` / `locale === "zh" ?` markers |
+| third cut (this ticket) | **A 138 · B 296 · C 1,172** | + locale record key `{ zh: … }` + `…_ZH` suffixed bilingual arrays |
+
+**Honest ledger, not a magic score**: 366→138 is not "228 problems fixed"; it is "coordinated bilinguals returned to their own drawer". The remaining 138 — including `agent/util.ts`'s "规划中 Planning" / "等待计划审批 Awaiting approval" (deliberate EN signboards inside zh prose) — **stay on screen untouched**, awaiting human eyes. The audit exits 0 forever, never enters CI, never hands anybody a gift.
+
+### 155.2 The three "trustworthy pair" markers
+
+1. same-line `L(zh, en)` / `zh ? … : …` / `isZh ?` / `locale === "zh" ?` — inline bilingual;
+2. `{ zh: …, en: … }` — locale record keys (`Note`, `CoachMark`, `COPY`, `healthCategories`, all of it);
+3. `…_ZH` suffixed arrays — page-level bilingual corpus (`SUGGESTED_ZH/EN` twins).
+
+Each says "the author already declared both halves"; none of them is a mixed-script leftover. Everything else stays A (needs an eye) or B (tech terms, rightful pass).
+
+### 155.3 What this ticket did not do
+
+- did not enable, disable, or gate any code path — `scripts/i18n_audit.py` was advisory and remains advisory;
+- did not wire the audit into CI — a high-false-positive coarse measure does not get to be the referee;
+- did not loosen the CJK/LATIN core — the ear got smarter, the ruler did not shrink;
+- did not adjudicate the remaining 138 — A is a queue for humans, not a scoreboard for machines.
+
+### 155.4 The ledger
+
+UI **571/571** · build ✓ · mvn -o **137/137** (Java untouched) · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch still **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle grows with this commit · worldbook **Scroll CLV / 155 scrolls (zh+en symmetric)** · D1 ✅ · D2 ⏸ · 「密码-123」vetoed
+
+---

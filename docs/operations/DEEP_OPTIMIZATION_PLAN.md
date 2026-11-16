@@ -41089,3 +41089,30 @@ UI **571/571** · build ✓（minified pass · `lightningcss.transform` 逐文�
 ### 三、裁判
 
 UI **571/571** · build ✓ · mvn -o **137/137**（Java 未动 · 沿用 #1947 口径）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（entries **16**）· court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **卷一百五十四 / 154 卷（中英对称）** · D1 ✅ · D2 ⏸（属主 PAT 仍在等）·「密码-123」否决 · Scroll CLIV 双语落册
+
+## #1949 《粗筛的尺子，量到三成》：i18n 粗审升级——bucket A 366→196→**138**，新增 bucket C（成对双语 1,172 条归位）· 一个字判词没编造
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1948。
+
+### 一、改了什么
+
+`scripts/i18n_audit.py` 粗筛升级：新增 **bucket C**（coordinated bilinguals，「同源成对双语」）。三刀口径（现敲现算于本夜）：
+
+| 口径 | bucket A | bucket B | bucket C |
+|---|---|---|---|
+| v1（旧粗筛） | 366 | 1,231 | — |
+| v2（COORDINATED v1：`L(…)`/`zh ?`/`isZh ?`/`locale === "zh" ?` 同行标记） | 196 | 491 | 919 |
+| v3（本号：+ `{ zh: … }` 位址键、`…_ZH` 后缀双语数组） | **138** | **296** | **1,172** |
+
+### 二、诚实清单
+
+1. **A 366→138 是「双语对归位」不是「修复了 228 条」**——残余 138 条（含 `agent/util.ts` 的「规划中 Planning」「等待计划审批 Awaiting approval」等作者故意写在 zh 行里的英文铭牌）**原样未动**，依旧给人看，依旧没判对错；
+2. 51+ bucket C 来源仍是**同行检测**——一 CJK + 一 latin 若同行不成标记（如 headword 漂移），仍会落入 A——不逃逸、不放宽、不放水；
+3. 审计**永远 exit 0**、永不进 CI、不给任何人递礼物——advisory 就是 advisory；
+4. 本号没有启停任何代码路径、没有改判定标准、没有降低 CJK/LATIN 主体逻辑——尺子的脑子没变，只是耳朵更聪明了；
+5. 同行标记之外的位点（如漂移一行、嵌在 JSX 文案里的 zh-only 英文铭牌）依旧落在 A；本 file 集的免除仍交给人眼（`.copy.ts` / `Record<Locale>` / `strings.ts` 本来豁免）。
+
+
+### 三、裁判
+
+UI **571/571** · build ✓ · mvn -o **137/137**（Java 未动）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（entries **16**）· court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **卷一百五十五 / 155 卷（中英对称）** · D1 ✅ · D2 ⏸ ·「密码-123」否决 · Scroll CLV 双语落册
