@@ -4783,3 +4783,35 @@ Owner 的原话要求里，有一句「最好别忘了给项目加入 stategraph
 UI **556/556** · npm run build ✓ · court = `4117d2b0ca5fb23a` LOCKED · D1 ✅ · D2 ⏸。
 
 ---
+## 卷一百二十九 · 门被影子盖住的两道光（The Two Shadows on the Door）
+
+> 门槛没坏——影子盖住了门牌。
+> 这一卷只讲一个朴素的教训：测试永远不许依赖这台宿主机。
+
+### 129.1 这一卷敲的两件事
+
+1. **exhibit #9（新展品入册）**：`2026-11-16-static-warm-9.json` —— 64 并发 × 2 per-thread × 4 轮（+3 warmup 不入账），384+128 次请求（512？！不，共 4×64×2=512），err 0.00%，worst p99 **1,596.9 ms**。
+   它落在 #7（48c 枢值）与 #8（96c 悬崖）之间——恰好把饱和台阶再钉一圈。判词 OK；Night Watch 依然 **CRACKED**（exhibit #4 在册，不客气）。
+
+2. **R15 的续篇——「管理面端点被 8888 的影子盖掉」再次命中 control-plane**：`services/control-plane/src/test/resources/application-test.yml` 此前只 Pin 了 `spring.cloud.config.import=127.0.0.1:9/`，但 Boot 3 原生 config-data import 不理会 `spring.cloud.config.enabled=false`；宿主机 localhost:8888 上那个陈旧 config-server 仍在现网（`management.endpoints.web.exposure.include=health,info`），把 test 上下文的 `prometheus` 与 `refresh` 两个端点整个遮蔽成 404——`ControlPlaneApplicationTests`（refresh 见证）与 `ControlPlanePrometheusEndpointTests` 双双 FAIL。
+   **本卷修复：test profile 直接 merge 了完整的 `management.endpoints.web.exposure.include: health,info,metrics,prometheus,refresh`**，与生产 yml 一字不差；gateway 的 test profile 也同处补同款 pin（虽然 gateway 84/84 未受影响，同病同防）。
+   **本卷新注**：ControlPlaneOfflineResilienceTests 那败仗不是代码问题——是 Docker Desktop 在 20:26Z 前后整体重启，specproof-mysql 54 秒前刚升起来；重敲即 51/51 GREEN。
+
+### 129.2 现场敲过的证据
+
+| 项 | 结果 |
+|---|---|
+| gateway | **84/84** BUILD SUCCESS（management pin 后复敲） |
+| control-plane | **51/51** BUILD SUCCESS（exposure pin 后复敲） |
+| config-server / discovery | 1/1 · 1/1 |
+| **mvn -o 合计** | **137/137** |
+| aizzz/gpt-6.1-terra 直敲（经 127.0.0.1:7897 Clash Verge） | **HTTP 200 · 9 chunks · 3813ms · usage prompt 4409 / completion 11 / cached 4224 · 零推广链接** — 车道仍活着 |
+| evidence 重敲 | entries=10 exhibits，verdict=**REGRESSION**（exhibit #4 永在册） |
+| Night Watch | `verdict=CRACKED evidence=REGRESSION purity=CLEAR audit=CLEAR` —— 不改 |
+
+### 129.3 一条铁律
+
+宿主的 config-server 可能腐还会重生。**任何 test profile 必须自己说清：曝光哪些端点、导入哪些配置、缺省是什么。**
+「optional」只让死服务器不报错，不让活影子不露面。
+
+---

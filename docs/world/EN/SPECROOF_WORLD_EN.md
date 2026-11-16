@@ -4658,3 +4658,36 @@ Acting on the owner's standing order — "fix the unreasonable parts of the fron
 UI **556/556** · npm run build ✓ · court `4117d2b0ca5fb23a` LOCKED · D1 ✅ · D2 pending your PAT.
 
 ---
+## Volume CXXIX · The Two Shadows on the Door（卷一百二十九 · 门被影子盖住的两道光）
+
+> The doorway was never broken — the door signs were covered by a shadow.
+> The lesson is old and plain: tests must never depend on this host.
+
+### 129.1 The two knocks in this volume
+
+1. **Exhibit #9 strikes in**: `2026-11-16-static-warm-9.json` — 64 concurrent × 2 per-thread × 4 rounds (+3 warmup, not counted) — 512 requests total, err 0.00%, worst p99 **1,596.9 ms**.
+   It lands between exhibit #7 (48c) and exhibit #8 (96c) — one more pin on the saturation staircase. Verdict OK; Night Watch remains **CRACKED** (exhibit #4 on file, no mercy).
+
+2. **The R15 sequel — the control-plane's own two lights shadowed by 8888**: `services/control-plane/src/test/resources/application-test.yml` had pinned only `spring.cloud.config.import=127.0.0.1:9/`, but Boot 3's native config-data import ignores `spring.cloud.config.enabled=false`; the host's stale config-server on 8888 is live right now (`management.endpoints.web.exposure.include=health,info`), masking the `prometheus` and `refresh` endpoints into 404s.
+   `ControlPlaneApplicationTests` (the refresh witness) and `ControlPlanePrometheusEndpointTests` both failed.
+   **This volume fixes both**: the test profile now merges the full `management.endpoints.web.exposure.include: health,info,metrics,prometheus,refresh` (byte-exact with production), and the gateway test profile gets the identical pin for the identical disease.
+   Also this volume: `ControlPlaneOfflineResilienceTests` failed for a host reason, not a repo reason — Docker Desktop restarted wholesale around 20:26Z and specproof-mysql became healthy only 54 seconds before the suite hit it. Re-struck: **51/51 GREEN**.
+
+### 129.2 Struck live
+
+| item | result |
+|---|---|
+| gateway | **84/84** BUILD SUCCESS (re-struck after the pin) |
+| control-plane | **51/51** BUILD SUCCESS (re-struck after the pin) |
+| config-server / discovery | 1/1 · 1/1 |
+| **mvn -o total** | **137/137** |
+| aizzz/gpt-6.1-terra (through Clash Verge 127.0.0.1:7897) | **HTTP 200 · 9 chunks · 3813ms · usage prompt 4409 / completion 11 / cached 4224 · zero promo links** — the lane is still alive |
+| evidence re-struck | entries=10 exhibits — **REGRESSION** (exhibit #4 still on file) |
+| night watch | `verdict=CRACKED evidence=REGRESSION purity=CLEAR audit=CLEAR` — unchanged |
+
+### 129.3 One iron rule
+
+This host's config-server can rot and respawn. **Every test profile must say it out loud: which endpoints are exposed, which configs are imported, which defaults apply.**
+"optional" merely means a dead server doesn't error — it never meant a living shadow can't show its face.
+
+---

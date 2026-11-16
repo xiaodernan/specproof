@@ -38,3 +38,18 @@ spring:
 eureka:
   client:
     enabled: false
+# The stale container on localhost:8888 serves
+# management.endpoints.web.exposure.include=health,info,
+# which masks the prometheus and refresh endpoints in every context that loads
+# the Boot 3 native config-data import (the Legacy spring.cloud.config.enabled=false
+# does not gate it). Pin the exposure list here in the test profile, mirroring
+# the production application.yml exactly.
+management:
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway,prometheus,refresh

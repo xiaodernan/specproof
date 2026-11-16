@@ -40158,3 +40158,56 @@ Owner 原话：「修复前端的不合理之处：字体变形、歪曲、重�
 UI **556/556** · build ✓ · court = `4117d2b0ca5fb23a` LOCKED · purity CLEAR · D1 ✅ 签落 · D2 ⏸。
 
 Volume CXXVIII《不让字撑坏屏幕 · The Overflow Guard》入册 → worldbook **128 卷** · chronicle **1,712 节**。
+
+## #1912 《两道门影》：R15 续篇——8888 影子遮蔽 prometheus/refresh ×2 测试红（404）· exposure pin 入 CP&gateway test profile · exhibit #9 装上台阶 · Volume CXXIX《The Two Shadows on the Door》
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1911。
+
+### 一、故障与定位
+
+* `ControlPlaneApplicationTests.theExposedRefreshEndpointActuallyRefreshesAndCounts`：expected 200 OK，实际 404 NOT_FOUND。
+* `ControlPlanePrometheusEndpointTests.thePrometheusEndpointServesMetricsNotTheApi`：expected 200，实际 404。
+* 根因：`application-test.yml` 的 `spring.cloud.config.import=127.0.0.1:9/` + `spring.cloud.config.enabled=false` 抵不住 Boot 3 原生 config-data import；宿主 `localhost:8888` 现上线旧 config-server（`management.endpoints.web.exposure.include=health,info`），test 上下文的 `prometheus` / `refresh` 端点全被遮蔽成 404（`Exposing 2 endpoints`）。
+* 同一族：`ControlPlaneOfflineResilienceTests` 一次性异常 = 宿主 Docker Desktop 整体重启（20:26Z 前后），specproof-mysql 54 秒前方 healthy —— 宿主问题，非代码问题；重敲即 **51/51 GREEN**。
+* 又为何 gateway 5 端点曝光无碍：gateway 未被此影子覆盖的时段通过——本卷一并给 gateway test profile 加了同一份 exposure pin（同病同防）。
+
+### 二、修复（test fixture only，不改生产代码）
+
+`services/control-plane/src/test/resources/application-test.yml` 与 `services/gateway/src/test/resources/application-test.yml` 各 merge 一
+段：
+
+```yaml
+management:
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,refresh   # gateway 含 gateway 一跳
+```
+
+与生产 yml 的 include 一致；「optional」只让死服务器不报错，不让活影子不露面。
+
+### 三、exhibit #9 入册
+
+`docs/evidence/2026-11-16-static-warm-9.json` —— 64 并发 ×2/thread ×4 轮（+3 warmup），512 req，err 0.00%，worst p99 **1,596.9 ms**，verdict OK。落在 #7（48c）与 #8（96c）之间。NIGHT WATCH 仍 **CRACKED**（exhibit #4 永在册，规则不动）。evidence 重敲 entries=10。
+
+### 四、现场重敲
+
+| 项 | 结果 |
+|---|---|
+| gateway | **84/84** |
+| control-plane | **51/51** |
+| config-server / discovery | 1/1 · 1/1 |
+| **mvn -o 合计** | **137/137** |
+| 直敲 aizzz/gpt-6.1-terra（Clash Verge 127.0.0.1:7897） | **HTTP 200 · chunks 9 · 3813ms · prompt 4409 / completion 11 · cached 4224 · 零推广链接** |
+| UI | **556/556** · vitest ✓ |
+
+### 五、不做／不删
+
+* exhibit #4 继续钉着；rule Δ>25ms 不动；Night Watch 依然 CRACKED；
+*「密码-123」否决；D1 ✅ 签落；D2 ⏸（owner PAT）；prod yml 未动（只动 test profile）。
+
+Volume CXXIX《两道门影 · The Two Shadows on the Door》入册 → worldbook **129 卷** · chronicle **1,713 节**。
