@@ -40843,3 +40843,26 @@ UI **570/570** · build ✓ · mvn -o **137/137**（Java 零触碰）· guide **
 ### 三、裁判
 
 UI **570/570** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（exhibit_entries=**15**）· exhibit #14 永在册 · chronicle 随本提交增员 · worldbook **卷一百四十七 · 147 卷**。
+
+## #1940 《512c 之前，那一道 384c》：exhibit #15 落册（384c ×2×4 rounds +3 warmup · warmup 2/3 轮绿（725/768 · 718/768）· rounds err **4.43% / 2.34% / 4.30% / 4.04%** · p50 **530–547 ms** · p95 ~2,040–2,046 ms · 最糟 p99 **2,061.0 ms** · verdict **BUDGET-BLOWN**）· 饱和曲线 x 轴加 **384c** · exhibit_entries **15→16** · Scroll CXLVIII 双语落册
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1939。
+
+### 一、exhibit #15（2026-11-16T17:56:03Z · static lane · 3 entry assets）
+
+| round | ok/total | err% | p50 | p99 |
+|---|---|---|---|---|
+| 1 | 734/768 | 4.43% | 530.2 | 2,040.7 |
+| 2 | 750/768 | 2.34% | 534.9 | 2,049.5 |
+| 3 | 735/768 | 4.30% | 533.1 | 2,050.3 |
+| 4 | 737/768 | 4.04% | 547.2 | 2,061.0 |
+
+bytes 总计 = **946.7 MiB** · delta vs #14：worst_p99 **+986.6 ms** · avg_p95 **+1,226.5 ms** · total **+2,688 req**。
+
+### 二、不成单调——写下来就是目的
+
+今晚这台机器在 192c（#13 · 64–70% err）、256c（#11 · 34–45%）、**384c（#15 · 2–4%）** 三档之间**不成单调**。这不是大喜，也不是小丧；这是一台热机在本体上打出来的波形。exhibit #12（512c · 100% err · 10,049.2 ms）永远在册，exhibit #13 永远在册。**没有一条门槛被动过 · 没有一只 exhibit 被顺手推走。**
+
+### 三、裁判
+
+UI **570/570** · build ✓ · mvn -o **137/137**（Java 零触碰）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（exhibit_entries=**16**）· exhibit #15 永在册 · court `4117d2b0ca5fb23a` **LOCKED** · D1 ✅ D2 ⏸ ·「密码-123」否决 · chronicle 随本提交增员 · worldbook **卷一百四十八 · 148 卷**。

@@ -5337,3 +5337,39 @@ verdict **OK** · worst p99 **1,074.4 ms** · total bytes 120.99 MiB · exhibit_
 * UI **570/570** · build ✓ · guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **15** · the chronicle grows with this commit · worldbook **Scroll CXLVII · 147 scrolls**.
 
 ---
+## Scroll CXLVIII · The 384 Rung, Just Before 512
+
+> 512c fell. 256c had already fallen. 192c had fallen earlier.
+> This scroll fills the 384c rung —
+> not for the pretty curve, but because a machine's temper deserves a breath of its own.
+
+### 148.1 Exhibit #15 on file (384c ×2×4 rounds, +3 warmup)
+
+`docs/evidence/2026-11-16-static-warm-15.json` (this host · static lane · 3 entry assets):
+
+| round | ok/total | err% | p50 | p99 |
+|---|---|---|---|---|
+| 1 | 734/768 | **4.43%** | 530.2 ms | 2,040.7 ms |
+| 2 | 750/768 | **2.34%** | 534.9 ms | 2,049.5 ms |
+| 3 | 735/768 | **4.30%** | 533.1 ms | 2,050.3 ms |
+| 4 | 737/768 | **4.04%** | 547.2 ms | 2,061.0 ms |
+
+warmup mostly green (725/768 · 718/768) · verdict **BUDGET-BLOWN** · exhibit_entries **15 → 16** · the saturation curve gained the **384c** tick.
+
+### 148.2 The wave is not a staircase
+
+- tonight this host read **192c at 64–70% err (#13), 256c at 34–45% (#11), and 384c at 2–4% (#15)** — three rungs, one machine, **non-monotone**. A warm host folds back upon itself; that is not anyone's cheer, and it is no reason for gloom either;
+- bookkeeping only: warmup rounds 2/3 OK · rounds ran 2–4% err · p99 steady at ~2.05 s (2040–2061 ms) · total bytes 946 MiB — **recorded, never spun**;
+- this is not "384c is usable" — it is "384c read like this tonight". Exhibit #12 (512c · 100% err · 10,049.2 ms) on permanent file. Exhibit #13 (192c) on permanent file.
+
+### 148.3 What this scroll refuses to claim
+
+1. "the machine can carry 384c" — nobody countersigns this rung tonight;
+2. "the err drop means the earlier strikes were accidents" — no; exhibits forever side with stubbornness;
+3. Night Watch remains **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · always stream+include_usage · always never cached · "password-123" vetoed · mvn -o **137/137** · purity **CLEAR** · corrections **17**.
+
+### 148.4 The floor never moved
+
+* UI **570/570** · build ✓ · guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **16** · the chronicle grows with this commit · worldbook **Scroll CXLVIII · 148 scrolls**.
+
+---

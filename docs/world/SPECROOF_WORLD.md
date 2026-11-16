@@ -5450,3 +5450,39 @@ verdict **OK** · 最糟 p99 **1,074.4 ms** · 总字节 120.99 MiB · exhibits_
 UI **570/570** · build ✓ · guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **15** · chronicle 随本提交增员 · worldbook **卷一百四十七 · 147 卷**。
 
 ---
+## 卷一百四十八 ·512c 之前，那一道 384c
+
+> 512c 塌完了，256c 也塌了，192c 更早塌了；
+> 这一卷把 384c 这格补上——
+> 不是为了曲线好看，是为了这台机器的脾气替它自己留一口呼吸。
+
+### 148.1 exhibit #15 落册（384c ×2×4 rounds +3 warmup）
+
+`docs/evidence/2026-11-16-static-warm-15.json`（本机 · static lane · 3 entry assets）：
+
+| round | ok/total | err% | p50 | p99 |
+|---|---|---|---|---|
+| 1 | 734/768 | **4.43%** | 530.2 ms | 2,040.7 ms |
+| 2 | 750/768 | **2.34%** | 534.9 ms | 2,049.5 ms |
+| 3 | 735/768 | **4.30%** | 533.1 ms | 2,050.3 ms |
+| 4 | 737/768 | **4.04%** | 547.2 ms | 2,061.0 ms |
+
+warmup 基本绿（725/768 · 718/768）· verdict **BUDGET-BLOWN** · exhibits_entries **15 → 16** · 饱和曲线 x 轴加 **384c**。
+
+### 148.2 这一幕的波形不是楼梯
+
+- 今晚这台机器在 **192c（#13 · err 64–70%）、256c（#11 · err 34–45%）、**384c（#15 · err 2–4%）**三个档位之间不成单调**：热机状态折返，不是任何人的庆祝；同样不是沮丧的理由；
+- 口径如实登记：warmup 2/3 轮 OK、rounds 全程 err 2–4%、p99 稳定压在 ~2.05 s（2040–2061 ms）、总字节 946 MiB——**只记录**；
+- 这不是「384c 可用」的结论；这是「384c 今晚是这样」的记录。 exhibit #12（512c · 100% err · 10,049 ms）永远在册； exhibit #13（192c）永远在册。
+
+### 148.3 这一卷拒绝的话
+
+1. 「机器可以承接 384c」——没有任何人签够这一格；
+2. 「err 回落说明刚才是偶然」——没有； exhibit 永远对抗乐观；
+3. Night Watch 依旧 **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · 永远 stream+include_usage · 永远不缓存 ·「密码-123」否决 · mvn -o **137/137** · purity **CLEAR** · corrections **17**。
+
+### 148.4 裁判
+
+UI **570/570** · build ✓ · guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **卷一百四十八 · 148 卷**。
+
+---

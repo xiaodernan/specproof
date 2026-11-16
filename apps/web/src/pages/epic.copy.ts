@@ -311,6 +311,7 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "模型自己写补丁 · craft×aizzz", value: "free-form 中文需求「修复 double 函数的逻辑错误」→ plan.mode=llm · 四步中文计划 · 模型自己写下 x / 2 → x * 2（无 fix_registry）→ LOOP_RESULT=DONE → **验收 BLOCKED**（本机 Docker python 缓存缺 pytest · No module named pytest——门没动，补丁回滚，世界回 base）· cached 4224 命中在第二次调用（#1937）" },
       { label: "砂箱咬住 pytest · #1938", value: "砂箱三段式合成落册：venv → wheelhouse 离线装机（pytest 9.2.0 已播种）→ pytest（effective docker mode 才重写）· local 模式一字不动 · 25/25 runner 断言 · **run_test 首次全绿**（155 s · exit 0）· Docker Desktop 曾当场死一次（unexpected EOF）如实在案；SpecProof 验证器 REJECTED（Java/Maven-first · No pom.xml）——墙的名字被写下（#1938）" },
       { label: "Δ 对最早一篇 · #1939", value: "exhibit #14（2026-11-16T17:48Z · 48c ×2×4）落册：err 0.00% · 最糟 p99 1,074.4 ms · OK；对最早一篇 exhibit #2（2026-11-15T17:28Z）核 Δ——p99 −462.9 ms · p50 约 2.5× 抬升 · 只记录不吹；exhibit_entries 14 → 15（#1939）" },
+      { label: "384c · #1940", value: "exhibit #15（2026-11-16T17:56Z · 384c ×2×4 rounds + 3 warmup）落册：rounds err 4.43/2.34/4.30/4.04% · p50 ~530–547 ms · 最糟 p99 2,061.0 ms · BUDGET-BLOWN——192→256→384 今晚不成单调（64–70% → 34–45% → 2–4%）· 饱和曲线 x 轴加 384c；exhibit_entries 15 → 16（#1940）" },
     ],
   },
   {
@@ -612,6 +613,7 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "The model wrote the patch · craft×aizzz", value: "a free-form Chinese requirement (\"fix the logic error in double\") → plan.mode=llm · four Chinese steps · the model itself edited x / 2 → x * 2 (no fix_registry) → LOOP_RESULT=DONE → **acceptance BLOCKED** (this host's Docker python cache carries no pytest · No module named pytest — the door never moved, the patch was rolled back, the world returned to base) · cached 4224 struck on the second call (#1937)" },
       { label: "The sandbox bites pytest · #1938", value: "the three-phase composite is on file: venv → offline wheelhouse install (pytest 9.2.0 seeded) → pytest (rewritten in effective docker mode only; local mode byte-identical) · 25/25 runner assertions · **run_test green for the first time** (155 s · exit 0) · Docker Desktop died once on the spot (unexpected EOF), recorded as-is; SpecProof REJECTED (Java/Maven-first · No pom.xml) — the wall got named, never smoothed (#1938)" },
       { label: "The delta against the earliest one · #1939", value: "exhibit #14 (2026-11-16T17:48Z · 48c ×2×4) on file: err 0.00% · worst p99 1,074.4 ms · OK; re-struck against exhibit #2 (2026-11-15T17:28Z): Δp99 −462.9 ms · p50 drifted up ~2.5× — recorded as-is, never spun; exhibit_entries 14 → 15 (#1939)" },
+      { label: "The 384 rung · #1940", value: "exhibit #15 (2026-11-16T17:56Z · 384c ×2×4 rounds + 3 warmup) on file: rounds err 4.43/2.34/4.30/4.04% · p50 ~530–547 ms · worst p99 2,061.0 ms · BUDGET-BLOWN — 192→256→384 tonight is non-monotone (64–70% → 34–45% → 2–4%) · the saturation curve gained the 384c tick; exhibit_entries 15 → 16 (#1940)" },
     ],
   },
   {

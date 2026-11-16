@@ -1,8 +1,9 @@
-# Evidence Tick — generated 2026-11-16T17:54:40+00:00
+# Evidence Tick — generated 2026-11-16T18:04:55+00:00
 
 verdict: **REGRESSION**
-entries: 15
+entries: 16
 
+- `2026-11-16-static-warm-15.json` — p99≈2061.0ms · verdict=BUDGET-BLOWN · 2956/3072 ok · delta_vs_prev=+986.6ms
 - `2026-11-16-static-warm-14.json` — p99≈1074.4ms · verdict=OK · 384/384 ok · delta_vs_prev=-1897.1ms
 - `2026-11-16-static-warm-13.json` — p99≈2971.5ms · verdict=BUDGET-BLOWN · 514/1536 ok · delta_vs_prev=-7077.7ms
 - `2026-11-16-static-warm-12.json` — p99≈10049.2ms · verdict=BUDGET-BLOWN · 267/4096 ok · delta_vs_prev=+7795.4ms

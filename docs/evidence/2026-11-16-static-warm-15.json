@@ -1,0 +1,87 @@
+{
+  "started_utc": "2026-11-16T17:56:03.444536+00:00",
+  "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
+  "concurrency": 384,
+  "per_thread": 2,
+  "warmup_rounds": 3,
+  "rounds": [
+    {
+      "total": 768,
+      "ok": 734,
+      "err_rate": 0.04427083333333337,
+      "p50_ms": 530.1749500004007,
+      "p90_ms": 2014.8734200003673,
+      "p95_ms": 2034.0414999998757,
+      "p99_ms": 2040.722865999469,
+      "max_ms": 2054.8294999989594,
+      "avg_ms": 704.8678790364278,
+      "bytes_read": 245537642,
+      "sample_errors": [
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+      ]
+    },
+    {
+      "total": 768,
+      "ok": 750,
+      "err_rate": 0.0234375,
+      "p50_ms": 534.8993500001598,
+      "p90_ms": 2026.3787700012472,
+      "p95_ms": 2041.006884999024,
+      "p99_ms": 2049.45812400003,
+      "max_ms": 2063.89979999949,
+      "avg_ms": 740.9382052083587,
+      "bytes_read": 250785567,
+      "sample_errors": [
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+      ]
+    },
+    {
+      "total": 768,
+      "ok": 735,
+      "err_rate": 0.04296875,
+      "p50_ms": 533.1173499989745,
+      "p90_ms": 2024.5538800007125,
+      "p95_ms": 2038.70081499972,
+      "p99_ms": 2050.3239399994345,
+      "max_ms": 2056.1488999992434,
+      "avg_ms": 737.7556154947769,
+      "bytes_read": 247456052,
+      "sample_errors": [
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+      ]
+    },
+    {
+      "total": 768,
+      "ok": 737,
+      "err_rate": 0.04036458333333337,
+      "p50_ms": 547.1781500000361,
+      "p90_ms": 2034.0179799999532,
+      "p95_ms": 2045.4906749996553,
+      "p99_ms": 2061.027248999526,
+      "max_ms": 2073.628899999676,
+      "avg_ms": 827.4492694010695,
+      "bytes_read": 247951929,
+      "sample_errors": [
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+      ]
+    }
+  ],
+  "verdict": "BUDGET-BLOWN",
+  "honesty": "This is a static-asset delivery probe on this host; it is not a FastAPI/MySQL/Redis rating."
+}
