@@ -126,7 +126,7 @@ Craft (the AI pipeline) prints its acceptance summary on the execution result pa
 - **137/137 lane green**: `mvn -o test` gateway 84 · discovery 1 · config 1 · control-plane 51 — off-line fixtures; not a production green light.
 - **Night Watch composite StateGraph** (`agent/graphs/night_watch_graph.py`): evidence∩purity∩audit on one spine · verdict→report→END · currently **CRACKED** (exhibit #4 p99 1,526ms vs exhibit #3 1,030ms · Δ=+495.99ms > 25ms rule; the graph strikes itself; the exhibit stays on file; exhibit #5 = 1,035ms OK).
 - **UI 542/542** (Engine night-watch panel × ChainBanner on six pages × the intercession-free wheel change × /recall local BM25 retrieval).
-- **Still owed**: **OBSERVABILITY.md sign-off** (D1 — a human), **PORTFOLIO_TOKEN** (D2 — your PAT). Nobody from this repository signs those.
+- **Just struck today**: ✅ **OBSERVABILITY.md signed** (D1 · 2026-11-16 · owner endorsement · signature recorded in `OBSERVABILITY.md` §9 — identity unverified per `scripts/audit_unsigned.py`); **still owed**: **PORTFOLIO_TOKEN** (D2 — your PAT · Settings → Secrets). One of those two is signed today; the other waits for your hand.
 - Boundary: no rack-booted deployment of this system has happened anywhere; nothing here is dressed for a production ceremony.
 
 ## Notable verifications

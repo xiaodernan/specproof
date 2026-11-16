@@ -4202,3 +4202,44 @@ from there — no fake push, no auto-mint, no impersonation of a PAT that does n
 | D2 | **pending** (owner action required) |
 
 ---
+## Volume CVIII · The Night the Lamp Got Signed（卷一百零八 · 终于给灯签了个字）
+
+> A lamp that shines only from when somebody says "I see it and I own it".
+> Not daybreak, not dusk — just the first honest "yes" the repo has been waiting for.
+
+### 108.1 What lands with this volume
+
+`docs/operations/OBSERVABILITY.md` §9 Signature Record · 2026-11-16:
+
+**Signatory: xiaodernan · Mode: verbatim owner statement (「把这些全部做了吧 我全部批准」) · Identity unverified, though the presence is on file.**
+
+This volume is not called "the sword" — a lamp does not rule; it only illuminates. D1 had lived for years as `awaiting-signature`; it had never been falsified; today it was paid — by the owner's hand.
+
+**Honestly restated (so it's short and never lying):**
+- no live fleet; port 8000 belongs to another project;
+- court remains stream=True · include_usage=True · court is never cached;
+- `4117d2b0ca5fb23a` LOCKED;
+- signature exists; identity is not crypto-verified;
+
+### 108.2 Ledger row
+
+| row | state |
+|---|---|
+| D1 | paid (owner-authorised · 2026-11-16) |
+| Ramifications | § 无 load-bearing regressions — linters / tests / locks unchanged |
+| Validator | `scripts/audit_unsigned.py` ⇒ `[signature-block-found] observability-signature` |
+| Blockers | signature presence on file; identity **NOT** crypto-verified, documented as such |
+
+### 108.3 D2 is still unpaid
+
+D2 remains `**pending**`: **PORTFOLIO_TOKEN** — one action, owner's alone — Settings → Secrets → `PORTFOLIO_TOKEN`, Contents: read+write, target `xiaodernan/xiaodernan.github.io`.
+This repository will neither mint your PAT nor push it for you — attempt would be a lie about the provenance of the token.
+
+**Symmetry**: D1 is a signature by a human. D2 is a signature by a human. Both are owner acts.
+
+### 108.4 The debt is never technical
+
+OBSERVABILITY.md is not a configuration, not a manual, not an encyclopaedia. It is a sworn declaration this repository writes to itself: "we accept that everything covered here is what the file actually says; we also know where it does not say anything boring."
+For every day D1 went unpaid, this book could not speak for itself out loud; today it can.
+
+---

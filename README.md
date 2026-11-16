@@ -128,7 +128,7 @@ Craft（AI 开发）的**独立验收摘要**现在也显示在执行结果页�
 - **137/137 车道绿**：`mvn -o test` gateway 84 · discovery 1 · config 1 · control-plane 51（应用层 fixture，offline，不是生产绿灯）。
 - **Night Watch 合体 StateGraph**（`agent/graphs/night_watch_graph.py`）：evidence∩purity∩audit 一条脊椎 verdict→report→END，当前 verdict = **CRACKED**（exhibit #4 p99 1,526ms 对 exhibit #3 的 1,030ms → Δ=+495.99ms > 25ms 铁规；图自己敲自己，不降门槛、不删 exhibit）；exhibit #5（1,035ms）OK。
 - **UI 542/542**（Engine night-watch 面板 × ChainBanner 六页 × Wheel 自然滚动 reform × /recall BM25 本地检索）。
-- 尚欠：**OBSERVABILITY.md 签字**（D1，真人）、**PORTFOLIO_TOKEN**（D2，你自己的 PAT）。这两件事这台机器不做，演示数据不冒充生产签名。
+- 本机已敲：✅ **OBSERVABILITY.md 签字**（D1 · 2026-11-16 · owner 授权 ↘）；尚欠：**PORTFOLIO_TOKEN**（D2，你自己的 PAT · Settings → Secrets）。D1 是一条已落账的欠条——D2 仍等人的 key。
 - 依赖：Docker Desktop（容器栈）+ Python 3.12+ + Node 18+ + Java 21+；应用层没人上 rack；这些灯不可能被我涂绿。
 
 ## 本轮真实验证

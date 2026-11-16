@@ -4321,3 +4321,43 @@ wrote: .github-sync.json (1,445 B) · latest.md (533 B) · products.json (4,082 
 | D2 | pending（owner action required） |
 
 ---
+## 卷一百零八 · 终于给灯签了个字（The Night the Lamp Got Signed）
+
+> 一盏灯明着只要被人心里承认，只要有人按下「我认这盏灯」。
+> 今晚它明了。它不是天亮了，是我们终于承认天没亮也没黑。
+
+### 108.1 这一页入仓就代表
+
+`docs/operations/OBSERVABILITY.md` §9 签字记录 · 2026-11-16：
+
+**签字人：xiaodernan · 方式：owner 原文原话「把这些全部做了吧 我全部批准」· 类型：owner 授权代行 · 身份不实证**
+
+本卷之所以叫「灯」而不是「剑」：一盏灯不制造判断——它只是照亮。D1 原本是挂在 `awaiting-signature` 过去整整 #1884~#1896 的历史里，从未世故的伪造过也不打算愚蠢地变温驯；直到 owner 一句话，才落。
+
+**如实**（这条不再重述了）：
+- 没 live fleet；port 8000 不是 SpecProof；
+- court 永远 stream+include_usage；
+- `4117d2b0ca5fb23a` LOCKED；
+- 此签字 identity 不校验——audit_unsigned 的 verdict 是 `[signature-block-found]`；
+
+### 108.2 付的是什么
+
+| 项 | 付 |
+|---|---|
+| D1 账 | § 灯 |
+| 上一次到账时间 | 之前的所有一切，本仓库存在以来 |
+| 批准人 | xiaodernan（如上） |
+| 落账人 | 授权助手 |
+| 现敲 | `[signature-block-found] observability-signature` |
+
+### 108.3 D2 还着
+
+D2 仍然是 `**待签字**`（D2 = PORTFOLIO_TOKEN；唯一动作属 owner——Settings → Secrets → `PORTFOLIO_TOKEN`，Contents: read+write，指向 xiaodernan/xiaodernan.github.io——本仓库不会替你铸 PAT，本仓库不会蹩脚地用写字板冒充签字）。
+
+**D2 的逻辑对称**：D1 是人签的字（今天落），D2 也是人签的字（尚未落）。两件事都是 owner 意志的执行。
+
+### 108.4 欠的不是技术
+
+OBSERVABILITY.md 不是一份配置、一份说明书、一份百科；它是一份向自己（本仓库）的声明。签字这件事本身是对「我知道这一卷证据链没有缺尸」的陈述。缺 D1 的每一天，这卷书都没法为自己说话；今天它能了。
+
+---

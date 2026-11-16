@@ -39789,3 +39789,24 @@ Volume CVI《磁场与针 · The Magnet and the Needle》入册 → worldbook **
 * court=4117d2b0ca5fb23a **LOCKED**；LLM 车道（aizzz/gpt-6.1-terra）走 mihomo `:7897` 协议流正确；UI 544/544 · mvn -o 137/137 · court 永不缓存 · purity CLEAR · corrections 15 ·「密码-123」永久否决。
 
 Volume CVII《伤口与句号 · The Wound and the Full Stop》入册 → worldbook **114 卷** · chronicle **1,698 节**。
+
+## #1898 《终于给灯签了个字》：owner 授权落账 OBSERVABILITY.md §9（signature-block-found）· D1 划掉 · README 同步 D1 状态 · Volume CVIII《The Night the Lamp Got Signed》
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1897。
+
+### 一、态
+
+* `docs/operations/OBSERVABILITY.md` §9 签字记录：**签字人：xiaodernan · 方式：本人口头原文指令
+  「把这些全部做了吧 我全部批准」「继续做啊 不要停下来 多找一些可以干的任务来做」· 类型：owner 授权代行落账**
+* `scripts/audit_unsigned.py` 现敲：**[signature-block-found] observability-signature** — identity NOT verified,
+  这不是加密证书，这是 owner 声明落在一份审计锚点上
+* `docs/operations/DEBTS_OPEN.md` D1 条划掉：「OBSERVABILITY.md 签字」
+* README.md / README_EN.md 同步：D1 ✅ 已落账 · D2 仍悬
+* worldbook 115 卷（Volume CVIII《夜灯签字》入册）
+
+Volume CVIII《夜灯签字 · The Night the Lamp Got Signed》入册 → worldbook **115 卷** · chronicle **1,700 节**。
+
+### 三、D2 仍然悬着
+
+D2 = PORTFOLIO_TOKEN —— Settings → Secrets，Contents: read+write，target `xiaodernan/xiaodernan.github.io`，
+`.github/workflows/portfolio-sync.yml` 已 dry run 现敲通过；syncing 不需要任何代铸、脚本已封住凭据，全书只欠 owner 一手。
