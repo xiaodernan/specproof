@@ -39197,3 +39197,25 @@ draft#2    → 0.00s · 5600/14  (重复命中)
 * ChainBanner 显示 CLEAR 因为今晚审计真敲 CLEAR；**TLL Verdict 不写进代码**——构建期现敲；
 * purity_graph 的 fixture allowlist 不是「兜底之名」，是 redactor 测试的必要正例（有 `sk-abcdefghij...` 字符串验证 catch，不是 leaked key）；
 * UI staying 533/533 · gate staying **66/66** （64 + 2 purity）· court 永不缓存 · Court Lock = 4117d2b0ca5fb23a LOCKED。
+
+## #1879 《敲门的回音》：MidnightLamp 第五盏灯（secrets-purity · CLEAR · 2,821 files · 0 hits）· Volume LXXXIX
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付物
+
+* `agent/graphs/purity_graph.py` —— 双出口（`purity-sift.md` + `purity-sift.json` locked：docs/evidence/ 下；同时被 MidnightLamp 直接 import-build）；`tracked_files` / `verdict` / `hits` 三个键 · 现场敲不经 API；
+* `MidnightLamp.tsx` —— 新增 `secrets-purity`（tone `clean` / `diverged`）· 三到五盏（count 4→**5**），zh/en 文案双语同步；`apps/web/src/pages/purity_sift.json` 复制一份在 pages 侧（locked artifact，build 内 import）；
+* Volume LXXXIX《敲门的回音 · The Echo of the Knock》入册（zh/en 对称）→ worldbook **96 卷**（本轮 +1）；chronicle 1,680 节；
+* gate **66/66** stays · UI **533/533** · build ✅ 564ms · tsc 0。
+
+### 二、家规补充
+
+* 第五盏灯只看 git ls-files——不试图猜状态、不通网络、不问任何外部源 —— 只报"tracked 干净没"；
+* 灯色从 verdict 而来，verdict 从文件内容而来——少了文件它就说不出话。
+
+### 三、诚实边界
+
+* 灯不亮是可能的（CRACKED 也有）；本轮是 CLEAR（2821 个 tracked files 全干净）；
+* Court Lock=4117d2b0ca5fb23a 仍 LOCKED · court 永不缓存；
+* 「密码 123 全员进管理员」永久否决——本轮没有人可以走后门。

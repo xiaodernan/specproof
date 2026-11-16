@@ -12,6 +12,7 @@ Fails-closed: any match outside the allowlist flips verdict to CRACKED.
 from __future__ import annotations
 
 import io
+import json
 import re
 import subprocess
 import sys
@@ -106,6 +107,18 @@ def report_node(state: PurityState) -> PurityState:
     ]
     out = ROOT / "docs" / "evidence" / "purity-sift.md"
     out.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+
+    sidecar = out.with_suffix(".json")
+    sidecar.write_text(
+        json.dumps({
+            "version": 1,
+            "generated_utc": datetime.now(UTC).isoformat(timespec="seconds"),
+            "tracked_files": len(state.get("files", [])),
+            "verdict": verdict,
+            "unexpected_hits": len(hits),
+        }, ensure_ascii=False, indent=1),
+        encoding="utf-8",
+    )
     return {"report_path": str(out), "summary": f"verdict={verdict} hits={len(hits)}"}
 
 

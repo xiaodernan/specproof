@@ -3412,3 +3412,34 @@ CLEAR → jade, CRACKED → red — one boolean drives the fill.
 These are not decorations. Every lamp in this repo, one day at a time, keeps asking the same question.
 
 ---
+## Volume LXXXIX · The Echo of the Knock（卷八十九 · 敲门的回音）
+
+> Knock once — hear whether the house answers.
+> Every overnight knock of ours, this repo now answers for itself:
+> "nothing inside, nobody at the door, no keys spilled."
+
+### 89.1 The Midnight Lamp × Five
+
+| # | Lamp | Struck (2026-11-16) |
+|---|---|---|
+| 1 | real fleet telemetry · OBSERVABILITY.md sign-off | **awaiting-signature** (a human's debt) |
+| 2 | the Monday knock · weekly-stress.yml | **merged** (first strike next Monday) |
+| 3 | port 8000 · who answers right now | **port-free** (it answered earlier; it is quiet now) |
+| 4 | git cleanliness | **dirty-tree / clean** (at the moment of build) |
+| 5 | **secrets purity** | **CLEAR · 2,821 tracked files · 0 hits** |
+
+Lamp five is struck live by `agent/graphs/purity_graph.py` into `docs/evidence/purity-sift.json`; that exact JSON is what the `#/archive` MidnightLamp displays. **The lamp does not boast — it reports.**
+
+### 89.2 The echo is one JSON
+
+```
+{ "verdict": "CLEAR", "tracked_files": 2821, "unexpected_hits": 0 }
+```
+
+### 89.3 The clause-grammar补充
+
+* The fifth lamp never lies — `git ls-files` is the only roster it reads;
+* `__pycache__` residues don't press it down;
+* amber / jade / grey remain the only three states; no fourth is invented.
+
+---

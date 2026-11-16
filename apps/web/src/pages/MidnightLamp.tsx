@@ -1,6 +1,7 @@
 import { useI18n } from "../i18n";
 import { ProductIcon } from "../ui/ProductIcon";
 import unsigned from "./unsigned.json";
+import purity from "./purity_sift.json";
 import "../styles/auditLights.css";
 
 /**
@@ -14,6 +15,7 @@ const LABEL: Record<string, { zh: string; en: string }> = {
   "weekly-stress-merged": { zh: "每周一敲门 · weekly-stress.yml 合入", en: "the Monday knock · weekly-stress.yml" },
   "port-8000-answers": { zh: "端口 8000 · 此刻谁在答", en: "port 8000 · who answers right now" },
   "branch-cleanliness": { zh: "提交到过 origin 了吗 · 分支洁净度", en: "did your commits reach origin? · branch cleanliness" },
+  "secrets-purity": { zh: "密钥净化器 · 无一字节含密钥", en: "secrets purity · zero secret-shaped bytes found" },
 };
 
 const TONE: Record<string, "ok" | "warn" | "idle" | "bad"> = {
@@ -37,13 +39,17 @@ export default function MidnightLamp(): JSX.Element {
   const { locale } = useI18n();
   const zh = locale === "zh";
   const L = (a: string, b: string): string => (zh ? a : b);
-  const checks = unsigned.checks ?? [];
+  const checks = [...(unsigned.checks ?? []), {
+    id: "secrets-purity",
+    status: purity.verdict === "CLEAR" ? "clean" : "diverged",
+    detail: `${purity.tracked_files.toLocaleString()} tracked files · ${purity.unexpected_hits} unexpected hits`,
+  }];
 
   return (
     <section className="midnight-lamp" aria-label={L("长夜灯 · 四盏审计灯", "The Midnight Lamps")}>
       <header className="midnight-lamp-head">
         <ProductIcon name="shield" size={13} />
-        <p className="midnight-lamp-kicker">{L("长夜灯 · 四盏 · 审计于本机", "THE MIDNIGHT LAMPS · four of them · audited on this host")}</p>
+        <p className="midnight-lamp-kicker">{L("长夜灯 · 五盏 · 审计于本机", "THE MIDNIGHT LAMPS · five of them · audited on this host")}</p>
       </header>
       <div className="midnight-lamp-grid">
         {checks.map((c) => {

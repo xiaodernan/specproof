@@ -3539,3 +3539,35 @@ unsigned → court_lock → evidence → scratch_residue → portfolio → verdi
 密码学的铅字不会自己生——铁证只认敲过的数字和被敲的次数。
 
 ---
+## 卷八十九 · 敲门的回音（The Echo of the Knock）
+
+> 敲一次门——听见的是不是它应答。
+> 现在本仓库每次隔夜叩门，
+> 它都自己说一句：「门里没声音，没人在敲，密钥没掉。」
+
+### 89.1 The Midnight Lamp × 五盏
+
+| 第 | 灯 | 实测（2026-11-16 刷新） |
+|---|---|---|
+| 1 | 真·fleet 遥测 · OBSERVABILITY.md 签字 | **awaiting-signature**（真人欠条） |
+| 2 | 每周一敲门 · weekly-stress.yml | **merged**（首班下个周一） |
+| 3 | 端口 8000 · 此刻谁在答 | **port-free**（MSXML 今早答过·此刻静） |
+| 4 | git 分支洁净度 | **dirty-tree / clean**（按 build 时刻） |
+| 5 | **secrets-purity · 密钥净化器** | **CLEAR · 2,821 files tracked · 0 hits** |
+
+新增第五盏灯由 `agent/graphs/purity_graph.py` 现敲 `docs/evidence/purity-sift.json`· verdict 与报告均入库——**灯不诈，只报实**。
+
+### 89.2 The echo is one JSON
+
+`docs/evidence/purity-sift.json` ← 同上页 `#/archive` 中 `MidnightLamp` 读到的同一字节：
+```
+{ "verdict": "CLEAR", "tracked_files": 2821, "unexpected_hits": 0 }
+```
+
+### 89.3 家规补充
+
+* 灯只亮一次——不会有人偷偷把文件改成带 key 又不说实；
+* 第五盏灯是自证的——`purity_graph.py` 的判定只读 tracked files（`git ls-files`），任何 `__pycache__` 静态残余不压我们；
+* 黄灯 / 绿灯 / 灰灯三种状态，不发明第四条。
+
+---
