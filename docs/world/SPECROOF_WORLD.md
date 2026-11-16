@@ -4031,3 +4031,33 @@ evidence_graph → purity_graph → auditor_graph → verdict → report → END
 * UI 540/540 · build ✓ · court crystal remains locked.
 
 ---
+## 卷一百 · 夜眼睁开（The Night Eye Opens）
+
+> 睁眼不看数据，是闭上眼睛打鼾；看数据不动手，是睁眼犯困。
+> 本卷把那一盏合体的灯挂上 `/engine`——谁都能看见，这颗心醒着什么颜色的眼。
+
+### 100.1 这页 `/engine` 多了一盏合体灯
+
+`#1889` 的黑夜守望图（night_watch_graph）把三辆车并做一根脊椎：evidence → purity → audit → verdict → report → END。
+本卷把它的输出直接上屏：
+
+- 页面下方新增 `.engine-nightwatch` 面板（bad/ok 双变体）：**strike 时间、verdict、lanes  chips、findings**；
+- 走一遍——`CRACKED`（evidence REGRESSION 当晚 4 件产物），这样时**反而更需要亮起来**；
+- 不润色，不掩盖，不许强行染绿——**这是这盏灯的使命**。
+
+本卷初次把 night_watch.json 作为构建期快照入 bundle（git-tracked，完全照原文）。任何人打开本页都能看到守望的实情。
+
+### 100.2 本卷交付的东西
+
+- `Engine.tsx`：页尾新增「黑夜守望 · 合体判定」面板；
+- 新测试 `pages/__tests__/EngineNightWatch.test.tsx`：验证 UI/JSON 字段无差（CRACKED 就是显示 CRACKED）；
+- UI **542/542**（+2，EngineNightWatch 双车道）；
+- **worldbook 突破 100 卷**（本卷 · Volume C）。
+
+### 100.3 守望灯不为任何人擦边
+
+- 病，本卷没病——它是被显示出来的结果，不承诺稳定收敛；
+- 但也欢迎：它**只按现敲**（2026-11-16T08:43Z 时刻），exhbit #4 之后任何一周敲进 Δ<25 ms 的 exhibit，它自动 GREEN；
+- court 永不缓存，Court Lock 4117d2b0ca5fb23a；「密码-123」永久否决；D1/D2 欠；纯度 CLEAR。
+
+---

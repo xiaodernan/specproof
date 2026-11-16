@@ -1,6 +1,7 @@
 import { useI18n } from "../i18n";
 import { ProductIcon } from "../ui/ProductIcon";
 import engine from "./engine.json";
+import nightWatch from "./night_watch.json";
 import courtLock from "./courtLock.json";
 import ChainBanner from "./ChainBanner";
 import "../styles/engine.css";
@@ -127,6 +128,25 @@ export default function Engine(): JSX.Element {
           <p className="engine-note">{L(`${hourly.length} 个小时覆盖到；条柱高度 = 该小时的实际调用次数`, `${hourly.length} hourly buckets · bar height = actual calls`)}</p>
         </section>
       </div>
+
+      {/* ── Night watch: the composed StateGraph's own verdict, struck live ─── */}
+      <section className={`engine-nightwatch engine-nightwatch-${nightWatch.verdict === "CLEAR" ? "ok" : "bad"}`} aria-label={L("黑夜守望今日判定", "Night watch · today's composite")}>
+        <div className="engine-nightwatch-head">
+          <h2>{L("黑夜守望 · 合体判定", "The Night Watch · composite verdict")}</h2>
+          <span className="engine-nightwatch-badge">{nightWatch.verdict}</span>
+        </div>
+        <p className="engine-nightwatch-sub">{L(`struck ${(nightWatch as { generated_utc: string }).generated_utc}`, `struck ${(nightWatch as { generated_utc: string }).generated_utc}`)}</p>
+        <ul className="engine-nightwatch-lanes">
+          {Object.entries((nightWatch as { lanes: Record<string, string> }).lanes).map(([lane, verdict]) => (
+            <li key={lane} className={`engine-lane-chip engine-lane-chip-${verdict === "OK" || verdict === "CLEAR" ? "ok" : "bad"}`}>
+              <code>{lane}</code><span>{verdict}</span>
+            </li>
+          ))}
+        </ul>
+        {(nightWatch as { findings?: string[] }).findings && ((nightWatch as { findings?: string[] }).findings as string[]).length ? (
+          <ul className="engine-nightwatch-findings">{(nightWatch as { findings: string[] }).findings.map((f) => <li key={f}>{f}</li>)}</ul>
+        ) : null}
+      </section>
 
       <footer className="engine-honesty">
         <ProductIcon name="shield" size={13} />

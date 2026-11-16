@@ -3904,3 +3904,32 @@ Struck live on 2026-11-16 from this host:
 * UI 540/540 · build ✓ · court crystal still locked.
 
 ---
+## Volume C · The Night Eye Opens（卷一百 · 夜眼睁开）
+
+> If you don't look at the data, you're sleeping with your eyes closed; if you look and do nothing, you're sleeping with your eyes wide open.
+> This volume hangs the composite lamp right on `/engine` — anyone can see exactly the colour the eye is open in.
+
+### 100.1 The `/engine` page gains one composite lamp
+
+#1889's night_watch_graph weaves three lanes onto one spine: evidence → purity → audit → verdict → report → END.
+This volume surfaces that output directly to the eye of the visitor:
+
+- new `.engine-nightwatch` panel below the fold (ok / bad variants): **strike timestamp · composite verdict · lane chips · findings**;
+- left raw — `CRACKED` (evidence REGRESSION that night on four exhibits) — which is exactly why it hangs in the open;
+- never dressed up, never green-lit for show — **that is what the lamp is for**.
+
+`night-watch.json` was landed as a build-time artefact this volume (git-tracked, verbatim). Every visitor of this page can see the night's real eye colour.
+
+### 100.2 What landed in this volume
+
+- `Engine.tsx` — new composite panel under the fold;
+- `EngineNightWatch.test.tsx` — reads the same fields from the same JSON, asserts no drift;
+- UI **542/542** (+2, both engines);
+- **one hundred volumes** in the worldbook (Volume C — the hundredth distinct volume).
+
+### 100.3 A lamp nobody polishes for anyone
+
+- the panel surfaces the verdict as struck (2026-11-16T08:43Z) — after exhibit #4, any Monday strike that lands under Δ<25 ms auto-clears it to CLEAR;
+- court never caches; Court Lock `4117d2b0ca5fb23a`; purity CLEAR; 「password-123」permanently vetoed; D1/D2 still owed.
+
+---

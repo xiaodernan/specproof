@@ -1,0 +1,13 @@
+{
+ "version": 1,
+ "generated_utc": "2026-11-16T08:43:25+00:00",
+ "verdict": "CRACKED",
+ "lanes": {
+  "evidence": "REGRESSION",
+  "purity": "CLEAR",
+  "audit": "CLEAR"
+ },
+ "findings": [
+  "evidence lane: not jade"
+ ]
+}

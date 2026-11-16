@@ -39576,3 +39576,25 @@ evidence_graph → purity_graph → auditor_graph → verdict → report → END
 无新 R 条——本轮的"错"不在代码，在我眼睛从exhibit #4 上挪开再找替身。R 条不该伪造；#1889 停留在本卷。
 
 Volume XCIX《黑夜守望的门槛 · The Twenty-Five Millisecond Law》入册 → worldbook **106 卷** · chronicle **1,690 节**。
+
+## #1890 《夜眼睁开》：/engine 页新增「黑夜守望 · 合体判定」面板（UI + JSON 快照 + 契约测试）· Volume C
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1889。
+
+### 一、把夜眼挂到 `/engine`
+
+* `apps/web/src/pages/Engine.tsx` — 在页尾、诚实排下方：新增 `.engine-nightwatch` 面板。
+  * 数据源：`pages/night_watch.json`（**完全照 `docs/evidence/night-watch.json` 的原文** —— git-tracked，build-time 快照，与 `tally.json` 同级）
+  * 双变体：`ok`（jade）/ `bad`（red）；顶部 strike 时间、verdict、lane chips（evidence / purity / audit）、findings 列表
+  * **内容零加工**：CRACKED 就是显示 CRACKED；lanes 什么颜色显示什么颜色
+* `apps/web/src/styles/engine.css` — `.engine-nightwatch-*` 全套（head / badge / sub / lanes / finding chips）
+* 新测试 `src/pages/__tests__/EngineNightWatch.test.tsx`：UI 与 JSON 必须无差；文本必须包含 strike 时间戳原文（zh/en）
+* UI **542/542（+2）** · `npm run build` ✓ · court=4117d2b0ca5fb23a LOCKED
+
+Volume C《夜眼睁开 · The Night Eye Opens》入册（zh/en 对称）→ worldbook **107 卷**（破百）· chronicle **1,691 节**。
+
+### 二、诚实边界
+
+* 这一页**不会争取额外好处**——Night Watch 只是把 `/engine` 页面读者侧得可观：任何人看到的 verdict 与 docs/evidence/night-watch.json 的字节一致；
+* exhibit #4 的 REGRESSION 是宿主当时的真实钟声，不会被任何后续努力核销；
+* court 永远 stream + include_usage；「密码-123」永久否决；D1（OBSERVABILITY 真签）· D2（PORTFOLIO_TOKEN）欠。
