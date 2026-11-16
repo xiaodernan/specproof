@@ -40992,3 +40992,41 @@ UI **571/571** · build ✓ · mvn -o **137/137** · guide **6/6** · correction
 
 1. 这四道门仍一条未涂：`test_no_painted_color_bypasses_the_theme_tokens` 今晚没动一字；
 2. exhibit 16 件在册 ＝ #4/#8/#9/#10/#11/#12/#13/#14/#15 ＋ light-1、warm、warm-2..warm-13 任一件不挪位 · Night Watch 依旧 **CRACKED** · exhibit_entries=**16** · court `4117d2b0ca5fb23a` **LOCKED** ·「密码-123」否决 · D1 ✅ D2 ⏸ ·「密码-123」否决；mvn -o **137/137**（Java 零动）· UI **571/571** · guide **6/6**；purity **CLEAR** · corrections **17**；chronicle 随本提交增员 · worldbook **卷一百五十一/151 卷**
+
+## #1946 《红门又掀开半扇》：theme-blind 字色总门实敲 **1,165 → 593** · 14 枚零引用 dead token 清理 · tokens.css 两次写浮后「双 pass」纪律入册
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1945。
+
+### 一、出书（口径：`pytest tests/unit/test_web_css_stays_on_the_design_system.py::test_no_painted_color_bypasses_the_theme_tokens -q` 实敲 AssertionError 首行）
+
+| 站 | 值 | 注记 |
+|---|---|---|
+| 起点（HEAD = #1945 收工） | **1,165** | ROADMAP-LIVE item #8 登记册值 |
+| 第一遍等值替换（锌/中性/画布） | **1,154** |  zinc ramp、dark canvas、常见 rgba-white/black 散点 |
+| archive-brass 22 枚命名落地 | **950** | `--archive-ink … --midnight-lamp`；落盘前 `git stash push` 兜底（stash@{0} 保留未清） |
+| spaced-rgba 两轮换装 | **944** → **898** | 无空格形 944 · 有空格形 898 |
+| steel-blue greys / gold-deep 命名 | **775** | `--steel-graphite` 系、`--archive-steel-faint/mid`、`--archive-gold-*` |
+| parchment glow ramp 命名 | **666** | `--parchment-low/mid/hi`、`--sheet-mid`、`--lantern-glow-matte` |
+| steel / gold / rust 清扫（最终一遍） | **593** | `--steel-smoke/moonwash/graphite-2`、parchment 辉光 ramp 收口、`--gold-frost(-bright)` 等 |
+
+**未涂绿**：`test_no_painted_color_bypasses_the_theme_tokens` 依旧 fail，**593** 在册——全文本号不改这个测试一字。
+
+### 二、fidelity：本夜差点翻车两次（如实记）
+
+1. **游离声明**：`apps/web/src/theme/tokens.css` 曾被写出三块**浮在 `:root {…}` 之外**的自定义属性块（`--archive-glow-*`、`--archive-ink …`、语义 ramp），同一时刻 `@media print` 注释被劈成两半（`consumed ONLY inside\n}\n\n@media print and never flip…`），文件物理尾部被截断在 `--print-ha`。build 红：`[vite:css-post] SyntaxError: [lightningcss minify] Invalid qualified rule`（锚在 345 行），minified pass 上漂移成 `Unknown at rule: @keyframes`。UI **571/571 从头到尾是绿的**——**本夜认账：UI 绿证明不了 CSS 没坏。**
+2. **修法（不缩水）**：三块自定义属性整体并回 `:root`；`@media print` 注释整体复位；`lightningcss.transform` 逐个体检 `styles/*.css`（**41 个文件全 OK**）与 `tokens.css`；merge 六个入口 CSS 复验通过；`vite build --minify false` 与 `vite build`（minified）**双 pass 都绿**。**立规：tokens.css 任何改动必须两个 pass 都绿才许入 index。**
+3. lite 通用的错（`Unknown at rule: @keyframes`）诡计在别处的文件里首报——账本记在「print-medium 截断」，不记在任何 CSS 语法里。
+
+### 三、清理（14 枚 dead token 删除，清单）
+
+`--archive-dark-canvas`、`--archive-dark-slate`、`--archive-glow-faint`、`--archive-glow-soft`、`--archive-gold-bright-light`、`--archive-steel-midnight-alt`、`--ink-shadow`、`--ink-shadow-faint`、`--ink-shadow-soft`、`--ink-shadow-strong`、`--iron-ink-faint`、`--parchment-2x`、`--surface-mid-mint`、`--surface-soft`。
+
+删除前双校验：`var(--token)` 在 `apps/web/src` 全库引用计数 **= 0**；tests/ 字符串未命中。既有系统 token（`--blur-lg`、`--fw-400`、`--h-6`、`--lh-tight` 等）**没动**。
+
+### 四、红门为什么还红
+
+593 条字色集中在书房/档案馆系列（`archive.css`、`atlas.css`、`gazette.css`、`dossier.css`、`inkwell.css`…），每条都是一枚「书房漆面」：铁锈金、黄褐铜绿、旧纸浮雕、深钢蓝灰。一枚漆面 = 一个语义 token，它们还没逐一命名——这是**颜色语义学**问题，不是格式问题。留给下一次 remediation 批次，不在本夜补丁里取样糊弄。
+
+### 五、裁判
+
+UI **571/571** · build ✓（lite + minified 双 pass）· mvn -o **137/137**（gateway 84 + control-plane 51 本进程复敲；discovery 1 / config 1 未触碰）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（entries **16** · exhibit #4 / #12 / #13 / #15 一件不挪）· court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **卷一百五十二 / 152 卷（中英对称）** · D1 ✅ · D2 ⏸（属主 PAT）·「密码-123」否决 · Scroll CLII 双语落册 · ROADMAP-LIVE item #8 **补记更新** · README 双语补条 · stash@{0} 保留

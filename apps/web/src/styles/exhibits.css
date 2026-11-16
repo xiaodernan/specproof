@@ -1,44 +1,44 @@
 
 .exhibits-page { max-width: 980px; margin: 0 auto; padding-bottom: 48px; }
-.exhibits-en { display: block; margin-top: 8px; font-size: var(--text-lg); color: var(--color-text-2, #9aa0b4); letter-spacing: .22em; text-transform: uppercase; font-weight: 600; }
+.exhibits-en { display: block; margin-top: 8px; font-size: var(--text-lg); color: var(--color-text-2, var(--midnight-lamp)); letter-spacing: .22em; text-transform: uppercase; font-weight: 600; }
 .exhibits-callout { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px; margin: 16px 0 24px; }
 .exhibits-callout-item { border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 8px 12px; background: var(--color-surface-2, #181310); display: flex; flex-direction: column; gap: 8px; }
-.exhibits-k { font: 10px var(--font-mono); color: var(--color-text-2, #9aa0b4); text-transform: uppercase; letter-spacing: .18em; }
+.exhibits-k { font: 10px var(--font-mono); color: var(--color-text-2, var(--midnight-lamp)); text-transform: uppercase; letter-spacing: .18em; }
 .exhibits-callout-item code { font: 11px var(--font-mono); line-height: 1.6; color: inherit; }
 .exhibits-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 12px; counter-reset: exh; }
-.exhibit-card { border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 16px 16px; background: var(--color-surface, #131008); display: grid; gap: 8px; }
+.exhibit-card { border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 16px 16px; background: var(--color-surface, var(--archive-dark-c2)); display: grid; gap: 8px; }
 .exhibit-head { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; }
-.exhibit-idx { width: 42px; height: 42px; border-radius: var(--radius-2xl); display: grid; place-items: center; font: 700 13px var(--font-mono); color: var(--accent-text, #d7b85a); border: 1px solid currentColor; }
+.exhibit-idx { width: 42px; height: 42px; border-radius: var(--radius-2xl); display: grid; place-items: center; font: 700 13px var(--font-mono); color: var(--accent-text, var(--gold-deepest)); border: 1px solid currentColor; }
 .exhibit-title code { font: 12px var(--font-mono); color: inherit; }
-.exhibit-meta { display: flex; gap: 8px; align-items: center; font: 11px var(--font-mono); color: var(--color-text-2, #9aa0b4); flex-wrap: wrap; }
-.verdict-ok { color: #5ef2a3; font-style: normal; font-weight: 700; }
+.exhibit-meta { display: flex; gap: 8px; align-items: center; font: 11px var(--font-mono); color: var(--color-text-2, var(--midnight-lamp)); flex-wrap: wrap; }
+.verdict-ok { color: var(--success-fg); font-style: normal; font-weight: 700; }
 .verdict-bad { color: #ff8a8a; font-style: normal; font-weight: 800; letter-spacing: .04em; }
 .exhibit-bar { height: 10px; background: var(--color-surface-2, #181310); border-radius: var(--radius-2xl); overflow: hidden; border: 1px solid var(--color-border, #222); }
-.exhibit-bar-fill { height: 100%; background: #5ef2a3; transition: width .18s ease; }
-.exhibits-bar-ok { background: linear-gradient(90deg, #3ecf8e 0%, #5ef2a3 100%); }
+.exhibit-bar-fill { height: 100%; background: var(--success-fg); transition: width .18s ease; }
+.exhibits-bar-ok { background: linear-gradient(90deg, #3ecf8e 0%, var(--success-fg) 100%); }
 .exhibits-bar-warn { background: linear-gradient(90deg, #e0b64a 0%, #ffe56a 100%); }
 .exhibits-bar-bad { background: linear-gradient(90deg, #e2635a 0%, #ff9a9a 100%); }
-.exhibit-row-meta { display: flex; gap: 16px; font: 11px var(--font-mono); color: var(--color-text-2, #9aa0b4); flex-wrap: wrap; }
+.exhibit-row-meta { display: flex; gap: 16px; font: 11px var(--font-mono); color: var(--color-text-2, var(--midnight-lamp)); flex-wrap: wrap; }
 .exhibit-row-meta strong { color: inherit; font-weight: 700; }
 .exhibit-path { font: 10px var(--font-mono); opacity: .7; overflow-x: auto; white-space: nowrap; }
 .exhibits-colophon { line-height: 1.85; margin-top: 16px; }
 .exhibits-footnote { font: 10px var(--font-mono); opacity: .7; display: inline-flex; gap: 8px; align-items: center; margin-top: 8px; }
 @media print { .exhibits-callout { grid-template-columns: 1fr; } }
 
-.exhibits-sat { margin: 0 0 24px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface, #131008); padding: 16px 16px 8px; }
+.exhibits-sat { margin: 0 0 24px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface, var(--archive-dark-c2)); padding: 16px 16px 8px; }
 .exhibits-sat-title { font-size: var(--text-md); letter-spacing: .08em; margin: 0 0 8px; }
 .exhibits-sat-svg { display: block; width: 100%; height: auto; }
 .exhibits-sat-grid { stroke: var(--color-border, #222); stroke-dasharray: 4 4; stroke-width: 1; fill: none; }
 .exhibits-sat-grid-v { stroke-dasharray: 2 4; }
-.exhibits-sat-axis { stroke: var(--color-text-2, #9aa0b4); stroke-width: 1.2; fill: none; }
-.exhibits-sat-line { stroke: var(--accent-text, #d7b85a); fill: none; }
-.exhibits-sat-dot circle { fill: var(--accent, #d7b85a); stroke: var(--color-surface, #131008); stroke-width: 1.5; }
+.exhibits-sat-axis { stroke: var(--color-text-2, var(--midnight-lamp)); stroke-width: 1.2; fill: none; }
+.exhibits-sat-line { stroke: var(--accent-text, var(--gold-deepest)); fill: none; }
+.exhibits-sat-dot circle { fill: var(--accent, var(--gold-deepest)); stroke: var(--color-surface, var(--archive-dark-c2)); stroke-width: 1.5; }
 .exhibits-sat-dot circle:hover + text,
 .exhibits-sat-dot circle:focus + text { stroke: var(--color-text); }
-.exhibits-sat-label { fill: var(--color-text-2, #9aa0b4); font: 10px var(--font-mono); }
+.exhibits-sat-label { fill: var(--color-text-2, var(--midnight-lamp)); font: 10px var(--font-mono); }
 .exhibits-sat-label-r { fill: var(--color-text-3, #6b6f80); font-size: var(--text-xs); letter-spacing: .1em; text-transform: uppercase; }
-.exhibits-sat-y { fill: var(--color-text-2, #9aa0b4); font: 10px var(--font-mono); text-anchor: end; }
-.exhibits-sat-x { fill: var(--color-text-2, #9aa0b4); font: 10px var(--font-mono); }
+.exhibits-sat-y { fill: var(--color-text-2, var(--midnight-lamp)); font: 10px var(--font-mono); text-anchor: end; }
+.exhibits-sat-x { fill: var(--color-text-2, var(--midnight-lamp)); font: 10px var(--font-mono); }
 .exhibits-sat-note { line-height: 1.8; margin-top: 8px; font-size: var(--text-sm); }
 
 .exhibits-print-cta { display: flex; justify-content: flex-end; margin: 0 0 var(--sp-2); }

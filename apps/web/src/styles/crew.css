@@ -1,21 +1,21 @@
 ﻿
-.crew-print-button { display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; background: transparent; border: 1px dashed rgba(214, 183, 120, .45); color: #d6b778; border-radius: var(--radius-sm); padding: 8px 16px; font-size: var(--text-sm); letter-spacing: .2em; text-transform: uppercase; cursor: pointer; }
+.crew-print-button { display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; background: transparent; border: 1px dashed rgba(214, 183, 120, .45); color: var(--archive-gold-mid-light); border-radius: var(--radius-sm); padding: 8px 16px; font-size: var(--text-sm); letter-spacing: .2em; text-transform: uppercase; cursor: pointer; }
 .crew-print-button:hover { background: rgba(214, 183, 120, .12); }
 .crew-card { display: none; }
 @media print {
   .crew-print-button, .voyage-log, .last-call-honesty, .last-call-masthead, .last-call-cards, header, footer, nav { display: none !important; }
-  .crew-card { display: flex !important; flex-direction: column; gap: 16px; padding: 44px 48px; color: #14100a; background: #ffffff; font-family: Georgia, 'Noto Serif SC', 'Songti SC', serif; border: 4px double #14100a; border-radius: var(--radius-2xs); margin: 0; }
-  .crew-card-head { text-align: center; border-bottom: 1px solid #14100a; padding-bottom: 16px; }
+  .crew-card { display: flex !important; flex-direction: column; gap: 16px; padding: 44px 48px; color: var(--archive-cell); background: var(--zinc-0); font-family: Georgia, 'Noto Serif SC', 'Songti SC', serif; border: 4px double var(--archive-cell); border-radius: var(--radius-2xs); margin: 0; }
+  .crew-card-head { text-align: center; border-bottom: 1px solid var(--archive-cell); padding-bottom: 16px; }
   .crew-card-org { font-size: var(--text-2xs); letter-spacing: .34em; text-transform: uppercase; margin: 0; }
   .crew-card-title { font-size: var(--text-4xl); margin: 8px 0 8px; letter-spacing: .08em; }
   .crew-card-date { font-size: var(--text-xs); margin: 0; color: #444; }
-  .crew-card-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: #14100a; border: 1px solid #14100a; }
-  .crew-card-grid > div { background: #ffffff; padding: 16px 8px 12px; text-align: center; }
+  .crew-card-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--archive-cell); border: 1px solid var(--archive-cell); }
+  .crew-card-grid > div { background: var(--zinc-0); padding: 16px 8px 12px; text-align: center; }
   .crew-card-grid strong { display: block; font-size: var(--text-3xl); font-variant-numeric: tabular-nums; }
   .crew-card-grid span { font-size: var(--text-2xs); letter-spacing: .18em; text-transform: uppercase; color: #333; display: block; margin-top: 4px; }
-  .crew-card-lane { font-size: var(--text-2xs); letter-spacing: .3em; text-transform: uppercase; margin: 0 0 8px; border-bottom: 1px solid #14100a; padding-bottom: 4px; }
+  .crew-card-lane { font-size: var(--text-2xs); letter-spacing: .3em; text-transform: uppercase; margin: 0 0 8px; border-bottom: 1px solid var(--archive-cell); padding-bottom: 4px; }
   .crew-card-audit ul { margin: 0; padding-left: 16px; font-size: var(--text-md); line-height: 2.1; }
-  .crew-card-foot { border-top: 1px solid #14100a; padding-top: 12px; font-size: var(--text-sm); line-height: 1.9; }
+  .crew-card-foot { border-top: 1px solid var(--archive-cell); padding-top: 12px; font-size: var(--text-sm); line-height: 1.9; }
   .crew-card-foot code { display: block; font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace; font-size: var(--text-sm); background: #f2efe6; padding: 8px 8px; border: 1px solid #ccc; margin: 8px 0; word-break: break-all; }
   .crew-card-honesty { color: #555; font-style: italic; margin: 0; }
 }

@@ -29,10 +29,10 @@
 .atlas-dot:hover .atlas-dot-halo, .atlas-dot:focus-visible .atlas-dot-halo, .atlas-dot.is-active .atlas-dot-halo { opacity: .35; }
 .atlas-dot.is-active .atlas-dot-core { stroke: #f5f3ff; stroke-width: 2.4; }
 
-.atlas-compass-n { fill: #d4af37; font-size: var(--text-xs); letter-spacing: .08em; }
+.atlas-compass-n { fill: var(--archive-brass); font-size: var(--text-xs); letter-spacing: .08em; }
 .atlas-compass circle, .atlas-compass path { transition: opacity .2s ease; }
 .atlas-engrave { fill: var(--glow-gold); font-size: var(--text-2xs); letter-spacing: .34em; }
-.atlas-scale-num { fill: rgba(212,175,55,.8); font-size: var(--text-2xs); font-family: var(--font-mono); }
+.atlas-scale-num { fill: var(--archive-gold-strong); font-size: var(--text-2xs); font-family: var(--font-mono); }
 .atlas-scale-cap { fill: var(--glow-gold); font-size: var(--text-2xs); letter-spacing: .28em; }
 
 /* side panel */
@@ -58,7 +58,7 @@
 .atlas-expeditions { margin-top: 32px; }
 .atlas-expeditions > h2, .atlas-landmarks > h2 { font-size: var(--text-lg); letter-spacing: -.01em; margin: 0 0 16px; display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
 .atlas-exp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-.atlas-exp-card { display: flex; gap: 16px; align-items: flex-start; padding: 16px 16px 16px; background: linear-gradient(160deg, var(--color-surface) 0%, rgba(255,255,255,.02) 100%); border: 1px solid var(--color-border); border-radius: var(--radius-xl); text-decoration: none; transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease; }
+.atlas-exp-card { display: flex; gap: 16px; align-items: flex-start; padding: 16px 16px 16px; background: linear-gradient(160deg, var(--color-surface) 0%, var(--surface-faint) 100%); border: 1px solid var(--color-border); border-radius: var(--radius-xl); text-decoration: none; transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease; }
 .atlas-exp-card:hover { transform: translateY(-3px); border-color: var(--accent-text); box-shadow: 0 18px 44px -18px var(--shadow-ambient); }
 .atlas-exp-num { font-family: var(--font-mono); font-size: var(--text-2xl); font-weight: 700; color: var(--accent-text); opacity: .95; letter-spacing: .02em; line-height: 1; }
 .atlas-exp-body strong { display: block; color: var(--color-text); font-size: var(--text-lg); letter-spacing: .01em; }
@@ -69,7 +69,7 @@
 .atlas-landmarks { margin-top: 32px; padding: 24px 24px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-xl); }
 .atlas-landmarks-note { font-size: var(--text-xs); font-weight: 400; color: var(--color-text-3); letter-spacing: .05em; }
 .atlas-tile-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
-.atlas-tile { padding: 12px 12px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: rgba(255,255,255,.02); }
+.atlas-tile { padding: 12px 12px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--surface-faint); }
 .atlas-tile-value { font-size: var(--text-lg); font-weight: 700; letter-spacing: -.02em; margin: 0; font-variant-numeric: tabular-nums; }
 .atlas-tile-label { font-size: var(--text-2xs); letter-spacing: .1em; text-transform: uppercase; color: var(--color-text-3); margin: 4px 0 0; }
 .atlas-footnote { margin: 16px 0 0; font-size: var(--text-xs); color: var(--color-text-3); border-top: 1px solid var(--color-border); padding-top: 12px; line-height: 1.8; }

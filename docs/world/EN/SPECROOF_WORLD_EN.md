@@ -5501,3 +5501,45 @@ Night Watch remains **CRACKED** (exhibit #4 · #10 · #11 · #12 · #13 · #15 p
 | auditor / acceptance officer | three green is the truth; fourth staying red is the truth — no greened gloss sold here, tonight |
 
 ---
+
+## Scroll CLII · The red door half-open
+
+> I prized the door for one whole night;
+> what came out is not the answer but the wood grain of the door itself.
+> The exhibits' lamps are still lit; Night Watch is still CRACKED.
+
+### 152.1 Seven stations in one night (standard: pytest re-runs)
+
+| station | theme-blind colours (as pytest printed it) | note |
+|---|---|---|
+| Starting point (HEAD = #1945's last reading) | **1,165** | `test_no_painted_color_bypasses_the_theme_tokens` |
+| First pass — neutral/zinc/canvas swaps | **1,154** | a handful of `var()` swaps |
+| archive-brass named-ramp landed | **950** | 22 tokens `--archive-ink` … `--midnight-lamp`; wrapped in `git stash push` before entry |
+| spaced-rgba refit (`0.16/0.32/0.06/0.08`) | **944** → **898** | two rounds: unspaced forms first, then spaced |
+| steel-blue greys / gold-deep naming | **775** | `--steel-graphite` family, `--archive-steel-faint/mid` |
+| parchment glow ramp naming | **666** | `--parchment-low/mid/hi`, `--sheet-mid`, `--gold-deep/deepest/frost` |
+| steel / gold / rust-wipe (final sweep) | **593** | `--steel-smoke/moonwash/graphite-2`, `--gold-frost-bright`… |
+
+**Machine-counted, nothing inflated:** every number above is the first line of this session's `AssertionError: N colors…` from `pytest …::test_no_painted_color_bypasses_the_theme_tokens -q`.
+
+### 152.2 It nearly capsized twice tonight
+
+**First (in daylight).** `theme/tokens.css` was left with three declaration blocks floating **outside** any `:root { … }`, and the annotation on `@media print` was torn in half (`/* ── Print medium: … consumed ONLY inside / } / @media print and never flip…`); the file physically terminated at `--print-ha`. Build red: `lightningcss minify: Invalid qualified rule` (anchored at line 345 — the same root cause surfaced elsewhere as `Unknown at rule: @keyframes`). The only way back: move the three blocks back inside `:root`, restore the `@media print` annotation wholesale, re-inspect every `styles/*.css` and `tokens.css` with `lightningcss.transform` individually, then re-verify the six-file concatenated bundle. **Through the whole episode UI stayed green (571/571)** — tonight's page of lesson reads: a green UI proves nothing about the CSS; a green pair of passes does.
+
+**Second (the one that hid deepest).** After the repair the build still failed — but now the error drifted to `base.css`'s `@keyframes ui-fade-in`: `Unknown at rule: @keyframes`. Every single-file transform passed; the bundle re-check pinned the blade to the same truncated Print-medium seam in tokens.css. That cut was closed out with `git checkout -- apps/web/src/theme/tokens.css` (whole-file revert to the #1945 trunk), and the two archive blocks were painstakingly re-merged by hand. **Rule of this house: any touch to tokens.css requires both passes (lite + minified) green before it is allowed into the index.**
+
+### 152.3 Why the door is still red
+
+593 colours press into the library/Archive series (`archive.css`, `atlas.css`, `gazette.css`, `dossier.css`, `inkwell.css`…), every one of them a "studio pigment": rusted gold, oxblood copper, antique paper relief, deep steel blue-grey. **One pigment = one semantic token** — and they have not been named, one by one, yet. In other words: this is not a formatting problem, it is a **colour-semantics** problem — and the red door stays lit.
+
+`test_no_painted_color_bypasses_the_theme_tokens` remained untouched tonight: **593** still fail, **on purpose**. D2 stays ⏸ (the owner's PAT, awaited). The 「密码-123」 stays vetoed.
+
+### 152.4 The ledger
+
+UI **571/571** · build ✓ (lite + minified, two passes) · mvn -o **gateway 84/84** + **control-plane 51/51** (re-struck this process) · purity **CLEAR** · Night Watch still **CRACKED** (entries **16** · exhibits #4 / #12 / #13 / #15, none shifted) · court `4117d2b0ca5fb23a` **LOCKED** · chronicle increments with this commit · worldbook **Scroll CLII / 152 scrolls** · corrections **17** · D1 ✅ · D2 ⏸
+
+### 152.5 The dead strokes cleared
+
+**14** unowned (never-`var()`-referenced) tokens were removed tonight (`--parchment-2x`, `--ink-shadow*`, `--surface-soft`, `--iron-ink-faint`, `--archive-glow-faint/soft`, `--archive-dark-canvas/slate`, `--archive-gold-bright-light`, `--archive-steel-midnight-alt`, `--surface-mid-mint`, …); before deletion, two checks were made: the `var(--token)` reference count across `apps/web/src` was **0**, and no test string referenced them either. Pre-existing system tokens (`--blur-lg`, `--fw-400`, `--h-6`, …) were **left alone** — that is not tonight's story.
+
+---

@@ -2,18 +2,18 @@
 :root {
   --sp-7: 28px;
   --accent-100: #e6f4ee; --accent-200: #c6e8d9; --accent-300: #9bd6bb;
-  --accent-400: #66be96; --accent-500: #32976c; --accent-600: #237a56;
+  --accent-400: var(--success-fg); --accent-500: #32976c; --accent-600: var(--success);
   --accent-700: #1b6548; --accent-800: #154f39; --accent-900: #103d2c;
   --accent-text: #87d8b3; --accent-tint: rgba(68, 170, 118, .12); --accent-ring: rgba(64, 157, 111, .25);
   --color-link: #87d8b3; --color-bg: #121714; --color-sidebar: #141b17;
   --color-surface: #19201b; --color-surface-2: #202922; --color-surface-3: #29332c;
   --color-text: #edf2ee; --color-text-2: #b2bdb5; --color-text-3: #909f94;
   --product-banner: #1c2c23; --product-banner-border: #2c4936;
-  --gradient-aurora: linear-gradient(130deg, #237a56, #32976c);
-  --gradient-aurora-soft: linear-gradient(130deg, #237a5620, #32976c08);
+  --gradient-aurora: linear-gradient(130deg, var(--success), #32976c);
+  --gradient-aurora-soft: linear-gradient(130deg, var(--success)20, #32976c08);
   /* On-accent text and the two action-icon pairs (#1612): literals here
      could not follow the theme, so the light theme painted them wrong. */
-  --color-on-accent: #ffffff;
+  --color-on-accent: var(--zinc-0);
   --action-icon-1-bg: #7488d516;
   --action-icon-1-fg: #7d85c5;
   --action-icon-2-bg: #b18b5416;
@@ -289,7 +289,7 @@ table.data td { padding: 12px 16px; font-size: var(--text-xs); }
 @media (max-width: 760px) { .result-metrics, .result-gates { grid-template-columns: 1fr; } .result-overview { padding: 20px; } .result-overview h2 { font-size: var(--text-2xl); } }
 
 .dashboard-census { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; border: 1px dashed var(--success-tint); background: rgba(165, 242, 217, .05); border-radius: var(--radius-sm); padding: 8px 16px; margin: 0 0 16px; font-size: var(--text-sm); color: #8f9f95; }
-.dashboard-census strong { color: #a5f2d9; font-variant-numeric: tabular-nums; font-size: var(--text-lg); }
-.dashboard-census a { color: #a5f2d9; text-decoration: none; border: 1px solid rgba(165, 242, 217, .35); border-radius: var(--radius-2xs); padding: 3px 8px; white-space: nowrap; }
-.dashboard-census a:hover { background: rgba(165, 242, 217, .1); }
+.dashboard-census strong { color: var(--lamp-jade); font-variant-numeric: tabular-nums; font-size: var(--text-lg); }
+.dashboard-census a { color: var(--lamp-jade); text-decoration: none; border: 1px solid rgba(165, 242, 217, .35); border-radius: var(--radius-2xs); padding: 3px 8px; white-space: nowrap; }
+.dashboard-census a:hover { background: var(--metal-muted-light); }
 @media print { .dashboard-census { display: none !important; } }

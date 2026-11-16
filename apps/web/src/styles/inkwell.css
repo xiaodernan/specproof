@@ -4,21 +4,21 @@
 
 .inkwell-page { max-width: 1180px; margin: 0 auto; color: #e9ddc0; }
 
-.inkwell-mast { padding: 24px 24px 20px; border: 1px solid rgba(196, 154, 71, 0.42); border-radius: var(--radius-lg); background: radial-gradient(1100px 300px at 12% -28%, rgba(196, 154, 71, 0.18), transparent 62%), linear-gradient(180deg, #1b1510 0%, #14100a 100%); }
-.inkwell-kicker { font-size: var(--text-xs); letter-spacing: 0.4em; color: rgba(226, 201, 130, 0.85); margin: 0 0 8px; font-weight: 600; }
+.inkwell-mast { padding: 24px 24px 20px; border: 1px solid rgba(196, 154, 71, 0.42); border-radius: var(--radius-lg); background: radial-gradient(1100px 300px at 12% -28%, rgba(196, 154, 71, 0.18), transparent 62%), linear-gradient(180deg, #1b1510 0%, var(--archive-cell) 100%); }
+.inkwell-kicker { font-size: var(--text-xs); letter-spacing: 0.4em; color: var(--archive-glow-bright); margin: 0 0 8px; font-weight: 600; }
 .inkwell-mast h1 { font-family: Georgia, "Noto Serif SC", "Songti SC", serif; font-size: var(--text-4xl); margin: 0; color: #f4ead0; line-height: 1.1; letter-spacing: 0.03em; }
 .inkwell-en { display: block; font-size: var(--text-2xs); letter-spacing: 0.32em; color: rgba(226, 201, 130, 0.78); margin-top: 8px; text-transform: uppercase; }
 .inkwell-lead { color: #b0a37c; line-height: 1.9; margin: 12px 0 0; max-width: 66ch; font-size: var(--text-lg); }
 
 .inkwell-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin-top: 16px; }
-.inkwell-kpi { border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(255, 255, 255, 0.03); border-radius: var(--radius-md); padding: 12px 12px 8px; }
-.inkwell-kpi-v { font-size: var(--text-3xl); font-weight: 700; color: #f3e6b5; font-variant-numeric: tabular-nums; margin: 0; line-height: 1.2; }
-.inkwell-kpi-l { font-size: var(--text-2xs); letter-spacing: 0.08em; text-transform: uppercase; color: #8d8062; margin: 4px 0 0; line-height: 1.55; }
+.inkwell-kpi { border: 1px solid var(--surface); background: var(--surface-faint); border-radius: var(--radius-md); padding: 12px 12px 8px; }
+.inkwell-kpi-v { font-size: var(--text-3xl); font-weight: 700; color: var(--parchment-rust-lit); font-variant-numeric: tabular-nums; margin: 0; line-height: 1.2; }
+.inkwell-kpi-l { font-size: var(--text-2xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--archive-slate-dim); margin: 4px 0 0; line-height: 1.55; }
 @media (max-width: 1120px) { .inkwell-kpis { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 640px) { .inkwell-kpis { grid-template-columns: repeat(2, 1fr); } }
 
 .inkwell-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
-.inkwell-panel { border: 1px solid rgba(255, 255, 255, 0.08); background: #171310; border-radius: var(--radius-md); padding: 16px; min-width: 0; }
+.inkwell-panel { border: 1px solid var(--surface); background: var(--archive-dark-c1); border-radius: var(--radius-md); padding: 16px; min-width: 0; }
 .inkwell-panel h2 { font-size: var(--text-xl); margin: 0 0 12px; color: #ece0b8; border-bottom: 1px solid rgba(226, 201, 130, 0.28); padding-bottom: 8px; letter-spacing: 0.02em; }
 .inkwell-clock-panel { grid-column: span 5; }
 .inkwell-weekday-panel { grid-column: span 7; }
@@ -28,34 +28,34 @@
 
 /* ink clock */
 .inkwell-clock { width: 100%; max-width: 300px; height: auto; display: block; margin: 4px auto; }
-.inkwell-clock-label { fill: #8d8062; font-size: var(--text-2xs); font-family: var(--font-mono); }
-.inkwell-clock-center-v { fill: #f3e6b5; font-size: var(--text-2xl); font-weight: 700; font-variant-numeric: tabular-nums; }
-.inkwell-clock-center-l { fill: #8d8062; font-size: var(--text-2xs); letter-spacing: 0.28em; text-transform: uppercase; }
-.inkwell-footnote { font-size: var(--text-2xs); color: #8d8062; line-height: 1.8; margin: 8px 0 0; }
+.inkwell-clock-label { fill: var(--archive-slate-dim); font-size: var(--text-2xs); font-family: var(--font-mono); }
+.inkwell-clock-center-v { fill: var(--parchment-rust-lit); font-size: var(--text-2xl); font-weight: 700; font-variant-numeric: tabular-nums; }
+.inkwell-clock-center-l { fill: var(--archive-slate-dim); font-size: var(--text-2xs); letter-spacing: 0.28em; text-transform: uppercase; }
+.inkwell-footnote { font-size: var(--text-2xs); color: var(--archive-slate-dim); line-height: 1.8; margin: 8px 0 0; }
 
 /* weekday census */
 .inkwell-weekdays { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .inkwell-weekday-row { display: grid; grid-template-columns: 46px minmax(0, 1fr) 38px; gap: 8px; align-items: center; }
 .inkwell-weekday-name { font-size: var(--text-xs); color: #b0a37c; }
-.inkwell-weekday-track { height: 12px; background: rgba(255, 255, 255, 0.05); border-radius: var(--radius-2xl); overflow: hidden; }
+.inkwell-weekday-track { height: 12px; background: var(--surface-mid); border-radius: var(--radius-2xl); overflow: hidden; }
 .inkwell-weekday-fill { height: 100%; background: linear-gradient(90deg, #6e5530, #d9b862); border-radius: var(--radius-2xl); }
-.inkwell-weekday-n { font-size: var(--text-xs); color: #f0d896; font-variant-numeric: tabular-nums; text-align: right; }
+.inkwell-weekday-n { font-size: var(--text-xs); color: var(--sheet-mid); font-variant-numeric: tabular-nums; text-align: right; }
 
 /* 52-week tide */
 .inkwell-weeks { display: flex; align-items: flex-end; gap: 2px; height: 130px; padding: 0 2px; }
 .inkwell-week { flex: 1 1 0; background: linear-gradient(180deg, #e0bd6e 0%, rgba(224, 189, 110, 0.14) 100%); border-radius: var(--radius-2xs); min-width: 0; }
-.inkwell-swing { font-size: var(--text-2xs); color: #8d8062; margin: 8px 0 0; font-variant-numeric: tabular-nums; }
-.inkwell-swing strong { color: #f0d896; }
+.inkwell-swing { font-size: var(--text-2xs); color: var(--archive-slate-dim); margin: 8px 0 0; font-variant-numeric: tabular-nums; }
+.inkwell-swing strong { color: var(--sheet-mid); }
 
 /* prefix census */
 .inkwell-prefixes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .inkwell-prefix-row { display: grid; grid-template-columns: 84px minmax(0, 1fr) 40px; gap: 8px; align-items: center; }
-.inkwell-prefix-tag { font-family: var(--font-mono); font-size: var(--text-2xs); color: #cfc4a5; text-align: right; }
-.inkwell-prefix-track { height: 10px; background: rgba(255, 255, 255, 0.05); border-radius: var(--radius-2xl); overflow: hidden; }
-.inkwell-prefix-fill { height: 100%; background: linear-gradient(90deg, #4a5d74, #9ecbff); border-radius: var(--radius-2xl); }
-.inkwell-prefix-n { font-size: var(--text-xs); color: #b8c3e0; font-variant-numeric: tabular-nums; text-align: right; }
+.inkwell-prefix-tag { font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--archive-rust-shadow); text-align: right; }
+.inkwell-prefix-track { height: 10px; background: var(--surface-mid); border-radius: var(--radius-2xl); overflow: hidden; }
+.inkwell-prefix-fill { height: 100%; background: linear-gradient(90deg, #4a5d74, var(--lamp-verified)); border-radius: var(--radius-2xl); }
+.inkwell-prefix-n { font-size: var(--text-xs); color: var(--steel-faint-highlight); font-variant-numeric: tabular-nums; text-align: right; }
 
-.inkwell-honesty { display: flex; gap: 8px; align-items: flex-start; border: 1px dashed rgba(155, 172, 220, 0.4); background: rgba(155, 172, 220, 0.06); border-radius: var(--radius-md); padding: 12px 16px; margin-top: 16px; color: #9aa0b4; line-height: 1.9; font-size: var(--text-xs); }
+.inkwell-honesty { display: flex; gap: 8px; align-items: flex-start; border: 1px dashed var(--archive-steel-mid); background: var(--archive-steel-faint); border-radius: var(--radius-md); padding: 12px 16px; margin-top: 16px; color: var(--midnight-lamp); line-height: 1.9; font-size: var(--text-xs); }
 .inkwell-honesty svg { flex: 0 0 auto; margin-top: 2px; }
 
 @media print { .inkwell-page { color: #111; } .inkwell-honesty { border-color: #444; color: #333; } }

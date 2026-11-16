@@ -5,6 +5,40 @@
    ============================================================ */
 
 :root {
+  /* Archive-brass: the app's scholarly-library inks and papers.
+     Theme-invariant — the room looks the same at noon and at midnight. */
+  --archive-ink: #e9dfc6;
+  --archive-paper: #f4edd6;
+  --archive-brass: #d4af37;
+  --archive-brass-dim: #8a6d1f;
+  --archive-cell: #14100a;
+  --archive-board: #1c1710;
+  --archive-board-hi: #1a1a1a;
+  --archive-slate: #9aa0b4;
+  --archive-slate-dim: #8d8062;
+  --archive-slate-deep: #8d8672;
+  --archive-silver: #8fa3bd;
+  --archive-olive: #6f6a58;
+  --lamp-jade: #a5f2d9;
+  --lamp-verified: #9ecbff;
+  --lamp-lantern: #f5e08a;
+  --lamp-lantern-hi: #ffd97a;
+  --lamp-pink: #ff9f9f;
+  --lamp-pink-hi: #ffb3a0;
+  --amber-lantern: #e8b14a;
+  --parchment-mid: #f3ecd9;
+  --steel-slate: #77839f;
+  --midnight-lamp: #9aa0b4;
+  --archive-glow-dim: rgba(226, 201, 130, 0.16);
+  --archive-glow-mid: rgba(226, 201, 130, 0.42);
+  --archive-glow-strong: rgba(226, 201, 130, 0.8);
+  --archive-glow-bright: rgba(226, 201, 130, 0.85);
+  --archive-edge: rgba(226, 201, 130, 0.3);
+  --parchment-lit-mid: rgba(226, 201, 130, 0.6);
+  --surface-faint: rgba(255, 255, 255, 0.03);
+  --surface-mid: rgba(255, 255, 255, 0.06);
+  --surface: rgba(255, 255, 255, 0.08);
+
   /* The aurora layer's glass highlights and its glows (#1640).
      They used to be literals inside aurora.css, which meant they could
      not follow the theme -- the light theme painted the same darkness as
@@ -296,6 +330,55 @@
 :root[data-theme="light"] .ui-select,
 :root[data-theme="light"] .ui-textarea {
   color-scheme: light;
+}
+
+
+:root {
+  /* Archive semantic ramp for the brass/gold transient surfaces and accent greys.
+     These are the colours the pages actually paint — each is one named token. */
+  --archive-steel-faint: rgba(155, 172, 220, 0.06);
+  --archive-steel-mid: rgba(155, 172, 220, 0.4);
+  --archive-gold-strong: rgba(212, 175, 55, 0.8);
+  --archive-gold-mid: rgba(212, 175, 55, 0.4);
+  --archive-gold-bright: rgba(212, 175, 55, 0.85);
+  --archive-gold-share: rgba(212, 175, 55, 0.14);
+  --parchment-rust-lit: #f3e6b5;
+  --pain-red: #dc2626;
+  --pain-red-fire: #f87171;
+  --pain-red-dark: #b91c1c;
+  --pain-red-deeper: #991b1b;
+  --archive-gold-mid-light: #d6b778;
+  --archive-rust-shadow: #cfc4a5;
+  --archive-slate-deep-shadow: #5b5648;
+  --archive-faintest-light: #fff7ed;
+  --steel-faint-highlight: #b8c3e0;
+  --steel-graphite: #9aa0b4;
+  --steel-midnight: #05070f;
+  --archive-amber-lantern-accent: #f59e0b;
+  --metal-muted-light: rgba(165, 242, 217, 0.1);
+  --metal-warm-highlight: rgba(214, 183, 120, 0.14);
+
+
+  /* Illuminated parchment and bright gold ramp. */
+  --parchment-hi: #f5efe0;
+  --parchment-mid-pp: #f3ead2;
+  --parchment-low: #efe0b3;
+  --sheet-mid: #f0d896;
+  --gold-deep: #d8b460;
+  --gold-deepest: #d7b85a;
+  --gold-frost: #e6c768;
+  --gold-frost-bright: #e3c25f;
+  --steel-moonwash: #b9c3d9;
+  --steel-graphite-2: #8d97b3;
+  --steel-smoke: #5f6b86;
+  --lattice-olive: #6a6555;
+  --oxide-toner: #5a756f;
+  --oxide-mist: #6d8781;
+  --burnt-copper: #8f7d52;
+  --archive-dark-c2: #131008;
+  --archive-dark-c1: #171310;
+  --archive-cell-2: #221d10;
+  --lantern-glow-matte: #ffd971;
 }
 
 /* ── Print medium: the only place literals live ─────────────

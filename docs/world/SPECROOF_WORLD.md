@@ -5612,3 +5612,46 @@ Night Watch 依旧 **CRACKED**（"/exhibits" · exhibits #4·#10·#11·#12·#13�
 | 审计 / 验收员 | 「一夜过三道」是事实；「一夜过四」没过——没表演；夜里剩下的坦荡荡红 |
 
 ---
+
+## 卷一百五十二 · 红门半开
+
+> 门我撬了一整夜；
+> 撬出来的不是答案，是门本身的木纹。
+> Exhibit 的灯还亮着；Night Watch 依旧 CRACKED。
+
+### 152.1 一夜七站（口径：pytest 实敲）
+
+| 站 | theme-blind 字色（pytest 实敲数） | 注记 |
+|---|---|---|
+| 起点（HEAD = #1945 收工） | **1,165** | `test_no_painted_color_bypasses_the_theme_tokens` |
+| 第一遍等值替换（锌/中性/深色画布） | **1,154** | 三四个 `var()` 化 |
+| archive-brass 命名落地 | **950** | `--archive-ink` … `--midnight-lamp` 22 枚；`git stash push` 兜底后入盘 |
+| spaced-rgba 换装（`0.16/0.32/0.06/0.08`） | **944** → **898** | 先无空格后含空格，两轮 |
+| steel-blue 灰系 / gold-deep 命名 | **775** | `--steel-graphite` 系、`--archive-steel-faint/mid` |
+| parchment 辉光 ramp 命名 | **666** | `--parchment-low/mid/hi`、`--sheet-mid`、`--gold-deep/deepest/frost` |
+| 钢/金/锈纹清扫（最终一遍） | **593** | `--steel-smoke/moonwash/graphite-2`、`--gold-frost-bright`… |
+
+**机器数出来的，一个数不多报：**这些数字全部来自本会话 `pytest …::test_no_painted_color_bypasses_the_theme_tokens -q` 的实敲 `AssertionError: N colors…` 首行。
+
+### 152.2 这一夜差点翻车两次
+
+**第一次（发生在白天）。** `theme/tokens.css` 三块声明被写成**浮在 `:root { … }` 之外**的游离自定义属性，同一时间 `@media print` 的注释被劈成两半（`/* ── Print medium: … consumed ONLY inside\n}\n\n@media print and never flip…`），文件物理结尾被截在 `--print-ha`。build 红：`lightningcss minify: Invalid qualified rule`（报错锚在 345 行 -- 在别的 pass 上则显示 `Unknown at rule: @keyframes`）。修法只有一条路：三块自定义属性整体并回 `:root`、`@media print` 注释整体复位、逐个 `lightningcss.transform` 体检全部 `styles/*.css` 与 `tokens.css`、再把六个入口 CSS 串成 bundle 复验通过。**期间 UI 测试从头到尾是绿的（571/571）**——本夜留一页教训：
+UI 571/571 证明不了 CSS 没坏；为 CSS 加一个「两个 pass 都绿」的纪律才管用。
+
+**第二次（藏得最深的一次）。** 修复后 build 仍然红，但报错飘到了 `base.css` 的 `@keyframes ui-fade-in` 上——`Unknown at rule: @keyframes`。逐文件 transform 全绿、bundle 复验又把局报在 tokens.css 的 Print medium 截断处——那一刀后来靠 `git checkout -- apps/web/src/theme/tokens.css` 整体回退 HEAD 主干、再手动并回两块 archive 声明，才厘清这刀。**原则：任何 tokens.css 改动必须双 pass（lite + minified）全绿后才许入盘。**
+
+### 152.3 这道门为什么还红
+
+593 条字色的重量集中在书房/档案馆系列（`archive.css`、`atlas.css`、`gazette.css`、`dossier.css`、`inkwell.css`…），每一条都是一枚「书房漆面」：铁锈金、黄褐铜绿、旧纸浮雕、深钢蓝灰。**一枚漆面 = 一个语义 token**，它们还没逐一命名。换句话说：这不是格式问题，是**颜色语义学**问题——红门继续亮。
+
+`test_no_painted_color_bypasses_the_theme_tokens` 今晚没涂一字：**593** 依旧 fail，**就是故意的**。D2 依旧 ⏸（等属主 PAT）。「密码-123」依旧否决。
+
+### 152.4 账房
+
+UI **571/571** · build ✓（lite + minified 双 pass）· mvn -o **gateway 84/84** ＋ **control-plane 51/51**（本进程重敲复核）· purity **CLEAR** · Night Watch 依旧 **CRACKED**（entries **16** · exhibit #4 / #12 / #13 / #15 一件不挪）· court `4117d2b0ca5fb23a` **LOCKED** · chronicle 随本提交增员 · worldbook **卷一百五十二 / 152 卷** · corrections **17** · D1 ✅ · D2 ⏸
+
+### 152.5 清掉的死字
+
+本夜清掉 **14** 枚无人引用的 dead token（`--parchment-2x`、`--ink-shadow*`、`--surface-soft`、`--iron-ink-faint`、`--archive-glow-faint/soft`、`--archive-dark-canvas/slate`、`--archive-gold-bright-light`、`--archive-steel-midnight-alt`、`--surface-mid-mint` 等）；删除前做了双重校验：`var(--token)` 引用计数在 `apps/web/src` 全库为 **0**、且不在任何测试字符串里。既有系统 token（`--blur-lg`、`--fw-400`、`--h-6` 等）**没动**——那不是本夜的故事。
+
+---
