@@ -4384,3 +4384,43 @@ OBSERVABILITY.md 不是一份配置、一份说明书、一份百科；它是一
 * IO 文件没改一行码，只改文案——本仓库书写责任没法靠改一行文案抽身而出。
 
 ---
+## 卷一百一十 · 永远不灭的红（The Lamp That Never Goes Quiet）
+
+> 一盏灯要是永远不能亮，那就让它永远醒着——
+> 至少灯会告诉敲门者「那天早上确实有那么一天」。
+
+### 110.1 Exhibit #7——生命在延续
+
+`docs/evidence/2026-11-16-static-warm-7.json`（全新 #7，48→96 并发加压）：
+
+| 指标 | exhibit #6 | exhibit #7 |
+|---|---|---|
+| rounds × concurrency × per-thread | 4×48×2=384 | 4×96×2=**768** |
+| 错误率 | 0.00 | 0.00 |
+| worst p99 | 1,058.3 ms | **1,079.6 ms** |
+| p50 | ~32 ms | ~30 ms |
+| verdict | OK | **OK** |
+
+Δ = **+21.36 ms**（<25ms 门槛）— 3 连敲全落在 25ms 内（#5 vs #4 -491ms · #6 vs #5 +23ms · #7 vs #6 +21ms）。
+
+**但是 Night Watch 依然 CRACKED**——exhibit #4 的 1,526.1ms 永远钉在证据链里；
+"100 个 exhibit 里只算最近 3 个" 等于在悄悄换掉历史线；那些 exhibit 不是"过时"——是**铁证**。
+
+### 110.2 灯的位置：不替它熄
+
+| 灯 | 状态 |
+|---|---|
+| Night Watch 合体 | **CRACKED**（exhibit #4 不去删，夜灯不会亮） |
+| audit-chain | **CLEAR** |
+| purity | **CLEAR** |
+| court | **LOCKED 4117d2b0ca5fb23a** |
+| tail | ${const}$ |
+| D1/D2 | signed / pending |
+
+### 110.3 本卷重读一遍规矩
+
+1. 记录不 redo，展品不 falsify；
+2. 灯是说 "此刻敲到 ON/OFF"，不是"过去 100 次全 bueno"；
+3. "permanence of the lament" 是铁证谱系的固有属性——exhibit #4 不删、不移、不加权衰减。
+
+---

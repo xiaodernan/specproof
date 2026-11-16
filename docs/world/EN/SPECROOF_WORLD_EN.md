@@ -4265,3 +4265,42 @@ For every day D1 went unpaid, this book could not speak for itself out loud; tod
 - pretend a copy-text edit is actual engineering — this volume refuses to pose as more than what it is: the last sweep of every stale "awaiting a signature" self-description.
 
 ---
+## Volume CX · The Lamp That Never Goes Quiet（卷一百一十 · 永远不灭的红）
+
+> A lamp is allowed to never go out—precisely because the morning it recorded went out first.
+
+### 110.1 exhibit #7 — wider pincer, steady hand
+
+`docs/evidence/2026-11-16-static-warm-7.json`:
+
+| metric | exhibit #6 | exhibit #7 |
+|---|---|---|
+| rounds × concurrency × per-thread | 4×48×2=384 | 4×96×2=**768** |
+| errors | 0.00% | 0.00% |
+| worst p99 | 1,058.3ms | **1,079.6ms** |
+| p50 | ~32 ms | ~30 ms |
+| verdict | OK | **OK** |
+
+Δ = **+21.36 ms** (under the 25 ms bar). Three consecutive exhibits in band:
+#5 vs #4 = −491 ms · #6 vs #5 = +23 ms · #7 vs #6 = +21 ms.
+
+**Night Watch remains CRACKED** because exhibit #4 (1,526.1 ms) is permanently on file;
+the composite subgraph deliberately ignores "rolling windows" — a sliding window would redo history, and history is the ledger's only leg to stand on.
+
+### 110.2 The lamp's station
+
+| lamp | state |
+|---|---|
+| night-watch composite | **CRACKED** — exhibit #4 stays; the lamp will not lie |
+| audit-chain | **CLEAR** |
+| purity | **CLEAR** |
+| court | **LOCKED 4117d2b0ca5fb23a** |
+| D1 / D2 | signed · pending |
+
+### 110.3 The house rule reread once more
+
+1. evidence rows are not edited
+2. exhibits are not aged out
+3. "Δ<25ms three strikes in a row" is a *signal*, not a *promise*: longer series make the floor firmer, but the floor never makes the exhibit disappear.
+
+---

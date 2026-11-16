@@ -39833,3 +39833,36 @@ Volume CIX《A Signature Is Not Every Light（卷一百零九 · 签了字，不
 - D1 是签落——**不构成 fleet 遥测上架**：Port 8000 是 career-os-ai 在应答；
 - D2 仍悬：**PORTFOLIO_TOKEN** 为 owner 亲配；本仓库不做 PAT 的铸造与推送；
 - Court Lock LOCKED；「密码-123」永远不出现；purity CLEAR；正确性永远 stream=True+include_usage。
+
+## #1900 《永远不灭的红》：stress exhibit #7（96×4×2 · 768 req · 100% OK · p99 1,079.6ms · Δ+21.36ms · 第三连敲守在 25ms 内）· Night Watch 仍 CRACKED（exhibit #4 不涂）· Volume CX
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1899。
+
+### 一、Exhibit #7 入库（比上一件加一个维度）
+
+* `docs/evidence/2026-11-16-static-warm-7.json`—— 96 并发 × 2 per-thread × 4 rounds + warmup ×2 ≈ **768 请求·0 失败·最坏 p99 1,079.6ms**
+* `scripts/build_evidence.py` 最新: latest=warm-7 · Δ=+21.36ms（#6=1,058.3→#7=1,079.6）
+* 直连 knock 给证据链再次注血——endpoints 处于较冷的 idle
+
+### 二、不会更快的灯
+
+Night Watch 合体判定依旧是 **CRACKED**——`worst_drift` 仍是 exhibit #4 对比 #3 的 +495.99 ms。
+Delta 小于 25 ms 连续三件了（#5-#4=−491 · #6-#5=+23.28 · #7-#6=+21.36）——证据收敛，灯不涂。
+
+| lamp | struck |
+|---|---|
+| audit-chain | **CLEAR** |
+| purity | **CLEAR · 2,821 · 0 hits** |
+| evidence composite | **REGRESSION**（by rule with no delete-able exhibit） |
+| court | `4117d2b0ca5fb23a` **LOCKED** |
+| D1 | ✅ 签（identity 未 crypto 实证） |
+| D2 | pending · 等你的 PAT |
+
+### 三、诚实边界（additions to the ledger, not rewriting）
+
+1. Δ<25ms 三连敲 **不能前奏夜灯翻玉色**；
+2. exhibit #4 永远钉住；
+3. 「夜灯不亮」不是删 exhibit 的理由——它只是灯还没判定；
+4. court 永远 stream+include_usage；「密码-123」永远否决；有 live prod 不是事实；
+
+Volume CX《永远不灭的红 · The Lamp That Never Goes Quiet》入册 → worldbook **117 卷** · chronicle **1,701 节**。

@@ -1,22 +1,22 @@
 {
  "version": 1,
- "generated_utc": "2026-11-16T09:27:37+00:00",
+ "generated_utc": "2026-11-16T09:36:13+00:00",
  "verdict": "CONSISTENT",
  "checks": [
   {
    "id": "chronicle_vs_repoStats",
    "ok": true,
-   "detail": "chronicle entries=1698 repoStats ledger_sections=1698"
+   "detail": "chronicle entries=1700 repoStats ledger_sections=1700"
   },
   {
    "id": "worldbook_zh_en_symmetric",
    "ok": true,
-   "detail": "zh=114 en=114"
+   "detail": "zh=116 en=116"
   },
   {
    "id": "evidence_verdict_present",
    "ok": true,
-   "detail": "latest=2026-11-16-static-warm-6.json verdict=OK"
+   "detail": "latest=2026-11-16-static-warm-7.json verdict=OK"
   },
   {
    "id": "unsigned_four_unique_lamps",
