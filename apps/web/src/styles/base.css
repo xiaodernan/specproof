@@ -1666,3 +1666,30 @@ pre.json {
   font-size: var(--text-md);
 }
 
+
+/* ── Systematic overflow guards (#1911) ───────────────────────────────────
+   Long Chinese headings, mono file paths, and pasted tokens must never
+   push the layout wider than the viewport. These guards are global and
+   low-specificity: they add safety margins, not style. */
+.page-head h1,
+.page-head .page-sub,
+.product-page-heading h1,
+.chronicles-scroll h2,
+.museum-title,
+.sg-graph-file code { overflow-wrap: anywhere; word-break: break-word; }
+
+.page-head .page-sub { max-width: 110ch; }
+
+h1, h2, h3, h4 { overflow-wrap: break-word; }
+p { overflow-wrap: break-word; }
+
+img, svg, video, canvas, iframe { max-width: 100%; }
+
+pre, .pre { overflow-x: auto; }
+
+code, kbd { overflow-wrap: break-word; }
+
+@media (max-width: 760px) {
+  .page-head h1 { font-size: var(--text-2xl); }
+  .page-head .page-sub { max-width: none; font-size: 11px; }
+}

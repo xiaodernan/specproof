@@ -4757,3 +4757,29 @@ Owner 的原话要求里，有一句「最好别忘了给项目加入 stategraph
 * Night Watch 依然 **CRACKED**（exhibit #4 永在册）——这个页面如实地让它红在每一眼面前。
 
 ---
+## 卷一百二十八 · 不让字撑坏屏幕（The Overflow Guard）
+
+> 一个词太长不是你的错——
+> 让它挤垮整行版面，才是。
+
+### 128.1 这一卷补的补丁
+
+按 owner 的原话——「修复前端的不合理之处：字体变形、歪曲、重叠、扭曲，实体块互相重叠、挤压、遮盖——现在看着很不整洁、不美观，需要系统性修复」——本卷做了一次系统性溢出体检并上药：
+
+* `base.css` 追加低特异性「溢出保护层」：
+  * `.page-head h1 / .page-sub / h1–h4 / p` → `overflow-wrap: anywhere/break-word`；
+  * `img/svg/video/canvas/iframe` → `max-width: 100%`；
+  * `pre` → `overflow-x: auto`；`code/kbd` → `overflow-wrap: break-word`；
+  * `.page-head .page-sub` 限制 110ch；小屏（≤760px）h1 收到 `var(--text-2xl)`；
+* `.product-page-heading h1` 在 ≤1000px 本就到 `var(--text-2xl)` —— 本卷把一切标题统一到同一条纪律；
+* 审计结论：`.workspace-main { min-width: 0 }` · `.ui-table-wrap { overflow-x: auto }` · `.chronicle-body { min-width: 0 }` 等经济地界线原本就在；本卷不重写它们，只把"h1/长中文词排不开"的那一类补齐。
+
+### 128.2 这卷没做什么
+
+* 没有动任何颜色/阴影/布局——纯「防止内容把容器撑坏」；
+* 没有隐藏 `overflow-x`（宁可多一次滚动，不可隐没一个组件）；
+* 不重刷任何既有页面的内容。
+
+UI **556/556** · npm run build ✓ · court = `4117d2b0ca5fb23a` LOCKED · D1 ✅ · D2 ⏸。
+
+---

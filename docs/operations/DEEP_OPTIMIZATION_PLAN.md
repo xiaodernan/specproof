@@ -40136,3 +40136,25 @@ State · Node · Edge · Conditional edge（`_abort_on_preflight` / `_abort_on_e
 UI **556/556**（+3）· vitest ✓ · npm run build ✓ · guide 6/6 · purity CLEAR · court = `4117d2b0ca5fb23a` LOCKED · D1 ✅ · D2 ⏸ · 「密码-123」永久否决 · Night Watch 仍 CRACKED。
 
 Volume CXXVII《状态图谱 · The StateGraph Volume》入册 → worldbook **127 卷** · chronicle **1,711 节**。
+
+## #1911 《不让字撑坏屏幕》：全局溢出保护层入 `base.css`（h1–h4/p anywhere-wrap · media max-width · pre overflow-x · ≤760px 标题降级 · page-sub 110ch）· Volume CXXVIII《The Overflow Guard》
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1910。
+
+### 一、起因
+
+Owner 原话：「修复前端的不合理之处：字体变形、歪曲、重叠、扭曲，实体块互相重叠、挤压、遮盖——现在看着很不整洁、不美观，需要系统性修复。」
+
+本轮做的是「系统性溢出体检 + 保护层」：确认 `.workspace-main { min-width: 0 }` · `.ui-table-wrap { overflow-x: auto }` · `.chronicle-body { min-width: 0 }` 等经济地界线已在册，然后在 `base.css` 追加一层**低特异性、只加安全边际不改风格**的全局保护：
+
+* `.page-head h1 / .page-sub / h1, h2, h3, h4 / p` → `overflow-wrap`；
+* `img / svg / video / canvas / iframe` → `max-width: 100%`；
+* `pre` → `overflow-x: auto`；`code, kbd` → `overflow-wrap: break-word`；
+* `.page-head .page-sub` 110ch；≤760px h1 → `var(--text-2xl)`；
+* 未设任何 `overflow-x: hidden`（不藏组件、只加滚动/换行）。
+
+### 二、数字与裁判
+
+UI **556/556** · build ✓ · court = `4117d2b0ca5fb23a` LOCKED · purity CLEAR · D1 ✅ 签落 · D2 ⏸。
+
+Volume CXXVIII《不让字撑坏屏幕 · The Overflow Guard》入册 → worldbook **128 卷** · chronicle **1,712 节**。

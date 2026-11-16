@@ -1,20 +1,20 @@
 # SpecProof · FIELD CARD
 
-> xiaodernan/specproof · generated at 2026-11-16 12:02 UTC
+> xiaodernan/specproof · generated at 2026-11-16 12:08 UTC
 > This card prints only git-tracked facts. It is not a signature, not a seal, not a promise.
 
 ## The wall
 
 | | |
 |---|---|
-| commits | 2,571 |
-| ledger sections | 1,711 |
-| volumes (zh/en) | 127 / 127 |
-| source lines | 510,134 |
+| commits | 2,572 |
+| ledger sections | 1,712 |
+| volumes (zh/en) | 128 / 128 |
+| source lines | 510,579 |
 | Python test files | 618 |
 | web test files | 76 |
-| ledger bytes (KB) | 3874.1 |
-| latest chronicle | #1910 |
+| ledger bytes (KB) | 3875.6 |
+| latest chronicle | #1911 |
 
 ## Stress evidence
 

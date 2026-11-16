@@ -4632,3 +4632,29 @@ The owner's standing orders include one line in particular: "do not forget to gi
 * Night Watch remains **CRACKED** (exhibit #4 permanently on file) — this page lets it stay red in front of every eye.
 
 ---
+## Volume CXXVIII · The Overflow Guard（卷一百二十八 · 不让字撑坏屏幕）
+
+> A long word is not your fault —
+> the line layout breaking because of it is.
+
+### 128.1 What this volume patched
+
+Acting on the owner's standing order — "fix the unreasonable parts of the front end: distorted type, overlapping blocks, squeezed or occluded elements — make it tidy and beautiful" — this volume is a systematic overflow sweep and the guards it ships:
+
+* `base.css` gains a low-specificity guard layer:
+  * `.page-head h1 / .page-sub / h1–h4 / p` → `overflow-wrap: anywhere/break-word`;
+  * `img/svg/video/canvas/iframe` → `max-width: 100%`;
+  * `pre` → `overflow-x: auto`; `code/kbd` → `overflow-wrap: break-word`;
+  * `.page-head .page-sub` is capped at 110ch; below ≤760px the h1 steps down to `var(--text-2xl)`;
+* `.product-page-heading h1` already stepped down at ≤1000px — now all headings obey the same discipline;
+* audit result: the economic frontiers — `.workspace-main { min-width: 0 }`, `.ui-table-wrap { overflow-x: auto }`, `.chronicle-body { min-width: 0 }` — were already on site; this volume keeps them and closes the "long heading blows the layout" gap instead of rewriting what already works.
+
+### 128.2 What this volume refuses to do
+
+* No color, shadow or layout was touched — pure "stop content from breaking the shell";
+* no `overflow-x: hidden` anywhere — a scrolled page beats a clipped component;
+* no page content was rewritten.
+
+UI **556/556** · npm run build ✓ · court `4117d2b0ca5fb23a` LOCKED · D1 ✅ · D2 pending your PAT.
+
+---
