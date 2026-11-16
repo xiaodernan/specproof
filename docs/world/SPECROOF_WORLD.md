@@ -3501,3 +3501,41 @@ unsigned → court_lock → evidence → scratch_residue → portfolio → verdi
 ```
 
 ---
+## 卷八十八 · 灯下的一页白（One Page Under the Lamp）
+
+> 灯下的白纸不是空——是还没敲过。
+> 今晚就要敲下去，一张白纸才能成为铁证。
+
+### 88.1 灯下一页：Cronicle 入口现在带着灯
+
+`#/chainBanner` → 顶着编年史的第一行横幅：
+
+> **审计链 · CLEAR · 5 盏灯（敲一次只数一遍；不造势，不瞒）**
+>
+> 右侧：「→ 铁证」链接 `#/archive`
+
+不是装饰——真敲进 `audit_chain.json`，构建期现敲；CLEAR 与 CRACKED 两种颜色，翻红翻绿全看漏写：
+`.chain-banner--${ok ? 'ok' : 'bad'}` 只由 `verdict === 'CLEAR'` 推动。
+
+### 88.2 灯下另一页：全仓库不含漏的字节
+
+`agent/graphs/purity_graph.py`（新·#1878）intake → scan → crosscheck → verdict → report：
+
+| 灯 | 值 |
+|---|---|
+| 扫描的 tracked 文件 | **2,816** |
+| PEM/secret-shaped bytes 突发命中 | **0**（一次都没） |
+| 4 条 fixture allowlist | tests/contract/test_event_envelope.py · test_craft_tools.py · test_redaction.py · test_repo_safety.py |
+| 判词 | **CLEAR** |
+
+### 88.3 家规补充
+
+1. **这页纸是盲记下来的结果**——不知道、不装懂；
+2. **签了就是签了**——没有要补的闭环；
+3. **裁判判词就是判词**——下一笔，它自己能看得见准不准。
+
+### 88.4 本卷警钟
+
+密码学的铅字不会自己生——铁证只认敲过的数字和被敲的次数。
+
+---

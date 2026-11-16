@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useI18n } from "../i18n";
 import entries from "./chronicle.json";
+import ChainBanner from "./ChainBanner";
 import "../styles/chronicle.css";
 
 /**
@@ -43,6 +44,7 @@ export default function Chronicle() {
         </div>
       </div>
 
+      <ChainBanner />
       <label className="chronicle-search" htmlFor="chronicle-filter">
         <span className="visually-hidden">{t("chronicle.searchLabel")}</span>
         <input

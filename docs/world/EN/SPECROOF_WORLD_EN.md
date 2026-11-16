@@ -3374,3 +3374,41 @@ it says CLEAR or CRACKED — either belongs in the paper
 ```
 
 ---
+## Volume LXXXVIII · One Page Under the Lamp（卷八十八 · 灯下的一页白）
+
+> A blank page under the lamp is not empty — it has not been struck yet.
+> Tonight it struck; now it is iron, not blank.
+
+### 88.1 The one page: Chronicle opens with the chain's lamp
+
+`#/chainBanner` — one strip of ink at the top of the chronicle:
+
+> **audit chain · CLEAR · 5 lamps (struck and counted once — never decorated, never doctored)**
+>
+> Right: "Cross the iron →" → `#/archive`
+
+Not decoration — reads `audit_chain.json`, struck at build time;
+CLEAR → jade, CRACKED → red — one boolean drives the fill.
+
+### 88.2 The other page: not one byte leaks anywhere tracked
+
+`agent/graphs/purity_graph.py` (new · #1878): intake → scan → crosscheck → verdict → report:
+
+| Lamp | Struck |
+|---|---|
+| tracked files scanned | **2,816** |
+| PEM / secret-shaped byte hits | **0** |
+| 4 fixture-allowlist entries | test_event_envelope.py · test_craft_tools.py · test_redaction.py · test_repo_safety.py (redactor fixtures) |
+| verdict | **CLEAR** |
+
+### 88.3 House-rule addendum
+
+1. **this page is the result, not the ceremony** — no show tick, no fake exhibit;
+2. **signed is signed** — no post-hoc closure to fetch;
+3. **the ruling IS the ruling** — next knock, the same page still answers.
+
+### 88.4 The one bell struck in this volume
+
+These are not decorations. Every lamp in this repo, one day at a time, keeps asking the same question.
+
+---

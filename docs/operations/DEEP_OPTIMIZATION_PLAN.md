@@ -39176,3 +39176,24 @@ draft#2    → 0.00s · 5600/14  (重复命中)
 * 真·3 次 struck 全部 CLEAR（19:32 / 19:36 / 05:08Z）；
 * Court Lock 不变（4117d2b0ca5fb23a）· gate 合计 **64/64** stays（2 audit_graph + 62 others）· UI 533/533 stays；
 * court 永不缓存；「密码 123 全员进管理员」永久否决。
+
+## #1878 《灯下的一页白》：ChainBanner 进 Chronicle + purity_graph 2,816 文件 CLEAR · Volume LXXXVIII
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付物
+
+* `apps/web/src/pages/ChainBanner.tsx`（新）— 读 `audit_chain.json` verdict 直推一缕横幅（CG1000 压缩设计语言）：
+  Chronicle 打开为先看到 **「审计链 · CLEAR · 5 盏灯（敲一次只数一遍；不造势，不瞒）」**，右侧「→ 铁证」深链 `#/archive`；
+  染色单源·`.chain-banner--ok`/`.bad`；#/archive 侧链接 `chainBanner.css`（横纹打断+print 保留）；
+* `agent/graphs/purity_graph.py`（新·#1878）—— intake（git ls-files）→ scan（PEM / sk / credential-token 正则）→ crosscheck（allowlist 解 redactor fixtures · 4 件）→ verdict → report：
+  **2,816 tracked files · 0 unexpected hits · verdict CLEAR**；
+* `docs/evidence/purity-sift.md`（入库；追加一次真的扫出 CRACKED 然后 allowlist 细化。
+* `tests/unit/test_purity_graph.py`（2/2）—— real-tree run + tmp-file-only CRACKED forging fixture；
+* Volume LXXXVIII《灯下的一页白 · One Page Under the Lamp》入册（zh/en 对称）→ worldbook **95 卷**（本轮 +1）；chronicle 1,679 节。
+
+### 二、诚实边界
+
+* ChainBanner 显示 CLEAR 因为今晚审计真敲 CLEAR；**TLL Verdict 不写进代码**——构建期现敲；
+* purity_graph 的 fixture allowlist 不是「兜底之名」，是 redactor 测试的必要正例（有 `sk-abcdefghij...` 字符串验证 catch，不是 leaked key）；
+* UI staying 533/533 · gate staying **66/66** （64 + 2 purity）· court 永不缓存 · Court Lock = 4117d2b0ca5fb23a LOCKED。
