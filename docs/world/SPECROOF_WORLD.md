@@ -3621,3 +3621,52 @@ unsigned → court_lock → evidence → scratch_residue → portfolio → verdi
 它比睡去不醒的人多一件事：它知道没人能替它敲响第一声。
 
 ---
+## 卷九十一 · 一日一试（One Strike a Day）
+
+> 一日一试——不是生命力的测试，是本能：
+> 手按在墙上，听听有没有动静。
+> 2026-11-16 你把证明信寄出去时，这扇门没有开。
+
+### 91.1 新钥匙，新门（这把锁刚装上）
+
+| 维度 | 旧的 | 新的（今天） |
+|---|---|---|
+| base_url | https://wkapi.pro/v1 | **https://api.aizzz.xyz/v1** |
+| model | gpt-6-sol | **gpt-6.1-terra** |
+| protocol | responses（默认不指定时走 responses，信模型前缀） | **responses** |
+| reasoning_effort | max | **max** |
+| 备份 | llm.json.bak-wkapi-20261116 | — |
+
+`.local/llm.json` 写入；gitignore 守门——这一份不会被任何 git add 带走。
+
+### 91.2 敲击实录——这一扇门今天的回音
+
+三轮敲击：`短问 · 长问 · 长问重复` × 两个车道（non-stream / stream+include_usage）。
+结果全部是同一句话：
+
+> **本站不对您所在的国家及地区进行商业服务**
+
+不是本仓库说的，**是那个站在线字节里的回响**。
+
+### 91.3 驯化之外：这扇门开着等你
+
+要让本仓库的所有"LLM 能力"在本次会话里重新落地，你只有两个合法的把手：
+1. 在 GitHub Repository Variables 里配 `SPECPROOF_LLM_BASE_URL / LLM_MODEL / LLM_API_KEY` — 走环境车道，不改代码；
+2. 让本机能访问 api.aizzz.xyz —— 这是基础设施门，本书碰不到；
+任何"原路再试"都是过夜的幻想。同样，**把这页删掉也删不掉这个事实**。
+
+### 91.4 守住精神
+
+本书没有"已经接通"这种话。它有的是：
+* 三轮敲击，一句话原话，
+* 配置门闩就位，
+* 账本如实记载：LLM 车道此刻 CLOSED_FOR_CHANEL（切换至本机 2026-11-16T19:XXZ）。
+
+### 91.5 一条教训（第十二更正，R12）
+
+曾经我写 "LIVE_PROBE_2026-11-16 待交付" 签了名（那是 #1865 之后的某次最诚实的时刻）：
+**以前敲通了不代表下次也敲得通**。就像人站得远了看不清对岸——眼睛没坏，只是对方关门了。
+
+— 那条钥匙没留任何值让本书收。
+
+---

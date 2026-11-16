@@ -3491,3 +3491,50 @@ The sleeper knows it is asleep —
 that is exactly one thing the one who never wakes does not know.
 
 ---
+## Volume XCI · One Strike a Day（卷九十一 · 一日一试）
+
+> One strike a day — not a fitness drill, just a functional reflex:
+> push the hand against the wall and listen for a response.
+> On 2026-11-16 the proof was mailed; this door did not open.
+
+### 91.1 New key, new door (just hung)
+
+| Field | Before | Now |
+|---|---|---|
+| base_url | https://wkapi.pro/v1 | **https://api.aizzz.xyz/v1** |
+| model | gpt-6-sol | **gpt-6.1-terra** |
+| protocol | responses | **responses** |
+| reasoning_effort | max | **max** |
+| backup | llm.json.bak-wkapi-20261116 | — |
+
+`.local/llm.json` updated. .gitignore bars it from ever crossing.
+
+### 91.2 Three strikes — the wall speaks
+
+All six probes (short/long/long-repeat × non-stream / stream+include_usage) answered with one byte-story:
+
+> **本站不对您所在的国家及地区进行商业服务**
+
+("This site does not offer commercial services in your country or region.")
+This is not the repo talking. This is what the server said, in Chinese, to the network that asked.
+
+### 91.3 Two lawful handles to bring the LLMs back
+
+1. set `SPECPROOF_LLM_BASE_URL / SPECPROOF_LLM_MODEL / SPECPROOF_LLM_API_KEY` as repo environment variables — no code change involved;
+2. make this host reach api.aizzz.xyz — an infra-level switch this book cannot pull.
+Anything labelled "works on retry" is a passing hope, not engineering.
+
+### 91.4 Held steadily
+
+No page in this book gets to claim "it works now". What it carries is:
+* three strikes with the station's own words verbatim,
+* protocol door already hung,
+* ledger note verbatim: LLM lane closed for this channel as of 2026-11-16T19:XXZ.
+
+### 91.5 The lesson (Correction R12)
+
+Carry-over from one day's green does NOT make tomorrow's. The eye sees nothing wrong — the other side closed its half.
+
+— The key was never kept in this book, and never would be.
+
+---

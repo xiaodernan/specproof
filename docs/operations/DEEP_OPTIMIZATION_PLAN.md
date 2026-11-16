@@ -39249,3 +39249,35 @@ draft#2    → 0.00s · 5600/14  (重复命中)
 * 欠债仍欠——D1（OBSERVABILITY 签字）、D2（PORTFOLIO_TOKEN）、W1-W4（密码-123/court缓存/假绿/演示冒生产）全部在册；
 * purity 再敲一遍也会是 CLEAR——`git ls-files` 就是 tracked files 这个真值；
 * court 永不缓存（4117d2b0ca5fb23a 第八次 LOCKED）；「密码 123 全员进管理员」永久否决；联网搜索仍 402。
+
+## #1881 《一日一试》：新扉页 key（wkapi→aizzz.xyz/gpt-6.1-terra/max/responses）· 三敲全红 · 通明：LLM 车道此刻闭关 · Volume XCI
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、用户切换 key 的实测（this turn）
+
+* `.local/llm.json` 重写为：`base_url=https://api.aizzz.xyz/v1 | model=gpt-6.1-terra | protocol=responses | reasoning_effort=max`
+* `.local/llm.json.bak-wkapi-20261116` 留底；`.gitignore` 从头护送 `.local` 全部；
+* `scripts/llm_cache_probe.py` 现场敲（短/长/重复 × 两个车道）：**6 次全回 "本站不对您所在的国家及地区进行商业服务"**（原文照录）；
+* direct curl（`POST /v1/chat/completions`）同样回答同一句；
+* 代码迁移不需要动——`providers/config.load_model_config()` 直读 `.local/llm.json` · `normalize_base_url` 接管 path → /v1 归一。
+
+### 二、本机检出状态
+
+| 项 | 事实 |
+|---|---|
+| 新 provider 可路由 | ❌（2 种车道 6 路皆同一回报） |
+| 旧 provider（wkapi.pro / gpt-6-sol） | ✅ 工作过（#1821 #1845） |
+| LLM 全车道当前 | **CLOSED FOR THIS CHANNEL**（以本机 2026-11-16T19:XXZ 为准） |
+| 恢复办法 | 在仓库 Settings → Secrets → `SPECPROOF_LLM_BASE_URL / SPECPROOF_LLM_MODEL / SPECPROOF_LLM_API_KEY`（环境车道）· 或本机能出网 |
+
+### 三、诚实边界
+
+* **不重写成功 = 以为成功——验证接进来了**（llm_cache_probe 完毕：`short non-stream FAILED` 起头）；
+* Volume XCI《一日一试 · One Strike a Day》入册（zh/en 对称）→ worldbook **98 卷**（本轮 +1）；chronicle 1,682 节；
+* court 永不缓存 · Court Lock 4117d2b0ca5fb23a LOCKED · 「密码 123 全员进管理员」永久否决 · 联网搜索仍 402。
+
+### 四、更正 R12
+
+* 卷八十七（敲门的人）的 `CLEAR` 是当时这台机器这台车道的真实敲击记录 — 如实登记，非"一切如旧"；
+* 敲门的人不以为"上一 swich 有响声" → 项目未被任何响声潮流捆绑——今天带你看它在静的一息。
