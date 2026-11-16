@@ -1,60 +1,104 @@
 {
  "version": 1,
  "source": "docs/evidence/*.json (stress_smoke.py --json-report output; this host)",
- "files_count": 22,
- "exhibits_count": 14,
+ "files_count": 26,
+ "exhibits_count": 15,
  "latest": {
-  "file": "2026-11-16-static-warm-13.json",
+  "file": "2026-11-16-static-warm-14.json",
   "readable": true,
-  "started_utc": "2026-11-16T15:28:32.312427+00:00",
+  "started_utc": "2026-11-16T17:48:21.575794+00:00",
   "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
-  "concurrency": 192,
+  "concurrency": 48,
   "warmup_rounds": 3,
   "rounds": [
    {
-    "total": 384,
-    "ok": 134,
-    "p50_ms": 2025.513300000057,
-    "p95_ms": 2289.9245149997546,
-    "p99_ms": 2694.7106459997685
+    "total": 96,
+    "ok": 96,
+    "p50_ms": 35.14580000137357,
+    "p95_ms": 1016.4944499997546,
+    "p99_ms": 1022.5574500008406
    },
    {
-    "total": 384,
-    "ok": 130,
-    "p50_ms": 2027.0543500000713,
-    "p95_ms": 2134.5562350001246,
-    "p99_ms": 2626.6488050001144
+    "total": 96,
+    "ok": 96,
+    "p50_ms": 42.03019999931712,
+    "p95_ms": 654.4449750008425,
+    "p99_ms": 1034.865004999392
    },
    {
-    "total": 384,
-    "ok": 114,
-    "p50_ms": 2033.6200500000814,
-    "p95_ms": 2068.9217299996926,
-    "p99_ms": 2971.5255039997196
+    "total": 96,
+    "ok": 96,
+    "p50_ms": 35.83435000018653,
+    "p95_ms": 1044.7144750000916,
+    "p99_ms": 1074.42050000045
    },
    {
-    "total": 384,
-    "ok": 136,
-    "p50_ms": 2026.9161500000337,
-    "p95_ms": 2149.1268250002577,
-    "p99_ms": 2677.050723000779
+    "total": 96,
+    "ok": 96,
+    "p50_ms": 60.057699998651515,
+    "p95_ms": 537.395099999685,
+    "p99_ms": 1008.8625449991013
    }
   ],
-  "worst_p99_ms": 2971.5255039997196,
-  "avg_p95_ms": 2160.6323262499573,
-  "total": 1536,
-  "total_ok": 514,
-  "bytes_read": 168084558,
-  "verdict": "BUDGET-BLOWN"
+  "worst_p99_ms": 1074.42050000045,
+  "avg_p95_ms": 813.2622500000934,
+  "total": 384,
+  "total_ok": 384,
+  "bytes_read": 126820352,
+  "verdict": "OK"
  },
  "delta_vs_previous": {
-  "vs_file": "2026-11-16-static-warm-12.json",
-  "worst_p99_delta_ms": -7077.68234200026,
-  "avg_p95_delta_ms": -4084.3402875000647,
-  "bytes_delta": 83215673,
-  "total_delta": -2560
+  "vs_file": "2026-11-16-static-warm-13.json",
+  "worst_p99_delta_ms": -1897.1050039992697,
+  "avg_p95_delta_ms": -1347.3700762498638,
+  "bytes_delta": -41264206,
+  "total_delta": -1152
  },
  "all": [
+  {
+   "file": "2026-11-16-static-warm-14.json",
+   "readable": true,
+   "started_utc": "2026-11-16T17:48:21.575794+00:00",
+   "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
+   "concurrency": 48,
+   "warmup_rounds": 3,
+   "rounds": [
+    {
+     "total": 96,
+     "ok": 96,
+     "p50_ms": 35.14580000137357,
+     "p95_ms": 1016.4944499997546,
+     "p99_ms": 1022.5574500008406
+    },
+    {
+     "total": 96,
+     "ok": 96,
+     "p50_ms": 42.03019999931712,
+     "p95_ms": 654.4449750008425,
+     "p99_ms": 1034.865004999392
+    },
+    {
+     "total": 96,
+     "ok": 96,
+     "p50_ms": 35.83435000018653,
+     "p95_ms": 1044.7144750000916,
+     "p99_ms": 1074.42050000045
+    },
+    {
+     "total": 96,
+     "ok": 96,
+     "p50_ms": 60.057699998651515,
+     "p95_ms": 537.395099999685,
+     "p99_ms": 1008.8625449991013
+    }
+   ],
+   "worst_p99_ms": 1074.42050000045,
+   "avg_p95_ms": 813.2622500000934,
+   "total": 384,
+   "total_ok": 384,
+   "bytes_read": 126820352,
+   "verdict": "OK"
+  },
   {
    "file": "2026-11-16-static-warm-13.json",
    "readable": true,
@@ -643,6 +687,51 @@
    "total_ok": 192,
    "bytes_read": 38789568,
    "verdict": "OK"
+  },
+  {
+   "file": "2026-11-16-llm-craft-strike-accept-2.json",
+   "readable": true,
+   "started_utc": "",
+   "note": "",
+   "concurrency": null,
+   "warmup_rounds": 0,
+   "rounds": [],
+   "worst_p99_ms": 0.0,
+   "avg_p95_ms": 0.0,
+   "total": 0,
+   "total_ok": 0,
+   "bytes_read": 0,
+   "verdict": "BLOCKED"
+  },
+  {
+   "file": "2026-11-16-llm-craft-strike-accept.json",
+   "readable": true,
+   "started_utc": "",
+   "note": "",
+   "concurrency": null,
+   "warmup_rounds": 0,
+   "rounds": [],
+   "worst_p99_ms": 0.0,
+   "avg_p95_ms": 0.0,
+   "total": 0,
+   "total_ok": 0,
+   "bytes_read": 0,
+   "verdict": "BLOCKED"
+  },
+  {
+   "file": "2026-11-16-llm-craft-strike-rejection-2.json",
+   "readable": true,
+   "started_utc": "",
+   "note": "",
+   "concurrency": null,
+   "warmup_rounds": 0,
+   "rounds": [],
+   "worst_p99_ms": 0.0,
+   "avg_p95_ms": 0.0,
+   "total": 0,
+   "total_ok": 0,
+   "bytes_read": 0,
+   "verdict": "unknown"
   },
   {
    "file": "audit-evidence.json",

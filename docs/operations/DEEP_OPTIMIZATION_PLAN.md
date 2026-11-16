@@ -40813,3 +40813,33 @@ UI **570/570** · build ✓ · mvn -o **137/137** · guide **6/6** · correction
 ### 四、裁判
 
 UI **570/570** · build ✓ · mvn -o **137/137**（Java 零触碰）· guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **14** · worldbook **卷一百四十六 · 146 卷**。
+
+## #1939 《Δ 对最早一篇》：exhibit #14 落册（48c ×2×4 · +3 warmup · err **0.00%** · 最糟 p99 **1,074.4 ms** · verdict **OK** · 总字节 120.99 MiB）· ROADMAP-LIVE 欠条第 3 条（「重敲一笔 evidence 对最早一篇核 Δ」）如是兑付。与最早一篇 exhibit #2（`2026-11-15T17:28Z` · 48c ×2×2）对Δ：err 均 0.00% · p50 15.9/16.5 → 35.1/42.0/35.8/60.1 ms（**主机今晚的 p50 ≈ 昨晚的 2.5 倍，只记录不吹**）· worst p99 1,537.3 → **1,074.4**（**反而更好，同样只记录**）· bytes 每轮 19.9 MB（39.7 MB 总）。两件事可互证：48c 档位两次均未跌破 1.0 err，但 p50 抬了、p99 压了——**两件事都在册，谁也别说"机器好了"或"机器坏了"**。exhibit_entries **14→15** · Scroll CXLVII 双语落册
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1938。
+
+### 一、欠条兑付
+
+`ROADMAP-LIVE.md` item 3：「重敲一�?evidence 对最早一篇核 Δ……只有两件以后才有意义」——现有 exhibit #4, #5, #6, #7, #8, #9, #10, #11, #12, #13, #14（以及个别 static-light 档）——**正严谨重敲一次**。证物：
+
+| 项 | #2（2026-11-15T17:28Z） | #14（2026-11-16T17:48Z） |
+|---|---|---|
+| 并发 × 每线程 × 轮次 | 48 × 2 × 2 | 48 × 2 × 4（+3 warmup） |
+| err | 0.00% | 0.00% |
+| p50 | 15.9 / 16.5 ms | 35.1 / 42.0 / 35.8 / 60.1 ms |
+| worst p99 | 1,537.3 ms | **1,074.4 ms** |
+| verdict | OK | **OK** |
+
+Δp99 = **−462.9 ms** · Δp50 = **≈ +25.5 ms**（中位数口径）。exhibit #14 永在册；exhibit #2 不动。
+
+### 二、不为它说一句话
+
+1. 不能说「机器性能改善了」——p50 变长了，这是同一台机器同一档位同一个月内的两次体检；
+2. 不能说「机器退化了」——p99 压回 1,074.4 ms；
+3. exhibit 没有删，entries 只增不删；
+4. Night Watch 依旧 **CRACKED**（exhibit #4 1,526.1 ms 永在册 · exhibit #10/#11/#12/#13 永在册）；
+5. court `4117d2b0ca5fb23a` **LOCKED** · 永远 stream+include_usage · 永远不缓存 ·「密码-123」否决 · D1 ✅ D2 ⏸。
+
+### 三、裁判
+
+UI **570/570** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（exhibit_entries=**15**）· exhibit #14 永在册 · chronicle 随本提交增员 · worldbook **卷一百四十七 · 147 卷**。

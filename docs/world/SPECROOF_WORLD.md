@@ -5407,3 +5407,46 @@ UI **570/570** · build ✓ · mvn -o **137/137** · guide **6/6** · correction
 UI **570/570** · build ✓ · mvn -o **137/137**（Java 零触碰）· guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **14** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · chronicle 随本提交增员 · worldbook **卷一百四十六 · 146 卷**。
 
 ---
+## 卷一百四十七 ·Δ 对最早一篇
+
+> 欠条第 3 条写着：「重敲一笔 evidence 对最早一篇核 Δ」。
+> 欠条的特性是——不打勾，就永远欠着。
+> 这一卷就是把 D 打上：48c 档位，重敲一次。
+
+### 147.1 exhibit #14 在册（48 concurrent × 2 per-thread × 4 rounds，+3 warmup）
+
+`docs/evidence/2026-11-16-static-warm-14.json`：
+
+| round | ok/total | err% | p50 | p99 |
+|---|---|---|---|---|
+| 1 | 96/96 | 0.00 | 35.1 ms | 1,022.6 ms |
+| 2 | 96/96 | 0.00 | 42.0 ms | 1,034.9 ms |
+| 3 | 96/96 | 0.00 | 35.8 ms | 1,074.4 ms |
+| 4 | 96/96 | 0.00 | 60.1 ms | 1,008.9 ms |
+
+verdict **OK** · 最糟 p99 **1,074.4 ms** · 总字节 120.99 MiB · exhibits_entries **14 → 15**。
+
+### 147.2 与最早一篇（#2 · 2026-11-15T17:28Z · 48c ×2×2×2 rounds）对Δ
+
+| 维 | #2（昨晚） | #14（今夜） | 读法 |
+|---|---|---|---|
+| rounds × concurrency | 2 × 48 | 4 × 48 | 波形不同，样本不能直接当定律 |
+| err | 0.00% | 0.00% | 依旧接住 |
+| p50 | 15.9 / 16.5 ms | 35.1 / 42.0 / 35.8 / 60.1 ms | 主机今晚 p50 是昨晚的 ~2.5 倍——**只记录** |
+| worst p99 | 1,537.3 ms | 1,074.4 ms | 反而更好——**只记录**，不写「好了」 |
+| bytes | 每轮 19.9 MB（共 39.7 MB） | 120.99 MiB 总计 | 两次口径不同，同一档位 |
+
+**刻意的否认**：两天两次样本，不能写「整机性能改善了」；也不能写「整机性能退化了」。exhibit 记录两次同一时刻在同一档位上的共存形状——p50 变长、p99 变短、err 都为 0。**谁也别把两件事联成一句结论去吹。**
+
+### 147.3 本卷拒绝的话
+
+1. 「48c 今后都能抗得住」——没有：今晚看的是今晚；exhibit #12（512c · 100% err · 10,049 ms）永远在册，它就是另一个档位的同一台机器；
+2. Night Watch 依旧 **CRACKED**（entries=**15** · exhibit #4 1,526.1 ms 永在册）；exhibit 一 byte 没动；
+3. court `4117d2b0ca5fb23a` **LOCKED** · 永远 stream+include_usage · 永远不缓存 ·「密码-123」否决；
+4. mvn -o **137/137** · 纯度 CLEAR · exhibit_entries **15**。
+
+### 147.4 裁判
+
+UI **570/570** · build ✓ · guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **15** · chronicle 随本提交增员 · worldbook **卷一百四十七 · 147 卷**。
+
+---

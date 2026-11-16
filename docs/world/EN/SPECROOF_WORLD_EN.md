@@ -5294,3 +5294,46 @@ One of three things stayed true:
 * UI **570/570** · build ✓ · mvn -o **137/137** (Java untouched) · guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **14** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch remains **CRACKED** · the chronicle grows with this commit · worldbook **Scroll CXLVI · 146 scrolls**.
 
 ---
+## Scroll CXLVII · The Delta Against the Earliest One
+
+> Debt note #3 says: "re-strike one evidence entry against the earliest one for Δ".
+> A debt lives until it's paid.
+> This scroll pays it — the 48c rung, struck again.
+
+### 147.1 Exhibit #14 on file (48 concurrent × 2 per-thread × 4 rounds, +3 warmup)
+
+`docs/evidence/2026-11-16-static-warm-14.json`:
+
+| round | ok/total | err% | p50 | p99 |
+|---|---|---|---|---|
+| 1 | 96/96 | 0.00 | 35.1 ms | 1,022.6 ms |
+| 2 | 96/96 | 0.00 | 42.0 ms | 1,034.9 ms |
+| 3 | 96/96 | 0.00 | 35.8 ms | 1,074.4 ms |
+| 4 | 96/96 | 0.00 | 60.1 ms | 1,008.9 ms |
+
+verdict **OK** · worst p99 **1,074.4 ms** · total bytes 120.99 MiB · exhibit_entries **14 → 15**.
+
+### 147.2 The delta against the earliest one (#2 · 2026-11-15T17:28Z · 48c ×2×2×2)
+
+| dimension | #2 (last night) | #14 (tonight) | reading |
+|---|---|---|---|
+| rounds × concurrency | 2 × 48 | 4 × 48 | different shape — this is not a law to befit |
+| err | 0.00% | 0.00% | both lanes held |
+| p50 | 15.9 / 16.5 ms | 35.1 / 42.0 / 35.8 / 60.1 ms | tonight's p50 is ~2.5× last night's — **recorded, never embellished** |
+| worst p99 | 1,537.3 ms | 1,074.4 ms | actually better — **recorded, never spun** |
+| bytes | 19.9 MB per round · 39.7 MB total | 120.99 MiB total | two books, same rung |
+
+**The deliberate anarchy of this table**: two nights, two samples — nobody may write "the big machine improved", and nobody may write "the big machine regressed". An exhibit records the same rung on two nights: p50 drifted up, p99 tightened, err zero on both. **Not one of these three is evidence for a fourth.**
+
+### 147.3 What this scroll refuses to say
+
+1. "48c will hold from now on" — no: tonight is tonight; exhibit #12 (512c · 100% err · 10,049.2 ms) is still on file, it is the same machine, another rung;
+2. Night Watch remains **CRACKED** (exhibit_entries=**15** · exhibit #4 1,526.1 ms permanently on file); not one exhibit byte moved;
+3. court `4117d2b0ca5fb23a` **LOCKED** · always stream+include_usage · always never cached · "password-123" vetoed;
+4. mvn -o **137/137** · purity **CLEAR** · exhibit_entries **15**.
+
+### 147.4 The floor never moved
+
+* UI **570/570** · build ✓ · guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **15** · the chronicle grows with this commit · worldbook **Scroll CXLVII · 147 scrolls**.
+
+---
