@@ -39617,3 +39617,26 @@ Volume CI《真实的 README · The Honest README》入册 → worldbook **108 �
 
 * court=4117d2b0ca5fb23a LOCKED · D1/D2 欠（OBSERVABILITY.md 签字 + PORTFOLIO_TOKEN）·「密码-123」永久否决 · 演示不冒充生产
 * 任何 roadmap、任何 portfolio 同步按 clock 安排——这一页只讲实情，不编进度。
+
+## #1892 《敲两扇门的回声》：Recall 页新增两条断言把「问铁证」的真实问题钉进测试（密码 123 必达 #1799 · court 必达 court）· Volume CII
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1891。
+
+### 一、两扇门各敲了一次
+
+`#1889/#1890` 布上 `/recall`（Ask the Iron · BM25）后，本号把用户一定会搜的两个词钉死成测试：
+
+| 测试 | 断言 |
+|---|---|
+| `recall ranks "密码 123"` | 必须有命中；命中内容必须包含 #1799（铁证在纂）——即「对『密码 123 全员进管理员页』的否决与替补」 |
+| `court 永不缓存` | 第一条命中必须含 `court`（title 权重 2.4×） |
+
+UI **544/544**（+2）。
+测试没有放宽任何东西；断言是「一锤就谢」式——检索器一旦悄悄劣化立即报警。
+
+### 二、Known caveat held honestly
+
+- 「court 永不缓存」不是检索结果，是测试车道素的硬锁（`test_court_never_caches.py` 4/4）——这条检索只是让读者"找"到，不是"证明"。
+- 机器仍不能代人生成「密码 123」的策略决策——`#1799` 的决策是人类写入的。
+
+Volume CII《敲两扇门的回声 · The Echo of Two Knocks》入册 → worldbook **109 卷** · chronicle **1,693 节**。

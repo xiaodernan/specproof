@@ -45,6 +45,37 @@ describe("Recall — ask the iron, the iron answers", () => {
     cleanup();
   });
 
+  it("ranks the '密码' query: the #1799 rejection of \"密码 123 全员进管理员页\" surfaces", () => {
+    window.localStorage.setItem(LOCALE_STORAGE_KEY, "zh");
+    const { container } = render(
+      <I18nProvider>
+        <Recall />
+      </I18nProvider>,
+    );
+    const input = container.querySelector<HTMLInputElement>("#recall-filter")!;
+    fireEvent.change(input, { target: { value: "密码 123" } });
+    const hits = container.querySelectorAll(".recall-hit");
+    expect(hits.length).toBeGreaterThan(0);
+    const texts = Array.from(hits).map((h) => h.textContent ?? "");
+    expect(texts.some((t) => t.includes("1799") || t.includes("洞察"))).toBe(true);
+    cleanup();
+  });
+
+  it("a section title beats a body match: 'court 永不缓存' hits the ledger with the phrase in a headline", () => {
+    window.localStorage.setItem(LOCALE_STORAGE_KEY, "zh");
+    const { container } = render(
+      <I18nProvider>
+        <Recall />
+      </I18nProvider>,
+    );
+    const input = container.querySelector<HTMLInputElement>("#recall-filter")!;
+    fireEvent.change(input, { target: { value: "court 永不缓存" } });
+    const hits = container.querySelectorAll(".recall-hit");
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0].textContent).toContain("court");
+    cleanup();
+  });
+
   it("renders fully in English — no Chinese leaks into the en lane", () => {
     window.localStorage.setItem(LOCALE_STORAGE_KEY, "en");
     const { container } = render(

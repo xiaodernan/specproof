@@ -1,12 +1,12 @@
 {
  "version": 1,
  "source": "merged verbatim from unsigned/evidence/courtLock/purity/audit_chain/chronicle/repoStats/worldbook JSON",
- "generated_utc": "2026-11-16T08:52:38+00:00",
+ "generated_utc": "2026-11-16T08:56:30+00:00",
  "totals": {
-  "commits": 2548,
-  "chronicle_sections": 1691,
-  "worldbook_volumes_zh": 108,
-  "worldbook_volumes_en": 108,
+  "commits": 2551,
+  "chronicle_sections": 1692,
+  "worldbook_volumes_zh": 109,
+  "worldbook_volumes_en": 109,
   "python_test_files": 616,
   "web_test_files": 73
  },
@@ -35,8 +35,8 @@
   "chain_generated_utc": "2026-11-16T08:43:25+00:00"
  },
  "book": {
-  "zh_bytes": 244333,
-  "en_bytes": 251044,
-  "ledger_bytes_kB": 3839.4
+  "zh_bytes": 245268,
+  "en_bytes": 252043,
+  "ledger_bytes_kB": 3840.8
  }
 }

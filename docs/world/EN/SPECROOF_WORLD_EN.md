@@ -3950,3 +3950,31 @@ This volume surfaces that output directly to the eye of the visitor:
 3. the signature owed on OBSERVABILITY.md is not put there by any of us, and the PAT owed to the owner is not minted on their behalf.
 
 ---
+## Volume CII · The Echo of Two Knocks（卷一百零二 · 敲两扇门的回声）
+
+> The iron never answers a question it cannot understand;
+> this volume only knocks twice — once at the phrase everybody will ask, and once at the phrase nobody should mistake for safe.
+
+### 102.1 Query one: “is the court cached?” — the answer now has its own vow
+
+Two new assertions weld the Ask-the-Iron page's contract to the test wall:
+
+1. `“密码 123”` must produce hits whose text reaches `#1799` (the volume whose title is the repo's own rejection of a shared password);
+2. `“court 永不缓存”` must produce a first hit containing `court`.
+
+This fixes, on the page's head, the two questions a newcomer is most likely to ask.
+
+### 102.2 As struck
+
+| fact | result |
+|---|---|
+| BM25 asked `"密码 123"` | hits ≥ 1; they reach `Insight` / `#1799` |
+| BM25 asked `"court 永不缓存"` | first hit contains `court` (title weight ×2.4) |
+| UI | **544/544** |
+
+### 102.3 What this volume does not do
+
+- no LLM was used to fabricate new prose — `/recall` remains a retrieval page, not a generation page;
+- “the court never caches” is still welded by `test_court_never_caches.py` (4/4) — never by BM25.
+
+---
