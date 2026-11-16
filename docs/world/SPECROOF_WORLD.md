@@ -4729,3 +4729,31 @@ UI 上的行为：搜一下即动词就 narrow 没匹配就完全不上屏；
 一个屏幕只许讲一种语言，除非那两个词同时是两种语言都不会说错的东西——比如铁、半铁和编号。
 
 ---
+## 卷一百二十七 · 状态图谱（The StateGraph Volume）
+
+> 图不是装饰，是契约。
+> 这本书里正在跑的五张 StateGraph——今天给它们各发一张身份证。
+
+### 127.1 新页面 `/stategraph`
+
+* 路由：公页 · NAV 第 44 号（`group.evidence` · `matrix` icon）· 双语；
+* **《八词说明书》**：State（`TypedDict, total=False`）· Node（纯函数）· Edge（固定边）· Conditional Edge（`_abort_on_preflight → publish_report` 短路判词）· Reducer/channel（`add_messages` vs 本书的 overwrite 通道）· Entry point（`set_entry_point`）· END（终态哨兵）· Verdict（fail-closed fail-closed fail-closed）；
+* **《五张活着的图》**每个卡片：文件路径 · state 类名 · 节点链（`intake → search → verdict → END`）· 判词词表 · 状态字段 · 现场判词：
+  * `recall_graph.py` — RecallState · intake → search → verdict → END · HIT / MISS / MISSING-QUERY / EVIDENCE-MISSING；
+  * `evidence_graph.py` — EvidenceState · intake → collect_series → verdict → emit_report → END · OK / REGRESSION / EVIDENCE-MISSING / NO-DELTA（Δ>25ms）；
+  * `purity_graph.py` — PurityState · intake → scan → crosscheck → verdict → report → END · CLEAR / DIRTY / EVIDENCE-MISSING；
+  * `auditor_graph.py` — AuditChainState · 五扇门 unsigned → court_lock → evidence → scratch_residue → portfolio → verdict → report → END · CLEAR / BROKEN；
+  * `night_watch_graph.py` — NightWatchState · 三图合一根脊椎 · **CLEAR / CRACKED**；
+* 夜巡卡片的现场判词**从 `src/pages/night_watch.json` 现读**，原样上屏（`evidence=REGRESSION · purity=CLEAR · audit=CLEAR → CRACKED`）——代码从不涂绿。
+
+### 127.2 为什么做这个
+
+Owner 的原话要求里，有一句「最好别忘了给项目加入 stategraph 的知识 内容」。
+世界的每一角都有文档；把五张真图连同概念说明书放到一个用户真的能打开的页面，
+是这个仓库第一次把「我们用什么引擎思考」直接摊在桌面上。
+
+* UI **556/556**（+3 StateGraph 断言）· npm run build ✓ · guide 6/6 双语各插一行 · coach destinations 42 → 43；
+* court = `4117d2b0ca5fb23a` LOCKED ·「密码-123」否决 · D1 ✅ · D2 ⏸；
+* Night Watch 依然 **CRACKED**（exhibit #4 永在册）——这个页面如实地让它红在每一眼面前。
+
+---

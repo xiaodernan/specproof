@@ -40101,3 +40101,38 @@ Owner 反复强调：「中文模式下全部内容统一用中文，原生英�
 * purity 仍 CLEAR · Night Watch 仍 CRACKED（exhibit #4 1,526.1 ms、exhibit #8 2,078.7 ms 原样入册）；「密码-123」永久否决；D1 ✅ 签 · D2 ⏸ 等 owner PAT（本仓不 mint）。
 
 Volume CXIX《两种语言只许说一种话 · The Language Purity Volume》入册 → worldbook **126 卷** · chronicle **1,710 节**。
+
+## #1910 《状态图谱》：新公页 `#/stategraph`——八词说明书 + 五张活着的 StateGraph（含夜巡现场判词 verbatim）· Volume CXXVII
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1909。
+
+### 一、为什么做这个
+
+Owner 原话：「最好别忘了给项目加入 stategraph 的知识 内容」。本卷把 StateGraph 直接作为一页公开教材 + 验收图：
+
+* 新页 `apps/web/src/pages/StateGraph.tsx`（public · NAV 第 44 号 · group.evidence · icon `matrix`）；
+* 新副本 `stategraph.copy.ts`（双语，常量 = 文件名/判词词表/状态字段，全部对照 `agent/graphs/*.py` 逐字抄写）；
+* 新样式 `stategraph.css`（盒式节点链 + 八词概念卡）；
+* 新测试 `__tests__/StateGraph.test.tsx`（3/3 · 双语 · 现场 CRACKED verbatim）；
+* Guide zh+en 各增一行 `/stategraph`（guide 6/6 绿）· coach destinations 42 → 43；
+* 夜巡现场判词从 `src/pages/night_watch.json` 现读，**不涂**——exhibit #4 依然在册。
+
+### 二、八词（页面教材的目录）
+
+State · Node · Edge · Conditional edge（`_abort_on_preflight` / `_abort_on_errors` 短路）· Reducer/channel · Entry point · END · Verdict (fail-closed)。
+
+### 三、五卡
+
+| 文件 | state | 链 | 判词 |
+|---|---|---|---|
+| recall_graph.py | RecallState | intake → search → verdict → END | HIT / MISS / MISSING-QUERY / EVIDENCE-MISSING |
+| evidence_graph.py | EvidenceState | intake → collect_series → verdict → emit_report → END | OK / REGRESSION / EVIDENCE-MISSING / NO-DELTA |
+| purity_graph.py | PurityState | intake → scan → crosscheck → verdict → report → END | CLEAR / DIRTY / EVIDENCE-MISSING |
+| auditor_graph.py | AuditChainState | unsigned → court_lock → evidence → scratch_residue → portfolio → verdict → report → END | CLEAR / BROKEN |
+| night_watch_graph.py | NightWatchState | evidence → purity → audit → verdict → report → END | **CLEAR / CRACKED** |
+
+### 四、数字与裁判
+
+UI **556/556**（+3）· vitest ✓ · npm run build ✓ · guide 6/6 · purity CLEAR · court = `4117d2b0ca5fb23a` LOCKED · D1 ✅ · D2 ⏸ · 「密码-123」永久否决 · Night Watch 仍 CRACKED。
+
+Volume CXXVII《状态图谱 · The StateGraph Volume》入册 → worldbook **127 卷** · chronicle **1,711 节**。

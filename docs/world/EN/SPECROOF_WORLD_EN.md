@@ -4606,3 +4606,29 @@ Every screen in this book gets to speak — but speaks one language at a time,
 unless both words would be mispronounced in either tongue. (Iron. Half-iron. A number.)
 
 ---
+## Volume CXXVII · The StateGraph Volume（卷一百二十七 · 状态图谱）
+
+> A graph is not decoration; it is the contract.
+> The five StateGraphs actually running in this book — today each gets its ID card.
+
+### 127.1 The new page `/stategraph`
+
+* Route: public · item #44 in the NAV (`group.evidence` · `matrix` icon) · bilingual;
+* **Eight words you must read first**: State (`TypedDict, total=False`) · Node (a pure function) · Edge (fixed) · Conditional edge (the `_abort_on_preflight → publish_report` short-circuit) · Reducer/channel (`add_messages` vs this book's overwrite channels) · Entry point (`set_entry_point`) · END (the sentinel) · Verdict (fail-closed, fail-closed, fail-closed);
+* **The five living graphs**, one card each: file path · state class · node chain (`intake → search → verdict → END`) · verdict lexicon · state fields · live composite:
+  * `recall_graph.py` — RecallState · intake → search → verdict → END · HIT / MISS / MISSING-QUERY / EVIDENCE-MISSING;
+  * `evidence_graph.py` — EvidenceState · intake → collect_series → verdict → emit_report → END · OK / REGRESSION / EVIDENCE-MISSING / NO-DELTA (Δ>25ms);
+  * `purity_graph.py` — PurityState · intake → scan → crosscheck → verdict → report → END · CLEAR / DIRTY / EVIDENCE-MISSING;
+  * `auditor_graph.py` — AuditChainState · five doors: unsigned → court_lock → evidence → scratch_residue → portfolio → verdict → report → END · CLEAR / BROKEN;
+  * `night_watch_graph.py` — NightWatchState · the three lanes on one spine · **CLEAR / CRACKED**;
+* the night-watch card reads `src/pages/night_watch.json` at render time and prints it verbatim (`evidence=REGRESSION · purity=CLEAR · audit=CLEAR → CRACKED`). Nothing on this page is ever painted jade.
+
+### 127.2 Why this volume exists
+
+The owner's standing orders include one line in particular: "do not forget to give the project LangGraph / StateGraph knowledge and content." This page is that line, cashed. The five real graphs and the eight words to read them, one screen — the first time this repository has put "how our engine thinks" directly on the table.
+
+* UI **556/556** (+3 StateGraph assertions) · npm run build ✓ · guide 6/6 (zh+en one row each) · coach destinations 42 → 43;
+* court `4117d2b0ca5fb23a` LOCKED · 「password-123」vetoed · D1 ✅ signed · D2 pending your PAT;
+* Night Watch remains **CRACKED** (exhibit #4 permanently on file) — this page lets it stay red in front of every eye.
+
+---

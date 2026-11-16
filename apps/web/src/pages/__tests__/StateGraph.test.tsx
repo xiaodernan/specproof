@@ -1,0 +1,56 @@
+import { describe, expect, it } from "vitest";
+import { render, cleanup } from "@testing-library/react";
+import { I18nProvider, LOCALE_STORAGE_KEY } from "../../i18n";
+import { CONCEPTS, GRAPHS } from "../stategraph.copy";
+import StateGraph from "../StateGraph";
+
+/**
+ * The State Graphs page teaches LangGraph's StateGraph by pointing at the
+ * five graphs this repository actually runs. Every claim it makes is either
+ * a concept note about LangGraph as used here, or a byte visible in the same
+ * repo (file names, state fields, verdict lexicon).
+ */
+describe("StateGraph — LangGraph as wired in this repository", () => {
+  it("renders both locales with all eight concept terms and five graphs", () => {
+    for (const locale of ["zh", "en"] as const) {
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+      const { container } = render(
+        <I18nProvider>
+          <StateGraph />
+        </I18nProvider>,
+      );
+      for (const concept of CONCEPTS) {
+        expect(container.textContent).toContain(concept.term[locale]);
+      }
+      for (const graph of GRAPHS) {
+        expect(container.textContent).toContain(graph.file);
+        expect(container.textContent).toContain(graph.stateName);
+        for (const node of graph.chain) {
+          expect(container.textContent).toContain(node);
+        }
+      }
+      cleanup();
+    }
+  });
+
+  it("quotes the live composite verdict verbatim from night_watch.json", () => {
+    for (const locale of ["zh", "en"] as const) {
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+      const { container } = render(
+        <I18nProvider>
+          <StateGraph />
+        </I18nProvider>,
+      );
+      const nightWatch = GRAPHS.find((g) => g.id === "night_watch");
+      expect(nightWatch?.live).toBeTruthy();
+      expect(container.textContent).toContain("REGRESSION");
+      expect(container.textContent).toContain("CRACKED");
+      cleanup();
+    }
+  });
+
+  it("does not fake a green lamp — the page never upgrades CRACKED to CLEAR", () => {
+    const nightWatchBlock = GRAPHS.find((g) => g.id === "night_watch");
+    expect(nightWatchBlock?.live?.en).toContain("CRACKED");
+  });
+});

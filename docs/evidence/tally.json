@@ -1,17 +1,17 @@
 {
  "version": 1,
  "source": "merged verbatim from unsigned/evidence/courtLock/purity/audit_chain/chronicle/repoStats/worldbook JSON",
- "generated_utc": "2026-11-16T11:48:32+00:00",
+ "generated_utc": "2026-11-16T12:01:52+00:00",
  "totals": {
-  "commits": 2569,
-  "chronicle_sections": 1709,
-  "worldbook_volumes_zh": 126,
-  "worldbook_volumes_en": 126,
+  "commits": 2570,
+  "chronicle_sections": 1710,
+  "worldbook_volumes_zh": 127,
+  "worldbook_volumes_en": 127,
   "python_test_files": 618,
-  "web_test_files": 74
+  "web_test_files": 75
  },
  "lamps": {
-  "unsigned_phase": "2026-11-16T09:50:23+00:00",
+  "unsigned_phase": "2026-11-16T11:52:03+00:00",
   "weekly_stress_merged": "merged",
   "port_8000": "other-project-answering",
   "branch_cleanliness": "dirty-tree",
@@ -35,8 +35,8 @@
   "chain_generated_utc": "2026-11-16T09:50:27+00:00"
  },
  "book": {
-  "zh_bytes": 276939,
-  "en_bytes": 283049,
-  "ledger_bytes_kB": 3868.4
+  "zh_bytes": 280875,
+  "en_bytes": 287207,
+  "ledger_bytes_kB": 3871.8
  }
 }

@@ -43,8 +43,8 @@ export const COACH_MARKS: readonly CoachMark[] = [
   { key: "topbar.menu",
     title: { zh: "移动菜单", en: "Mobile menu" },
     body: {
-      zh: "窄屏下抽屉式侧导——全部 42 个入口一样齐全。",
-      en: "Drawer navigation on narrow screens — all 42 destinations, same as desktop.",
+      zh: "窄屏下抽屉式侧导——全部 43 个入口一样齐全。",
+      en: "Drawer navigation on narrow screens — all 43 destinations, same as desktop.",
     } },
   { key: "nav:dashboard",
     title: { zh: "工作台", en: "Dashboard" },
