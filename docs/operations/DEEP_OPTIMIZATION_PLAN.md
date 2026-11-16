@@ -40263,3 +40263,23 @@ UI **559/559** · vitest ✓ · npm run build ✓ · guide 6/6 · parity 15/15 �
 mvn -o **137/137**（修 Exposure pin 后 CP 51/51 · gateway 84/84） · exhibit #9（64c · p99 1,596.9ms）entries=10。
 
 Volume CXXXII《第十六枚 · The Sixteenth R — The Two Strikes》入册 → worldbook **132 卷** · chronicle **1,715 节**。
+
+## #1916 《把我以前写过的「主线车道」改正过来》：README 双语 model 表 stale 段 `ynynzyy/gpt-6-astra` & `wkapi.pro/gpt-6-sol`（全是旧车道的证据）→ `api.aizzz.xyz/gpt-6.1-terra`（responses/stream/include_usage，本 host suite 活敲皆通）
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1915。
+
+### 一、改了什么
+
+* `README.md` / `README_EN.md`：把 model 连接表里旧两行「ynynzyy.xyz/v1 · gpt-6-astra · Responses · max · 已实测」+「wkapi.pro/v1 · gpt-6-sol · chat_completions · 默认关 · 已实测」**全部换为真实当前**：
+  - service URL `https://api.aizzz.xyz/v1`（`/responses`，protocol `responses`，max reasoning，Clash Verge 7897 梯子 · HTTP 200 · 9 chunks · 3813 ms · prompt tokens 4409 · completion 11 · cached 4224）
+  - 附 R14 远程封锁注释（本机直连必须挂 mihomo，12216）。
+* 车道结论：**stream=True + include_usage=True** 是此网关唯一上报 usage 含 cached_tokens 的车道（live_lane_probe.py 每次敲皆如此）；chat_completions 不报 cached——`.local` 与court 均 stream，所有车道已流式，非流自噎（R16 如实登记细节）。
+
+### 二、不改
+
+worldbook 历史字节不动（Volume 上仍有 wkapi.pro 的直敲记录，那也是当年的真实字节）；更正只准加不准删；court locked；Night Watch 依旧 CRACKED。
+
+### 三、数字与裁判
+
+UI **559/559** · mvn -o **137/137**（依赖未动，本次 commit 仅双语 README + 本节）· guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` LOCKED · Night Watch 依旧 CRACKED。
+

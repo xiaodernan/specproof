@@ -53,14 +53,11 @@ Open **Model connection**; enter a base URL for your model provider and a key fo
 
 | Setting | Value | Status |
 |---|---|---|
-| Model URL | `https://ynynzyy.xyz/v1` | live |
-| Model | `gpt-6-astra` | live |
-| Protocol | Responses API | live |
+| Model URL | `https://api.aizzz.xyz/v1` | live (HTTP 200 · 9 chunks · 3.7 s · via Clash Verge 127.0.0.1:7897) |
+| Model | `gpt-6.1-terra` | live |
+| Protocol | Responses API | live (stream=True + include_usage=True) |
 | Reasoning effort | `max` | live |
-| Model URL | `https://wkapi.pro/v1` | live (used for smoke tests and the full AI delivery flow, including JUnit generation) |
-| Model | `gpt-6-sol` | live |
-| Protocol | Chat Completions (`chat_completions`) | live |
-| Reasoning effort | keep the default (the field cannot be set per-`openai` endpoint without Responses) | live |
+| Note | Direct TLS is region-blocked — the lane must ride the host's Clash Verge (mihomo, 127.0.0.1:7897); without the ladder every probe stays red | fact · R14 |
 
 The API key lives in `.local/llm.json` (outside version control); never commit it. Alternatively, set `LLM_BASE_URL / LLM_API_KEY / LLM_MODEL / LLM_PROTOCOL / LLM_REASONING_EFFORT`; model connection succeeds only when it reports a real successful call. Save/usage without a configured model is shown clearly — as "waiting for the model to recover", not as failure.
 
