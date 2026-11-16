@@ -133,7 +133,7 @@ const zh = {
   "topbar.helpLink": "使用帮助",
   "topbar.theme.toLight": "切换浅色主题",
   "topbar.theme.toDark": "切换深色主题",
-  "footer.tagline": "SpecProof · 为交付提供可核验的证据",
+  "footer.tagline": "SpecProof · 为交付提供可核验的证据 · 本机演示主机 · 不是生产",
   "footer.startLink": "从这里开始",
 
   // ── shortcut help ─────────────────────────────────────────────
@@ -631,7 +631,7 @@ const en: Record<keyof typeof zh, string> = {
   "topbar.helpLink": "Help",
   "topbar.theme.toLight": "Switch to light theme",
   "topbar.theme.toDark": "Switch to dark theme",
-  "footer.tagline": "SpecProof · verifiable evidence for every delivery",
+  "footer.tagline": "SpecProof · verifiable evidence for every delivery · demo host · not production",
   "footer.startLink": "Start here",
 
   // ── shortcut help ─────────────────────────────────────────────

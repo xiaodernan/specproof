@@ -40002,3 +40002,25 @@ Volume CXIV《The Three-Pin Caliper》入册 → worldbook **121 卷** · chroni
 Volume CXV《灯不会自己停 · The Light That Does Not Stop Itself》入册；这一条不是写完的——是边走边敲的。 chronicle **1,706** 节。
 
 Court Lock 仍 LOCKED · court 永远 stream+include_usage ·「密码-123」永远否决 · UI 546/546 · mvn -o 137/137
+
+## #1906 《不装的招牌》：App.tsx workspace-footer 加上「本机演示主机 · 不是生产 / demo host · not production」——每页页脚皆自证其存在不是生产 · Volume CXVI
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1905。
+
+### 一、改动（一行）
+
+`apps/web/src/i18n/strings.ts` 的 `footer.tagline` 改 zh/en 对齐：
+* zh: `SpecProof · 为交付提供可核验的证据 · 本机演示主机 · 不是生产`
+* en: `SpecProof · verifiable evidence for every delivery · demo host · not production`
+
+影响 `App.tsx` 渲染页的 workspace-footer：每个路由见到本条——不再要求任何人逛到 /guide 才看到「demo host」
+
+### 二、量
+
+UI **546/546** · npm run build ✓ · court=4117d2b0ca5fb23a LOCKED · audit_chain CLEAR · purity CLEAR
+
+### 三、不变
+
+Court 永远 stream+include_usage ·「密码-123」永远否决 · D1 ✅ · D2 ⏸ · exhibit #4 仍钉住 · night-watch 仍 CRACKED（ exhibit #4 不删、不减、不可动、不可改阈值）。
+
+Volume CXVI《不装的招牌 · The Unfakeable Sign》入册 → worldbook **123 卷** · chronicle **1,707 节**。

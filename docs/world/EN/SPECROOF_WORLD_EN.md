@@ -4480,3 +4480,30 @@ Evidence doesn't get better because we wish it; it only gets honest because we w
 This book is not here to manufacture cheer. When a lamp lights, it is because someone struck a match. When this one refuses to, it is because something—so far, exhibit #4—remains broken.
 
 ---
+## Volume CXVI · The Unfakeable Sign（卷一百一十六 · 不装的招牌）
+
+> A sign does not sell what it has never carried — but the sign itself must be immediately legible as a sign, never as the genuine article.
+> Which is why the change in this volume is exactly one line, worth more than one hundred metrics.
+
+### 116.1 This volume made exactly one change
+
+`apps/web/src/App.tsx` — "workspace-footer" new contents:
+Chinese `footer.tagline`: `SpecProof · 为交付提供可核验的证据 · 本机演示主机 · 不是生产`
+English `footer.tagline`: `SpecProof · verifiable evidence for every delivery · demo host · not production`
+
+Just this one line.
+**This is not an cosmetic footer tweak — it is the honesty declaration moved from a corner of commit messages to the footer that rides every single page a visitor sees.**
+
+### 116.2 Why this volume exists at all
+
+- every route carries it; every page read shows it; no one supports the fiction "our local build" means "ours is deployed";
+- any user who would claim "this must be production because it opens" now sees: this is a spec, not a service;
+- nothing else changes; UI 546/546 — all pins now always visible.
+
+### 116.3 Unchanged and never quiet
+
+- court=`4117d2b0ca5fb23a` LOCKED · court never caches · court always stream+include_usage;
+- purity CLEAR · audit-chain CLEAR · night-watch CRACKED (exhibit #4 is the light);
+- D1 signed on the owner's own hand; D2 still owed; 「password-123」permanently vetoed.
+
+---

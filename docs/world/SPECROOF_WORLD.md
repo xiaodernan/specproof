@@ -4602,3 +4602,31 @@ branch-cleanliness       dirty-tree             "work tree has 25 dirty entries 
 Court never caches。世界还知道我从不让它亮为了假希望。偶尔灯亮一会，那是因为我真的把某些灯点了。那种灯光不亮，是因为 Night Watch 是 CRACKED 的。从来没有哪一盏灯是因为"想看起来漂亮"而亮的。
 
 ---
+## 卷一百一十六 · 不装的招牌（The Unfakeable Sign）
+
+> 一块招牌不写它不立过的货，但招牌自己得一眼认出它挂的是什么。
+> 这就是为什么脚注是小小一句——写完 a name — 让任何路过的人都能承认：这不是生产。
+
+### 116.1 本卷只做了一件小事
+
+`apps/web/src/App.tsx` 的页脚 `workspace-footer` 文案改了一字：
+中文 `footer.tagline`：`SpecProof · 为交付提供可核验的证据 · 本机演示主机 · 不是生产`
+英文 `footer.tagline`：`SpecProof · verifiable evidence for every delivery · demo host · not production`
+
+就这一句话。
+**它不是 optional footer tweak；它是本仓库的诚实声明被抬到每一页脚——不是看证据的 first section，而是每个路过本地 build 的人都能看到——而不是在某篇 commit message 里**。
+
+### 116.2 本卷的意义
+
+- 每一份 reading 都有这个 footer 出现，意味着：每一次使用本身就 self-describe 是 demo；**没有任何页面、任何 route 会把 visitor 当 "已经进 production 了"**；
+- 任何说"我猜本地 build 应该等于 prod" 的人，看不到 prod 会绕过去看 LANE；它是 demo host——每次仍要落在它的现实里；
+- UI 仍 546/546 — 一个字的改动没有改变任何 signal。
+
+### 116.3 本卷继续承诺 · "现场强壮度"
+
+- court=4117d2b0ca5fb23a LOCKED
+- UI 546/546 web build ✓
+- purity CLEAR · evidence-chain CONSISTENT · night-watch CRACKED（exhibit #4 钉在那里）
+- **key 零入仓**
+
+---
