@@ -121,6 +121,19 @@ $env:LLM_MODEL    = "deepseek-v4-pro"    # 可选, 缺省 deepseek-v4-pro
 pwsh scripts\start_local.ps1 -WithLlm
 ```
 
+**aizzz.xyz 走代理出网（本机实测，#1884）** — 不带代理的直连会被对方网关按「地区」拦成「本站不对您所在的国家及地区进行商业服务」；走 Clash Verge（mihomo，mixed-port 127.0.0.1:7897）后同一把 key 复通（`/v1/responses` 仅 stream；cached 4224→6400 复敲同前缀）。跑任何会真打模型的脚本之前：
+
+```powershell
+$env:HTTPS_PROXY = "http://127.0.0.1:7897"   # 本机 Clash Verge（mixed-port）
+$env:HTTP_PROXY  = "http://127.0.0.1:7897"
+python scripts\live_lane_probe.py          # 现在走 providers.net.outbound_client，9 chunks · HTTP 200
+python scripts\llm_cache_probe.py          # 6/6 出正文，usage 完整带 cached_tokens
+```
+
+* 代理地址是**本机事实**，不进代码不进仓；脚本只通过环境变量识它；
+* 不开代理 = 全部调用按区域拦，不是 key 问题，不是代码问题——别再把它当「车道闭关」（见更正 R14）。
+
+
 - `-WithLlm` 读取会话里的 `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`, 并**重启**由本脚本启动的
   后端 (环境变量变更后必须重启才生效; 若 8000 端口被非本脚本管理的进程占用, 脚本会提示并跳过,
   绝不误杀);

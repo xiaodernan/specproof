@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from providers.config import load_model_config  # noqa: E402
-import httpx  # noqa: E402
+from providers.net import outbound_client  # noqa: E402  (env-proxy mounts; bare httpx misroutes through the Clash Verge egress)
 
 cfg = load_model_config()
 print("source", cfg["source"], "| protocol", cfg["protocol"], "| model", cfg["model"], "| base_url", cfg["base_url"])
@@ -42,7 +42,7 @@ chunks = 0
 text_parts: list[str] = []
 usage = None
 try:
-    with httpx.stream("POST", url, json=body, headers=headers, timeout=60) as resp:
+    with outbound_client(timeout=60) as client, client.stream("POST", url, json=body, headers=headers) as resp:
         if resp.status_code != 200:
             print("HTTP", resp.status_code)
             print(resp.read().decode("utf-8", errors="replace")[:500])

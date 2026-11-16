@@ -1,7 +1,7 @@
 {
  "version": 1,
  "source": "docs/world/APPENDIX_CORRECTIONS.md (append-only)",
- "count": 13,
+ "count": 14,
  "ids": [
   "R01",
   "R02",
@@ -15,7 +15,8 @@
   "R10",
   "R11",
   "R12",
-  "R13"
+  "R13",
+  "R14"
  ],
  "items": [
   "chronicle 1,645 节（2026-11-16T13:2xZ，#1845 入册时写错）",
@@ -30,6 +31,7 @@
   "RageCoach 测试断言 `\"Sign & seal\"` 期望 approve —— 实际规则在 tour-seal（规则内含 seal 关键词先吃掉）",
   "证据复核子图的 `test_graph_ok_when_all_pass` 曾 flaky 红了一次",
   "Volume XCI 扉页切到 `api.aizzz.xyz/gpt-6.1-terra/responses/max` 后，我把「换钥」写得像「车道已通」",
-  "`ChainBanner.tsx`（#1878）的 className 写的是 `chain-banner--ok/bad`，样式表定义的是 `.chain-banner-ok/.chain-banner-bad`"
+  "`ChainBanner.tsx`（#1878）的 className 写的是 `chain-banner--ok/bad`，样式表定义的是 `.chain-banner-ok/.chain-banner-bad`",
+  "Volume XCI/XCII 把「换钥后敲不通」登记为 **CLOSED_FOR_THIS_CHANNEL**（如实照抄了 6/6 红字节：「本站不对您所在的国家及地区进行商业服务」）"
  ]
 }

@@ -39364,3 +39364,46 @@ Volume XCII《回声无水的敲门者 · The Knocker of the Dry Echo》入册�
 * LLM 车道 CLOSED_FOR_THIS_CHANNEL——不重试、不伪造；
 * 「密码-123 全员进管理员」永久否决（本轮 UI 依旧 admin/operator fail-closed）；
 * 演示数据永远不冒充生产；court 永不缓存。
+
+## #1884 《梯光复明》：真因——出网没走 Clash Verge（mihomo 7897）；带代理后同一把 key 复通 · 更正 R14 入卷轴 · live_lane_probe 走 providers.net mounts · Volume XCIV
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、事故解盘（真相：#1881 的「6/6 红」不是终局）
+
+* owner 指路：本机有 Clash Verge 梯子（mihomo 19548，mixed-port **127.0.0.1:7897**；9090=external-controller，7898 是配置值但未被核心监听——netstat 实敲 7897 ESTABLISHED 流量密集）；
+* 验证链：`curl -x 7897 POST /v1/chat/completions` → **HTTP 200**，usage `prompt_tokens 4395 / cached_tokens 4224`；
+* `/v1/responses` 不带 stream → 网关回 **stream_required**（「This group only supports streaming generation requests. Set stream to true.」）——**服务端亲口确认「所有应答车道都是流」铁律**；
+* chat completions 非流照常可用（协议门只卡 responses）；
+* `scripts/llm_cache_probe.py` 复敲 6/6 全通：`short 4395/5 cached 4224 · long 6548/106 4224 · long again 6548/183 4224 · **stream long-repeat 6400 cached**`——同一前缀第二遍敲，流式车道缓存 **4224 → 6400**，复现「stream 命中多、non-stream 不显」的体感，但这不是魔法，是前缀字节命中；
+* `.local/llm.json` 未动（protocol=responses · max effort）；key 未入仓一字节。
+
+### 二、三个真改动（代码·文档·卷轴）
+
+| 件 | 内容 |
+|---|---|
+| `scripts/live_lane_probe.py` | 裸 `httpx.stream` → **`providers.net.outbound_client`**（env 内 HTTPS_PROXY 挂载修复，#602 规矩）；复敲：HTTP 200 · 9 chunks · 3.75s · usage 完整带 cached_tokens · 零推广链接 |
+| `docs/operations/LOCAL_EXPERIENCE.md` | 增「aizzz.xyz 走代理出网（本机实测，#1884）」小节：代理是本机事实、不进仓；不开代理=被网关按「地区」拦，不是 key 问题 |
+| 更正 **R14** | Volume XCI/XCII「CLOSED_FOR_THIS_CHANNEL」→ 出网没走梯；卷纸留着不删，correction 只追加；卷轴**14 条**（build_corrections.py 现敲） |
+
+### 三、要求 #四 复盘（缓存/车道问题的终验）
+
+* **「非流」真相**：原 wkapi 车道的「非流」是网关层缺口（660-era 以前；#1644/#1645 已修应答车道全部流式化）；本论的红字面是 aizzz+直连=区域拦截——问题从根上不是「非流」，是**没上梯**；
+* **stream 是唯一应答车道**这条铁律被 aizzz 服务端用 `stream_required` 又敲了一遍；`/responses` 与 `stream_options.include_usage` 是本仓一切大语言模型应答的唯一形状；
+* **token 效率**：同一前缀 2 次敲：stream 车道 cached 4224→6400（第二次节省≈2,176 token；按本机应答计账）——provider 前缀缓存机制与 wkapi 的 4224 同构：按前缀字节、不按语义；
+* **不改裁判**——court 永远 `stream=True + include_usage=True`；`4117d2b0ca5fb23a` LOCKED；purity CLEAR；「密码-123」永久否决。
+
+### 四、立刻可复敲的命令（这台机器）
+
+```powershell
+$env:HTTPS_PROXY="http://127.0.0.1:7897"
+$env:HTTP_PROXY="http://127.0.0.1:7897"
+python scripts/llm_cache_probe.py   # 6/6
+python scripts/live_lane_probe.py   # HTTP 200 · 9 chunks
+```
+
+### 五、诚实边界
+
+* 代理 **7897** 是本机事实：绝不落入任何 tracked 文件；
+* 本轮把两件事记住：**R14 纠偏**（可删? 不删——卷轴只增不删）、以及**stream/responses 铁律被服务端确认**；
+* D1（OBSERVABILITY 签字）、D2（PORTFOLIO_TOKEN）照旧；纯网页中文/英文环境、全页尾 ChainBanner 六页，无变更。

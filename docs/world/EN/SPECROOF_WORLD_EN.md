@@ -3636,3 +3636,53 @@ This is the hundredth volume of the Book (zh and en mirror, one entry per ledger
 **One hundred is not ceremony — it is compound interest: a hundred doors knocked, a hundred times iron answered; the debt still knows its name.**
 
 ---
+## Volume XCIV · The Ladder That Caught the Light（卷九十四 · 梯光复明）
+
+> The knock in the last volume rang hollow — because the palm never met the seventh rung of the ladder.
+> In this volume, the iron drags the light back in.
+
+### 94.1 The cause: not the lane, not the region — the egress
+
+#1881 filed 「6/6 red」as CLOSED_FOR_THIS_CHANNEL, verbatim red bytes and all — fair to print then.
+Only today, carrying the ladder, did the door admit: **the block happened on the direct jump**, not on the key, not on the model.
+
+* Once this host's Clash Verge (mihomo, `127.0.0.1:7897` mixed-port) took the egress:
+  `curl -x 7897 …` got back **a true HTTP 200 / SSE events** instantly;
+* `/v1/responses` without `stream:true` is refused — **「This group only supports streaming generation requests. Set stream to true.」** — the server itself confirms the iron rule: *every answer lane is a stream*;
+* plain non-streaming chat.completions still works (the gate guards `responses` only), and `usage.prompt_tokens_details.cached_tokens` comes back whole.
+
+### 94.2 Struck live (2026-11-16, through the proxy)
+
+| call | lane | prompt | cached |
+|---|---|---|---|
+| short prompt | non-stream | 4395 / 5 | 4224 |
+| short prompt | **stream+incl** | 4395 / 5 | 4224 |
+| long prompt (~4.5k tok zh) | non-stream | 6548 / 106 | 4224 |
+| long prompt | **stream+incl** | 6548 / 118 | 4224 |
+| long prompt again | non-stream | 6548 / 183 | 4224 |
+| **long prompt again** | **stream+incl** | 6548 / 131 | **6400** |
+
+Second strike on the identical prefix, stream lane: the cache climbs to **6400 (~5.3k tokens hit)** — the owner's instinct ("stream shows the hits; non-stream hides them") gets struck onto paper.
+The prefix-blob effect is isomorphic with wkapi's old 4224 magic constant: **the gateway hits on prefix bytes, never on semantics.**
+
+### 94.3 The code was fixed too
+
+`scripts/live_lane_probe.py` went from bare `httpx.stream` to **`providers.net.outbound_client`** (the #602 env-proxy mount repair) —
+from now on this door is knocked **on the ladder, never at the wall**.
+Struck live: **HTTP 200 · 9 chunks · 3.75s · usage prompt 4409 / completion 11 · cached 4224 · zero promotional links**.
+
+### 94.4 Correction R14 filed
+
+「CLOSED_FOR_THIS_CHANNEL」→ the scroll gains one line: **R14: the egress never rode the ladder.**
+The volume keeps its cold pages as witness to "I mistook the phenomenon for the conclusion"; the scroll only appends.
+Read henceforth as "R14 covers XCI/XCII, and their typed bytes remain true as typed."
+
+### 94.5 Honest bounds
+
+* The proxy address is a **fact of this machine** — never enter the code, never enter any tracked file outside `.local`; scripts take it only from the environment;
+* `.local/llm.json` stays untracked; not one byte of the S-family crosses the repo;
+* court vows unchanged: **court is always stream=True + include_usage=True; court is never cached**; `4117d2b0ca5fb23a` LOCKED;
+* D1 (OBSERVABILITY signature, human) D2 (PORTFOLIO_TOKEN) are still owed;
+* 「password-123」permanently vetoed.
+
+---

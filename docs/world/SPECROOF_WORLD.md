@@ -3764,3 +3764,53 @@ RAG 的知识一半是**检索**——生成的一半今天依然关着（api.ai
 **一百不是仪式，是复利：门开一百次，铁被敲了一百次，欠条仍在知道自己欠的是什么。**
 
 ---
+## 卷九十四 · 梯光复明（The Ladder That Caught the Light）
+
+> 上一卷的敲门没有回声——是因为手掌没有贴上梯子的第七级。
+> 这一卷里，铁证重新把光引了回来。
+
+### 94.1 真因：不是车道，不是地区，是出网
+
+#1881 把「6/6 红」登记成了 CLOSED_FOR_THIS_CHANNEL，原文照录是对的——
+但今天带着梯子的头发一扇才发现：**拦截发生在直连这一跳上**，不是 key、不是模型。
+
+* 这台机器的 Clash Verge（mihomo，`127.0.0.1:7897` mixed-port）接管出网后：
+  `curl -x 7897 …` 立即收到**真·HTTP 200 / SSE 数据帧**；
+* `/v1/responses` 不带 `stream:true` 会被回拒——**「This group only supports streaming generation requests. Set stream to true.」**——这是对「所有应答车道都是流」铁律的服务端确认；
+* chat completions 普通非流式调用仍可用（协议门只卡 responses），usage 内 `prompt_tokens_details.cached_tokens` 完整返回。
+
+### 94.2 实敲（2026-11-16T ~20:00，proxy 记住了照敲）
+
+| 调用 | 车道 | prompt | cached |
+|---|---|---|---|
+| short prompt | non-stream | 4395 / 5 | 4224 |
+| short prompt | **stream+incl** | 4395 / 5 | 4224 |
+| long prompt（≈4.5k tok 中文） | non-stream | 6548 / 106 | 4224 |
+| long prompt | **stream+incl** | 6548 / 118 | 4224 |
+| long prompt again | non-stream | 6548 / 183 | 4224 |
+| **long prompt again** | **stream+incl** | 6548 / 131 | **6400** |
+
+同一前缀第二遍敲，流式车道缓存进到 **6400（≈5.3k token 命中）**——你直觉的「流式命中率要好得多」在纸上被敲了出来。
+cache 前缀效应与 wkapi 当年的 4224 常量同构：**网关按前缀字节数命中，不是按语义命中**。
+
+### 94.3 代码也修了
+
+`scripts/live_lane_probe.py` 从裸 `httpx.stream` 改为 **`providers.net.outbound_client`**（走 env 内 `HTTPS_PROXY` 挂载修复，#602 的老规矩）——
+从此这扇门想敲通，就**永远走梯，绝不裸撞**。
+实敲结果：**HTTP 200 · 9 chunks · 3.75s · usage prompt 4409 / completion 11 · cached 4224 · 零推广链接**。
+
+### 94.4 更正 R14 入卷轴
+
+「CLOSED_FOR_THIS_CHANNEL」→ 本卷末尾一条：**R14：出网没走梯。**
+闭关的卷仍留着，作为「我曾经把现象当结论」的证据；卷轴里新条只追加不删。
+此后的读法是「R14 可以覆盖 XC，但 XC 当时的敲字是真的」。
+
+### 94.5 诚实边界
+
+* 代理地址是**本机事实**：不进代码、不进 `.local` 之外的任何被 tracked 的文件；脚本只认环境变量；
+* `.local/llm.json` 依旧未跟踪；S-value 一个字节不过仓；
+* court 铁律照旧：**court 永远 stream=True + include_usage=True；court 永不缓存**，`4117d2b0ca5fb23a` LOCKED；
+* D1（OBSERVABILITY 真人签字）D2（PORTFOLIO_TOKEN）照旧欠着；
+* 「密码-123」永久否决。
+
+---
