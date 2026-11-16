@@ -34,6 +34,7 @@ const Epic = lazy(() => import("./pages/Epic"));
 const Tour = lazy(() => import("./pages/Tour"));
 const Lexicon = lazy(() => import("./pages/Lexicon"));
 const Museum = lazy(() => import("./pages/Museum"));
+const Errata = lazy(() => import("./pages/Errata"));
 const Gestures = lazy(() => import("./pages/Gestures"));
 const Drill = lazy(() => import("./pages/Drill"));
 const Explorer = lazy(() => import("./pages/Explorer"));
@@ -83,6 +84,7 @@ const NAV: NavItem[] = [
   { path: "calendar", labelKey: "nav.calendar", icon: "calendar", groupKey: "group.evidence" },
   { path: "lexicon", labelKey: "nav.lexicon", icon: "guide", groupKey: "group.evidence" },
   { path: "museum", labelKey: "nav.museum", icon: "scroll", groupKey: "group.evidence" },
+  { path: "errata", labelKey: "nav.errata", icon: "scroll", groupKey: "group.evidence" },
   { path: "gestures", labelKey: "nav.gestures", icon: "guide", groupKey: "group.evidence" },
   { path: "matrix", labelKey: "nav.matrix", icon: "matrix", groupKey: "group.evidence" },
   { path: "explorer", labelKey: "nav.explorer", icon: "contracts", groupKey: "group.evidence" },
@@ -136,6 +138,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "tour") return <Tour />;
   if (seg[0] === "lexicon") return <Lexicon />;
   if (seg[0] === "museum") return <Museum />;
+  if (seg[0] === "errata") return <Errata />;
   if (seg[0] === "gestures") return <Gestures />;
   if (seg[0] === "explorer") return <Explorer />;
   if (seg[0] === "login") return <Login />;

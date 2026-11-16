@@ -4655,3 +4655,43 @@ Court never caches。世界还知道我从不让它亮为了假希望。偶尔�
 * exhibit #4 仍在；Night Watch 仍 CRACKED。
 
 ---
+## 卷一百一十八 · 错误的展厅（The Errarium）
+
+> 一间博物馆让人看见奇迹；
+> 一间更正馆让人看见「我们也写过完全错的话」——然后被自己的账本敲回去。
+> 这一卷就这句也就够了。
+
+### 118.1 这页叫什么
+
+`/errata` ——更正卷轴页。上屏幕的是 15 条更正，直接全盘继承 `APPENDIX_CORRECTIONS.md`：
+
+```
+R01 · R02 · R03 · R04 · R05 · R06 · R07 · R08 · R09 · R10 · R11 · R12 · R13 · R14 · R15
+```
+
+每一条都有：
+
+* `gloss` — 中文一句话 / English one-liner
+* `detail` — 同文双语长解释（中文 · 英文各一个）
+* `anchor` — `#1845` · 真的 commit / 账本号
+* `category` — 每条都有自己的类别（court lock / 双语 / egress / RBAC 等）
+
+UI 上的行为：搜一下即动词就 narrow 没匹配就完全不上屏；
+不挑 UI 风格——emerald 既理直气壮 slate 也有，红黄玉现显就这样。
+
+### 118.2 为什么这一卷
+
+世界的每一份代码本质上都是以书为材的演示； #1895 那一卷曾给出 Our-R088；
+但我们一直没给 R12/R14/R15 自己一个面向 UI 的展位。今天它们上来了。
+
+本仓库第一次有 `/errata` 这条路——**它发自账本、用于访客（admin 不需要登陆就能读）**。
+技能要求不是「全部 546/546」一个数；是「每条错误被诚实地放在了能被搜到的位置上，不涂不改不撤」。
+
+### 118.3 一条规矩
+
+- 这些卷轴永远可搜索；
+- 每一个点击都指向 `anchor` 这个 commit 编号；
+- 任何人发现新的更正——加进 APPENDIX_CORRECTIONS.md / corrections.json，重新 build_corrections，本页自动增量；
+- court locked。
+
+---

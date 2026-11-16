@@ -4532,3 +4532,39 @@ Just this one line.
 * D1 signed-on-order; D2 still pending your PAT; no new IOUs.
 
 ---
+## Volume CXVIII · The Errarium（卷一百一十八 · 错误的展厅）
+
+> A museum shows you wonders;
+> the Hall of Corrections shows you when this very book said something embarrassingly wrong, and then stood corrected.
+> That is this whole volume — nothing more, and everything.
+
+### 118.1 The page
+
+`#/errata` renders the fifteen errata that belong in the scroll (`APPENDIX_CORRECTIONS.md`):
+
+```
+R01 · R02 · R03 · R04 · R05 · R06 · R07 · R08 · R09 · R10 · R11 · R12 · R13 · R14 · R15
+```
+
+Each item carries:
+
+* `gloss` — a one-line label in both locales;
+* `detail` — the full explanation, zh and en mirrored;
+* `anchor` — `#<ledger>` — the real ledger entry with the true commit behind it;
+* `category` — its own category (court-lock / bilingual / egress / history).
+
+Behavior: search; nothing matches → nothing fakes up; each row expands or collapses at your finger.
+
+### 118.2 Why this volume
+
+This exhibit puts the errata scroll in the conversation of the app. The book finally walks with the view — a route every visitor can tap, with everything painted from the ledger.
+
+Wrongness is not edited; it is stored verbatim. Each entry was authored in the moment the mistake happened, and nobody will rewrite it for hairdo.
+
+### 118.3 Its law
+
+* any new correction you spot → APPENDIX_CORRECTIONS.md → `scripts/build_corrections.py` → this page gets it automatically;
+* court never cached; gate the corridor with the same Iron discipline;
+- D1 signed / D2 still owed / 「password-123」permanently vetoed.
+
+---

@@ -48,6 +48,7 @@ const zh = {
   "nav.gazette": "铁证晨报",
   "nav.calendar": "铁证日历",
   "nav.lexicon": "铁证词典",
+  "nav.errata": "更正",
   "nav.museum": "铁证博物馆",
   "nav.gestures": "验收官十四式",
   "nav.guide": "上手指南",
@@ -465,6 +466,15 @@ const zh = {
   "museum.all": "全部",
   "museum.colophon":
     "本馆不设装饰性指标——每件展品都指向账本（DEEP_OPTIMIZATION_PLAN.md）里的一个真实条目；编号可 git log 对账。",
+  "errata.title": "更正卷轴",
+  "errata.subtitle": "THE ERRATA SCROLL",
+  "errata.lead":
+    "十五次我们写过错的话，每一次都进这个板子——没有一件展品是擦掉的；每件钉着一个真实账本号。",
+  "errata.searchLabel": "搜索更正",
+  "errata.placeholder": "搜索编号、英文名、关键字……（例：R14 / court / egress / 门）",
+  "errata.noResult": "没有匹配——更正从来不是删除，查询只是暴露它们；换个关键词再敲一次。",
+  "errata.colophon":
+    "每条更正都钉在仓库内的 commit / 账本号 / audit 脚本上；这里没有一个字夸大或涂白——读着舒服、不像落井下石。",
   "lexicon.title": "铁证词典",
   "lexicon.subtitle": "THE IRON LEXICON",
   "lexicon.lead":
@@ -548,6 +558,7 @@ const en: Record<keyof typeof zh, string> = {
   "nav.gazette": "The Gazette",
   "nav.calendar": "The Calendar",
   "nav.lexicon": "Iron Lexicon",
+  "nav.errata": "Errata",
   "nav.museum": "Evidence Museum",
   "nav.gestures": "Fourteen Gestures",
   "nav.guide": "Onboarding Guide",
@@ -958,6 +969,15 @@ const en: Record<keyof typeof zh, string> = {
   "museum.all": "All",
   "museum.colophon":
     "This museum sets no decorative metrics — every exhibit points at a real entry in the ledger (DEEP_OPTIMIZATION_PLAN.md); every number reconciles with git log.",
+  "errata.title": "The Errata Scroll",
+  "errata.subtitle": "THE ERRATA SCROLL",
+  "errata.lead":
+    "Fifteen times we said something wrong. Every one is on this wall — none erased; every one carries a real ledger entry.",
+  "errata.searchLabel": "Search the errata",
+  "errata.placeholder": "Search codes, English keywords, or phrases… (e.g. R14 / court / egress / door)",
+  "errata.noResult": "Nothing matched — the scroll does not delete; the query only reveals it. Try a different word.",
+  "errata.colophon":
+    "Every entry is nailed to an in-repo commit, ledger anchor, or audit script. Nothing here exaggerates a miss into a virtue; nobody is shamed.",
   "lexicon.title": "Iron Lexicon",
   "lexicon.subtitle": "THE IRON LEXICON",
   "lexicon.lead":

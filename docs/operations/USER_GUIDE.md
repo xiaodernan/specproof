@@ -190,6 +190,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/lexicon` | 铁证词典 | 十四个词，每词可搜、可点开、锚到仓库真实位置 |
 | `/gestures` | 验收官十四式 | 十四种验收站姿一网打尽——可敲盖、见铁印 |
 | `/museum` | 铁证博物馆 | 十二件实证展品，每件锚到账本真实条目 |
+| `/errata` | 更正卷轴 | 十五条误判留痕（R01–R15），每条锚到账本号与 commit；查询只寻不删 |
 | `/usage` | 缓存健康 | 真 hit_rate + 计费链条 |
 | `/guide` | 上手指南 | 从 clone 到第一个 BLOCKED 的 4 步 |
 | `/login` | 连接 | API key / Bearer —— 无 key 时每个页面都回到这里 |

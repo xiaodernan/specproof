@@ -40043,3 +40043,29 @@ Volume CXVI《不装的招牌 · The Unfakeable Sign》入册 → worldbook **12
 Exhibit #8（2,078.7 ms）以本书中最低的骨光出现在真宫真实页面上——不涂、不改、不抹；
 
 Volume CXVII《第三块地标 · The Third Light in the Atlas》入册 → worldbook **124 卷** · chronicle **1,708 节**。
+
+## #1908 《错误的展厅》：新页 `#/errata`（R01–R15 · 双语 · 搜索 narrows · fail-open）· Volume CXVIII《The Errarium》
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1907。
+
+### 一、新页面
+
+* `apps/web/src/pages/Errata.tsx` —— `/errata` 路（public）像 Museum 一样，直接读 `errata.copy.ts` 里的 15 条更正：
+  * `ERRATA: ErratumEntry[]` — id, category(zh/en), gloss(zh/en), detail(zh/en), anchor（`#\d+`，ledger anchor）
+  * UI 行为：search 输入框、count、`.errata-list` 清单、每条可折叠、左侧 Rzz chip 钉在分类栏
+* `apps/web/src/styles/errata.css`
+* `apps/web/src/pages/errata.copy.ts`（新，全双语项）+ `Errata.test.tsx`（4 断言 · UI 550/550）
+* NAV 第 43 号（`scroll` icon · group.evidence）；coach nav destinations 42 个；
+* 2 语 USER_GUIDE（zh + en）对称增行 · guide catalog 测试 6/6 全跑过
+
+### 二、考卷风格的故事
+
+之前 Corrections/Scroll 的 15 条只在世界书体内出现；今天把它们给了用户：**打开就能搜到 R14**。cold rehearsal, 每一条都能直通 commit 锚。
+
+### 三、量与 commit
+
+* UI **550/550**（+6：4 Errata.test.tsx +2 其他已绿）
+* npm run build ✓ · court=4117d2b0ca5fb23a LOCKED · purity CLEAR · mvn -o 137/137
+* guide route catalog 6/6 · CSS audits sheet 无其他必要
+
+Volume CXVIII《错误的展厅 · The Errarium》入册 → worldbook **125 卷** · chronicle **1,709 节**。

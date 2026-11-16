@@ -189,6 +189,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/lexicon` | Iron Lexicon | fourteen words, each searchable, each anchored to a real location |
 | `/gestures` | Fourteen Gestures | fourteen stances before evidence — collectible, each landing on a real verdict label |
 | `/museum` | Evidence Museum | twelve exhibits, each pinned to a real ledger entry |
+| `/errata` | The Errata Scroll | fifteen errata (R01–R15) on file, each anchored to a ledger number and a commit — a query exposes, never erases |
 | `/usage` | Cache Health | truthful hit_rate + billing chain |
 | `/guide` | Onboarding Guide | from clone to your first BLOCKED in 4 steps |
 | `/login` | Connect | API key / Bearer — no key, every page returns here |
