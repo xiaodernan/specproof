@@ -4149,3 +4149,46 @@ findings=[evidence lane: not jade]
 `/engine` 页尾夜眼面板这个位置会继续不更换。等到足够多的 exhibit 波动在 25ms 内的时刻，证据门自己会关上，夜灯自己会变玉色。
 
 ---
+## 卷一百零四 · 五盏常亮的铁灯（The Five Iron Flames）
+
+> 一盏灯不能证明屋里的人每一步都走得对；五盏灯都亮着，你连"哪盏照见你"都知道了。
+
+### 104.1 今天第⑤盏落了
+
+`agent/graphs/recall_graph.py`——「问铁证」的检索子图（LangGraph）：
+
+```
+intake  →  search  →  verdict  →  END
+query    CJK/latin tokenize + 双字段 BM25（title×2.4 · body×1 · k1=1.5 · b=0.75）
+```
+
+**每一个挂灯都是 StateGraph**：
+
+| # | 文件 | 状态 |
+|---|---|---|
+| ① | `agent/graphs/evidence_graph.py` — 证据复核 | ✅ |
+| ② | `agent/graphs/purity_graph.py` — 密钥纯度 | ✅ |
+| ③ | `agent/graphs/auditor_graph.py` — 五灯一链（unsigned → court → evidence → residue → portfolio）| ✅ |
+| ④ | `agent/graphs/night_watch_graph.py` — 合体脊椎（Evidence∩Purity∩Audit → verdict→report→END）| ✅ |
+| ⑤ | `agent/graphs/recall_graph.py` — 检索子图（intake → search → verdict → END）<br>**HIT 不需现色、MISS 也不乱凑**；以 commit `1fca402` / `2b2aeaf` 为起点 | ✅ |
+
+### 104.2 本卷交付
+
+- `agent/graphs/recall_graph.py`（新）：检索器；不调 LLM、不联网；`HIT / MISS / MISSING-QUERY / EVIDENCE-MISSING` 四状态完整可测
+- `tests/unit/test_recall_graph.py`（6/6）：
+  - `"court 永不缓存"` → HIT · 头条命中含 `court`
+  - `"密码 123"` → HIT · 必达 #1799（铁证在纂）
+  - `""` → MISSING-QUERY
+  - `"zzqxjvn xvjq lqxzvnq"` → MISS（如实报失败）
+  - `docs-dir` 找不到 → EVIDENCE-MISSING（loud，不乱编）
+  - `top=5 vs top=1` → 不调非也不满 # top 生效
+- `apps/web/src/pages/Graph.tsx` — "同行 StateGraph（五盏）" 一行全量入册；①-⑤ 五口并列表，指向各自 StateGraph 文件
+- UI **544/544**；`npm run build` ✓；court lock 仍是 `4117d2b0ca5fb23a` LOCKED
+
+### 104.3 没做的
+
+- 没有换掉 Court 任何规则；没有动 court cache；没有一个字被 LLM 生成的 key 替代了我的字；
+- **purity** 仍 **CLEAR**（本次纯度灯又对所有 track 过的文件重敲一遍：2,821 文件 · 0 意外命中）— 作为审计 evidence 留入 `purity-sift.json`；**night-watch 仍 CRACKED**（exhibit #4 那一行 1,526ms 不可能被忘了）；
+- D1/D2 没动；「密码-123」永久否决。
+
+---

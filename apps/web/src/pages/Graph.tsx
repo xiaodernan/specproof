@@ -58,8 +58,8 @@ export default function Graph() {
         </p>
         <p>
           {locale === "zh"
-            ? "同行的 StateGraph：agent/graphs/evidence_graph.py——本仓库的「证据复核子图」。intake → collect_series → verdict → emit_report → END，一次运行 10ms，逐件敲 docs/evidence/*.json——每逢考核体检，它自己知道答案在 OK 还是 REGRESSION。"
-            : "a kin StateGraph lives right here: agent/graphs/evidence_graph.py — the repo's own evidence-review subgraph: intake → collect_series → verdict → emit_report → END; one run, ~10ms; it walks docs/evidence/*.json itself and knows OK from REGRESSION."}
+            ? "同行 StateGraph（五盏）：① `agent/graphs/evidence_graph.py`——证据复核子图：intake → collect_series → verdict → emit_report → END；② `agent/graphs/purity_graph.py`——密钥纯度子图：intake → scan → crosscheck → verdict → report → END；③ `agent/graphs/auditor_graph.py`——五灯一链：unsigned → court_lock → evidence → scratch_residue → portfolio → verdict → report → END；④ `night_watch_graph.py`——把三盏合一根脊椎；⑤ `recall_graph.py`——问铁证的检索子图：intake → search → verdict → END。每逢考核体检，图自己知道 OK 还是 REGRESSION。"
+            : "five kin StateGraphs: (1) agent/graphs/evidence_graph.py — the evidence-review subgraph (intake → collect_series → verdict → emit_report → END); (2) purity_graph.py — the secrets-purge subgraph (intake → scan → crosscheck → verdict → report → END); (3) auditor_graph.py — five lanes once around (unsigned → court_lock → evidence → scratch_residue → portfolio → verdict → report → END); (4) night_watch_graph.py — compasses the three lanes onto one spine; (5) recall_graph.py, the ledger's retrieval subgraph (intake → search → verdict → END). On every check-up, the graphs themselves know OK from REGRESSION."}
         </p>
       </div>
     </div>

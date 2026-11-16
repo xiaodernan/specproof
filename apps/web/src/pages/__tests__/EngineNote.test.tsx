@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render, cleanup, within } from "@testing-library/react";
+import { render, cleanup } from "@testing-library/react";
 import { I18nProvider, LOCALE_STORAGE_KEY } from "../../i18n";
 import Engine from "../Engine";
 

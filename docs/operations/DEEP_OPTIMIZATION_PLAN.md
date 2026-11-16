@@ -39671,3 +39671,36 @@ exhibit #4 留库，不改写、不删档、不缩为「那波动波动吧」。
 4. UI 544/544；`npm run build` ✓。
 
 Volume CIII《第六件实证 · The Sixth Exhibit》入册 → worldbook **110 卷** · chronicle **1,694 节**。
+
+## #1894 《五盏常亮的铁灯》：新 StateGraph `agent/graphs/recall_graph.py`（intake→search→verdict→END · BM25 双字段 CJK+latin · 零 LLM 零联网 · 6/6 测）· Graph 页五盏图指引 · Volume CIV
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1893。
+
+### 一、交付（一盏新铁灯）
+
+* `agent/graphs/recall_graph.py`——「问铁证」检索子图（LangGraph）：
+  * nodes：`intake → search → verdict → END`；四状态：HIT / MISS / MISSING-QUERY / EVIDENCE-MISSING（loud，不 fabricate）;
+  * CJK unigram+bigram · latin `[A-Za-z0-9_]{2,}`；双字段 BM25（title×2.4 · body×1 · k1=1.5 · b=0.75）；IDF 为 `log(1+(N-df+0.5)/(df+0.5))`；
+  * 不调 LLM、不联网、不写盘；输入 query，输出排名前 `top` 条与 verdict；
+  * `agent/graphs/__main__` 接受 `python agent/graphs/recall_graph.py "court 永不缓存"` 一行直跑
+* `tests/unit/test_recall_graph.py`（6/6）：
+  * "court 永不缓存" → HIT · 头含 `court`；
+  * "密码 123" → HIT · 必达 #1799；
+  * "" → MISSING-QUERY；
+  * "zzqxjvn xvjq lqxzvnq" → MISS；
+  * `docs-dir` 缺 → EVIDENCE-MISSING；
+  * top=5 vs top=1 → 裁答件数准确 · 分数不倒挂序；
+* `apps/web/src/pages/Graph.tsx`——「同行 StateGraph（五盏）」段落改写出 ①–⑤ 五盏清单（evidence / purity / auditor / night_watch / recall）；
+* UI **544/544** · `npm run build` ✓ · tsc 0 报错
+
+### 二、灯数环
+
+**5 个 StateGraph 运行在同一个认证框架里**：证据复核、密钥纯度、审计链、Night Watch 合体、检索——多车道串行可串到 `night_watch_graph`。state 总是递归的，结果就是真正写入磁盘的 `audit-chain.md`。
+
+### 三、不变
+
+* court=4117d2b0ca5fb23a **LOCKED**; `test_court_never_caches.py` 4/4；`.local/llm.json` 从不入库；`.env` 不以任何名字被覆盖；「密码-123」永久否决；D1/D2 照旧。
+* night-watch 依然 **CRACKED**——exhibit #4 不被改写：本灯坚持需要字段与字节。
+* 本轮密钥使用了 **零字节 API key 进代码 / 测试 / ledger 任一文件**；之前围绕 LLM 车道的一切依然有效（#1884 之后经过代理车道、provider_smoke 7/7 PASS、R14 入卷）。
+
+Volume CIV《五盏常亮的铁灯 · The Five Iron Flames》入册 → worldbook **111 卷** · chronicle **1,695 节**。

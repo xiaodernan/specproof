@@ -4021,3 +4021,46 @@ Any hand that tries to erase it shall meet the fact face-on; this volume refuses
 The `/engine` footer panel keeps its place. When an exhibit strike lands under Δ<25 ms for enough consecutive strikes to tell one host from another, the evidence gate will close itself, and the lamp will jade itself — nobody paints that lamp.
 
 ---
+## Volume CIV · The Five Iron Flames（卷一百零四 · 五盏常亮的铁灯）
+
+> One lamp cannot prove every step was right; five lamps, and you know exactly which one you are standing under.
+
+### 104.1 The fifth lamp just went up
+
+`agent/graphs/recall_graph.py` — the "ask-the-iron" retrieval subgraph (LangGraph):
+
+```
+intake  →  search  →  verdict  →  END
+query    CJK/latin tokenizer + dual-field BM25 (title × 2.4, body × 1, k1=1.5, b=0.75)
+```
+
+**Every lamp is a StateGraph**:
+
+| # | file | state |
+|---|---|---|
+| ① | agent/graphs/evidence_graph.py — evidence review | ✅ |
+| ② | agent/graphs/purity_graph.py — secrets purge | ✅ |
+| ③ | agent/graphs/auditor_graph.py — five lanes once around (unsigned → court → evidence → residue → portfolio) | ✅ |
+| ④ | agent/graphs/night_watch_graph.py — the composite spine (Evidence∩Purity∩Audit → verdict → report → END) | ✅ |
+| ⑤ | agent/graphs/recall_graph.py — the retrieval subgraph (intake → search → verdict → END)<br>**a HIT wears no threadbare robe; a MISS is never filled with make-believe** | ✅ |
+
+### 104.2 What landed in this volume
+
+- `agent/graphs/recall_graph.py` (new): no LLM, no network; four verdicts (HIT/MISS/MISSING-QUERY/EVIDENCE-MISSING), all covered —
+- `tests/unit/test_recall_graph.py` (6/6):
+  - `"court 永不缓存"` → HIT with `court` in the first hit;
+  - `"密码 123"` → HIT that necessarily carries `#1799`;
+  - `""` → MISSING-QUERY;
+  - `"zzqxjvn xvjq lqxzvnq"` → MISS (the iron does not humour);
+  - `docs-dir` missing → EVIDENCE-MISSING (loud, never fabricated);
+  - `top=5` vs `top=1` honoured;
+- `apps/web/src/pages/Graph.tsx` — five kin StateGraphs listed in order, pointing at their files;
+- UI **544/544** · build ✓ · Court Lock `4117d2b0ca5fb23a` LOCKED, as always.
+
+### 104.3 What this volume refuses
+
+- court cache stays untouched; zero Court lines changed;
+- purity re-struck CLEAR (2,821 files · 0 unexpected hits) — tally stays standing; **the night watch remains CRACKED** (exhibit #4 stays on file — 1526.1 ms, never erased, never paraphrased);
+- D1 · D2 unchanged; 「password-123」permanently vetoed.
+
+---
