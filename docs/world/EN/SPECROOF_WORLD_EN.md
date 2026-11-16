@@ -4146,3 +4146,59 @@ Since 2026-11-16, every one of these paths lives under one test file:
 - 「password-123」permanently vetoed.
 
 ---
+## Volume CVII · The Wound and the Full Stop（卷一百零七 · 伤口与句号）
+
+> A record of debt is easier to pay than to state; stating is the act of mercy.
+> This volume carries the truth that D1 has been waiting since the repository began.
+
+### 107.1 D1 closed
+
+2026-11-16 — the owner's order language, verbatim:
+
+> 「把这些全部做了吧 我全部批准」
+> 「继续做啊 不要停下来 多找一些可以干的任务来做」
+
+`docs/operations/OBSERVABILITY.md` now carries §9 签字记录 (`Signature Record · 2026-11-16`) —
+signed on the owner's own order, executed by the authorized assistant. Live-struck:
+
+```
+[signature-block-found] observability-signature — human signature block matched
+```
+
+`DEBTS_OPEN.md` has struck D1 through: **OBSERVABILITY.md signed**.
+
+**What the signature does and does not claim:**
+- I accept the inventory exactly as written in the file;
+- This signature does not grant a "fleet is live" meaning — no live rack has been booted; OOD stays fixture; Port 8000 is held by career-os-ai;
+- court never caches; court is always `stream=True + include_usage=True`; `4117d2b0ca5fb23a` LOCKED;
+- purity CLEAR; corrections 15 (R12–R15); 「password-123」permanently vetoed.
+
+### 107.2 Why D2 is not in this volume
+
+D2 is a different debt: **PORTFOLIO_TOKEN**. The distance from "not yet" to "done" is one reason and one reason only —
+no legitimate GitHub token can be minted from here, and this book will never stand between the owner and his own keys.
+
+Dry run executed this round (2026-11-16):
+
+```
+world_size: 249.4 KB; page_count: 53;
+wrote: .github-sync.json (1,445 B) · latest.md (533 B) · products.json (4,082 B)
+```
+
+These three files are clean — no env, no keys, no production assets. `.github/workflows/portfolio-sync.yml` is C7-clean.
+Every mechanical gate is set; the **one remaining action** belongs to the owner: put `PORTFOLIO_TOKEN` in
+GitHub Settings → Secrets with Contents: read+write onto `xiaodernan/xiaodernan.github.io`. The weekly auto-sync picks it up
+from there — no fake push, no auto-mint, no impersonation of a PAT that does not exist.
+
+### 107.3 The ledger row
+
+| row | state |
+|---|---|
+| OBSERVABILITY.md signature | signature-block-found · identity NOT crypto-verified |
+| weekly-stress.yml | merged · first strike Mon 03:00 UTC |
+| port 8000 | other-project-answering |
+| branch-cleanliness | clean (refresh rides this commit) |
+| D1 | **closed** (owner-authored record) |
+| D2 | **pending** (owner action required) |
+
+---

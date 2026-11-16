@@ -1,21 +1,21 @@
 {
  "version": 1,
  "source": "merged verbatim from unsigned/evidence/courtLock/purity/audit_chain/chronicle/repoStats/worldbook JSON",
- "generated_utc": "2026-11-16T09:11:35+00:00",
+ "generated_utc": "2026-11-16T09:27:09+00:00",
  "totals": {
-  "commits": 2555,
-  "chronicle_sections": 1696,
-  "worldbook_volumes_zh": 113,
-  "worldbook_volumes_en": 113,
-  "python_test_files": 617,
+  "commits": 2556,
+  "chronicle_sections": 1697,
+  "worldbook_volumes_zh": 114,
+  "worldbook_volumes_en": 114,
+  "python_test_files": 618,
   "web_test_files": 73
  },
  "lamps": {
-  "unsigned_phase": "2026-11-16T09:00:30+00:00",
+  "unsigned_phase": "2026-11-16T09:25:53+00:00",
   "weekly_stress_merged": "merged",
   "port_8000": "other-project-answering",
   "branch_cleanliness": "dirty-tree",
-  "observability_signature": "awaiting-signature",
+  "observability_signature": "signature-block-found",
   "court_lock_verdict": "LOCKED",
   "court_lock_hex": "4117d2b0ca5fb23a",
   "purity_verdict": "CLEAR",
@@ -35,8 +35,8 @@
   "chain_generated_utc": "2026-11-16T09:00:32+00:00"
  },
  "book": {
-  "zh_bytes": 252927,
-  "en_bytes": 259524,
-  "ledger_bytes_kB": 3848.3
+  "zh_bytes": 255394,
+  "en_bytes": 261801,
+  "ledger_bytes_kB": 3849.9
  }
 }

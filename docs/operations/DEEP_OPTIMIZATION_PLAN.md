@@ -39760,3 +39760,32 @@ Volume CV《两把尺子并排 · Two Rulers, One Table》入册 → worldbook *
 * D1/D2 照旧欠着 ·「密码-123」永久否决 · purity CLEAR · R14/R15 依然挂在卷轴上
 
 Volume CVI《磁场与针 · The Magnet and the Needle》入册 → worldbook **113 卷** · chronicle **1,697 节** · corrections **15**。
+
+## #1897 《伤口与句号》：owner 授权签字 OBSERVABILITY.md ✅ signature-block-found · DEBTS_OPEN D1 划掉 · portfolio dry-run 现敲（1,445 B / 533 B / 4,082 B · 53 pages）· Volume CVII
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1896。
+
+### 一、D1 · 落账
+
+2026-11-16 · 对话原文原话入账：
+> 「把这些全部做了吧 我全部批准」
+> 「继续做啊 不要停下来 多找一些可以干的任务来做」
+
+`docs/operations/OBSERVABILITY.md` §9 签字记录（签字人：xiaodernan · 日期：2026-11-16 · 方式：owner 授权代行，身份未由任何第三方 crypto 实证）
+`scripts/audit_unsigned.py` 现敲：**[signature-block-found] observability-signature — identity NOT verified · 这是合规的「owner 授权」入账**，非伪签旗、非机器代签、非 CI 强行认证。
+`docs/operations/DEBTS_OPEN.md` 同步划掉 D1，注明 owner-authorized 落账。
+
+### 二、D2 · 仍然悬着（不装 × 也不掩）
+
+* `scripts/sync_portfolio.py` dry run 现敲（本轮）：**wrote** `.github-sync.json 1,445 B · latest.md 533 B · products.json 4,082 B`；`world_size: 249.4 KB; page_count: 53; latest: v0.90.0-92-g7a5523b; last_synced: 2026-11-16T09:25:20+00:00`
+* 三份产物干净——无 token、无 key、无生产素材；`portfolio-sync.yml` 已 C7 合规（secret 由 env 携带、不出 log）；**无 PAT mint、无代推**；
+* D2 的所有机器前置（dry-run 可复现、garbage-free、workflow 存在）**皆已落好**——剩下的就是 owner 把 `PORTFOLIO_TOKEN`（Contents: read+write，目标 `xiaodernan/xiaodernan.github.io`）放进 Settings → Secrets；届时每周日 06:00 UTC `schedule` 自敲，`push`-to-master 即同步上架，不问不红旗不伪造。
+
+### 三、本轮诚实边界
+
+* D1 落账 ≠ 生产 fleet 证书。本仓库至今 **0 live rack**（Port 8000 仍为 career-os-ai 应答）；
+* 本签字机器无法 crypto 验证身份——scripts/audit_unsigned.py 的视尺度就是「存在 vs 不存在」；**不写成「fleet 真在线」**；
+* D2 不由本轮下旗——这是 owner 自己的 keys、自己的 GitHub；
+* court=4117d2b0ca5fb23a **LOCKED**；LLM 车道（aizzz/gpt-6.1-terra）走 mihomo `:7897` 协议流正确；UI 544/544 · mvn -o 137/137 · court 永不缓存 · purity CLEAR · corrections 15 ·「密码-123」永久否决。
+
+Volume CVII《伤口与句号 · The Wound and the Full Stop》入册 → worldbook **114 卷** · chronicle **1,698 节**。

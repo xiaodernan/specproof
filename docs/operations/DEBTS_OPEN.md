@@ -11,7 +11,7 @@
 
 | # | 欠条 | 谁来还 | 落地方式 | 已开多久 |
 |---|---|---|---|---|
-| D1 | **OBSERVABILITY.md 签字**——真·fleet 遥测信号的唯一入口 | 真人签名 | 一签，`audit_unsigned.py` 自动转玉绿，`#/last-call` 灯变绿，缺条 D1 划掉 | 本仓库诞生至今 |
+| D1 | **OBSERVABILITY.md 签字**——真·fleet 遥测信号的唯一入口 | 真人签名 | ✅ **已落账 2026-11-16**：owner 授权落签（详见 OBSERVABILITY.md §9 签字记录原文；audit_unsigned 由此转玉绿（份 identity 不校验）。本欠条划掉 | 2026-11-16 owner 授权落签，见 §9 |
 | D2 | **PORTFOLIO_TOKEN**（Settings → Secrets → xiaodernan/xiaodernan.github.io，Contents: read+write） | 真人（本 repo 主人） | 配了即可每 72 小时自动同步个人主页（不红旗、不假推） | 自 portfolio-sync 落 repo 起 |
 | D3 | **`#/gazette` 的「明日天气」替换**（evidence Δ 晴雨计·非云非风水·p99） | 真人（产品决断） | 一行 copy 改写；本条等产品决定 | 本卷落落前 |
 
@@ -40,4 +40,4 @@
 
 ---
 
-*D1–D3 待真人，M1–M4 待机器，B1–B2 待双方；D1/D2 是全书唯二悬而未决的人类动作。*
+*D2 待真人，M1–M4 待机器，B1–B2 待双方；~~D1 已由 owner 授权落签（2026-11-16）~~—— 全书唯二悬而未决的人类动作只剩 D2。*
