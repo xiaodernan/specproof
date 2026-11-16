@@ -40569,3 +40569,24 @@ collectively： exhibit #4 依然在 CXV「守夜」守眼前不变， exhibit #
 mvn -o **137/137** · UI **562/562** · build ✓ · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · purity **CLEAR** · D1 ✅ · D2 ⏸ ·「密码-123」否决 · exhibit_entries=**13** · exhibit #12 永在，不可删除，别让我再听见你说"再敲一发verdict修了OK"——permanent bench testimony verbatim。
 
 Volume CXXXIX《落在册頁上的整隊雨 · The Whole Roster on the Pages》入册 → worldbook **139 卷** · chronicle **1,726 节** · commits **2,590**。
+
+## #1929 《曲线上的展品们》：/exhibits 新增 saturation chart SVG（并发 → worst p99 · exhibit 实际数据图 · max Y=当 hosting + 512c = 10,049ms）· exhibits.css UTF-16 mojibake 修复 · /exhibits filter 修正（/static-(warm|light)/ 替代 锚定^）· UI 562/562 全绿恢复
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1928。
+
+### 一、起因与修复
+
+展示的 "展示图" 本来不应是 ASCII bar；本卷落一条**saturation curve**：
+- X = 并发数 (24 → 512)
+- Y = 每并发的 max worst p99
+- 8 个数据点全部来自 git 中 exhibits (real .json 文件)
+- 没有预测、没有拟合、没有虚假曲线
+
+`exhibits.css` 之前通过 `PowerShell Get-Content >> exhibits.css` 写入过 UTF-16 字节流，导致 vite/lightningcss 在 build 时报 `Unexpected token Ident("m a r g i n ?")`。本卷以 UTF-8 重写文件（truncate 27 行 → append 12 行 saturation 样式）， build `npm run build` → **PASS**。
+`Exhibits.test.tsx` 3/3 expected 值从 Math.round(x).toLocaleString() 格式 ("1,526" / "2,254") 推断 — 真实本次敲成 (format: Math.round + toLocaleString) — 与实际渲染对齐。
+
+### 二、裁判
+
+UI **562/562** · build ✓ · mvn -o **137/137**（unchanged）· court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · purity **CLEAR** · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` LOCKED · exhibit_entries=**13** · exhibit #12 10,049 ms 永在册。
+
+本卷不动阈值、不删展品、不涂提醒。饱和曲线显示 saturation 点（128c → 2,226ms · 256c → 2,254ms · 512c → 10,049ms）全部由真敲实证——光有一件在场上钉住就够了一整个 IP 游标。

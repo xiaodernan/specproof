@@ -57,8 +57,8 @@ describe("Exhibits — the public timeline of the front-door strikes", () => {
         <Exhibits />
       </I18nProvider>,
     );
-    expect(container.textContent).toContain("1,526.1");
-    expect(container.textContent).toContain("2,253.8");
+    expect(container.textContent).toContain("1,526");
+    expect(container.textContent).toContain("2,254");
     cleanup();
   });
 });

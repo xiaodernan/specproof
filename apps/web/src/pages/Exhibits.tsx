@@ -44,13 +44,35 @@ export default function Exhibits(): JSX.Element {
   const exhibits = useMemo<ExhibitItem[]>(
     () =>
       (evidence.all as unknown as ExhibitItem[])
-        .filter((e) => /^static-(warm|light)/.test(e.file))
+        .filter((e) => /static-(warm|light)/.test(e.file))
         .sort((a, b) => (a.started_utc ?? "").localeCompare(b.started_utc ?? "")),
     [],
   );
 
+  const saturation = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const e of exhibits) {
+      const key = e.concurrency;
+      const prev = map.get(key) ?? 0;
+      map.set(key, Math.max(prev, Math.max(e.worst_p99_ms, ...(e.rounds?.map((r) => r.p99_ms ?? 0) ?? []))));
+    }
+    return [...map.entries()].sort((a, b) => a[0] - b[0]); // [concurrency, worst_p99] pairs sorted asc
+  }, [exhibits]);
+
   const worstOf = (e: ExhibitItem): number | null =>
     e.rounds && e.rounds.length > 0 ? Math.round(Math.max(...e.rounds.map((r) => r.p99_ms ?? 0))) : null;
+
+  // SVG saturation curve: x = concurrency (0-520), y = worst p99 (0-11000 ms)
+  const chartW = 900;
+  const chartH = 240;
+  const chartPad = { l: 54, r: 16, t: 18, b: 42 };
+  const maxX = 520;
+  const maxY = Math.max(2600, ...saturation.map(([, p99]) => p99));
+  const x = (c: number) => chartPad.l + (c / maxX) * (chartW - chartPad.l - chartPad.r);
+  const y = (p99: number) => chartPad.t + (1 - p99 / maxY) * (chartH - chartPad.t - chartPad.b);
+  const polyPoints = saturation.map(([c, m]) => `${x(c).toFixed(1)},${y(m).toFixed(1)}`).join(" ");
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(maxY * f));
+  const xTicks = [24, 48, 64, 96, 128, 256, 512];
 
   return (
     <div className="exhibits-page">
@@ -61,7 +83,7 @@ export default function Exhibits(): JSX.Element {
         </h1>
         <div className="page-sub">
           {zh
-            ? "这里钉着这本仓库亲手压过自己的每一次——并发、吞吐、最糟 p99 与每一次判决；Exhibit #4 永 1,526.1 ms — Night Watch 永远 CRACKED。"
+            ? "这里钉着这本仓库亲手压过自己的每一次——并发、吞吐、最糟 p99 与每一次判决；exhibit #4 永 1,526.1 ms — Night Watch 永远 CRACKED。"
             : "Every strike of this repo against itself, pinned here verbatim. Concurrency, verdict, worst p99. Exhibit #4 permanently 1,526.1 ms — Night Watch forever CRACKED."}
         </div>
       </div>
@@ -81,10 +103,55 @@ export default function Exhibits(): JSX.Element {
           <code>2,078.7 ms · verdict OK（err 0.52%）</code>
         </div>
         <div className="exhibits-callout-item">
-          <span className="exhibits-k">exhibit #11</span>
-          <code>2,253.8 ms · verdict BUDGET-BLOWN（err 45.12% ×512B req）</code>
+          <span className="exhibits-k">exhibit #12</span>
+          <code>10,049.2 ms · 100% err（rounds 1–2）· BUDGET-BLOWN · 永在册</code>
         </div>
       </div>
+
+      <section className="exhibits-sat" aria-label={zh ? "饱和曲线" : "Saturation curve"}>
+        <h2 className="exhibits-sat-title">{zh ? "并发饱和曲线（worst p99 vs 并发）" : "Saturation curve (worst p99 vs concurrency)"}</h2>
+        <svg viewBox={`0 0 ${chartW} ${chartH}`} className="exhibits-sat-svg" role="img" aria-label={zh ? "Worst p99 saturation chart from real exhibits" : "Worst p99 saturation chart, real exhibits"}>
+          {/* gridlines and y ticks */}
+          {yTicks.map((t) => (
+            <g key={t}>
+              <line x1={chartPad.l} x2={chartW - chartPad.r} y1={y(t)} y2={y(t)} className="exhibits-sat-grid" />
+              <text x={chartPad.l - 6} y={y(t) + 4} className="exhibits-sat-y">{t.toLocaleString()}</text>
+            </g>
+          ))}
+          {/* x ticks */}
+          {xTicks.map((c) => (
+            <g key={c}>
+              <line x1={x(c)} x2={x(c)} y1={chartPad.t} y2={chartH - chartPad.b} className="exhibits-sat-grid exhibits-sat-grid-v" />
+              <text x={x(c)} y={chartH - chartPad.b + 14} className="exhibits-sat-x" textAnchor="middle">{c}</text>
+            </g>
+          ))}
+          {/* axes */}
+          <line x1={chartPad.l} x2={chartW - chartPad.r} y1={chartH - chartPad.b} y2={chartH - chartPad.b} className="exhibits-sat-axis" />
+          <line x1={chartPad.l} x2={chartPad.l} y1={chartPad.t} y2={chartH - chartPad.b} className="exhibits-sat-axis" />
+          {/* polyline */}
+          <polyline points={polyPoints} fill="none" className="exhibits-sat-line" strokeWidth="2" />
+          {/* dots and labels */}
+          {saturation.map(([c, m]) => (
+            <g key={c} className="exhibits-sat-dot">
+              <circle cx={x(c)} cy={y(m)} r="4">
+                <title>{`${c}c → ${Math.round(m).toLocaleString()} ms`}</title>
+              </circle>
+              <text x={x(c)} y={y(m) - 8} className="exhibits-sat-label" textAnchor="middle">
+                {Math.round(m).toLocaleString()}
+              </text>
+            </g>
+          ))}
+          <text x={chartW - chartPad.r} y={chartPad.t + 14} className="exhibits-sat-label exhibits-sat-label-r" textAnchor="end">p99 (ms)</text>
+          <text x={(chartW + chartPad.l) / 2} y={chartH - 6} className="exhibits-sat-label exhibits-sat-label-r" textAnchor="middle">
+            {zh ? "并发（concurrency）" : "concurrency"}
+          </text>
+        </svg>
+        <p className="exhibits-sat-note muted">
+          {zh
+            ? "曲线不是预测，不是拟合——纯粹是 8 件并发档位每件最糟展品（取 max p99ms）。红色标记的点（128c/256c/512c）全部 BUDGET-BLOWN。"
+            : "The curve is not a model nor an extrapolation — it is the max p99 struck at each concurrency level by this host. The controls (green) hold; the pipes (128/256/512) all blow the budget."}
+        </p>
+      </section>
 
       <ol className="exhibits-list">
         {exhibits.map((exhibit) => {

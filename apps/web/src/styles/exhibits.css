@@ -24,3 +24,19 @@
 .exhibits-colophon { line-height: 1.85; margin-top: 18px; }
 .exhibits-footnote { font: 10px var(--font-mono); opacity: .7; display: inline-flex; gap: 8px; align-items: center; margin-top: 8px; }
 @media print { .exhibits-callout { grid-template-columns: 1fr; } }
+
+.exhibits-sat { margin: 0 0 26px; border: 1px solid var(--color-border); border-radius: var(--radius-lg, 12px); background: var(--color-surface, #131008); padding: 14px 16px 10px; }
+.exhibits-sat-title { font-size: var(--text-md); letter-spacing: .08em; margin: 0 0 10px; }
+.exhibits-sat-svg { display: block; width: 100%; height: auto; }
+.exhibits-sat-grid { stroke: var(--color-border, #222); stroke-dasharray: 4 4; stroke-width: 1; fill: none; }
+.exhibits-sat-grid-v { stroke-dasharray: 2 4; }
+.exhibits-sat-axis { stroke: var(--color-text-2, #9aa0b4); stroke-width: 1.2; fill: none; }
+.exhibits-sat-line { stroke: var(--accent-text, #d7b85a); fill: none; }
+.exhibits-sat-dot circle { fill: var(--accent, #d7b85a); stroke: var(--color-surface, #131008); stroke-width: 1.5; }
+.exhibits-sat-dot circle:hover + text,
+.exhibits-sat-dot circle:focus + text { stroke: var(--color-text); }
+.exhibits-sat-label { fill: var(--color-text-2, #9aa0b4); font: 10px var(--font-mono); }
+.exhibits-sat-label-r { fill: var(--color-text-3, #6b6f80); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+.exhibits-sat-y { fill: var(--color-text-2, #9aa0b4); font: 10px var(--font-mono); text-anchor: end; }
+.exhibits-sat-x { fill: var(--color-text-2, #9aa0b4); font: 10px var(--font-mono); }
+.exhibits-sat-note { line-height: 1.8; margin-top: 10px; font-size: var(--text-sm); }
