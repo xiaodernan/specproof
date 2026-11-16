@@ -1,7 +1,7 @@
-# Purity Sift — generated 2026-11-16T05:38:41+00:00
+# Purity Sift — generated 2026-11-16T05:43:14+00:00
 
 verdict: **CRACKED**
-tracked files scanned: 2822
+tracked files scanned: 2824
 unexpected hits: 1
 
 | file | line | match-shape |
