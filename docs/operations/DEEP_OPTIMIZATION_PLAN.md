@@ -40590,3 +40590,25 @@ Volume CXXXIX《落在册頁上的整隊雨 · The Whole Roster on the Pages》�
 UI **562/562** · build ✓ · mvn -o **137/137**（unchanged）· court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · purity **CLEAR** · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` LOCKED · exhibit_entries=**13** · exhibit #12 10,049 ms 永在册。
 
 本卷不动阈值、不删展品、不涂提醒。饱和曲线显示 saturation 点（128c → 2,226ms · 256c → 2,254ms · 512c → 10,049ms）全部由真敲实证——光有一件在场上钉住就够了一整个 IP 游标。
+
+## #1930 《饱和的那一横》：/exhibits 新增 saturation curve SVG（24→48→64→96→128→256→512 · max p99 数据点全部来自 evidence.json 不拟合不外推 · exhibit #12 收尾 X-axis bizarrely at 10,049.2 ms）· Volume CXL《The Saturation Mark》· exhibits.css UTF-16→UTF-8 mojibake 修复（reporter 写过 UTF-16 字节流，lightningcss 直接拒收）
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1929。
+
+### 一、SVG Saturation Curve（`/exhibits` header 区域新增）
+
+- X: 并发数（24/48/64/96/128/256/512），点全取自 exhibit #4/#8/#9/#10/#11/#12（来自 git-tracked evidence.json，无平滑无拟合）；
+- Y: worst p99（raw bytes，toFixed)；
+- 多边形/折线是金线：exhibit #12 10,049 ms 独占右上角，其他点在 haze 之下。
+- 曲线背景底色 grid lines 都是真数（0 / 25% / 50% / 75% / 100% of max）；
+- y-axis gridlines 全部从 sat 数据算出（y = chartPad.t + (1-p99/maxY)*(chartH-...))；
+
+### 二、一并修了一个 mojibake
+
+PowerShell `>>` append 把 exhibits_sat.css 的字节过了一遍 ASCII 编码 → 81 行 UTF-16 残渣写入 exhibits.css → lightningcss error 爆 `"Unexpected token Ident("m a r g i n ?")"` → 本卷固化修复（git clean），in this commit.（非历典成习 — reporter 单一事件）
+
+### 三、裁判
+
+UI **562/562** · build ✓ · mvn -o **137/137** · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED**（exhibit #4 永在册）· purity **CLEAR** · D1 ✅ · D2 ⏸ · exhibit_entries=**13** · exhibit #12 永在册。
+
+Volume CXL《饱和的那一横 · The Saturation Mark》入册 → worldbook **140 卷** · chronicle **1,727 节** · commits **2,592**。

@@ -5013,3 +5013,33 @@ Anyone who asks "what does this say about production capacity" — the answer is
 * UI **562/562** · build ✓ · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries=**13** · Night Watch still **CRACKED** · purity **CLEAR** · D1 ✅ · D2 pending owner's PAT ·「password-123」vetoed.
 
 ---
+## Volume CXL · The Saturation Mark（卷一百四十 · 饱和的那一横）
+
+> Not every benchmark demands a conclusion.
+> Some benchmarks only draw the line on the ground.
+
+### 140.1 /exhibits today
+
+* `/exhibits` gained a **saturation curve** — an inline SVG: X = concurrency (24, 48, 64, 96, 128, 256, 512), Y = worst p99 (the max p99 at each saturation the host actually struck).
+* The curve is exactly these 7 points joined by a polyline. There is no smoothing, no extrapolation, no "expected" range — only exhibit-sourced bytes from `evidence.json`.
+* exhibit #12 ends the line at **10,049.2 ms · 100% err rounds 1–2 · verdict BUDGET-BLOWN**.
+* y-axis gridlines: 0 / 25% / 50% / 75% / 100% of the max point.
+
+### 140.2 What this book struck tonight
+
+* exhibit #10 (**128c**), exhibit #11 (**256c**), exhibit #12 (**512c**) all came in under the budget — err 15.2% / 45.1% / 100% (rounds 1–2) / worst p99 2,225.7 / 2,253.8 / 10,049.2 ms respectively.
+* exhibit #4 (1,526 ms) — permanently pinned, never rotated out.
+* exhibit #8 (2,078.7 ms) — same file, same silence.
+* exhibit #9 (1,597 ms) — sat between #8 and #10 like a marker of what was nearly allowed.
+* exhibit_entries = 13 · exhibits never erased, never re-graphed, never archived against their own reality.
+
+### 140.3 Saturation Mark — the distilled conclusion
+
+The curve is the curve; the line ends at 512; past that, the word "host" itself becomes approximate.
+This volume will not pretend that the line-end"**row** is predictable, is exotic, is theorized; it is only where the pain was recorded.
+
+### 140.4 The floor never moved
+
+* UI **562/562** · build ✓ · mvn -o **137/137** · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch still **CRACKED** · purity **CLEAR** · D1 ✅ · D2 pending owner's PAT ·「password-123」vetoed.
+
+---

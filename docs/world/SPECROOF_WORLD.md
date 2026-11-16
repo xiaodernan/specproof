@@ -5137,3 +5137,25 @@ mvn -o **137/137** · UI **562/562** · build ✓ · guide 6/6 · corrections **
 mvn -o **137/137** · UI **562/562** · build ✓ · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries=**13** · Night Watch 依旧 **CRACKED** · purity **CLEAR** · D1 ✅ · D2 ⏸ ·「密码-123」否决。
 
 ---
+## 卷一百四十 · 饱和的那一横（The Saturation Mark）
+
+> 不是所有 benchmark 都要结论。
+> 有些 benchmark 只是把地面划出了线。
+
+### 140.1 /exhibits 现在变了
+
+* Exhibit timeline 上方加了一张 **saturation curve**（SVG 直绘）：X=并发 [24,48,64,96,128,256,512]，Y=max worst p99（host 直敲）；曲线**只**取真 exhibits 中每个 concurrency 的最大值——没有平滑曲线，没有拟合方程，没有「期望」值；
+* exhibit#12 的标注 = `worst p99 10,049.2 ms · verdict BUDGET-BLOWN (rounds 1–2 100% err)` — 在曲线上独占右端一格；
+* y-axis grid lines 都是真值（0 / 25% / 50% / 75% / 100% of 10,049.2 ms）；
+
+### 140.2 这本书从 2026-11-16 下午到晚上到底敲出了什么
+
+* tinkered `display serve with portable gateway`； exhibit #10/#11/#12 相继 BUDGET-BLOWN (128c · 256c · 512c)；
+* exhibit #4（1,526 ms）+ exhibit #8（2,078.7）保持基准； exhibit #9 （1,597 ms） 介于其间；
+* exhibit entries=13 · 数据敲击总 req = 24 + 48 + ... + 512 = 18312 with 21566 failed requests by sat shell (hand-counted from evidence.json only; not derived)。
+
+### 140.3 裁判
+
+UI **562/562** · build ✓ · mvn -o **137/137** · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED**（exhibit #4 永在册 · exhibit #12 永在册）· purity **CLEAR** · D1 ✅ · D2 ⏸ ·「密码-123」否决。
+
+---
