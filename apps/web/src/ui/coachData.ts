@@ -43,8 +43,8 @@ export const COACH_MARKS: readonly CoachMark[] = [
   { key: "topbar.menu",
     title: { zh: "移动菜单", en: "Mobile menu" },
     body: {
-      zh: "窄屏下抽屉式侧导——全部 28 个入口一样齐全。",
-      en: "Drawer navigation on narrow screens — all 28 destinations, same as desktop.",
+      zh: "窄屏下抽屉式侧导——全部 41 个入口一样齐全。",
+      en: "Drawer navigation on narrow screens — all 41 destinations, same as desktop.",
     } },
   { key: "nav:dashboard",
     title: { zh: "工作台", en: "Dashboard" },
@@ -99,6 +99,12 @@ export const COACH_MARKS: readonly CoachMark[] = [
     body: {
       zh: "A4 一页口袋卡——打出来贴身边，30 秒看完就会用。",
       en: "A4 pocket card — print it, keep it close; 30 seconds and you know where everything is.",
+    } },
+  { key: "nav:recall",
+    title: { zh: "问铁证", en: "Ask the Iron" },
+    body: {
+      zh: "把账本和更正卷轴当作答案库——BM25 现敲，不联网、不调用模型、分数可复现。",
+      en: "The ledger and the errata scroll become your answer key — BM25 struck locally, no network, no model call, reproducible scores.",
     } },
   { key: "boot.guide",
     title: { zh: "上手指南", en: "Onboarding" },

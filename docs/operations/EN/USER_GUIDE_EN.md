@@ -159,6 +159,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/chronicle` | The Chronicle | 1,560 real ledger entries, one long scroll, always growing |
 | `/manual` | Manual (POCKET CARD) | a printable 30-second cheat sheet baked into the UI |
 | `/census` | Iron Census | repo-side metrics: files, LOC by language, ledger bytes — all derived from git ls-files |
+| `/recall` | Ask the Iron | the ledger (1,683 lines) plus the errata scroll as an answer key — BM25 on the spot: fully local · no network · no model call · reproducible scores (the engine page shows the model lane is closed today) |
 | `/atlas` | Atlas | The Evidence Archipelago map: three islands x 24 halls + three expedition routes — so newcomers never get lost |
 | `/worldbook` | World Book | 22 volumes + appendices, bilingual, full-text search with highlight, local reading progress |
 | `/nightwatch` | Night Watch | a 7-station, 3-oil walking quiz — every answer derived live from git/ledger/world bible; finish to set your best night |

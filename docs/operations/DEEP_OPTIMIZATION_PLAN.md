@@ -39327,3 +39327,40 @@ Volume XCII《回声无水的敲门者 · The Knocker of the Dry Echo》入册�
 
 * court=4117d2b0ca5fb23a LOCKED · purity CLEAR ·「密码-123」永久否决 · D1（OBSERVABILITY 真人签字）仍欠 · PORTFOLIO_TOKEN 未配；
 * UI 535/535 · web build ✓ · markers: 之前遗留的死 class 今日才补上断言。
+
+## #1883 《开匣之声》：新模块 `#/recall` 问铁证 · Ask the Iron——只做 RAG 的检索一半（BM25·本地·可复现·不调模型）· Volume XCIII《Sound of the Opened Drawer》（世界书第一百卷）
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付物（this turn，web 侧）
+
+| 件 | 实敲 |
+|---|---|
+| 新页面 | `apps/web/src/pages/Recall.tsx` — BM25（k1=1.5 · b=0.75）对 `chronicle.json`（1,683 节）+`corrections.json`（13 条）现场双字段（title×2.4 / body×1）双语打分（CJK unigram+bigram + latin word runs）；分数原样显示 |
+| ChainBanner 第六个挂页 | `#/recall` 页头挂 `ChainBanner`（总数六页） |
+| 路由 | App.tsx：`lazy(Recall)` · NAV `nav.recall`（echo 图标 · group.evidence · #41）· renderRoute 分支 |
+| ProductIcon | 新增 `echo` glyph（喇叭+回声弧线） |
+| i18n | `nav.recall`：zh「问铁证」· en「Ask the Iron」（parity ✓） |
+| coachData | 新增 `nav:recall`（zh/en）· nav:menu 目的计数 28→**41** |
+| 双语指南 | USER_GUIDE.md / EN/USER_GUIDE_EN.md 各加一行 `/recall`（guide-route 门 **6/6**） |
+| 测试 | `pages/__tests__/Recall.test.tsx` 4 断言（zh 首屏 · court 查询有结果+badge+原始两位小数分 · en 全英 · 无匹配真诚空态）· UI **539/539（+4）** |
+| 构建 | `npm run build` ✓ |
+
+### 二、为什么不调模型
+
+* RAG 的生成一半今天在本机这条车道上是**真的关着**：11-16 `llm_cache_probe.py` 6/6 全红（对方回一句「本站不对您所在的国家及地区进行商业服务」）；
+* 所以本轮只做最不丢脸的那一半——**检索**：纯本地 BM25、零网络、零 key；不演示「伪生成」，不装「AI 答：」|
+* 模型车道要重新开：只有 Settings→Secrets `SPECPROOF_LLM_*` 环境车道 · 或本机能出网。
+
+### 三、更正卷轴 / 账本 / 测试矩阵
+
+* build_corrections：**13 条**（R12·R13 本轮先前入账）；
+* UI **539/539** · web build ✓ · guide-route **6/6** · `mvn -o` 137/137（本轮未动 Java）· court=4117d2b0ca5fb23a LOCKED · purity CLEAR；
+* worldbook **100 卷**（第一百卷，含 Volume XCIII 中英对称）· chronicle **1,684 节**。
+
+### 四、诚实边界
+
+* D1（OBSERVABILITY 真人签字）、D2（PORTFOLIO_TOKEN）照旧欠着；
+* LLM 车道 CLOSED_FOR_THIS_CHANNEL——不重试、不伪造；
+* 「密码-123 全员进管理员」永久否决（本轮 UI 依旧 admin/operator fail-closed）；
+* 演示数据永远不冒充生产；court 永不缓存。

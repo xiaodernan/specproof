@@ -40,6 +40,7 @@ const Explorer = lazy(() => import("./pages/Explorer"));
 const Ide = lazy(() => import("./pages/Ide"));
 const Graph = lazy(() => import("./pages/Graph"));
 const Census = lazy(() => import("./pages/Census"));
+const Recall = lazy(() => import("./pages/Recall"));
 const Atlas = lazy(() => import("./pages/Atlas"));
 const WorldBook = lazy(() => import("./pages/WorldBook"));
 const NightWatch = lazy(() => import("./pages/NightWatch"));
@@ -102,6 +103,7 @@ const NAV: NavItem[] = [
   { path: "engine", labelKey: "nav.engine", icon: "chart", groupKey: "group.evidence" },
   { path: "fabric", labelKey: "nav.fabric", icon: "map", groupKey: "group.evidence" },
   { path: "census", labelKey: "nav.census", icon: "verify", groupKey: "group.evidence" },
+  { path: "recall", labelKey: "nav.recall", icon: "echo", groupKey: "group.evidence" },
   { path: "manual", labelKey: "nav.manual", icon: "guide", groupKey: "group.evidence" },
   { path: "identity", labelKey: "nav.identity", icon: "team", groupKey: "group.admin", roles: IDENTITY_ROLES },
   { path: "insight", labelKey: "nav.insight", icon: "chart", groupKey: "group.admin", roles: IDENTITY_ROLES },
@@ -167,6 +169,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "gazette") return <Gazette />;
   if (seg[0] === "calendar") return <Calendar />;
   if (seg[0] === "census") return <Census />;
+  if (seg[0] === "recall") return <Recall />;
   if (seg[0] === "manual") return <Manual />;
   if (seg[0] === "health") return <Health />;
   if (seg[0] === "billing") return <Billing />;

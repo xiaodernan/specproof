@@ -160,6 +160,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/chronicle` | 编年史 | 1560 条真实账本条目，一拉到底，永远在长 |
 | `/manual` | 说明书（SPECROOF POCKET CARD） | 嵌入 App 的30 秒手札：5 件 / 3 不要 / 5 命令 / 报告词表，可打印可阅读 |
 | `/census` | 铁样寨地 | 自研本仓的统计：文件数／LOC／语言 Top 14／账本字节数，全程 git ls-files 派生 |
+| `/recall` | 问铁证 | 把账本 1,683 节 + 更正卷轴当作答案库——BM25 现敲：纯本地 · 不联网 · 不调模型 · 分数可复现（引擎页可验模型车道当前关闭） |
 | `/atlas` | 世界舆图 | SpecProof 证据群岛地图：三座岛（工作台高原/证据平原/治理海岸）× 24 个厅 + 三条探险路线，防止新人迷路 |
 | `/worldbook` | 世界书（铁证书房） | 22 卷正史 + 附录，中英对照，全书搜索高亮，阅读进度本地持久化 |
 | `/nightwatch` | 巡夜·子时之后 | 7 站 × 3 滴灯油的快问行走模拟——答案全从 git/账本/世界书现推，通关即「最好的一夜」入册 |

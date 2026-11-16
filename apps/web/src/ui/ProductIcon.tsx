@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type ProductIconName = "overview" | "verify" | "agent" | "matrix" | "contracts" | "team" | "chart" | "health" | "billing" | "guide" | "arrow" | "plus" | "shield" | "menu" | "close" | "scroll" | "invert" | "hammer" | "map" | "book" | "lantern" | "gazette" | "calendar" | "seal";
+export type ProductIconName = "overview" | "verify" | "agent" | "matrix" | "contracts" | "team" | "chart" | "health" | "billing" | "guide" | "arrow" | "plus" | "shield" | "menu" | "close" | "scroll" | "invert" | "hammer" | "map" | "book" | "lantern" | "gazette" | "calendar" | "seal" | "echo";
 
 const paths: Record<ProductIconName, ReactNode> = {
   overview: <><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>,
@@ -27,6 +27,7 @@ const paths: Record<ProductIconName, ReactNode> = {
   gazette: <><path d="M3 5h13a2 2 0 0 1 2 2v12H5a2 2 0 0 1-2-2V5Z" /><path d="M18 9h3v8a2 2 0 0 1-2 2" /><path d="M6 9h7M6 13h7M6 17h4" /></>,
   calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 10.5h18" /><path d="M7.5 15h2M11.5 15h2M15.5 15h2M7.5 18h2M11.5 18h2" /></>,
   seal: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="4.5" /><path d="m12 9.5 1.4 2.8 3.1.2-2.4 2 .8 3-2.9-1.7-2.9 1.7.8-3-2.4-2 3.1-.2Z" /></>,
+  echo: <><path d="M11 4 6 9H3v6h3l5 5Z" /><path d="M15 9a4.2 4.2 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11" /></>,
 };
 
 export function ProductIcon({ name, size = 20 }: { name: ProductIconName; size?: number }) {

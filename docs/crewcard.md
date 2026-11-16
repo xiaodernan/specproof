@@ -1,20 +1,20 @@
 # SpecProof · 船员卡
 
-> xiaodernan/specproof · 打印于 2026-11-16 06:37 UTC
+> xiaodernan/specproof · 打印于 2026-11-16 06:47 UTC
 > 本卡只刻本仓库 git-tracked 的事实；它不是签字、不是验收、不是承诺。
 
 ## 数字墙
 
 | | |
 |---|---|
-| git 提交 | 2,539 |
-| 账本节数 | 1,683 |
-| 世界书卷（zh/en） | 99 / 99 |
-| 源码行数 | 504,624 |
+| git 提交 | 2,540 |
+| 账本节数 | 1,684 |
+| 世界书卷（zh/en） | 100 / 100 |
+| 源码行数 | 504,794 |
 | Python 测试文件 | 615 |
-| 前端测试文件 | 70 |
-| 账本字节 (KB) | 3819.6 |
-| 编年史最新节 | #1882 |
+| 前端测试文件 | 71 |
+| 账本字节 (KB) | 3822.1 |
+| 编年史最新节 | #1883 |
 
 ## 压测证据
 
@@ -31,7 +31,7 @@
 |---|---|
 | 真·fleet 遥测 · OBSERVABILITY.md 签字 | awaiting-signature |
 | 每周一敲门 · weekly-stress.yml | merged |
-| 端口 8000 · 此刻谁在答 | other-project-answering |
+| 端口 8000 · 此刻谁在答 | port-free |
 
 ```
 git log --oneline -1 && python scripts/build_repo_stats.py && python scripts/audit_unsigned.py

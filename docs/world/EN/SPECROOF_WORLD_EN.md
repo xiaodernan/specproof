@@ -3597,3 +3597,42 @@ UI **535/535** (+2); web build passes; court = `4117d2b0ca5fb23a` LOCKED; purity
 Unchanged debts: D1 (OBSERVABILITY signature, a human's hand) · D2 (PORTFOLIO_TOKEN) · the closed LLM lane · 「密码 123」 permanently vetoed.
 
 ---
+## Volume XCIII · The Sound of the Opened Drawer（卷九十三 · 开匣之声）
+
+> The sound of a drawer opening is not a narrator's voice —
+> it is wood conceding, once, to the hand.
+> This volume writes one thing only: the "asking" is handed to the iron; the answer no longer passes through any model's mouth.
+
+### 93.1 The new hall `#/recall` · Ask the Iron
+
+Half of RAG knowledge is **retrieval** — the generation half is still closed today (6/6 red on the aizzz lane; see /engine verbatim).
+So this page does not pretend: it does retrieval and nothing but retrieval — **bare retrieval**:
+
+* corpus = two git-tracked JSONs in this repo: `chronicle.json` (**1,683 lines**) + `corrections.json` (**13 errata**);
+* algorithm = **BM25** (k1=1.5 · b=0.75 · CJK unigrams+bigrams · latin word runs) · title ×2.4 weight, body ×1;
+* normalization? **none.** scores print raw (`hit.toFixed(2)`) — no percent, no "confidence", no "the AI thinks";
+* network? **no.** model? **no.** same query + same git state ⇒ identical scores, forever;
+* no hit? **it says so** — a sincere empty state, never "maybe you meant…";
+* entry: NAV stop #41 (`#/recall` · icon `echo`) · coach badge `nav:recall` · bilingual guide row zh/en (guide-route gate 6/6 green).
+
+**Six halls, one roll-call** — the chain banner now hangs on six pages: chronicle · archive · atlas · engine · gazette · **recall**.
+
+### 93.2 Three things this page teaches
+
+1. **retrieval stands without a model** — it needs only a corpus that never lies;
+2. **a score need not dress up** — a raw BM25 to two decimals is enough; decorated scores are the actual fraud;
+3. **when generation would finally matter** — when testimony needs to become prose; that door is shut today, and it opens by exactly the two roads named before.
+
+### 93.3 Honest bounds
+
+* No hit is not the model's failure — those 1,683 lines did not bite; re-ask with better words is the correct gesture;
+* this page promises speed, locality, reproducibility — never "intelligence";
+* D1 (OBSERVABILITY signature, a human hand) and D2 (PORTFOLIO_TOKEN) are still owed; the LLM lane is still CLOSED_FOR_THIS_CHANNEL; 「password-123」permanently vetoed; court = `4117d2b0ca5fb23a` LOCKED.
+* UI 539/539 · web build ✓ · guide-route 6/6 · corrections scroll = 13.
+
+### 93.4 One hundred
+
+This is the hundredth volume of the Book (zh and en mirror, one entry per ledger line).
+**One hundred is not ceremony — it is compound interest: a hundred doors knocked, a hundred times iron answered; the debt still knows its name.**
+
+---
