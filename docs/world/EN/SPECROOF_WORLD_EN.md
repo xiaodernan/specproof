@@ -4714,3 +4714,41 @@ The guide now reads 16 scrolls in both languages (zh + en rows edited in lockste
 UI **556/556** · vitest ✓ · npm run build ✓ · guide 6/6.
 
 ---
+## Volume CXXXI · The Gathering（卷一百三十一 · 收束）
+
+> Nothing left to merge —
+> the merge happened long ago. This volume is the audit:
+> every stray branch and every tucked-away stash, struck open before the keeper.
+
+### 131.1 Branch archaeology
+
+| branch | tip | verdict |
+|---|---|---|
+| origin/feature/interview-hardening | 76285a7 | **already an ancestor of master** — zero files missing on master; nothing to scoop |
+| origin/feature/p1-reliability-kernel | a756f53 | **already an ancestor of master** — CI-gate fixes are on master; nothing to scoop |
+| origin/release/p0.5-verified-v1 | 4145d95 | **already an ancestor of master** — RC gates are on master; nothing to scoop |
+
+* local branches: only `master`; `git ls-files -u` empty; worktree inventory: just the main worktree; three remotes left untouched (the owner's refs are not mine to vacate) — the merge is a fact, this volume is the witness.
+
+### 131.2 The three stashes
+
+| stash | content | verdict |
+|---|---|---|
+| stash@{2} parallel session changes | verify.py ±1347 lines (parallel skill session, 2026-11-09) | superseded — the tree moved on; this stash is a residue snapshot |
+| stash@{1} parallel test changes | (empty) | empty |
+| stash@{0} ledger-cleanup-2026-11-09 | Chinese labels in stages/toneMap · DEPENDENCY_LOCK notes · aider-results timestamp · verdict_channels.py `produces` channel | already in master (verdict_channels.py carries `produces`; stages/toneMap are i18n'd) — rest is dated documentation; zero code worth scooping |
+
+None of the three is applied. Nothing is deleted. The ledger records what was found.
+
+### 131.3 What this volume strikes live
+
+* `App.tsx` — `NAV` exported for the harness;
+* new `routerSmoke.test.tsx` (3/3): **all 43 NAV destinations × both locales actually mount** (fake session seeded); assertions — routes must not throw, must not be empty shells, and **must never land on the render-crash boundary**. The gate was verified with a deliberate /graph bomb: both locales failed on the exact route, then passed after the revert.
+* UI **559/559** (77 files, +3).
+
+### 131.4 One culture
+
+Branches and stashes rot; the ledger doesn't.
+"Everything is merged" is not a figure of speech; it is three ancestry chains and three file-level audits, both written down.
+
+---

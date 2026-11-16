@@ -4838,3 +4838,40 @@ guide 行已把「十四卷竹简」全部改为「十六卷竹简」（zh + en 
 UI **556/556** · vitest ✓ · npm run build ✓ · guide 6/6。
 
 ---
+## 卷一百三十一 · 收束（The Gathering：三条支线、三件藏品、一扇门）
+
+> 没有能被合并的枝叶——合并早就发生了。
+> 这一卷是清点：把散落的记忆给账本敲一遍。
+
+### 131.1 分支考古
+
+| 分支 | tip | 判决 |
+|---|---|---|
+| origin/feature/interview-hardening | 76285a7 | **已是 master 祖先**——内容全在主线，零新文件，不收 |
+| origin/feature/p1-reliability-kernel | a756f53 | **已是 master 祖先**——CI gates 修复全在主线，不收 |
+| origin/release/p0.5-verified-v1 | 4145d95 | **已是 master 祖先**——RC 闸门全在主线，不收 |
+
+* 本地分支仅 `master`；`git ls-files -u` 零冲突；worktree 盘点仅主工作目录；三支线远端保留不删（owner 的 refs 不作废），「合并」账实质已完成——主线即集大成。
+
+### 131.2 三件藏品（stash 清点）
+
+| stash | 内容 | 判决 |
+|---|---|---|
+| stash@{2} parallel session changes | verify.py ±1347 行（技能线，并行 session，11-09） | 旧树已被收编，本 stash 为 SNAPSHOT 残骸；不捞取 |
+| stash@{1} parallel test changes | （空） | 空 |
+| stash@{0} ledger-cleanup-2026-11-09 | stages.ts/toneMap.ts 中文标签 · DEPENDENCY_LOCK 账 · aider-results 时间戳 · verdict_channels.py `produces` 通道 | 主线已收编（verdict_channels.py 含 `produces`；stages/toneMap 已国际化）—— 剩余纯文档分析快照，无代码残值 |
+
+三件藏品均**不适用于当前主线**。不删不让，只入账。
+
+### 131.3 这一卷钉在册上的功能账
+
+* `App.tsx` — `NAV` 导出（供冒烟测试程控）；
+* 新测试 `routerSmoke.test.tsx`（3/3）——**43 个 NAV 目的地 × 双语全部真挂载**（伪造 specproof_api_key 后）；断言：① 挂载不许抛错；② 不许空壳；③ **不许任何一条路由掉进 render-crash 边界**（bomb 注入后 /graph 双语双双红，定位准确）。
+* UI **559/559**（77 文件，+3）。
+
+### 131.4 一条文化
+
+代码和分支都会烂尾；只有账本不会。
+「分支全收编」不是比喻，是三条 ancestry 链的客观事实；「藏品收编」也不是比喻，是三份 stash 的逐文件验收。
+
+---

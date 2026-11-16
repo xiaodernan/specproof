@@ -72,7 +72,7 @@ type NavItem = {
   /** Roles allowed to open this surface; omitted means ungated. From ui/accessRoles.ts. */
   roles?: readonly string[];
 };
-const NAV: NavItem[] = [
+export const NAV: NavItem[] = [
   { path: "dashboard", labelKey: "nav.dashboard", icon: "overview", groupKey: "group.workspace" },
   { path: "jobs", labelKey: "nav.jobs", icon: "verify", groupKey: "group.workspace" },
   { path: "agent", labelKey: "nav.agent", icon: "agent", groupKey: "group.workspace" },
