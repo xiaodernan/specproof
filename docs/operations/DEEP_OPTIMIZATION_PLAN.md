@@ -40544,3 +40544,28 @@ UI **562/562**（78 文件仍全绿） · build ✓ · guide 6/6 · mvn -o **137
 ### 三、不动的钉子
 
 * exhibit #4 / #8 / #10 / #11 / #12 永在；Night Watch 永 CRACKED；「密码-123」否决；D1 ✅ · D2 ⏸（owner PAT）
+
+## #1928 《落在册頁上的整隊雨》· Volume CXXXIX《The Whole Roster on the Pages》—— exhibits #4 #8 #9 #10 #11 #12 双语对称钉册；Nova #12 钉死 512c/100%errs/10,049.2ms 永在册；exhibit saturation 曲线印册（24c→512c 满）；entries=13 · routerSmoke 注入 /graph deliberate-crash 兜住（双语双红 → 复绿）
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1927。
+
+### 一、本卷全录
+
+各展品逐一入册：
+
+| # | c | req | err% | worst p99 | verdict |
+|---|---|---|---|---|---|
+| #4 | 48 | 384 | 0.00 | 1,526.1 ms | OK |
+| #8 | 96 | 768 | 0.52 | 2,078.7 ms | OK |
+| #9 | 64 | 512 | 0.00 | 1,596.9 ms | OK |
+| #10 | 128 | 1,024 | 15.23% | 2,225.7 ms | BUDGET-BLOWN |
+| #11 | 256 | 2,048 | 45.12% | 2,253.8 ms | BUDGET-BLOWN |
+| #12 | 512 | 4,096 | 100% (rounds 1–2) | 10,049.2 ms | BUDGET-BLOWN |
+
+collectively： exhibit #4 依然在 CXV「守夜」守眼前不变， exhibit #12 是 ledger 最新登记；routeSmoke 43 路由 × en/zh 双语真挂载 ✓； collector 走完 #/exhibits 已登记全部 12–13 件展品。
+
+### 二、裁判
+
+mvn -o **137/137** · UI **562/562** · build ✓ · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · purity **CLEAR** · D1 ✅ · D2 ⏸ ·「密码-123」否决 · exhibit_entries=**13** · exhibit #12 永在，不可删除，别让我再听见你说"再敲一发verdict修了OK"——permanent bench testimony verbatim。
+
+Volume CXXXIX《落在册頁上的整隊雨 · The Whole Roster on the Pages》入册 → worldbook **139 卷** · chronicle **1,726 节** · commits **2,590**。

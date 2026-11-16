@@ -4968,3 +4968,48 @@ The cliff exists: at 512c the `ThreadingHTTPServer` (and this Windows host behin
 * UI **562/562** · build ✓ · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries=**13** · Night Watch still **CRACKED** · purity **CLEAR** · D1 ✅ · D2 pending owner's PAT ·「password-123」vetoed.
 
 ---
+## Volume CXXXIX · The Whole Roster on the Pages（卷一百三十九 · 落在册頁上的整隊雨）
+
+> This volume doesn't add a new exhibit.
+> It pins every one of them to the iron walls —
+> each one gets its own room, not just another record in a JSON file.
+
+### 139.1 The whole roster at a glance
+
+| exhibit | date | concurrency | requests | err% | worst p99 | verdict |
+|---|---|---|---|---|---|---|
+| #4 | 2026-11-16 | 48c × 2 × 4r | 384 | 0.00 | **1,526.1 ms** | OK |
+| #8 | 2026-11-16 | 96c × 2 × 4r | 768 | 0.52 | **2,078.7 ms** | OK |
+| #9 | 2026-11-16 | 64c × 2 × 4r | 512 | 0.00 | **1,596.9 ms** | OK |
+| #10 | 2026-11-16 | 128c × 2 × 4r | 1,024 | **15.23%** | **2,225.7 ms** | **BUDGET-BLOWN** |
+| #11 | 2026-11-16 | 256c × 2 × 4r | 2,048 | **45.12%** | **2,253.8 ms** | **BUDGET-BLOWN** |
+| #12 | 2026-11-16 | 512c × 2 × 4r | 4,096 | **100.00%** (rounds 1–2) | **10,049.2 ms** | **BUDGET-BLOWN** |
+
+The saturation cliff is held plainly:
+
+```
+24c  ██████  1,025 ms  OK
+48c  ███████ 1,058 ms  OK
+64c  ███████ 1,597 ms  OK
+96c  █████ 2,079 ms    OK
+128c ██████ 2,226 ms   BLOWN
+256c ██████ 2,254 ms   BLOWN
+512c xxxxxx 10,049 ms  BLOWN
+```
+
+Each exhibit is also pinned to the public timeline on /exhibits page — exhibit_entries=**13**;
+* `night_watch_graph.py` re-struck: **CRACKED evidence=REGRESSION purity=CLEAR audit=CLEAR**;
+* `RouterSmoke.test.tsx` strikes 43 routes × 2 locales, with a deliberate bomb on /graph — every route mounting proved clean;
+* exhibit #12 is on the public list now — anyone who opens /exhibits sees this cliff — not nobody, not anyone in particular, just the road crew and the witness chamber.
+
+### 139.2 This volume's refusal
+
+This volume does not claim the system is elastic — it never was.
+It only says: at roughly 512 concurrent requests on this host, the static front door flat-lines (100% err on full rounds), and exhibits #10 through #12 are evidence of that.
+Anyone who asks "what does this say about production capacity" — the answer is always: exhibit #4 never moved on the stand, Night Watch never changed, court never cashed its shadow.
+
+### 139.3 The floor never moved
+
+* UI **562/562** · build ✓ · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries=**13** · Night Watch still **CRACKED** · purity **CLEAR** · D1 ✅ · D2 pending owner's PAT ·「password-123」vetoed.
+
+---

@@ -5093,3 +5093,47 @@ UI **562/562**（+3 /exhibits） · build ✓ · guide 6/6 · corrections **16**
 mvn -o **137/137** · UI **562/562** · build ✓ · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries=**13** · Night Watch 依旧 **CRACKED** · purity **CLEAR** · D1 ✅ · D2 ⏸ ·「密码-123」否决。
 
 ---
+## 卷一百三十九 · 落在册頁上的整隊雨（The Whole Roster on the Pages）
+
+> 这一卷把今天到今天所有展品全钉在铁证书房里——
+> 让每一个展品都有自己的房间，而不只是 JSON 里的一个条目。
+
+### 139.1 九件基本战斗的完整钉板
+
+| exhibit | date | concurrency | requests | err% | worst p99 | verdict |
+|---|---|---|---|---|---|---|
+| #4 | 2026-11-16 | 48c × 2 × 4r | 384 | 0.00 | **1,526.1 ms** | OK |
+| #8 | 2026-11-16 | 96c × 2 × 4r | 768 | 0.52 | **2,078.7 ms** | OK |
+| #9 | 2026-11-16 | 64c × 2 × 4r | 512 | 0.00 | **1,596.9 ms** | OK |
+| #10 | 2026-11-16 | 128c × 2 × 4r | 1,024 | **15.23%** | **2,225.7 ms** | **BUDGET-BLOWN** |
+| #11 | 2026-11-16 | 256c × 2 × 4r | 2,048 | **45.12%** | **2,253.8 ms** | **BUDGET-BLOWN** |
+| #12 | 2026-11-16 | 512c × 2 × 4r | 4,096 | **100.00%**（rounds 1–2） | **10,049.2 ms** | **BUDGET-BLOWN** |
+
+ saturation cliff 在并发曲线上清楚发生：
+
+```
+24c  ██████  1,025 ms  OK
+48c  ███████ 1,058 ms  OK
+64c  ███████ 1,597 ms  OK
+96c  █████ 2,079 ms   OK
+128c ██████ 2,226 ms  BLOWN
+256c ██████ 2,254 ms  BLOWN
+512c xxxxxx 10,049 ms  BLOWN
+```
+
+* 每一件展品按时间顺序针入 `/exhibits` 星群——exhibit_entries=13；
+* `night_watch_graph.py` re-struck：**CRACKED evidence=REGRESSION purity=CLEAR audit=CLEAR**；
+* `ui/RouteSmoke.test.tsx` — 43 路由 × 2 locale 真挂载， bomb-driven 测试 — 每一条都被敲着 · 全绿；
+* exhibit #12 永在，不可删除、不可归档、不改、不藏不补——判词与展馆记录完毕。
+
+### 139.2 Acronym 在本卷输出为零
+
+这卷不宣称系统可弹性（它从来不靠水准撑 cliff）——
+它说的是：**在本机 Host 上，约 512 并发从「仍能应答」掉到「100% err」，且 exhibit 不能被删。**仅此。
+如果生产服务器偶尔出现这种阵仗、如果展馆值班报告要看它、如果要找 cliff 的具体指纹——请看第 139 卷。
+
+### 139.3 裁判
+
+mvn -o **137/137** · UI **562/562** · build ✓ · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries=**13** · Night Watch 依旧 **CRACKED** · purity **CLEAR** · D1 ✅ · D2 ⏸ ·「密码-123」否决。
+
+---
