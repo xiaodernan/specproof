@@ -40612,3 +40612,39 @@ PowerShell `>>` append 把 exhibits_sat.css 的字节过了一遍 ASCII 编码 �
 UI **562/562** · build ✓ · mvn -o **137/137** · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED**（exhibit #4 永在册）· purity **CLEAR** · D1 ✅ · D2 ⏸ · exhibit_entries=**13** · exhibit #12 永在册。
 
 Volume CXL《饱和的那一横 · The Saturation Mark》入册 → worldbook **140 卷** · chronicle **1,727 节** · commits **2,592**。
+
+## #1931 《README 双语雷打不动：刷新最新验收》：README.md + README_EN.md 中「最新验收 · 2026-11-16」全段替换为今晚真敲实录（/exhibits · satur  curve 直读 evidence.json · exhibit #12 100% err · 10,049.2 ms · exhibit_entries=13 · 562/562 全绿）
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1930。
+
+### 一、刷新了什么
+
+`README.md` / `README_EN.md` 「最新验收 · 2026-11-16」段全替换为这一晚的敲击真值：
+
+| 字段 | 旧手印 | 此节 |
+|---|---|---|
+| LLM door | `api.aizzz.xyz` · gpt-6.1-terra · responses · max（unchanged but now live） | `scripts/live_lane_probe.py  HTTP 200 · chunks 9 · cached_tokens=4224` |
+| UI 数 | 542/542 → 562/562 | +20（New flagship #1925–#1930） |
+| Lane | 137/137 | same；`Exhibits` 页面登记 entries=13 · Exhibit #12 在册 |
+| Exhibit 表 | exhibit #4 (1,526.1 ms) · exhibit #5 (1,035 ms) | exhibit #4 · #8 · #9 · #10(2,225.7) · #11(2,253.8) · **#12 (10,049.2 · 100% err · BUDGET-BLOWN)** · Night Watch 依旧 **CRACKED** |
+| court | `4117d2b0ca5fb23a` LOCKED · Court never cached | same lock · same resume
+
+
+### 二、裁判
+
+mvn -o **137/137** · UI **562/562** · build ✓ · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED**（永远 stream+include_usage；永远不缓存）· Night Watch 依旧 **CRACKED** · purity **CLEAR** · D1 ✅ · D2 ⏸ ·「密码-123」否决。
+
+## #1932 《打印按钮》：/exhibits 新增「打印展馆」一键 print() 入口（zh「打印展馆 — Exhibit Hall」、EN「Print the Hall — Exhibit Hall」）· print.css 新增 exhibit 打印 print rules（饱和曲线 + 13 exhibit cards 整页分页） · 全 UI 本地无 reset 仍 562/562全绿 · mvn -o 137/137 未动
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1931。
+
+### 一、新动作
+
+* Exhibits 页 `exhibits-print-cta.btn btn-primary.window.print()` 按钮——print CSS pop-up 直接出 A4；
+* print.css：页底 `.no-print` 规则 · `.exhibits-sat-svg` 宽度100% · `.exhibit-card` 不可打破page-break · `.exhibits-sat-*` 全部黑色 line/point/fill (print-color-adjust)；
+* exhibits.css：声明 `.exhibits-print-cta` flex justify-end； exhibit 列表在打印输出里保持每块不拆页（`page-break-inside: avoid`）；
+* 打印效果：**印本颜色打印：saturation 曲线黑色 · exhibit 卡片白底黑边 · 13 件展品整页可打印。**
+
+### 二、裁判
+
+UI **562/562** · build ✓ · mvn -o **137/137** · guide 6/6 · corrections **16** · purity **CLEAR** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries=**13**。

@@ -156,3 +156,18 @@
     display: none !important;
   }
 }
+
+
+/* Exhibits Hall: print-quality contains the table + the saturation chart —
+   no interactive UI; the AddPrintButton never prints. */
+.no-print { display: none !important; }
+.exhibits-sat-svg { width: 100% !important; height: auto !important; }
+.exhibits-list { gap: 4mm !important; }
+.exhibit-card { break-inside: avoid; page-break-inside: avoid; }
+.exhibit-bar-fill { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.exhibits-sat-line { stroke: #000 !important; }
+.exhibits-sat-dot circle { fill: #000 !important; stroke: #fff !important; }
+.exhibits-sat-grid { stroke: #999 !important; stroke-width: 0.5 !important; }
+.exhibits-sat-label { fill: #000 !important; font-size: 11px !important; }
+.exhibits-sat-x { fill: #000 !important; }
+.exhibits-sat-y { fill: #000 !important; }

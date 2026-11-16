@@ -108,6 +108,11 @@ export default function Exhibits(): JSX.Element {
         </div>
       </div>
 
+      <div className="exhibits-print-cta no-print">
+        <button type="button" className="btn btn-primary" onClick={() => window.print()}>
+          {zh ? "打印展馆 — Exhibit Hall" : "Print the Hall — Exhibit Hall"}
+        </button>
+      </div>
       <section className="exhibits-sat" aria-label={zh ? "饱和曲线" : "Saturation curve"}>
         <h2 className="exhibits-sat-title">{zh ? "并发饱和曲线（worst p99 vs 并发）" : "Saturation curve (worst p99 vs concurrency)"}</h2>
         <svg viewBox={`0 0 ${chartW} ${chartH}`} className="exhibits-sat-svg" role="img" aria-label={zh ? "Worst p99 saturation chart from real exhibits" : "Worst p99 saturation chart, real exhibits"}>
