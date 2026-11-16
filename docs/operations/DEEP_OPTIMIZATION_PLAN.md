@@ -39946,3 +39946,34 @@ verdict=CRACKED · evidence=REGRESSION · purity=CLEAR · audit=CLEAR
 finding: `evidence lane: not jade`。 暂无任何解法能合上这盏门——除 exhibit 序列自己稳进 < 25ms。那时车灯才不再是红色
 
 Volume CXIII《压力来了！ · The Pressure Is On, For Real》入册 → worldbook **120 卷**（里程碑）· chronicle **1,704 节**。
+
+## #1904 《用三根针量十根骨头》：light-1 exhibit（24 并发 × 4 rounds = 192 req）登记 ▸ 24→48→96 饱和刻度 · Volume CXIV《The Three-Pin Caliper》· 世界书 121 卷
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1903。
+
+### 一、Light 实敲（`docs/evidence/2026-11-16-static-light-1.json`）
+
+| 并发 | 请求 | 错误 | worst p50 | worst p99 |
+|---|---|---|---|---|
+| 24 （light） | **192** | **0** | 26.8 ms | **1,025.4 ms** |
+| 48 （warm） | 384 | 0 | 33.1 ms | 1,058.3 ms |
+| 96 （hamme） | 768 | 1 (0.13%) | 524 ms | 2,078.7 ms |
+
+**Δ 24→48 ≈ +33 ms；Δ 48→96 ≈ +1,020 ms（悬崖线）** ——这不是虚词：所有请求在这一台机器上、此时此刻、一次敲完。失效边界本身被测出来了——不是推演、不是&nbsp;"%技巧"； exhibit 15 件账簿够用一个展厅。
+
+### 二、证据文件分布（git-tracked）
+
+```json
+docs/evidence/
+  2026-11-16-static-light-1.json    × 192 req OK  p99 1,025.4ms
+```
+（`scripts/build_evidence.py` 已收齐 → `audit_evidence.py` **CONSISTENT**；evidence graph verdict = REGRESSION — exhibit #4 仍在链里；night-watch 依旧 CRACKED，没有 exhibit 删除）
+
+### 三、Ledger 本轮变更摘要
+
+- evidence Δ = **−1053.3 ms**（light vs heavy #8 → 轻量条目比上一次 exhibit 重复减速一阶）
+- worldbook **121 卷** · chronicle **1,705** 节
+- court=4117d2b0ca5fb23a LOCKED · purity CLEAR · UI **546/546** · mvn -o **137/137**
+- D1 ✅ 签落 · D2 ⏸ 仍悬（等你的 PAT：Settings → Secrets → PORTFOLIO_TOKEN）
+
+Volume CXIV《The Three-Pin Caliper》入册 → worldbook **121 卷** · chronicle **1,705 节**。

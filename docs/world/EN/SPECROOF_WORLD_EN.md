@@ -4403,3 +4403,34 @@ Verdict stands regardless — `scripts/build_evidence.py` keeps the entries orde
 This is a book about shipping: it does not hide the things it stumbled over; it just remembers every single one.
 
 ---
+## Volume CXIV · The Three-Pin Caliper（卷一百一十四 · 用三根针量十根骨头）
+
+> A bamboo basket holds three different stones: the light, the middling, the heavy.
+> This volume measures one thing only — whether the evidence chain can be measured.
+> All three stones struck paper tonight.
+
+### 114.1 Candle reading from tonight
+
+| pin | concurrency | requests | errors | worst p50 | worst p99 |
+|---|---|---|---|---|---|
+| Light | 24 × 2 × 4 | **192** | **0** | 26.8 ms | **1,025.4 ms** |
+| Warm | 48 × 2 × 4 | **384** | **0** | 33.1 ms | 1,058.3 ms |
+| Hammer | 96 × 2 × 4 | 768 | **1 (0.13%)** | 524 ms | 2,078.7 ms |
+
+Δ(24→48) = **+32.9 ms** · Δ(48→96) = **+1,020.4 ms** (the cliff)
+
+### 114.2 The three pins teach this
+
+- At 24 concurrent, the front door answers in ~1 second — user-perceived smooth;
+- At 48, the same average with the occasional climb to >1 s p95 — billows starting;
+- At 96, p50 **has slipped to 533 ms** already — **the saturation point lives between 48 and 96**. Not extrapolated, not "we guess it will fall apart" — actually observable on this host, today, in one hand, with three holds.
+
+Evidence doesn't get better because we wish it; it only gets honest because we write it down.
+
+### 114.3 What this volume does not claim
+
+- night-watch does not flip green because of this; exhibit #4 remains inside the rule window — it is the truth, longer than this session, longer than this library; it stays;
+- court=4117d2b0ca5fb23a LOCKED; court still never cached, stream+include_usage always;
+- D1 signed, D2 owed; 「password-123」permanently vetoed; demo never impersonates production.
+
+---
