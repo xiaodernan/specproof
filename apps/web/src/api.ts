@@ -841,6 +841,22 @@ export interface LlmUsageKindRow {
   hit_rate: number | null;
 }
 
+export interface LlmUsageLaneRow {
+  lane: string;
+  calls: number;
+  prompt_tokens: number;
+  cached_tokens: number;
+  hit_rate: number | null;
+}
+
+export interface LlmUsageProtocolRow {
+  protocol: string;
+  calls: number;
+  prompt_tokens: number;
+  cached_tokens: number;
+  hit_rate: number | null;
+}
+
 export interface LlmUsageTrendBucket {
   bucket_start: string;
   calls: number;
@@ -865,6 +881,8 @@ export interface LlmUsageSummary {
   latency_p50_ms: number | null;
   latency_p95_ms: number | null;
   by_kind: LlmUsageKindRow[];
+  by_lane?: LlmUsageLaneRow[];
+  by_protocol?: LlmUsageProtocolRow[];
   trend: LlmUsageTrendBucket[];
 }
 

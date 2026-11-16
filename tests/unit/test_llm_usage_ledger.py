@@ -279,3 +279,54 @@ class TestRoute:
             resp = client.get("/api/v1/llm/usage/summary?window_hours=0",
                               headers=_headers())
         assert resp.status_code == 422
+
+
+# ── by_lane / by_protocol ────────────────────────────────────────
+
+class TestByLaneByProtocol:
+    def _windowed_records(self) -> list[dict[str, Any]]:
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+        def mk(**over: Any) -> dict[str, Any]:
+            return _rec(now, **over)
+
+        return [
+            mk(kind="draft", lane="policy", protocol="responses",
+               prompt_tokens=100, cached_tokens=90),
+            mk(kind="draft", lane="policy",
+               prompt_tokens=100, cached_tokens=90),  # no protocol -> (unreported)
+            mk(kind="diagnose", lane="direct", protocol="chat_completions",
+               prompt_tokens=1000, cached_tokens=800),
+            mk(kind="diagnose", lane="direct", protocol="chat_completions",
+               prompt_tokens=1000, cached_tokens=None),  # cached not reported
+        ]
+
+    def test_lanes_split_calls_and_rates(self) -> None:
+        out = summarize(self._windowed_records(), window_hours=100_000.0)
+        lanes = {b["lane"]: b for b in out["by_lane"]}
+        assert set(lanes) == {"policy", "direct"}
+        assert lanes["policy"]["calls"] == 2
+        assert lanes["policy"]["cached_tokens"] == 180
+        assert lanes["policy"]["hit_rate"] == pytest.approx(0.9)
+        assert lanes["direct"]["calls"] == 2
+        assert lanes["direct"]["cached_tokens"] == 800
+        # 未上报 cached 的那次不进 hit_rate 的分母
+        assert lanes["direct"]["hit_rate"] == pytest.approx(0.8)
+
+    def test_protocols_split_calls_and_report_gap(self) -> None:
+        out = summarize(self._windowed_records(), window_hours=100_000.0)
+        protos = {b["protocol"]: b for b in out["by_protocol"]}
+        assert set(protos) == {"responses", "chat_completions", "(unreported)"}
+        assert protos["responses"]["hit_rate"] == pytest.approx(0.9)
+        assert protos["chat_completions"]["hit_rate"] == pytest.approx(0.8)
+        # 未带 protocol 标签的记录归属 (unreported)，不捏造
+        assert protos["(unreported)"]["hit_rate"] == pytest.approx(0.9)
+
+    def test_rollups_absent_not_zero_when_no_cache_data(self) -> None:
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        out = summarize([_rec(now, lane="direct", protocol="responses",
+                              prompt_tokens=10, cached_tokens=None)],
+                        window_hours=100.0)
+        lanes = {b["lane"]: b for b in out["by_lane"]}
+        assert lanes["direct"]["hit_rate"] is None
+        assert lanes["direct"]["calls"] == 1

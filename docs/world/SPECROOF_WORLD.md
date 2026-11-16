@@ -5688,3 +5688,44 @@ corrections **17** · guide **6/6**。
 补遗：ROADMAP-LIVE item #8 的设计系统家族 —— 4 px 网格 601→0、圆角 ladder 101→0、字阶 scale 406→0、阴影 71→0、**主题盲字色 1,315→0** —— 这家族的门在 master 上全部落窗。Item #8 剩余既存红门家族（payload-census / audit-disposition / verdict-channel 等）照册在册，一户都没被涂绿。
 
 ---
+
+## 卷一百五十四 · 同一本账，两枚量杯
+
+> 一枚量杯说 95.3%；
+> 一枚量杯说 0；
+> 两枚量杯都说直话。
+
+### 154.1 今夜把缓存账拆开看（2026-11-17 · 现敲现算）
+
+同一台机器，同一本 `.local/llm_usage.jsonl`，84 次调用：
+
+| 切面 | 调用 | prompt tokens | cached | hit_rate（只算有 cached 报告的子集） |
+|---|---|---|---|---|
+| 全部合计 | 84 | 336,978 | 143,222 | **0.5418**（basis 58） |
+| 车道 `direct` | 61 | 304,492 | 143,222 | **0.5418** |
+| 车道 `policy` | 17 | 32,486 | **0** | **0.0** |
+| 协议 `(unreported)` | 78 | 336,978 | 143,222 | 0.5417 |
+
+**一句话：「命中率低」不是缓存坏了，是两枚量杯被合并读了。** direct 车道恒稳 4,224–6,400 的 resident-prefix 命中；policy（kind-tagged draft/diagnose）车道 0 次命中——**R16 有数据背书了**。court 车道：对，永远不缓存，永远锁定。
+
+### 154.2 这把手电照了哪里（#1948 · 对「缓存命中率很低，而且一直显示『非流』」的诚实分解）
+
+1. `providers/usage_ledger.py`：`record_llm_call` 多收一个 `protocol` 字段（`responses` / `chat_completions` / 未知）；`summarize` 除 `by_kind` 外新增 **`by_lane`** 与 **`by_protocol`** 两个汇总（同一套诚实口径：只算网关上报了 cached 的调用的子集，未上报一栏归入 `(unreported)`，**不捏造**）；
+2. `providers/openai_compatible.py`：两处记账口（`chat()` 收尾 + `chat_stream()` 收尾）一并带上 `protocol=self.protocol`；
+3. `tests/unit/test_llm_usage_ledger.py`：**+3 个诚实性测试**（按车道拆/按协议拆/未上报归 `(unreported)`·数字不可混），**20/20 green**；
+4. `Usage` 面板：新增「车道 × 协议 · 同口径缓存账」双表面板（`Lane × protocol · same cache account`，中英双语，`usage-dim-pair` 用 `--sp-4` / `--color-*` 令牌，不碰一枚字色）；
+5. **UI 571/571** · build ✓ · `mvn -o` 未触碰（Java 无改）；OpenAPI 无漂移（响应仍是单个对象，增键向后兼容）；
+6. 这个「非流」症状反而被本次实敲戳实：**所有车道已全量 stream=True + include_usage=True**，六次现敲缓存 probe 一次通过——仪表盘的「非流」只会出现在车道问卷（court 永远不缓存，这是**铁律，不是 bug**）。
+
+### 154.3 这次做了什么没做
+
+- **没做**：提高 policy 车道的命中率——那意味着替窗口捏造/改写计数，或者静默翻开一个本该关着的门。`SPECPROOF_PROVIDER_POLICY` 没设就是没设，**R16 继续在册**；等你想开，再谈；
+- **没做**：动 court——锁 `4117d2b0ca5fb23a` 一丝没动；
+- **做了**：让「低命中率」和「非流抱怨」两个表象第一次被人一眼看明白——不是玄学，是车道账；
+- **做了**：UI 里每个数字可以对号入座地审计；数字只认协议事实，不认语感。
+
+### 154.4 账房
+
+UI **571/571** · build ✓（minified）· mvn -o **137/137**（Java 未动 · 沿用 #1945/#1946 口径）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED** · exhibit_entries **16** · exhibit #4 / #12 / #13 / #15 一件不挪 · court `4117d2b0ca5fb23a` **LOCKED** · chronicle 随本提交增员 · worldbook **卷一百五十四 / 154 卷（中英对称）** · D1 ✅ · D2 ⏸（属主 PAT 等待中）·「密码-123」否决
+
+---

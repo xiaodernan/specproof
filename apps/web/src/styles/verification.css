@@ -129,6 +129,8 @@
 .usage-meter-fill { height: 100%; min-width: 4px; background: var(--gradient-aurora);
   transition: width var(--dur-slow) var(--ease-out); }
 .usage-meter-note { font-size: var(--text-xs); margin-top: var(--sp-2); }
+.usage-dim-pair { display: grid; gap: var(--sp-4); grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.usage-dim-note { margin-top: var(--sp-2); }
 .usage-trend { display: grid; gap: var(--sp-2); }
 .usage-trend-axis { stroke: var(--color-border-strong); stroke-width: 1; }
 .usage-trend-bar { fill: var(--accent-500); opacity: 0.72; transition: opacity var(--dur) var(--ease-out); }

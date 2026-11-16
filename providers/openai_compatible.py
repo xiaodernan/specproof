@@ -605,6 +605,7 @@ class OpenAICompatibleProvider(ModelProvider):
                 usage=result.usage if result is not None else {},
                 duration_ms=round((time.perf_counter() - started) * 1000),
                 error=result is None,
+                protocol=self.protocol,
             )
 
     async def _chat_dispatch(
@@ -902,6 +903,7 @@ class OpenAICompatibleProvider(ModelProvider):
                 usage=usage,
                 duration_ms=round((time.perf_counter() - started) * 1000),
                 error=failed,
+                protocol=self.protocol,
             )
 
     # ── Private helpers ────────────────────────────────────────────

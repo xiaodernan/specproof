@@ -83,6 +83,7 @@ def record_llm_call(
     usage: dict[str, Any] | None,
     duration_ms: int,
     error: bool = False,
+    protocol: str | None = None,
 ) -> bool:
     """Append one call record; returns True when a line actually landed.
 
@@ -104,6 +105,8 @@ def record_llm_call(
         "duration_ms": int(duration_ms),
         "error": bool(error),
     }
+    if protocol:
+        record["protocol"] = str(protocol)
     # 网关没上报的字段就从记录里缺席——"没报"与"零命中"在记录层就分开,
     # 聚合层才能诚实区分两者(红线:绝不捏造零值)。
     for token_key in ("prompt_tokens", "completion_tokens", "cached_tokens"):
@@ -261,6 +264,40 @@ def summarize(
         bucket.pop("cached_reported")
         bucket.pop("prompt_reported")
 
+    def roll_up(key: str) -> list[dict[str, Any]]:
+        # Same honest shape as by_kind, two more dimensions the account needs:
+        # lane (direct vs policy) and protocol (responses vs chat_completions).
+        # Calls the gateway never tagged land in "(unreported)" — their absence
+        # is stated, never folded into a class somebody else owned.
+        roll: dict[str, dict[str, Any]] = {}
+        for record in window:
+            if record.get("error") is True:
+                continue
+            label = str(record.get(key) or "(unreported)")
+            bucket = roll.setdefault(
+                label,
+                {key: label, "calls": 0, "prompt_tokens": 0, "cached_tokens": 0,
+                 "cached_reported": 0, "prompt_reported": 0},
+            )
+            bucket["calls"] += 1
+            p = record.get("prompt_tokens")
+            if isinstance(p, (int, float)) and p >= 0:
+                bucket["prompt_tokens"] += int(p)
+            cached_value = record.get("cached_tokens")
+            if isinstance(cached_value, (int, float)) and cached_value >= 0:
+                bucket["cached_tokens"] += int(cached_value)
+                bucket["cached_reported"] += 1
+                if p is not None:
+                    bucket["prompt_reported"] += int(p)
+        for bucket in roll.values():
+            bucket["hit_rate"] = (
+                None if bucket["cached_reported"] == 0
+                else _rate(bucket["cached_tokens"], bucket["prompt_reported"])
+            )
+            bucket.pop("cached_reported")
+            bucket.pop("prompt_reported")
+        return sorted(roll.values(), key=lambda b: (-b["calls"], b[key]))
+
     def percentile(sorted_values: list[int], fraction: float) -> int | None:
         if not sorted_values:
             return None
@@ -326,6 +363,8 @@ def summarize(
         "latency_p50_ms": latency_p50,
         "latency_p95_ms": latency_p95,
         "by_kind": sorted(by_kind.values(), key=lambda b: -b["calls"]),
+        "by_lane": roll_up("lane"),
+        "by_protocol": roll_up("protocol"),
         "trend": trend,
     }
 

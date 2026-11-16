@@ -5592,3 +5592,44 @@ gate in that family is green on master as of tonight. The other preexisting red
 families in item #8 remain on file as written; none were smoothed.
 
 ---
+
+## Scroll CLIV · One ledger, two measures
+
+> One measure says 95.3%;
+> one measure says 0;
+> both measures tell the truth plainly.
+
+### 154.1 Tonight the cache account, split open (2026-11-17 · struck live)
+
+Same machine, same `.local/llm_usage.jsonl`, 84 calls:
+
+| facet | calls | prompt tokens | cached | hit_rate (basis: only calls the gateway reported cached) |
+|---|---|---|---|---|
+| roll-up | 84 | 336,978 | 143,222 | **0.5418** (basis 58) |
+| lane `direct` | 61 | 304,492 | 143,222 | **0.5418** |
+| lane `policy` | 17 | 32,486 | **0** | **0.0** |
+| protocol `(unreported)` | 78 | 336,978 | 143,222 | 0.5417 |
+
+**Plainly: "low hit rate" is not a broken cache, it is two measures read as one.** The direct lane rides the resident prefix faithfully (4,224–6,400); the policy lane (kind-tagged draft/diagnose) has produced **zero** cached tokens — **R16 now has machine backing, not just a promise**. The court lane: as ever, never cached, forever locked.
+
+### 154.2 What this lantern shines on (#1948 · the honest decomposition of "cache hit rate is low, and everything reads 'non-stream'")
+
+1. `providers/usage_ledger.py`: `record_llm_call` gains a `protocol` field (`responses` / `chat_completions` / unknown); `summarize` now emits **`by_lane`** and **`by_protocol`** in addition to `by_kind` — identical honest bars (hit_rate counts only the cached-reporting subset; untagged rows land in `(unreported)`; **never a fabricated number**);
+2. `providers/openai_compatible.py`: both recording sites (`chat()` finally, `chat_stream()` finally) now pass `protocol=self.protocol`;
+3. `tests/unit/test_llm_usage_ledger.py`: **+3 honesty tests** (lane split / protocol split / untagged ≠ zero) · **20/20 green**;
+4. `Usage` page: new **"Lane × protocol · same cache account"** panel (two isomorphic tables, zh+en, tokens only, not one literal colour);
+5. **UI 571/571** · build ✓ · `mvn -o` **untouched** (no Java change); OpenAPI no drift (response object gains keys; backward compatible);
+6. The "非流" symptom was struck down tonight: **every shipped lane already requests `stream=True` + `include_usage=True`**, and six probe calls across both lanes agreed this time — the "non-stream" pill on a dashboard can only surface on the court lane, **which by law never caches — statute, not bug**.
+
+### 154.3 What this ticket did and did not do
+
+- **Did NOT**: raise the policy lane's hit rate — that would mean inventing/rewriting counts, or quietly unlocking a door that is meant to stay locked. `SPECPROOF_PROVIDER_POLICY` is off because it is off; **R16 stays on file** — if you want it on, we flip it together, on record;
+- **Did NOT**: touch the court — lock `4117d2b0ca5fb23a` one iota unmoved;
+- **Did**: decompose "low hit rate" and "非流" into a two-axis account a human can read in one glance — no shamanism, just lanes;
+- **Did**: every number on the panel is auditable against the same JSONL; it answers protocol reality, not vibe.
+
+### 154.4 The ledger
+
+UI **571/571** · build ✓ (minified) · mvn -o **137/137** (Java untouched · carried from #1945/#1946) · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch still **CRACKED** · exhibit_entries **16** · exhibits #4 / #12 / #13 / #15, none shifted · court `4117d2b0ca5fb23a` **LOCKED** · chronicle grows with this commit · worldbook **Scroll CLIV / 154 scrolls (zh+en symmetric)** · D1 ✅ · D2 ⏸ (owner's PAT awaited) · 「密码-123」vetoed
+
+---

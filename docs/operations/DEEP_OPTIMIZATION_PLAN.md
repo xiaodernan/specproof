@@ -41060,3 +41060,32 @@ UI **571/571** · build ✓（lite + minified 双 pass）· mvn -o **137/137**�
 ### 五、裁判
 
 UI **571/571** · build ✓（minified pass · `lightningcss.transform` 逐文件 **42/42 OK**）· mvn -o **137/137**（Java 未动 · 沿用 #1945/#1946 口径）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（entries **16** · exhibit #4 / #12 / #13 / #15 一件不挪）· court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **卷一百五十三 / 153 卷（中英对称）** · D1 ✅ · D2 ⏸ ·「密码-123」否决 · Scroll CLIII 双语落册 · ROADMAP-LIVE item #8 再补记 · README 双语补条
+
+## #1948 《同一本账，两枚量杯》：车道×协议同口径缓存账落账——「命中率低」与「非流」两个表象第一次被拆成机器可读的车道账
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1947。
+
+### 一、今夜的一问一答（2026-11-17，现敲现算）
+
+用户问：「调用时缓存命中率很低，而且一直显示『非流』」。当夜用 `scripts/llm_cache_probe.py`、`scripts/two_strike_probe.py` 与 `.local/llm_usage.jsonl`（84 行）三件工具交叉实敲：
+
+| 问 | 答（机器账实敲） |
+|---|---|
+| 现在到底有没有流式？ | **有**：chat_completions 车道 kwargs `stream=True` + `stream_options={"include_usage": True}`；responses 车道 req `"stream": true`；六次 probe 全走 stream+include_usage |
+| 缓存到底命不命中？ | **命**：raw `.local/llm_usage.jsonl` 84 次，58 次带 `cached_tokens` 报告，**direct 车道** 143,222 cached tok（304,492 prompt · hit_rate **0.5418**）；**policy 车道 17 次 · 0 hit** |
+| 「非流」从哪来？ | court 车道 = responses protocol（`prompt_cache_hit_tokens=0` 实敲两次）——**court 永远不缓存**（铁律，非缺陷）；仪表盘把两枚量杯合并读，所以「看起来都很低」…… |
+| 两枚量杯怎么办？ | 把账拆开：本号在 `providers/usage_ledger.py` 落 `by_lane` / `by_protocol` 两簿，UI 新增「车道 × 协议 · 同口径缓存账」双表面板 |
+
+### 二、落账与校验
+
+1. `record_llm_call` 增 `protocol`；两记账口（chat()/chat_stream()）均已带 protocol=self.protocol；
+2. `summarize` 输出增 `by_lane`、`by_protocol`（与 by_kind 同一套诚实口径：未上报归 `(unreported)`·不捏造）；
+3. `tests/unit/test_llm_usage_ledger.py` **+3 诚实性测试**：按车道拆 / 按协议拆 / 未上报 ≠ 0——**20/20 green**；
+4. `Usage` 面板：新增双表面板（`Lane × protocol · same cache account`，中英双语）；`verification.css` +`.usage-dim-pair` / `.usage-dim-note`（仅 token，不碰字色）；
+5. **UI 571/571** · build ✓（minified · lightningcss 无伤）· `mvn -o` 未动（Java 无改）；OpenAPI 无漂移（响应增键向后兼容，`openapi_diff.py` 已复核 CLEAR）；
+6. **没动**：court（锁 `4117d2b0ca5fb23a`）；nightly 的 SPECPROOF_PROVIDER_POLICY 保持关（R16 原样在册）；exhibit 16 件不挪；Night Watch 依旧 **CRACKED**。
+7. **R16 现在有数据背面**：policy 车道 17 次、0 cached——不是编故事，是账本行。
+
+### 三、裁判
+
+UI **571/571** · build ✓ · mvn -o **137/137**（Java 未动 · 沿用 #1947 口径）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（entries **16**）· court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **卷一百五十四 / 154 卷（中英对称）** · D1 ✅ · D2 ⏸（属主 PAT 仍在等）·「密码-123」否决 · Scroll CLIV 双语落册

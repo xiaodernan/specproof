@@ -36,20 +36,61 @@ const kindToneLabel = (rate: number | null | undefined): string => {
   return fmtPct(rate);
 };
 
-interface KindRow {
-  kind: string;
+interface DimRow {
+  lane?: string;
+  protocol?: string;
+  kind?: string;
   calls: number;
   prompt_tokens: number;
   cached_tokens: number;
   hit_rate: number | null;
 }
 
-const KIND_COLUMNS = (zh: boolean): Column<KindRow>[] => [
+const KIND_COLUMNS = (zh: boolean): Column<DimRow>[] => [
   {
     key: "kind",
     header: zh ? "类型 kind" : "Kind",
     sortable: true,
     render: (r) => <span className="mono">{r.kind}</span>,
+  },
+  {
+    key: "calls",
+    header: zh ? "调用" : "Calls",
+    align: "right",
+    sortable: true,
+    render: (r) => <span className="mono">{r.calls}</span>,
+  },
+  {
+    key: "prompt_tokens",
+    header: "Prompt token",
+    align: "right",
+    sortable: true,
+    render: (r) => <span className="mono">{fmtTokens(r.prompt_tokens)}</span>,
+  },
+  {
+    key: "cached_tokens",
+    header: zh ? "缓存命中 token" : "Cached tokens",
+    align: "right",
+    sortable: true,
+    render: (r) => <span className="mono">{fmtTokens(r.cached_tokens)}</span>,
+  },
+  {
+    key: "hit_rate",
+    header: zh ? "命中率" : "Hit rate",
+    align: "right",
+    sortable: true,
+    sortValue: (r) => (typeof r.hit_rate === "number" ? r.hit_rate : -1),
+    render: (r) => <span className="mono">{kindToneLabel(r.hit_rate)}</span>,
+  },
+];
+
+/** 车道/协议两张同构表：列与 Kind 完全一致，只是键名不同。 */
+const DIM_COLUMNS = (zh: boolean, firstHeaderZh: string, firstHeaderEn: string, key: "lane" | "protocol"): Column<DimRow>[] => [
+  {
+    key,
+    header: zh ? firstHeaderZh : firstHeaderEn,
+    sortable: true,
+    render: (r) => <span className="mono">{r[key]}</span>,
   },
   {
     key: "calls",
@@ -234,13 +275,37 @@ export default function Usage() {
           </Panel>
 
           <Panel title={t("usage.byKind")}>
-            <Table<KindRow>
+            <Table<DimRow>
               columns={KIND_COLUMNS(locale === "zh")}
               rows={data.by_kind}
-              rowKey={(r) => r.kind}
+              rowKey={(r) => String(r.kind)}
               emptyTitle={locale === "zh" ? "暂无类型记录" : "No kind records yet"}
               emptyDescription={t("usage.trendEmpty")}
             />
+          </Panel>
+
+          <Panel title={locale === "zh" ? "车道 × 协议 · 同口径缓存账" : "Lane × protocol · same cache account"}>
+            <div className="usage-dim-pair">
+              <Table<DimRow>
+                columns={DIM_COLUMNS(locale === "zh", "车道 lane", "Lane", "lane")}
+                rows={data.by_lane ?? []}
+                rowKey={(r) => String(r.lane)}
+                emptyTitle={locale === "zh" ? "暂无车道记录" : "No lane records yet"}
+                emptyDescription={t("usage.trendEmpty")}
+              />
+              <Table<DimRow>
+                columns={DIM_COLUMNS(locale === "zh", "协议 protocol", "Protocol", "protocol")}
+                rows={data.by_protocol ?? []}
+                rowKey={(r) => String(r.protocol)}
+                emptyTitle={locale === "zh" ? "暂无协议记录" : "No protocol records yet"}
+                emptyDescription={t("usage.trendEmpty")}
+              />
+            </div>
+            <p className="muted usage-dim-note">
+              {locale === "zh"
+                ? "车道 policy = 语义缓存车道（kind-tagged draft / diagnose）；direct = 其余直连车道。协议 responses = 铁律流式车道（court 等）；chat_completions = 兼容车道（kind-tagged 经策略层语义缓存）。未带标签的记录归入 (unreported)；命中率仍只统计网关上报了 cached 的调用。"
+                : "policy lane = semantic cache lane (kind-tagged draft / diagnose); direct = everything else. Protocol responses = iron stream lane (court & co.); chat_completions = compat lane (kind-tagged rides the policy's semantic cache). Untagged records land in (unreported); hit rate still counts only calls the gateway reported cached for."}
+            </p>
           </Panel>
 
           <Panel title={t("usage.trend")}>
