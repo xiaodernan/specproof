@@ -4341,3 +4341,25 @@ branch-cleanliness       dirty-tree              "work tree has 25 dirty entries
 * 「password-123」permanently vetoed.
 
 ---
+## Volume CXII · The Reckoning, Two Lines Legal（卷一百一十二 · 一张表两行字）
+
+> Two lines of ink on the book:
+> signed, and still owed.
+> Everything else is simply not interesting to this volume.
+
+### 112.1 Two lines only
+
+| row | signature | now |
+|---|---|---|
+| OBSERVABILITY.md · D1 | xiaodernan · 2026-11-16 · owner-authorised | **signed** ✅ (presence verified · identity unverified) |
+| PORTFOLIO_TOKEN · D2 | the owner must mint in Settings → Secrets | **unpaid** · never forged by this repo |
+
+### 112.2 Anyone can check
+
+1. anyone can `git diff docs/operations/OBSERVABILITY.md`;
+2. anyone can `python scripts/audit_unsigned.py`;
+3. anyone can `python scripts/audit_court_lock.py` (Lock still `4117d2b0ca5fb23a` LOCKED);
+4. the CRACKED lamp still stands on exhibit #4 — nobody polishes it to jade;
+5. D2 is exactly one action — your PAT, minted once, placed once, dated once.
+
+---

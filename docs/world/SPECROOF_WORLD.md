@@ -4461,3 +4461,25 @@ branch-cleanliness       dirty-tree             "work tree has 25 dirty entries 
 * 「密码-123」永久否决。
 
 ---
+## 卷一百一十二 · 一张表两行字（The Reckoning, Two Lines Legal）
+
+> 考卷上只写两行字：
+> 签了、还欠——
+> 任何其他的花招，都不再写进本卷。
+
+### 112.1 本卷就两行字
+
+| 行 | 落笔 | 现况 |
+|---|---|---|
+| OBSERVABILITY.md 签字（D1） | xiaodernan · 2026-11-16 · owner 授权 | **落签** ✅（presence verified · identity 未加密核验） |
+| PORTFOLIO_TOKEN（D2） | owner 本人将从 Settings → Secrets mint | **未落** · 本书不会代签 |
+
+### 112.2 不在本卷的事实任何人都在看
+
+1. 任何人可以 `git diff` 签的那个文件；
+2. 任何人可以 `python scripts/audit_unsigned.py` 现敲；
+3. 任何人可以 `python scripts/audit_court_lock.py` 敲锁（4117d2b0ca5fb23a LOCKED）；
+4. 灯不亮（CRACKED）那件事 exhibit #4 仍然钉着，谁也涂不了；
+5. D2 只能由你亲手落——PAT 是你开的钥匙，本仓库不碰。
+
+---

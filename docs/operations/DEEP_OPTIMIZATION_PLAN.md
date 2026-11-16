@@ -39891,3 +39891,31 @@ Volume CX《永远不灭的红 · The Lamp That Never Goes Quiet》入册 → wo
 * court=4117d2b0ca5fb23a LOCKED；court 永远 stream+include_usage；purity CLEAR；「密码-123」永远否决；
 * exhibit #4 那行数字不加不减；Night Watch 仍 CRACKED；
 * D1 ✅ D2 ⏸（owner 财的 2 件事，这一行不骗任何人）。
+
+## #1902 《一张表两行字》：Volume CXII——把全书收成一页：D1 已签落 · D2 等你手 · 任何人可以敲证据 · #1902
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1901。
+
+### 一、这一卷把本书收成一页
+
+卷本身只有两行字：OBSERVABILITY.md 已签 / PORTFOLIO_TOKEN 仍欠；本卷看淡「世界大」却依旧诚实。
+
+### 二、今天之后任何人都可以复敲这些断言
+
+* `python scripts/audit_unsigned.py` → `observability-signature: signature-block-found`
+* `python scripts/audit_court_lock.py` → `LOCKED 4117d2b0ca5fb23a`
+* `python -m pytest tests/unit/__tests__/Insight.test.tsx::*`
+* `npx vitest run src/pages/__tests__/Insight.test.tsx`（×7 断言 · RBAC + 欠条面板）
+* `git show 487cb6c..` — 可通过 git log 现敲每一笔落账与签名
+
+### 三、最终状态（今日）
+
+| 灯 | 状态 |
+|---|---|
+| OBSERVABILITY.md | 签落 ✅ |
+| UI | 546/546（明天再敲） |
+| `mvn -o` | 137/137 |
+| Court | `4117d2b0ca5fb23a` LOCKED |
+| D2 | pending · owner action required |
+
+Volume CXII《一张表两行字 · The Reckoning, Two Lines Legal》入册 → worldbook **119 卷** · chronicle **1,703 节**。
