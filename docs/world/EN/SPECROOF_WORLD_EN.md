@@ -3830,3 +3830,31 @@ The page's KPIs (46 calls · 75,638 cached · 51.2% prefix-hit) stand untouched 
 - standing tonight: UI 539/539 · court `4117d2b0ca5fb23a` LOCKED · purity CLEAR · 「password-123」permanently vetoed.
 
 ---
+## Volume XCVIII · The Weight of a Rivet（卷九十八 · 一颗铆钉的重量）
+
+> A rivet carries no load — it tells the rest of the iron: this joint is welded; don't think of splitting here.
+
+### 98.1 This volume ships one rivet
+
+#1887 added the aizzz-lane note to the /engine footer — the two lanes would not be folded into one account by any future reader
+This volume welds one rivet under it.
+
+**`apps/web/src/pages/__tests__/EngineNote.test.tsx`:**
+
+```tsx
+// both locales — a page that warns its reader about the aizzz lane
+// cannot lose that warning silently in a future edit.
+expect(note.textContent).toContain("aizzz");
+expect(note.textContent).toContain("provider_smoke 7/7");
+locale === "zh" ? expect(note.textContent).toContain("不混账")
+                 : expect(note.textContent).toContain("never folded");
+```
+
+UI **540/540** (+1) — a rivet only weighs four assertions; but it guards "this page doesn't lie" for good.
+
+### 98.2 Why one rivet and nothing else
+
+The world keeps turning: worldbook 105 volumes, chronicle 1,689 entries, Court Lock `4117d2b0ca5fb23a` — still LOCKED.
+A rivet is not laziness; until a contract is welded shut, nothing is "done".
+
+---

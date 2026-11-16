@@ -3958,3 +3958,31 @@ court Lock 4117d2b0ca5fb23a LOCKED · purity CLEAR · D1/D2 欠着 · 「密码-
 - 本卷落字母的当天，UI 539/539、Court 4117d2b0ca5fb23a LOCKED、purity CLEAR、「密码-123」永久否决。
 
 ---
+## 卷九十八 · 一颗铆钉的重量（The Weight of a Rivet）
+
+> 一颗铆钉不载任何重力——它只告诉别人：这段铁焊死了，别想再裂。
+
+### 98.1 本卷只交付一颗铆钉
+
+`#1887` 页尾补了 aizzz 车道的注脚——两份车道从此不会被读者混账。
+本卷把这页脚下新增的一颗铆钉钉死：
+
+**`apps/web/src/pages/__tests__/EngineNote.test.tsx`**：
+
+```tsx
+// both locales — the page which honestly warns the reader about
+// the aizzz lane cannot drop that note silently in a future copy edit.
+expect(note.textContent).toContain("aizzz");
+expect(note.textContent).toContain("provider_smoke 7/7");
+locale === "zh" ? expect(note.textContent).toContain("不混账")
+                 : expect(note.textContent).toContain("never folded");
+```
+
+UI **540/540**（+1）——一颗铆钉只重 4 行断言，但它担保的是"这页不再骗人"的生存。
+
+### 98.2 本卷为什么只有这一颗
+
+世界继续：worldbook 105 卷、chronicle 1,689 节、court Lock 4117d2b0ca5fb23a 依旧 LOCKED。
+"一颗铆钉"不是偷懒——一条契约没焊死之前，它永远不算"完成"。
+
+---

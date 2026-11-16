@@ -39519,3 +39519,20 @@ Volume XCVI《炉火熄灭的上午 · The Morning the Furnace Went Out》入册
 
 * court=4117d2b0ca5fb23a LOCKED ·「密码-123」永久否决 · D1/D2 欠着 · UI 539/539 · worldbook **104 卷**（本卷）· chronicle **1,688 节**
 * 任何人读 `/engine` 都不会再把 aizzz 误读成这页的账。
+
+## #1888 《一颗铆钉的重量》：EngineNote.test.tsx——aizzz-车道注脚的契约钉死（zh/en 不混账）· Volume XCVIII
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1887。
+
+### 一、铆钉
+
+`apps/web/src/pages/__tests__/EngineNote.test.tsx`（新）：
+
+* 双车道注脚不能再被静默删掉；中英文模式下 `.engine-honesty-note` 必须仍在；
+* 内容必须包含 `aizzz` 和 `provider_smoke 7/7`；中文必须包含「不混账」，英文必须包含 `never folded`；
+* UI **540/540**（+1）——前端契约收紧一圈。
+
+### 二、不变
+
+* court=4117d2b0ca5fb23a LOCKED · D1/D2 欠着 · purity CLEAR · worldbook **105 卷** · chronicle **1,689 节** · guide-route 6/6
+* 本仓库对「旧账拿走」零容忍：每一条真活都有它的钉子。
