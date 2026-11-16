@@ -45,7 +45,7 @@
 .engine-hour-bar { width: 100%; min-height: 3px; background: linear-gradient(180deg, #e3c25f 0%, rgba(227, 194, 95, 0.12) 100%); border-radius: 2px 2px 0 0; }
 .engine-hour-label { font-size: 8px; color: #5e5743; font-family: var(--font-mono); }
 
-.engine-honesty { display: flex; gap: 10px; align-items: flex-start; border: 1px dashed rgba(155, 172, 220, 0.4); background: rgba(155, 172, 220, 0.06); border-radius: 10px; padding: 12px 14px; margin-top: 14px; color: #9aa0b4; line-height: 1.9; font-size: 11.5px; }
+.engine-honesty { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; border: 1px dashed rgba(155, 172, 220, 0.4); background: rgba(155, 172, 220, 0.06); border-radius: 10px; padding: 12px 14px; margin-top: 14px; color: #9aa0b4; line-height: 1.9; font-size: 11.5px; }
 .engine-honesty svg { flex: 0 0 auto; margin-top: 2px; }
 
 @media print { .engine-page { color: #111; } .engine-honesty { border-color: #444; } }
@@ -55,3 +55,4 @@
 .engine-court-lock-text { margin: 0; color: #d8e6df; font-size: .78rem; line-height: 1.6; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .engine-court-lock-text code { font-family: var(--font-mono); color: #a5f2d9; background: rgba(165, 242, 217, .1); padding: 2px 7px; border-radius: 3px; font-size: .72rem; }
 .engine-court-lock-note { color: #6f8f80; font-size: .68rem; }
+.engine-honesty-note { flex-basis: 100%; margin: 0 0 0 23px; padding-top: 8px; border-top: 1px dashed rgba(155, 172, 220, .3); font-size: .68rem; color: #7d8296; }

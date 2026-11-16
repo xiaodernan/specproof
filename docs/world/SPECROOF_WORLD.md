@@ -3930,3 +3930,31 @@ UI 539/539 · guide-route 6/6 · corrections **15**（R15 入卷轴）· worldbo
 court Lock 4117d2b0ca5fb23a LOCKED · purity CLEAR · D1/D2 欠着 · 「密码-123」永久否决。
 
 ---
+## 卷九十七 · 引擎的副账（The Engine's Second Ledger）
+
+> 本页不值钱——可它都有两个账要交代。
+> 本卷把那一行小字补上去：引擎这本账，从来不只有一种交易。
+
+### 97.1 页尾副账：两条车道，不混账
+
+`/engine` 页面底部现在挂了一行新的小字（zh/en 对称）：
+
+> ※ 注：2026-11-16 起，本机另跑 aizzz/gpt-6.1-terra 车道（经本机代理出网 · provider_smoke 7/7 PASS · court 永远沉默而 stream）；本页的 46 次账只记 wkapi 时代，两车道**不混账**。aizzz 车道用量在本机 .local/llm_usage.jsonl（未跟踪、不入仓）。
+
+这页的 KPI（46 calls · 75,638 cached · 51.2% prefix-hit）不动，也不把 aizzz 的任何数字拖进来——
+**"一个页面，只交代一本账" 的纪律比塞进任何新数字都更难守，也更重要。**
+
+### 97.2 这个小改动的重量
+
+| 信条 | 本卷 |
+|---|---|
+| 两个车道永不相混 | 引擎页只显示 wkapi 时代的口印；aizzz 记入 `.local/llm_usage.jsonl`（本机私密、不入仓） |
+| 不该声称的不声称 | 「生产命中率能否如期维持」——本页不承诺、不引荐、不下结论 |
+| UI 仍是 Aurora 原貌 | 插入页尾一条 zh/en 对称的 note，549→**539/539 全绿 + build ✓** |
+
+### 97.3 一条不可抹的警戒
+
+- aizzz 车道的合法出网条是 **Clash Verge 127.0.0.1:7897**（本机事实，不进任何 tracked 文件的代码里）；
+- 本卷落字母的当天，UI 539/539、Court 4117d2b0ca5fb23a LOCKED、purity CLEAR、「密码-123」永久否决。
+
+---

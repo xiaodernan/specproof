@@ -39500,3 +39500,22 @@ Volume XCVI《炉火熄灭的上午 · The Morning the Furnace Went Out》入册
 * 137/137 是本机本刻本 JDK 25 `mvn -o` 的离线实敲；生产仍无实活（应用层无 rack，演示数据不冒充生产）；
 * gateway 绿不含义端口 8888 任何东西、也不含义宿主任何质量——**只含义测试 JVM 不再依赖宿主任何东西**；
 * court=4117d2b0ca5fb23a LOCKED · D1/D2 欠着 ·「密码-123」永久否决 · 演示数据永不冒充生产 · LLM 车道仍是 aizzz（梯复通、pr smoke ALL 7 PASS — see #1884/#1885）。
+
+## #1887 《引擎的副账》：Engine 页页尾补 aizzz 车道注脚（zh/en 对称）——wkapi 与 aizzz 两车道不混账 · Volume XCVII《The Engine's Second Ledger》
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1886，补一行纸面上必要的诚实。
+
+### 一、为什么是这个小改动
+
+* #1884/#1885 在 `/v1/responses` 上敲通 aizzz（通过 7897 梯子 · probe 6/6 · provider_smoke 7/7）之后，页面仍只呈现 wkapi 时代数字（46 calls · 75,638 cached · 51.2%）——**没人被欺骗，但一个新读者可能以为本机只有 wkapi 一扇门**；
+* 页尾补一条 note（zh/en 对称）：aizzz 车道存在、用途、方式、在不在账——恒等式上，本页仍只交代 wkapi 时代数字。
+
+### 二、UI 验证
+
+* UI **539/539** · `npm run build` ✓ · engine.css 页尾 `.engine-honesty-note`（flex-basis 100%，缩进越过 ProductIcon）
+* 无 JSON schema 变更；`engine.json` 未动
+
+### 三、不变的
+
+* court=4117d2b0ca5fb23a LOCKED ·「密码-123」永久否决 · D1/D2 欠着 · UI 539/539 · worldbook **104 卷**（本卷）· chronicle **1,688 节**
+* 任何人读 `/engine` 都不会再把 aizzz 误读成这页的账。

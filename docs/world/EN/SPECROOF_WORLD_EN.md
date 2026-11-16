@@ -3802,3 +3802,31 @@ UI 539/539 · guide-route 6/6 · corrections scroll **15** (R15 filed) · worldb
 Court Lock `4117d2b0ca5fb23a` LOCKED · purity CLEAR · D1/D2 still owed · 「password-123」permanently vetoed.
 
 ---
+## Volume XCVII · The Engine's Second Ledger（卷九十七 · 引擎的副账）
+
+> This page is not worth much — and yet it keeps two accounts to answer for.
+> This volume adds one small line to it.
+
+### 97.1 The footer line: two lanes, never folded
+
+The /engine page now carries a second footnote (zh/en symmetric):
+
+> ※ note: since 2026-11-16 this host also runs the aizzz/gpt-6.1-terra lane (through the local proxy · provider_smoke 7/7 · court remains silent and streamed). The 46 strikes on this page stay wkapi-era only; the two lanes are never folded into one account. aizzz usage lives in .local/llm_usage.jsonl (this-host private, untracked).
+
+The page's KPIs (46 calls · 75,638 cached · 51.2% prefix-hit) stand untouched —
+**"one page, one account" is harder to keep than any KPI, and matters more.**
+
+### 97.2 The weight of one small edit
+
+| vow | this volume |
+|---|---|
+| two lanes never mixed | the page shows only wkapi-era print; aizzz reports to `.local/llm_usage.jsonl` (host-private, untracked) |
+| never claim what you cannot strike | whether production could hold the same hit rate — not negotiated, not certified, not hinted |
+| no new ornaments on the page | one quiet note added to the footer; UI **539/539** green · build ✓ |
+
+### 97.3 The undeletable warning
+
+- the lawful egress for aizzz on this host is **Clash Verge 127.0.0.1:7897** (a fact of this machine; it never enters any tracked file's code);
+- standing tonight: UI 539/539 · court `4117d2b0ca5fb23a` LOCKED · purity CLEAR · 「password-123」permanently vetoed.
+
+---

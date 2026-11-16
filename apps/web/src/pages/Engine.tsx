@@ -135,6 +135,11 @@ export default function Engine(): JSX.Element {
             ? "本页算是这仓库最接近「真实数据」的一页：每一行都是 41 次真实敲 wkapi.pro 的请求，不是演示；本页不是直接把 .local/llm_usage.jsonl 贴出来（那不雅观、也不安全—含 prompts），只是聚合结果。本次 total tokens 147,767 / cached 75,638 = **51.2 % exact static-prefix hit rate**。完全诚实地讲：wkapi 上线后能否达到同样命中率，取决于真实生产负载；本页只能如实说本机的数据。"
             : "This page is the closest this repo will ever come to 'real data': every row is one of the 41 calls actually made to wkapi.pro from this host. Nothing here is a mock or a sample. The 147,767 prompt tokens / 75,638 cached = 51.2 % exact static-prefix hit rate — that is what this machine actually did. Whether a production deployment reaches the same is an experiment that has not been run, and this page will not guess."}
         </p>
+        <p className="engine-honesty-note">
+          {zh
+            ? "※ 注：2026-11-16 起，本机另跑 aizzz/gpt-6.1-terra 车道（经本机代理出网 · provider_smoke 7/7 PASS · court 永远沉默而 stream）；本页的 46 次账只记 wkapi 时代，两车道**不混账**。aizzz 车道用量在本机 .local/llm_usage.jsonl（未跟踪、不入仓）。"
+            : "※ note: since 2026-11-16 this host also runs the aizzz/gpt-6.1-terra lane (through the local proxy · provider_smoke 7/7 · court remains silent and streamed). The 46 strikes on this page stay wkapi-era only; the two lanes are never folded into one account. aizzz usage lives in .local/llm_usage.jsonl (this-host private, untracked)."}
+        </p>
       </footer>
     </div>
   );
