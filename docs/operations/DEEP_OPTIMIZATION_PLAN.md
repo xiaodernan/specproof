@@ -40648,3 +40648,33 @@ mvn -o **137/137** · UI **562/562** · build ✓ · guide 6/6 · corrections **
 ### 二、裁判
 
 UI **562/562** · build ✓ · mvn -o **137/137** · guide 6/6 · corrections **16** · purity **CLEAR** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries=**13**。
+
+## #1933 《第六张图——唯一出网的那张》：`agent/graphs/cache_witness_graph.py` 落册（intake → strike_one → strike_two → verdict → report → END）· 亲敲双敲 prompt 4430 · cached_tokens **4224×2** · hit_rate **95.3%** · verdict **HIT** · 证物 `docs/evidence/cache-witness.{json,md}` + git-tracked 快照 `apps/web/src/pages/cache_witness.json` · `/stategraph` 挂牌第六张卡（live 判词逐字上屏）· i18n colophon 明说「第六张图按设计出网」· `Graph.tsx` 六盏 · epic Scroll 追加 #1933 里程碑 · `USER_GUIDE` 双语 /stategraph 行 五→六 · StateGraph.test **5/5**（+2 · UI **562→564/564**）· Scroll CXLI 双语落册
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1932。
+
+### 一、敲了什么
+
+| 项 | 值 |
+|---|---|
+| 图文件 | `agent/graphs/cache_witness_graph.py`（第六张；不动前五张） |
+| 节点链 | intake → strike_one → strike_two → verdict → report → END |
+| 状态 | `CacheWitnessState(TypedDict, total=False)` |
+| strike A | prompt 4430 · cached **4224** · miss 206 |
+| strike B | prompt 4430 · cached **4224** · miss 206 |
+| hit_rate(B) | **95.3%**（4224/4430，fail-closed：≥50% → HIT，否则 MISS） |
+| verdict | **HIT**（图自身不加判词；网关回什么就数什么） |
+| 敲击时间 | 2026-11-16T15:00:01Z |
+| 证物 | `docs/evidence/cache-witness.json` · `docs/evidence/cache-witness.md` · git-tracked 快照 `apps/web/src/pages/cache_witness.json` |
+
+### 二、刻意不做的事
+
+1. **不把 R16 涂掉**——R16 是**不同前缀**双敲 0/0（卷一百三十二），本卷是**同一前缀**双敲 4224×2（卷一百三十五同族）；两种口供各归各位；
+2. **不把 HIT 写成认证书**——这是这台主机、这个网关、这个小时的读数；换一个字节的前缀，数字落回 0 是 prefix property 的正常表现，不是 bug；
+3. **不动一根门槛**——court `4117d2b0ca5fb23a` **LOCKED**（永远 stream+include_usage、永远不缓存）；Night Watch 依旧 **CRACKED**（exhibit #4 1,526.1 ms 永在册 · #10/#11/#12 永在册 · entries=**13**）；exhibit 原件一个字节都没动；
+4. **不动 Java**——mvn -o 137/137 原样保留；「密码-123」永久否决；`.local/llm.json` 未跟踪、无 key、不入 markdown；
+5. **出网的图按名字说出网**——/stategraph 的 colophon 从「全部离线运行」改成「六张图里五张离线运行，只有 cache_witness 按设计出网——敲你的模型车道、数回来的 cached_tokens」（zh/en 对称成句）；断言焊进 `StateGraph.test.tsx`。
+
+### 三、裁判
+
+UI **564/564** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **16** · purity **CLEAR** · D1 ✅ · D2 ⏸（属主的 PAT，本仓永不 mint）· worldbook **卷零–卷一百四十一 · 141 卷（中英对称）** · chronicle 随本提交重敲增员。

@@ -191,7 +191,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/gestures` | Fourteen Gestures | fourteen stances before evidence — collectible, each landing on a real verdict label |
 | `/museum` | Evidence Museum | twelve exhibits, each pinned to a real ledger entry |
 | `/errata` | The Errata Scroll | sixteen errata (R01–R16) on file, each anchored to a ledger number and a commit — a query exposes, never erases |
-| `/stategraph` | The State Graphs | the five LangGraph StateGraphs in this repository (recall/evidence/purity/auditor/night_watch) + the eight words to read them — verbatim live verdicts |
+| `/stategraph` | The State Graphs | the six LangGraph StateGraphs in this repository (recall/evidence/purity/auditor/night_watch/cache_witness) + the eight words to read them — verbatim live verdicts |
 | `/usage` | Cache Health | truthful hit_rate + billing chain |
 | `/guide` | Onboarding Guide | from clone to your first BLOCKED in 4 steps |
 | `/login` | Connect | API key / Bearer — no key, every page returns here |

@@ -5159,3 +5159,41 @@ mvn -o **137/137** · UI **562/562** · build ✓ · guide 6/6 · corrections **
 UI **562/562** · build ✓ · mvn -o **137/137** · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED**（exhibit #4 永在册 · exhibit #12 永在册）· purity **CLEAR** · D1 ✅ · D2 ⏸ ·「密码-123」否决。
 
 ---
+## 卷一百四十一 · 第六张图——唯一出网的那张
+
+> 纸上的殉道是给人看的，铁上的殉道是给机器看的。
+> 这一卷里只有一件事：仓库里第六张 StateGraph 落册了，
+> 而它是整本书里**唯一故意出网**的一张图。
+
+### 141.1 /stategraph 页面挂牌第六张卡
+
+- 页面从「五张活着的图」改挂「**六张活着的图**」（`apps/web/src/pages/StateGraph.tsx` · `stategraph.copy.ts`）；
+- 第六张卡：`agent/graphs/cache_witness_graph.py` · `CacheWitnessState` · `intake → strike_one → strike_two → verdict → report → END` · 判词词表 **HIT / MISS**；
+- 卡面「现场判词（本构建快照）」直读 git-tracked `apps/web/src/pages/cache_witness.json`（`docs/evidence/cache-witness.json` 的逐字快照，2026-11-16T15:00:01Z 敲下）：
+  strike A cached=**4224** · strike B cached=**4224** · prompt 4430 · hit_rate **95.3%** → **HIT**；
+- **Colophon 改写**：整页不再说「全部离线运行」——六张图里五张离线运行，只有 cache_witness 按设计出网，敲的是你本机的模型车道、数的是回来的 cached_tokens。浏览器永不运行 Python 的话没有变，变的是「出网」这件口供的措辞：出网必须按图点名，不能一笔带过；
+- `Graph.tsx`（/graph 页）同步挂牌第六盏；`epic.copy.ts` 当前卷细节追加 #1933 里程碑；《USER_GUIDE》双语 /stategraph 行：五张 → 六张；`StateGraph.test.tsx` 5/5（+2 断言：cache_witness 现场判词逐字引用 + colophon 拒绝擦掉例外）· UI **562 → 564/564**。
+
+### 141.2 亲手敲下的两个数字
+
+| strike | prompt | cached | miss |
+|---|---|---|---|
+| A | 4430 | **4224** | 206 |
+| B | 4430 | **4224** | 206 |
+
+hit_rate(B) = 4224 / 4430 ≈ **95.3%** → verdict **HIT**（图自身不加任何判词——网关回什么就数什么；HIT 线是 ≥50%，fail-closed，否则 MISS）。
+
+与 R16 并列存册、不互相顶替：R16 记的是**不同前缀**双敲 0/0（卷一百三十二）；本卷记的是**同一前缀**双敲 4224×2（与卷一百三十五《四次敲出四个数字》同族）。两页并存——一页塔斯一页秤，两种口供各归各位；谁都不许删掉其中任何一条来证明自己记性好。
+
+### 141.3 这一卷拒绝说的话
+
+1. 「hit rate 已认证」——没有。这是这台主机、这个网关、这个小时（2026-11-16T15:00Z）敲出来的读数；网关换掉任何一个字节的前缀，数字就会落回 0——那不是 bug，那是 prefix property 本身；
+2. 法庭照旧：`stream=True + include_usage=True` · court **永不缓存** · 锁 `4117d2b0ca5fb23a` 原样；
+3. Night Watch 依旧 **CRACKED**（exhibit #4 1,526.1 ms 永在册 · exhibit #10/#11/#12 永在册）——本卷没有一个门槛被动过一毫米；
+4. demo 主机依旧不是生产 · D1 已签（身份未加密实证，如实登记）· D2 未交割（属主的 PAT，永不由本仓铸造）·「密码-123」永久否决 · `.local/llm.json` 依然未跟踪、依然没有 key、依然不存在于任何 markdown 页里。
+
+### 141.4 裁判
+
+UI **564/564** · build ✓ · mvn -o **137/137**（本卷不动 Java）· guide 6/6 · corrections **16** · purity **CLEAR** · D1 ✅ · D2 ⏸ · exhibit_entries **13** · court `4117d2b0ca5fb23a` **LOCKED**。
+
+---

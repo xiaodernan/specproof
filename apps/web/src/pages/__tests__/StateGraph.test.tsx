@@ -6,12 +6,16 @@ import StateGraph from "../StateGraph";
 
 /**
  * The State Graphs page teaches LangGraph's StateGraph by pointing at the
- * five graphs this repository actually runs. Every claim it makes is either
+ * six graphs this repository actually runs. Every claim it makes is either
  * a concept note about LangGraph as used here, or a byte visible in the same
  * repo (file names, state fields, verdict lexicon).
+ *
+ * One of the six is networked on purpose: cache_witness strikes this host's
+ * model lane to count the prefix cache. The page must say so — never let the
+ * browser learn to phone home through this book.
  */
 describe("StateGraph — LangGraph as wired in this repository", () => {
-  it("renders both locales with all eight concept terms and five graphs", () => {
+  it("renders both locales with all eight concept terms and six graphs", () => {
     for (const locale of ["zh", "en"] as const) {
       window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
       const { container } = render(
@@ -45,6 +49,41 @@ describe("StateGraph — LangGraph as wired in this repository", () => {
       expect(nightWatch?.live).toBeTruthy();
       expect(container.textContent).toContain("REGRESSION");
       expect(container.textContent).toContain("CRACKED");
+      cleanup();
+    }
+  });
+
+  it("quotes the cache-witness verdict verbatim from cache_witness.json (HIT · 4224 ×2)", () => {
+    for (const locale of ["zh", "en"] as const) {
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+      const { container } = render(
+        <I18nProvider>
+          <StateGraph />
+        </I18nProvider>,
+      );
+      const witness = GRAPHS.find((g) => g.id === "cache_witness");
+      expect(witness?.live).toBeTruthy();
+      expect(witness?.file).toBe("agent/graphs/cache_witness_graph.py");
+      expect(witness?.chain).toEqual(["intake", "strike_one", "strike_two", "verdict", "report", "END"]);
+      // the numbers on the cards come from the tracked cache_witness.json, verbatim
+      expect(container.textContent).toContain("4224");
+      expect(container.textContent).toContain("HIT");
+      expect(container.textContent).toContain("95.3");
+      cleanup();
+    }
+  });
+
+  it("does not let the networked graph wear an offline colophon", () => {
+    for (const locale of ["zh", "en"] as const) {
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+      const { container } = render(
+        <I18nProvider>
+          <StateGraph />
+        </I18nProvider>,
+      );
+      // the colophon must name the exception, not erase it
+      expect(container.textContent).toContain("cache_witness");
+      expect(container.textContent).not.toContain("six graphs run offline; none");
       cleanup();
     }
   });

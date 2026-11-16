@@ -297,8 +297,8 @@ export const SCROLLS_ZH: Scroll[] = [
     era: "2026-11 · 至今",
     verses: [
       "一个屏幕说两种话，不是双语——是噪音；中文模式全中文，英文模式全英文。",
-      "状态图不是装饰——它是契约：五张图在线跑，判词 fail-closed；Night Watch 永远 CRACKED。",
-      "铁证之书的每一页都能被敲开：/errata 是十六条亲笔更正，/stategraph 是八词说明书和五张活着的图。",
+      "状态图不是装饰——它是契约：六张图在线跑，判词 fail-closed；Night Watch 永远 CRACKED。",
+      "铁证之书的每一页都能被敲开：/errata 是十六条亲笔更正，/stategraph 是八词说明书和六张活着的图。",
     ],
     details: [
       { label: "纯度闸已上 · i18n.purity.test.ts", value: "en 零 CJK / CJK 标点 / 全宽；zh 零英语连词三连——随 vitest 生效（#1909）" },
@@ -306,6 +306,7 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "状态图谱 /stategraph", value: "八词教材 + recall/evidence/purity/auditor/night_watch 五张活图 + 夜巡判词 verbatim——CRACKED 不涂（#1910）" },
       { label: "溢出保护层", value: "h1 任意换行 · media max-width · pre overflow-x；不藏组件，只加滚动（#1911）" },
       { label: "两道门影 · 8888 影子", value: "control-plane test profile 被遮蔽 prometheus/refresh → exposure pin 落（#1912）；mvn -o 137/137 复敲 GREEN" },
+      { label: "第六张图 · /stategraph", value: "cache_witness_graph 落册：同一固定提示连敲两下 · cached_tokens=4224×2 · hit_rate 95.3% · HIT——本仓唯一出网的一张图，按设计敲模型车道、朝你数缓存；/stategraph 六张活图（#1933）" },
     ],
   },
   {
@@ -593,8 +594,8 @@ export const SCROLLS_EN: Scroll[] = [
     era: "2026-11 · today",
     verses: [
       "A screen that speaks two languages is not bilingual — it is noise. Chinese mode is all Chinese; English mode is all English.",
-      "Graphs are not decoration; they are the contract. Five run live here — every verdict fail-closed; Night Watch stays CRACKED.",
-      "Every page in this book is knockable: /errata keeps the sixteen corrections; /stategraph is the eight words with the five living graphs.",
+      "Graphs are not decoration; they are the contract. Six run live here — every verdict fail-closed; Night Watch stays CRACKED.",
+      "Every page in this book is knockable: /errata keeps the sixteen corrections; /stategraph is the eight words with the six living graphs.",
     ],
     details: [
       { label: "The purity gate · i18n.purity.test.ts", value: "zero CJK / punctuation / fullwidth in en; zero English link-word runs in zh — shipped with vitest (#1909)" },
@@ -602,6 +603,7 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "/stategraph — the eight words", value: "the state-machine field guide + recall/evidence/purity/auditor/night_watch, plus the night-watch verdict verbatim — CRACKED never painted jade (#1910)" },
       { label: "The overflow guard", value: "anywhere-wrap headings, media max-width, pre overflow-x — hidden nothing, only scroll (#1911)" },
       { label: "The two shadows · 8888", value: "the control-plane's prometheus/refresh lights were shadowed by the stale 8888 server; the exposure pin fixed it (#1912); mvn -o 137/137 re-struck GREEN" },
+      { label: "The sixth graph · /stategraph", value: "cache_witness_graph lands: the same fixed prompt struck twice · cached_tokens=4224×2 · hit_rate 95.3% · HIT — the only graph in this book that phones the model lane, on purpose; /stategraph now carries six living graphs (#1933)" },
     ],
   },
   {

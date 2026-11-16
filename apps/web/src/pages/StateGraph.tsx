@@ -8,11 +8,11 @@ import "../styles/stategraph.css";
 /**
  * 状态图谱 · The State Graphs — a field guide to LangGraph's StateGraph as
  * actually wired inside this repository. Nothing here is tutorial prose from
- * the internet; every concept note maps onto one of the five graphs in
+ * the internet; every concept note maps onto one of the six graphs in
  * `agent/graphs/`.
  *
  * The diagrams are boxes-and-arrows because the browser never runs Python.
- * The verdicts printed on the night-watch card come from the same
+ * The verdicts printed on the night-watch and cache-witness cards come from the same
  * `night_watch.json` the /engine page reads — git-tracked, verbatim.
  */
 export default function StateGraph() {
@@ -23,7 +23,7 @@ export default function StateGraph() {
     <div className="sg-page">
       <div className="page-head">
         <h1>{zh ? "状态图谱" : "The State Graphs"} <span className="sg-en">{zh ? "STATEGRAPHS · LangGraph 现役" : "LANGGRAPH · IN THE ROOM"}</span></h1>
-        <div className="page-sub">{zh ? "这本仓库里正在跑的五张 StateGraph——以及一张读图说明书。不是教程，是验收图纸。" : "The five StateGraphs actually wired inside this repository — plus the legend this book reads them by. Not a tutorial — an acceptance drawing."}</div>
+        <div className="page-sub">{zh ? "这本仓库里正在跑的六张 StateGraph——以及一张读图说明书。不是教程，是验收图纸。" : "The six StateGraphs actually wired inside this repository — plus the legend this book reads them by. Not a tutorial — an acceptance drawing."}</div>
       </div>
       <ChainBanner />
 
@@ -40,7 +40,7 @@ export default function StateGraph() {
       </section>
 
       <section className="sg-section">
-        <h2>{zh ? "五张活着的图" : "The five living graphs"}</h2>
+        <h2>{zh ? "六张活着的图" : "The six living graphs"}</h2>
         <ol className="sg-graphs">
           {GRAPHS.map((g) => (
             <li key={g.id} className="sg-graph" id={"sg-graph-" + g.id}>
@@ -60,7 +60,7 @@ export default function StateGraph() {
               <dl className="sg-graph-meta">
                 <div><dt>{zh ? "判词词表" : "Verdict lexicon"}</dt><dd>{g.verdicts[locale]}</dd></div>
                 <div><dt>{zh ? "状态字段" : "State fields"}</dt><dd className="sg-fields">{g.fields.map((f) => <code key={f}>{f}</code>)}</dd></div>
-                {g.live ? <div><dt>{zh ? "现场判词（本构建）" : "Live composite (this build)"}</dt><dd className="sg-live">{g.live[locale]}</dd></div> : null}
+                {g.live ? <div><dt>{zh ? "现场判词（本构建快照）" : "Live verdict (this build)"}</dt><dd className="sg-live">{g.live[locale]}</dd></div> : null}
               </dl>
             </li>
           ))}
@@ -71,8 +71,8 @@ export default function StateGraph() {
         <h2>{zh ? "卷末语" : "Colophon"}</h2>
         <p>
           {zh
-            ? "这五张图全部离线运行；没有一条从这里出网，没有一个判词被涂成绿色。exhibit #4 的 REGRESSION 留在册子里，Night Watch 今天还是 CRACKED。浏览器永不运行 Python——这也是为什么本页用盒子和箭头而不是真实 trace。"
-            : "All five graphs run offline; none of them phones home, none of their verdicts is painted jade. Exhibit #4's REGRESSION is still on file, and tonight's Watch is CRACKED. The browser never runs Python — which is why this page draws boxes and arrows instead of live traces."}
+            ? "这六张图里五张离线运行，只有 cache_witness 按设计出网——它就是用来量本机模型车道前缀缓存的那张；没有一个判词被涂成绿色。exhibit #4 的 REGRESSION 留在册子里，Night Watch 今天还是 CRACKED。浏览器永不运行 Python——这也是为什么本页用盒子和箭头而不是真实 trace。"
+            : "Five of the six graphs run offline. The sixth, cache_witness, phones exactly one network by design — this host's model lane — to strike the prefix cache and count what comes back. No verdict is painted jade. Exhibit #4's REGRESSION is still on file, and tonight's Watch is CRACKED. The browser never runs Python — which is why this page draws boxes and arrows instead of live traces."}
         </p>
         <p className="sg-colophon muted">
           {zh

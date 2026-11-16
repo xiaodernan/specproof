@@ -1,9 +1,10 @@
 import type { Locale } from "../i18n/strings";
 import nightWatch from "./night_watch.json";
+import cacheWitness from "./cache_witness.json";
 
 /**
  * 状态图谱 · The State Graphs — everything this page says is either
- * copied verbatim from the five graphs in `agent/graphs/`, or is a concept
+ * copied verbatim from the six graphs in `agent/graphs/`, or is a concept
  * note about LangGraph's StateGraph as used by this repository.
  *
  * No LLM writes anything here; no network is involved; the browser re-draws
@@ -53,24 +54,24 @@ export const CONCEPTS: Concept[] = [
     id: "reducer",
     term: { zh: "Reducer / channel 通道", en: "Reducer / channel" },
     gloss: {
-      zh: "LangGraph 的每个字段都是一条通道；append 是 reducer（比如 add_messages）。这本书的五个图全是 overwrite 通道——没有对话，不需要累积。",
-      en: "Every field in LangGraph is a channel; append is a reducer (add_messages). All five graphs in this book use overwrite channels — there is no dialogue to accumulate.",
+      zh: "LangGraph 的每个字段都是一条通道；append 是 reducer（比如 add_messages）。这本书的六个图全是 overwrite 通道——没有对话，不需要累积。",
+      en: "Every field in LangGraph is a channel; append is a reducer (add_messages). All six graphs in this book use overwrite channels — there is no dialogue to accumulate.",
     },
   },
   {
     id: "entry",
     term: { zh: "Entry point 入口", en: "Entry point" },
     gloss: {
-      zh: "graph.set_entry_point(\"intake\") ——没有 set_entry_point 的图画得出来但跑不起来。五个图的入口全部是 intake / 第一个真相采集节点。",
-      en: "graph.set_entry_point(\"intake\") — a graph without an entry point draws fine and runs never. All five graphs enter at intake / the first truth-gathering node.",
+      zh: "graph.set_entry_point(\"intake\") ——没有 set_entry_point 的图画得出来但跑不起来。六个图的入口全部是 intake / 第一个真相采集节点。",
+      en: "graph.set_entry_point(\"intake\") — a graph without an entry point draws fine and runs never. All six graphs enter at intake / the first truth-gathering node.",
     },
   },
   {
     id: "end",
     term: { zh: "END 终态哨兵", en: "END" },
     gloss: {
-      zh: "哨兵 END 只做一件事：宣告这一轮结束。它不判断好坏——好坏看 verdict。五张图都以 END 收尾，这是 LangGraph 唯一的硬规则。",
-      en: "The sentinel END does one thing: declare this round over. It passes no judgement — the verdict does that. All five graphs end there; it is the one hard rule LangGraph gives you.",
+      zh: "哨兵 END 只做一件事：宣告这一轮结束。它不判断好坏——好坏看 verdict。六张图都以 END 收尾，这是 LangGraph 唯一的硬规则。",
+      en: "The sentinel END does one thing: declare this round over. It passes no judgement — the verdict does that. All six graphs end there; it is the one hard rule LangGraph gives you.",
     },
   },
   {
@@ -98,6 +99,20 @@ const NW = nightWatch as unknown as {
   verdict?: string;
   lanes?: { evidence?: string; purity?: string; audit?: string };
 };
+const CW = cacheWitness as unknown as {
+  prompt_tokens_a?: number;
+  cached_tokens_a?: number;
+  prompt_tokens_b?: number;
+  cached_tokens_b?: number;
+  hit_rate_b?: number | null;
+  verdict?: string;
+};
+const hitPct = ((CW.hit_rate_b ?? 0) * 100).toFixed(1);
+const liveCacheWitness = {
+  zh: `strike A cached=${CW.cached_tokens_a ?? "?"} · strike B cached=${CW.cached_tokens_b ?? "?"}（prompt ${CW.prompt_tokens_b ?? "?"}）· hit_rate ${hitPct}% → ${CW.verdict ?? "?"}`,
+  en: `strike A cached=${CW.cached_tokens_a ?? "?"} · strike B cached=${CW.cached_tokens_b ?? "?"} on prompt ${CW.prompt_tokens_b ?? "?"} · hit_rate ${hitPct}% → ${CW.verdict ?? "?"}`,
+};
+
 const liveNightWatch = {
   zh: `evidence=${NW.lanes?.evidence ?? "?"} · purity=${NW.lanes?.purity ?? "?"} · audit=${NW.lanes?.audit ?? "?"} → ${NW.verdict ?? "?"}（exhibit #4 仍在册）`,
   en: `evidence=${NW.lanes?.evidence ?? "?"} · purity=${NW.lanes?.purity ?? "?"} · audit=${NW.lanes?.audit ?? "?"} → ${NW.verdict ?? "?"} (exhibit #4 still on file)`,
@@ -168,5 +183,18 @@ export const GRAPHS: GraphCard[] = [
     },
     fields: ["evidence_verdict", "purity_verdict", "audit_verdict", "verdict", "findings", "report_path", "generated_utc"],
     live: liveNightWatch,
+  },
+  {
+    id: "cache_witness",
+    file: "agent/graphs/cache_witness_graph.py",
+    stateName: "CacheWitnessState(TypedDict, total=False)",
+    chain: ["intake", "strike_one", "strike_two", "verdict", "report", "END"],
+    verdicts: { zh: "HIT / MISS", en: "HIT / MISS" },
+    role: {
+      zh: "量前缀缓存——同一段固定提示连敲两下，第二下回来的 cached_tokens 就是全部表态：≥50% 记 HIT。这本书里唯一出网的一张图，按设计敲你的模型车道、朝你数缓存。",
+      en: "Measure the prefix cache — strike the same fixed prompt twice and read cached_tokens on the second strike; HIT if it carries more than half. The one networked graph in this book, networked on purpose: it strikes your model lane to count the cache.",
+    },
+    fields: ["started_utc", "prompt_tokens_a", "cached_tokens_a", "prompt_tokens_b", "cached_tokens_b", "hit_rate_b", "verdict"],
+    live: liveCacheWitness,
   },
 ];

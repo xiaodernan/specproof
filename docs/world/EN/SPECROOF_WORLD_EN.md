@@ -5043,3 +5043,40 @@ This volume will not pretend that the line-end"**row** is predictable, is exotic
 * UI **562/562** · build ✓ · mvn -o **137/137** · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch still **CRACKED** · purity **CLEAR** · D1 ✅ · D2 pending owner's PAT ·「password-123」vetoed.
 
 ---
+## Scroll CXLI · The Sixth Graph — The One That Phones Home
+
+> A martyr on paper is for people; a martyr in iron is for the machines.
+> One thing happens in this scroll: the repository's sixth StateGraph went on file,
+> and it is the only graph in this book that phones home **on purpose**.
+
+### 141.1 The /stategraph page hangs the sixth card
+
+- the page re-hangs "The five living graphs" → "**The six living graphs**" (`apps/web/src/pages/StateGraph.tsx` · `stategraph.copy.ts`);
+- the sixth card: `agent/graphs/cache_witness_graph.py` · `CacheWitnessState` · `intake → strike_one → strike_two → verdict → report → END` · verdict lexicon **HIT / MISS**;
+- the card's "Live verdict (this build)" reads git-tracked `apps/web/src/pages/cache_witness.json` (a verbatim copy of `docs/evidence/cache-witness.json`, struck 2026-11-16T15:00:01Z): strike A cached=**4224** · strike B cached=**4224** · prompt 4430 · hit_rate **95.3%** → **HIT**;
+- **the colophon was rewritten**: the page no longer claims all graphs run offline — five of the six run offline; cache_witness alone is networked by design, striking this host's model lane to count the cached_tokens that come back. "The browser never runs Python" still stands; what changed is the testimony about which graph phones home — the testimony must name the exception;
+- `Graph.tsx` (/graph) hangs the sixth lamp as well; `epic.copy.ts` appends the #1933 milestone to the current scroll; the bilingual USER_GUIDE /stategraph row flips five → six; `StateGraph.test.tsx` 5/5 (+2 assertions: the verbatim cache-witness live card + the colophon refusing to erase the exception) · UI **562 → 564/564**.
+
+### 141.2 Two numbers struck by hand
+
+| strike | prompt | cached | miss |
+|---|---|---|---|
+| A | 4430 | **4224** | 206 |
+| B | 4430 | **4224** | 206 |
+
+hit_rate(B) = 4224 / 4430 ≈ **95.3%** → verdict **HIT** (the graph adds no wisdom of its own — it counts what the gateway returned; the HIT bar is ≥50%, fail-closed, otherwise MISS).
+
+Sits beside R16, not on top of it: R16 recorded two **different-prefix** strikes at 0/0 (Scroll 132); this scroll records two **same-prefix** strikes at 4224×2 (kin to Scroll 135 — Four Strikes, One Number). Both stay on file, each in its own drawer; nobody is allowed to delete either one to look consistent.
+
+### 141.3 What this scroll refuses to claim
+
+1. "hit rate certified" — no. A reading taken on this host, this gateway, this hour (2026-11-16T15:00Z); change one byte of the prefix and the number falls to 0. That is not a bug; that is what a prefix property is;
+2. the court stands unchanged: `stream=True + include_usage=True` · court **never cached** · the lock `4117d2b0ca5fb23a` untouched;
+3. Night Watch remains **CRACKED** (exhibit #4 1,526.1 ms permanently on file · exhibits #10/#11/#12 permanently on file) — not one threshold moved a millimetre in this scroll;
+4. the demo host is not production · D1 signed (identity NOT crypto-verified, recorded as such) · D2 still the owner's PAT, never minted here · "password-123" permanently vetoed · `.local/llm.json` remains untracked, keyless, and absent from every markdown page.
+
+### 141.4 The floor never moved
+
+* UI **564/564** · build ✓ · mvn -o **137/137** (no Java touched) · guide 6/6 · corrections **16** · purity **CLEAR** · D1 ✅ · D2 pending owner's PAT · exhibit_entries **13** · court `4117d2b0ca5fb23a` **LOCKED**.
+
+---
