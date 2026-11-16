@@ -1320,6 +1320,24 @@ export function revokeToken(tokenId: string): Promise<{ revoked: boolean; token_
   );
 }
 
+// Admin · AI 解读 — the model reads this deck's anonymous aggregate telemetry.
+// Fail-closed RBAC server-side; a 503 means "the model could not read honestly
+// right now", never a fabricated paragraph.
+export interface InsightAdvice {
+  advice: string;
+  model: string | null;
+  model_latency_ms: number | null;
+  evidence_packet_chars: number;
+  usage: Record<string, unknown> | null;
+  cached: boolean;
+}
+
+export type InsightStats = Record<string, unknown>;
+
+export function postInsightAdvice(stats: InsightStats): Promise<InsightAdvice> {
+  return apiPost<InsightAdvice>("/api/v1/admin/insight-advice", { stats });
+}
+
 export interface Invoice {
   id: string;
   tenant_id: string;

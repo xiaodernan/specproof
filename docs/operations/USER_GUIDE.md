@@ -172,7 +172,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/settings` | 模型连接 | 切换任意 OpenAI 兼容网关（本宿机：aizzz/gpt-6.1-terra · responses） |
 | `/agent` | AI 开发者（SpecCraft） | 让 AI 结对把活干完——生成、自修复、失败复盘，全程留痕 |
 | `/identity` | 团队与权限 | RBAC、访问控制、审计（admin / operator 角色可见，fail-closed） |
-| `/insight` | 洞察舱 | admin / operator 专属仪表盘：合成校准人群 + 本机真实轨迹 + 28 日会话趋势与 7 日预测（r²），以及 6 条引擎规则优化措施（全部明确标注「合成数据」，非真实用户 PII） |
+| `/insight` | 洞察舱 | admin / operator 专属仪表盘：合成校准人群 + 本机真实轨迹 + 28 日会话趋势与 7 日预测（r²），以及 6 条引擎规则优化措施（全部明确标注「合成数据」，非真实用户 PII）+ **AI 解读**：admin/operator 可让模型读这块面板的匿名聚合数（allowlist 包、零 PII、失败时如实报错、永远不是判决；「密码-123」永久否决） |
 | `/dossier` | 金案谱 | 111 件入库金案逐一可翻：BLOCKER 22 / MAJOR 51 / NONE 38，每案 Severity、Contract、evidence_type、是否应检出——ground-truth.json 当场读取，不经过演示数据、不经过 LLM，可 git show 对照 |
 | `/mint` | 印记阁 | 只属于「这个浏览器」的印记：巡览六印、快问阶位、十四式手印、最近脚迹；全部读本地 storage（specproof_tour_v1 / drill_v1 / gestures_v1 / onboarding_v1），不上报、不汇总、不联网，读不出就是「未知」不是零 |
 | `/last-call` | 末班车 | 三张独立抽牌：世界书一句抽见 + 金案一次抽见 + 编年史一节抽见——本仓库自己的内容随机出炉，不推荐、不解释、不向任何人献投，每次打开都是新的 |

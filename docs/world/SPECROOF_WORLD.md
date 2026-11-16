@@ -5273,3 +5273,53 @@ UI **567/567** · build ✓ · mvn -o **137/137**（未动 Java）· guide 6/6 �
 UI **567/567** · build ✓ · guide 6/6 · corrections **17** · purity **CLEAR** · exhibit_entries **14** · chronicle 随本提交增员。
 
 ---
+## 卷一百四十四 · 会读自己的洞察舱
+
+> 洞察舱的每一根数字都是活的，可是它不会自己开口。
+> 这一卷让管家站在面板前面，问一句：
+> 「上面的洞察舱，你自己读读，告诉我下一件事该做什么。」
+
+### 144.1 落了什么册（#1936 · 洞察 AI 解读）
+
+| 件 | 值 |
+|---|---|
+| `api/insight_advice.py`（新） | allowlist 裁剪（标量 10 键 + 列表 3 键 × ≤8 条 × 键长 ≤60）· `build_insight_packet` ≤ **4,000 字节** · `fingerprint` SHA-256 · `InsightAdviceUnavailable` —— 与 ai-summary 同一纪律：失败 = 一处叫明的例外，绝不补一段假忠告 |
+| `POST /api/v1/admin/insight-advice` | `require_tenant_mode` → `principal` → `admin/operator` fail-closed（「密码-123」永久否决，服务端二次敲门）· `extra="forbid"` 严格体 · Redis 缓存 fingerprint 作键（fail-open · TTL `INSIGHT_ADVICE_TTL_SECONDS` 默认 86,400 · 不入 court 车道 · 可以缓存） |
+| `/insight` 面板新增 **「AI 解读 · 数据怎么说下一件事」** | admin/operator 可敲；按钮 → 「模型在读…」→ 忠告原文 + 延迟 + 缓存标记 + **「不是判决」**印；失败落在 `role="alert"` 的如实报错上；非 admin 不渲染（fail-closed 与其他面板齐平） |
+| `postInsightAdvice`（`api.ts`）+ `InsightAiAdvice.test.tsx` | 3 条守门：忠告原样上屏 + verdict 印 / 模型不可用如实报错且不伪造 / 非 admin 整块不渲染 |
+| `tests/unit/test_insight_advice.py` | **10/10**（sanitize 丢 hostile 键 · 列表封顶 · 包 ≤4000 · fingerprint 稳定/敏感 · stub provider 成功/失败/空 · 路由 admin✓ operator✓ viewer✗ auditor✗ · 503 绝不伪造） |
+| `scripts/live_insight_strike.py`（新） | 真围栏复敲：多项式派生合成人群（mulberry32 · 末 14 日最小二乘）→ 真 allowlist 裁剪 → 真模型（经本机代理） |
+
+### 144.2 围栏里亲眼看到的那 17 秒（2026-11-16 实敲）
+
+```
+packet chars        : 730   (fingerprint 7f0b1173704325da)
+model               : gpt-6.1-terra
+latency_ms          : 17,032
+usage               : prompt 4,935 · completion 657 · reasoning 516 · cached 0 / 4935
+slope_per_day       : 3.341     r2 : 0.07     sessions_today : 287
+```
+
+模型回的中文忠告（唯一一次，不二发，原文记于此，未挑改）：
+
+> 最值得注意的是导览完成环节明显掉人：funnel : tour : 201 降至 tourDone : 113，tour_completion_rate : 0.5621。另一个瓶颈是 first : accepted : 84 降至 41；onboarding_routes : 0，本包数据不足以判断不同入口的表现。①在导览页前置完成条件和时长，检查步骤是否过长。②让 tourDone 后提供明确的下一步引导，并优化接受流程的文案。③针对 drill_pass_rate 0.62，在练习中增加分步提示。
+
+三件事都在它该做的：
+1. **原样引用了包里的数字**（201→113 / 84→41 / 0.62 / tour_completion 0.5621）——一个字节都没编；
+2. **自发说「本包数据不足以判断不同入口的表现」**——包没给的数据它不冒充给了（onboarding_routes = 0，是的，这一跑是 CLI 的真 zeros，不是 demo 的假 zeros）；
+3. **没有把 slope 3.34 念成「上升趋势」**——r2 = 0.07 的时候，任何趋势断言都是编造；模型识趣了。
+
+### 144.3 刻意不敲的几件事
+
+1. **不给模型判决权**——court 与验收路径零改动；AI 解读永远只是「解读」，印在 UI 上的就是这个词；
+2. **不送 PII**——零 id / 邮箱 / 路径串；local heat 只报 count；CLI strike 的 0 就是真 0；
+3. **不绕过 RBAC**——admin/operator 才看得到，服务端再敲一遍门禁；「123」永远进不来，这不是邀请函；
+4. **不补偿空回复**——空 content 一律 `InsightAdviceUnavailable` → 503；谎言的价格永远比沉默高；
+5. **不动展品**——exhibit #13 敲完后未被复习、未被涂改；exhibit_entries 依旧 **14**；
+6. **不动门槛**——Night Watch 依旧 **CRACKED**；court `4117d2b0ca5fb23a` **LOCKED**（永远 stream+include_usage · 永远不缓存）；mvn -o **137/137** 原样（Java 零触碰）。
+
+### 144.4 裁判
+
+UI **570/570**（79 → **80** 个文件）· build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · tests/unit **10/10** · exhibit_entries **14** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · D1 ✅ · D2 ⏸ · chronicle 随本提交增员 · worldbook **卷一百四十四 · 144 卷**。
+
+---

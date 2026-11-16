@@ -40726,3 +40726,32 @@ UI **567/567** · build ✓ · guide **6/6** · corrections **17** · purity **C
 ### 三、裁判
 
 UI **567/567** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（entries=**14**）· exhibit #13 永在册 · court `4117d2b0ca5fb23a` **LOCKED**（永远 stream+include_usage · 永远不缓存）· D1 ✅ D2 ⏸ ·「密码-123」否决 · chronicle 随本提交增员 · worldbook **卷一百四十三 · 143 卷**。
+
+## #1936 《会读自己的洞察舱》：/insight 面板新增「AI 解读 · 数据怎么说下一件事」——admin/operator 一键让 aizzz/gpt-6.1-terra 读这块面板的匿名聚合数（合成校准样本 + 本机真实热度 count）· `api/insight_advice.py`（allowlist 裁剪：标量 10 键 + 列表 3 键 × ≤8 条 × 键长 ≤60 · 包 ≤4,000 B · `fingerprint` SHA-256 · `InsightAdviceUnavailable`）· `POST /api/v1/admin/insight-advice`（require_tenant_mode → principal → admin/operator fail-closed · `extra="forbid"` · Redis 缓存 fail-open TTL 86,400 · 不入 court 车道）· **首敲实录（2026-11-16T22:5xZ · 经本机代理）：packet 730 B · fingerprint 7f0b1173704325da · model=gpt-6.1-terra · latency 17,032 ms · usage prompt 4,935 / completion 657 / reasoning 516 / cached 0(miss) · 模型中文忠告：原样引用 201→113 / 84→41 / drill 0.62 / 0.5621，自发说「本包数据不足以判断不同入口的表现」，坡度 3.34 被 r2 0.07 压住没上车）· `tests/unit/test_insight_advice.py` **10/10** · `InsightAiAdvice.test.tsx` **3/3** · UI **567 → 570/570** · Scroll CXLIV 双语落册 · `scripts/live_insight_strike.py` 留册复敲
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1935。
+
+### 一、为什么做这件事
+
+2026-11-16 总指令明确要求「深度的把大模型 API 能力完整深度的嵌入项目整体能力……可以通过大模型分析能力实现各种状态的流转和内容的输出……发挥到极致」。此前仓内模型的调用只落在：craft 车道（plan/edit/judge）、验收 AI 解读（`/ai-summary`）、与本机直敲的诊断脚本——**唯独「管理员侧」的数据分析面板是确定性的**。这一版把洞察舱自己变成第一个会问模型的页面：
+
+| 页 | 此前 | 现在 |
+|---|---|---|
+| `/insight`「洞察舱」 | 合成校准人群 + 本机真实热度 + 趋势预测，全确定性 | 加一枚 **AI 解读**按钮：模型读的是**这块面板上看得见的同一份数字**（不是新货）；判决仍归漏斗与热区，模型只出一段中文忠告 |
+
+### 二、刻意的约束（全部焊进代码）
+
+1. **allowlist 出网**——标量（population / slope_per_day / r2 / sessions_today / median_dwell_min / drill_pass_rate / tour_completion_rate / heat_taps_total / heat_rage_count / onboarding_routes）10 键 + 列表（funnel / features / personas）3 键 × ≤8 条 × 键长 ≤60；其余一律丢弃，hostile 键进来即消失；
+2. **包 ≤4,000 字节**——超限先缩列表（→3 条），再打 `truncated` 标记；
+3. **fail-closed RBAC**——服务端 `require_tenant_mode` + `admin/operator`；「密码-123」永久否决（服务端二次敲门，UI 无密码入口）；
+4. **不入 court 车道**——这是分析，不是法庭；court 永远只敲 `stream=True + include_usage=True`、永远不缓存；
+5. **失败不留谎言**——provider 任何例外 → 503 `PROVIDER_UNAVAILABLE`；空回复 → 同款；UI 把如实错误落到 `role="alert"`；忠告从不凭空补齐；
+6. **「解读不是判决」**——UI 印「AI 解读」，面板底部写「不是判决」；测试焊死这一版措辞。
+
+### 三、当场敲出的两个观察（不作结论）
+
+exhibit #13（192c）落册后的 principal 机器又在退热——本轮 live strike 里 `cached 0/4935` 是新前缀的物理事实（既有的 4224 resident-prefix 命中只作用于它自己那截前缀，换一段包就没了）；模型**没有**因为 r2=0.07 说「上升」，也没有因为 slope 3.34 说「下降」——一处忠告里零处臆造。
+
+### 四、裁判
+
+UI **570/570**（80 文件）· build ✓ · mvn -o **137/137**（Java 零触碰）· guide **6/6** · corrections **17** · purity **CLEAR** · tests/unit **+10/10** · Night Watch 依旧 **CRACKED**（entries=**14**）· exhibit #13 仍在册 · court `4117d2b0ca5fb23a` **LOCKED** · D1 ✅ D2 ⏸ · chronicle 随本提交增员 · worldbook **卷一百四十四 · 144 卷**。

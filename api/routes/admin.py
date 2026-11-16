@@ -17,6 +17,10 @@ Admin endpoints (/api/v1/admin, RBAC-governed by the §2 matrix):
   GET      /audit                    admin / auditor (cross-tenant view)
   POST   /certificates/revoke        admin / auditor (sign + log revocation)
   GET    /certificates/revocations   admin / auditor (list revocations)
+  POST   /insight-advice             admin / operator (AI 解读 — the model
+                                     reads this panel's anonymous aggregates;
+                                     fail-closed RBAC · not a verdict · 503 on
+                                     an unavailable model, never a fabricated one)
 
 Enforcement layers: the TenantAuthMiddleware already rejected anonymous
 requests and RBAC violations before these handlers run; the handlers
@@ -38,7 +42,7 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from api.auth import enforce_rate_limit
 from api.errors import (
@@ -723,3 +727,76 @@ async def list_audit(
         "job_id": job_id,
         "job_present": trail["job_present"],
     }
+# ── /api/v1/admin/insight-advice ─────────────────────────────────────────────
+
+
+class InsightAdviceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    stats: dict[str, Any] = Field(default_factory=dict)
+
+
+@admin_router.post("/insight-advice", status_code=200)
+async def insight_advice(request: Request, payload: InsightAdviceRequest) -> dict[str, Any]:
+    """AI 解读 — the model reads the Insight Deck's anonymous aggregates.
+
+    Same discipline as the acceptance page's AI 解读 lane
+    (``api/ai_summary.py``): only what the panel already shows — the
+    synthetic calibration cohort plus this browser's real tap climate — is
+    serialized into a bounded, allowlisted packet; no user ids, no emails, no
+    business data leave the box; the model may not invent; RBAC is
+    fail-closed (tenant mode + admin/operator); on an unavailable model the
+    answer is one honest 503, never a fabricated paragraph of advice.
+    """
+    _require_tenant_mode()
+    principal = _principal(request)
+    _assert_role(principal, frozenset({"admin", "operator"}))
+    from api.insight_advice import (
+        InsightAdviceUnavailable,
+        fingerprint,
+        generate_insight_advice,
+        insight_redis,
+    )
+
+    cache_key = f"insight-advice:{fingerprint(payload.stats)[:16]}"
+    redis = insight_redis()
+    cached: dict[str, Any] | None = None
+    if redis is not None:
+        try:
+            cached = redis.get_cached_llm_response(cache_key)
+        except Exception:  # noqa: BLE001 - cache read failure is not a verdict
+            cached = None
+    if cached is not None:
+        cached = dict(cached)
+        cached["cached"] = True
+        return cached
+
+    try:
+        result = await generate_insight_advice(payload.stats)
+    except InsightAdviceUnavailable as exc:
+        raise ApiError(
+            status_code=503, code=PROVIDER_UNAVAILABLE, detail=str(exc),
+        ) from exc
+
+    body: dict[str, Any] = {
+        "advice": result["advice"],
+        "model": result.get("model"),
+        "model_latency_ms": result["model_latency_ms"],
+        "evidence_packet_chars": result["evidence_packet_chars"],
+        "usage": result.get("usage"),
+        "cached": False,
+    }
+    if redis is not None:
+        try:
+            from storage.env_config import int_env
+
+            redis.cache_llm_response(
+                cache_key, body, ttl=int_env("INSIGHT_ADVICE_TTL_SECONDS", 86_400),
+            )
+        except Exception as exc:  # noqa: BLE001 - persistence is best-effort
+            logger.info(
+                "insight-advice cache write failed (continuing uncached): %s: %s",
+                type(exc).__name__,
+                exc,
+            )
+    return body

@@ -307,6 +307,7 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "溢出保护层", value: "h1 任意换行 · media max-width · pre overflow-x；不藏组件，只加滚动（#1911）" },
       { label: "两道门影 · 8888 影子", value: "control-plane test profile 被遮蔽 prometheus/refresh → exposure pin 落（#1912）；mvn -o 137/137 复敲 GREEN" },
       { label: "第六张图 · /stategraph", value: "cache_witness_graph 落册：同一固定提示连敲两下 · cached_tokens=4224×2 · hit_rate 95.3% · HIT——本仓唯一出网的一张图，按设计敲模型车道、朝你数缓存；/stategraph 六张活图（#1933）" },
+      { label: "洞察 AI 解读 · /insight", value: "Insight Deck 加「AI 解读 · 数据怎么说下一件事」：admin/operator 让 aizzz/gpt-6.1-terra 读这块面板的匿名聚合数——allowlist 裁剪包（零 PII）· 首敲 730 字节 · 模型延迟 17,032 ms · 如实引用 201→113 / 84→41 · 自发说「本包数据不足以判断」 onboarding_routes=0；RBAC 不动（#1936）" },
     ],
   },
   {
@@ -604,6 +605,7 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "The overflow guard", value: "anywhere-wrap headings, media max-width, pre overflow-x — hidden nothing, only scroll (#1911)" },
       { label: "The two shadows · 8888", value: "the control-plane's prometheus/refresh lights were shadowed by the stale 8888 server; the exposure pin fixed it (#1912); mvn -o 137/137 re-struck GREEN" },
       { label: "The sixth graph · /stategraph", value: "cache_witness_graph lands: the same fixed prompt struck twice · cached_tokens=4224×2 · hit_rate 95.3% · HIT — the only graph in this book that phones the model lane, on purpose; /stategraph now carries six living graphs (#1933)" },
+      { label: "Insight AI Advice · /insight", value: "the Insight Deck gained \"AI Advice — what the data says next\": admin/operator asks aizzz/gpt-6.1-terra to read this panel\'s anonymous aggregates — allowlisted packet (zero PII) · first strike 730 B · latency 17,032 ms · model quoted 201→113 / 84→41 verbatim · volunteered \"insufficient data\" on onboarding_routes=0; RBAC untouched (#1936)" },
     ],
   },
   {

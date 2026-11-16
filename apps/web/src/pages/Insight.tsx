@@ -6,6 +6,7 @@ import { buildInsight } from "./insight.copy";
 import { loadOnboardingProgress } from "../ui/onboarding";
 import { clearHeat, deriveHeat, loadHeat } from "../telemetry/behavior";
 import { ProductIcon } from "../ui/ProductIcon";
+import { postInsightAdvice, type InsightAdvice } from "../api";
 import unsigned from "./unsigned.json";
 import "../styles/insight.css";
 
@@ -37,6 +38,46 @@ export default function Insight() {
   const [heatVersion, setHeatVersion] = useState(0);
   const heat = useMemo(() => loadHeat(), [heatVersion]);
   const heatSummary = useMemo(() => deriveHeat(heat), [heat]);
+  const [advice, setAdvice] = useState<InsightAdvice | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [adviceError, setAdviceError] = useState<string | null>(null);
+
+  const buildStatsPacket = (): Record<string, unknown> => ({
+    population: data.population,
+    slope_per_day: data.dailySlope,
+    r2: data.r2,
+    sessions_today: data.sessionsPerDay[data.sessionsPerDay.length - 1] ?? null,
+    median_dwell_min: data.medianDwellMin,
+    drill_pass_rate: data.drillPassRate,
+    tour_completion_rate: data.tourCompletionRate,
+    // anonymous aggregates only — shapes mirror what this panel itself shows
+    funnel: (data.funnel ?? []).map((f) => ({ k: f.key, v: f.count })),
+    features: (data.features ?? []).map((f) => ({ k: f.key, v: f.users })),
+    personas: (data.personas ?? []).map((p) => ({ k: p.key, v: p.count })),
+    heat_taps_total: heatSummary.events,
+    heat_rage_count: heatSummary.rageTotal,
+    onboarding_routes: local.visits,
+  });
+
+  const askAdvice = async () => {
+    setAsking(true);
+    setAdviceError(null);
+    try {
+      const res = await postInsightAdvice(buildStatsPacket());
+      setAdvice(res);
+    } catch (err) {
+      setAdvice(null);
+      const message =
+        err instanceof Error
+          ? err.message
+          : zh
+            ? "模型暂时不可用，无法生成 AI 解读。"
+            : "The model is unavailable right now — no AI interpretation this time.";
+      setAdviceError(message);
+    } finally {
+      setAsking(false);
+    }
+  };
 
   const local = useMemo(() => {
     const out = { visits: 0, routes: [] as { path: string; at: string }[] };
@@ -292,6 +333,51 @@ export default function Insight() {
 
 
         {/* ── Debt ledger · D1/D2 evidence to their faces ───────────────── */}
+        <section className="insight-ai-panel" aria-label={zh ? "AI 解读 · 优化建议" : "AI advice — optimization suggestions"}>
+          <div className="insight-ai-head">
+            <h2>{zh ? "AI 解读 · 数据怎么说下一件事" : "AI Advice — what the data says next"}</h2>
+            <span className="insight-ai-badge">{zh ? "AI 解读" : "AI INTERPRETATION"}</span>
+          </div>
+          <p className="insight-ai-sub muted">
+            {zh
+              ? "把这块面板上的匿名聚合数字（合成校准样本 + 本浏览器真实热度）交给模型看一眼；它不认识你，也不把任何人的记录写下来。它给的是解读，不是判决——判决仍看上面的漏斗与热区。"
+              : "Hands this panel's anonymous aggregate numbers (synthetic calibration cohort + this browser's real tap climate) to the model for a read. It doesn't know who you are and never writes anyone's record down. What it produces is an interpretation, never a verdict — the verdict lives in the funnel and the heat above."}
+          </p>
+          <button type="button" className="ui-btn ui-btn-primary insight-ai-btn" onClick={askAdvice} disabled={asking}>
+            {asking
+              ? zh
+                ? "模型在读…"
+                : "The model is reading…"
+              : zh
+                ? "让模型读一遍这块面板"
+                : "Ask the model to read this panel"}
+          </button>
+          {advice ? (
+            <div className="insight-ai-result" role="status">
+              <p className="insight-ai-text">{advice.advice}</p>
+              <p className="insight-ai-foot muted">
+                {(zh
+                  ? `AI 解读 · 延迟 ${advice.model_latency_ms ?? "?"} ms`
+                  : `AI interpretation · latency ${advice.model_latency_ms ?? "?"} ms`)
+                  + (advice.cached
+                    ? zh
+                      ? " · 命中缓存（同一数据包）"
+                      : " · cache hit (same packet)"
+                    : zh
+                      ? " · 新生成"
+                      : " · freshly generated")
+                  + (zh ? " · 数字来自上面这块面板 · 不是判决" : " · numbers come from this panel · never a verdict")}
+              </p>
+              <button type="button" className="ui-btn insight-ai-retry" onClick={askAdvice} disabled={asking}>
+                {zh ? "再问一次" : "Ask again"}
+              </button>
+            </div>
+          ) : null}
+          {adviceError ? (
+            <p className="insight-ai-error" role="alert">{adviceError}</p>
+          ) : null}
+        </section>
+
         <section className="insight-panel insight-debt-panel" role="note" aria-label={zh ? "欠条现场" : "The ledger of owed things"}>
           <h2>{zh ? "欠条现场 · 今天谁还在欠着谁？" : "The IOUs · who owes what today?"}</h2>
           <ul className="insight-debt-list">

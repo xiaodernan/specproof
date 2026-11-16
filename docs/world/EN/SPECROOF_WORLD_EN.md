@@ -5156,3 +5156,55 @@ Sits beside R16, not on top of it: R16 recorded two **different-prefix** strikes
 * UI **567/567** · build ✓ · guide 6/6 · corrections **17** · purity **CLEAR** · exhibit_entries **14** · the chronicle grows with this commit.
 
 ---
+## Scroll CXLIV · The Deck That Reads Itself
+
+> Every number on the Insight Deck is alive, but the deck never spoke.
+> This scroll stands the keeper before the panel and asks one thing:
+> "you, read yourself — what should happen next?"
+
+### 144.1 What went on file (#1936 · Insight AI Advice)
+
+| piece | what |
+|---|---|
+| `api/insight_advice.py` (new) | allowlist allowances only (10 scalars · 3 lists × ≤8 entries × key ≤60 chars) · `build_insight_packet` ≤ **4,000 bytes** · `fingerprint` SHA-256 · `InsightAdviceUnavailable` — same discipline as ai-summary: failure is one named exception, never a fabricated paragraph of advice |
+| `POST /api/v1/admin/insight-advice` | `require_tenant_mode` → `principal` → `admin/operator` fail-closed (the "password-123" bypass is permanently vetoed — the server re-knocks the door) · `extra="forbid"` strict body · Redis cache keyed on fingerprint (fail-open · TTL `INSIGHT_ADVICE_TTL_SECONDS`, default 86,400 · never the court lane · cache may ride here) |
+| the **"AI Advice — what the data says next"** panel on `/insight` | admin/operator only · button → "The model is reading…" → the verbatim advice + latency + cache marker + a **"never a verdict"** stamp; failure lands on `role="alert"` as one honest error; non-admins don't render it (fail-closed, level with every other panel) |
+| `postInsightAdvice` (`api.ts`) + `InsightAiAdvice.test.tsx` | 3 gates: verbatim render + the never-a-verdict stamp / honest error, never fabricated / not rendered for non-admins |
+| `tests/unit/test_insight_advice.py` | **10/10** (hostile keys dropped · lists capped · packet ≤ 4,000 · fingerprint stable/sensitive · stub provider ok/fail/empty · route admin✓ operator✓ viewer✗ auditor✗ · 503 never fabricates) |
+| `scripts/live_insight_strike.py` (new) | live fence re-strike: the synthetic cohort re-derived (mulberry32 · last-14 least-squares) → the real allowlist sanitizer → the real model through the local proxy |
+
+### 144.2 The seventeen seconds inside the fence (struck live 2026-11-16)
+
+```
+packet chars        : 730   (fingerprint 7f0b1173704325da)
+model               : gpt-6.1-terra
+latency_ms          : 17,032
+usage               : prompt 4,935 · completion 657 · reasoning 516 · cached 0 / 4935
+slope_per_day       : 3.341     r2 : 0.07     sessions_today : 287
+```
+
+The model's reply, verbatim (struck once, never re-issued, reproduced here untouched):
+
+> 最值得注意的是导览完成环节明显掉人：funnel : tour : 201 降至 tourDone : 113，tour_completion_rate : 0.5621。另一个瓶颈是 first : accepted : 84 降至 41；onboarding_routes : 0，本包数据不足以判断不同入口的表现。①在导览页前置完成条件和时长，检查步骤是否过长。②让 tourDone 后提供明确的下一步引导，并优化接受流程的文案。③针对 drill_pass_rate 0.62，在练习中增加分步提示。
+
+(English gloss for the record: the drop-off is the tour gate — 201→113 (tour_completion_rate 0.5621); the next bottleneck is first→accepted 84→41; onboarding_routes being 0, the packet itself says the data is insufficient to judge per-entry performance; suggested steps: front-load tour completion conditions & duration, give an explicit next-step after tourDone with tuned acceptance copy, and add stepped hints to the drill at pass rate 0.62.)
+
+One of three things stayed true:
+1. **it quoted the packet's own numbers** (201→113 / 84→41 / 0.62 / 0.5621) — not one byte invented;
+2. **it volunteered "this packet cannot judge per-entry behavior"** — the zero it saw stayed a zero, not a demo zero, a real one;
+3. **it never called slope 3.34/day a "rising trend"** — with r2 = 0.07, any trend claim is fabrication; the model declined to make one.
+
+### 144.3 What this scroll refuses to do
+
+1. **no verdict power for the model** — the court and the acceptance paths are untouched; AI Advice is an interpretation, stamped as such on the panel;
+2. **no PII ever rides the packet** — zero ids/emails/paths; local heat reports counts only; zero means zero;
+3. **no RBAC bypass** — admin/operator only, with the door re-knocked server-side; "123" never opens this page;
+4. **no compensation for empty replies** — empty content is `InsightAdviceUnavailable` → 503; a lie costs more than silence;
+5. **no exhibit touched** — exhibit #13 stays as struck (entries=**14**);
+6. **no threshold moved** — Night Watch remains **CRACKED**; court `4117d2b0ca5fb23a` **LOCKED** (always stream+include_usage · always never cached); mvn -o **137/137** untouched (Java untouched).
+
+### 144.4 The floor never moved
+
+* UI **570/570** (79 → **80** files) · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · tests/unit **10/10** · exhibit_entries **14** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch remains **CRACKED** · D1 ✅ · D2 pending owner's PAT · the chronicle grows with this commit · worldbook **Scroll CXLIV · 144 scrolls**.
+
+---
