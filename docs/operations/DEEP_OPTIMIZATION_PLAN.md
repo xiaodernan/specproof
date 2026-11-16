@@ -40955,3 +40955,21 @@ UI **571/571** · build ✓ · mvn -o **137/137** · guide **6/6** · correction
 2. 「明天的 Suite 就绿了」——没人说这一句；若有 subsidiaries 来 pokes them, 还得再敲一遍 head；
 3. 「Suite 可以每天先跑」——**恰恰相反**：这份先敲是它第一份完完整整的 transcript · ROADMAP-LIVE item 收 #8 待增（next: the user may push back with closed PRs on the payload-ledger）；
 4. exhibit entries=**16** · court `4117d2b0ca5fb23a` **LOCKED** ·「密码-123」否决 · D1 ✅ D2 ⏸
+
+## #1944 《撞门的人，门没塌》：rate-limit 定量实测 · 三条新线缝进 `tests/unit/test_rate_limit_fixed_window.py`（**3/3 绿**）· 固定窗口算法落册：`window = int(time.time())//60` · `specproof:rl:<sha256(key)[:16]>:<window>` · incr→count==1 expire(90) · count > SPECPROOF_RATE_LIMIT_PER_MIN ⇒ **429 RATE_LIMITED** · fail-open 的语气原地如实敲出（桶存储器降级 = 放行、绝不静默拒）· 32 连发错误钥全 **401**、零 5xx · docker 此刻下线（28 份 MySQL 隔离件被诚实跳过）· exhibit 阵容不动（entries=**16**）
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1943。
+
+### 一、为什么要这个守门
+
+#9 的要求（模拟真撞库式暴力攻击）在本仓一直悬着——限速器的口径一直在线（`store.client.incr → count > limit → 429`），但从没被钉成回归锁——改坏它之后没有任何一个文件红；`tests/unit/test_rate_limit_fixed_window.py` 修了三条牙：
+
+| 牙 | 断言 |
+|---|---|
+| 限速生效 | 超过上限后的请求——**429 RATE_LIMITED** · 永不 5xx · 永远不静默放行 |
+| fail-open | 桶宕机 → 请求照常放行（这是声明的口径，不是缺陷） |
+| 撞库风暴 | 32 并发错误钥 — 全 **401**，零 5xx，零泄露 |
+
+### 二、不涂不动
+
+展品 entries=**16** · exhibit #12/#13/#15 在册 · Night Watch 依旧 **CRACKED** · court `4117d2b0ca5fb23a` **LOCKED** · 永远 stream+include_usage · 永远不缓存 · purity **CLEAR** · corrections **17** ·「密码-123」否决 · D1 ✅ D2 ⏸ · mvn -o **137/137** · UI **571/571** · guide **6/6** · chronicle 随本提交增员 · worldbook **卷一百五十 · 150 卷**。

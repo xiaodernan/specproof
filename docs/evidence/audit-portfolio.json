@@ -1,12 +1,12 @@
 {
  "version": 1,
- "generated_utc": "2026-11-16T18:40:18+00:00",
+ "generated_utc": "2026-11-16T20:22:21+00:00",
  "verdict": "READY_WITHOUT_TOKEN",
  "checks": [
   {
    "id": "https://xiaodernan.github.io/ reachable",
    "ok": true,
-   "detail": "HTTP 200, 40851 bytes"
+   "detail": "HTTP 200, 40860 bytes"
   },
   {
    "id": "github.com/xiaodernan/specproof exists (anonymous HEAD)",

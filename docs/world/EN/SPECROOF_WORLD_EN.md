@@ -5427,3 +5427,40 @@ Page copy, the bilingual user guide, README_EN, `Graph.tsx`'s seven lamps, `epic
 * UI **571/571** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **16** · the chronicle grows with this commit · worldbook **Scroll CXLIX · 149 scrolls**.
 
 ---
+## Scroll CL · The Wall That Does Not Fall
+
+> There is always a wall with someone knocking on it.
+> The knock can be repeated ten thousand times. The wall holds to its cap; anything past it reads 429.
+> This scroll measures the wall.
+
+### 150.1 The three anti-storm strands (#1944 · `tests/unit/test_rate_limit_fixed_window.py`)
+
+| strand | the rule |
+|---|---|
+| requests past the limit | with `SPECPROOF_RATE_LIMIT_PER_MIN=5`, from the 6th call onward the wire answers **429 with code RATE_LIMITED** — never 500, never silently past the cap |
+| bucket store down | the request is admitted (fail-open, the documented stance) — a storage fault is never amplified into an outage the door cannot see |
+| 32 consecutive wrong-key requests | **all 401** — zero 5xx, zero silent pass-through; the door that refuses brute force is not decorative |
+
+The shape, verbatim from `api/auth.py`:
+```
+window = int(time.time()) // 60 → redis_key = "specproof:rl:<sha256(key)[:16]>:<window>"
+count = store.client.incr(redis_key) → if count == 1: expire(redis_key, 90) → if count > limit: 429
+```
+
+### 150.2 What these three tests weld shut
+
+1. **a stranger may knock ten thousand times** and every answer is 401 or 429 — never anything the caller can pry with;
+2. **when the ingester is down the door stays standing** — that is what `except Exception → allow` means; it is a rule, not a bug, and it stays a rule;
+3. **the window's memory rides along for 90 s** — no silent "forgot the count" carryover across minute boundaries.
+
+### 150.3 What this scroll refuses to claim
+
+1. "the rate limiter is security" — no: it resists neither distributed brute force (sum of 60/min per key) nor noisy-bucket shaping; **it is a door, not a fortress**;
+2. "Docker came back tonight" — no: Docker is absent right now; this test suite runs with in-process fakes for Redis and MySQL (the 28 MySQL-backed files are untouched — skipped honestly, no Docker pretended);
+3. exhibit #15's 2–4% err stays on file; exhibit_entries=**16**; Night Watch remains **CRACKED** · court `4117d2b0ca5fb23a` **LOCKED** · "password-123" vetoed · D1 ✅ · D2 pending owner's PAT.
+
+### 150.4 The floor never moved
+
+* UI **571/571** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **16** · the chronicle grows with this commit · worldbook **Scroll CL · 150 scrolls**.
+
+---

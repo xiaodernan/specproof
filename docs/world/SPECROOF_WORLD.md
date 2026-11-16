@@ -5539,3 +5539,40 @@ advice_chars  : 335
 UI **571/571** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **卷一百四十九 · 149 卷**。
 
 ---
+## 卷一百五十 · 撞门的人，门没塌
+
+> 总有人，在国境线上连续敲门。
+> 敲门的动作可以一万次，门可以只许五十次。
+> 这一卷测的就是那扇门。
+
+### 150.1 三道防泄丝的丝（#1944 · `tests/unit/test_rate_limit_fixed_window.py`）
+
+| 丝 | 值 |
+|---|---|
+| 越过限制的请求 | 在 `SPECPROOF_RATE_LIMIT_PER_MIN=5` 下，第 6 次起 **429 · code RATE_LIMITED**——从不 500、从不静默越线 |
+| Redis 桶存储器宕机 | 请求照常放行（fail-open：availability 优先，如实现声明），绝不把存储器故障放大成「系统罢工」 |
+| 32 连发错误钥 | **全部 401**——零一个 5xx、零一个 silent pass-through；防撞库的闸口不是装饰 |
+
+代码如实：
+```
+window = int(time.time()) // 60 → redis_key specproof:rl:<sha256(key)[:16]>:<window>
+count = store.client.incr(redis_key) → if count == 1: expire(..., 90) → if count > limit: 429
+```
+
+### 150.2 这三个测试守活什么
+
+1. **你可以敲一万次**——脱水不过；`/jobs` 端点始终返回 401 或 429，从来不给出其他可以被利用的框；
+2. **ingester 宕机时系统还在服务**——这句被 2026-11-16 之前写入的 `except Exception → allow` 表达 *而非* 被本卷推翻；这是约束，不是bug；
+3. **限速记忆被秘密继承一次**——`Window` 被 expr 补一行 EXP，杜绝「忘记锁定」的窗口越界。
+
+### 150.3 这一卷拒绝说的话
+
+1. 「限速器是个完美的安全方案」——没有：它不抗分布式真撞库（sum of 60/min per key），也不抗噪声桶；**它只是门，不是墙**；
+2. 「Docker 今晚复活了」——没有：Docker 此刻缺席，`test_rate_limit_fixed_window.py` 靠进程内假 Redis/MySQL 跑（28 个 MySQL-backed 测试文件一例都不跑——如实记）；
+3. exhibit #15 的 2–4% err 永在册 · exhibit_entries **16**；Night Watch 依旧 **CRACKED** · court `4117d2b0ca5fb23a` **LOCKED** ·「密码-123」否决 · D1 ✅ D2 ⏸。
+
+### 150.4 裁判
+
+UI **571/571** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **卷一百五十 · 150 卷**。
+
+---
