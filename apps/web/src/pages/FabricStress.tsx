@@ -35,6 +35,11 @@ export default function FabricStress(): JSX.Element {
           <code>{L("72 并发 ×2 轮 · p99 440→176ms（第二轮回落）", "72-concurrent ×2 rounds · p99 440→176ms")}</code>
         </div>
         <div className="fabric-stress-cell fabric-stress-bad">
+          <span className="fabric-stress-lane">{L("车道 D · 静态 front door（128 并发）", "LANE D · static front door (128-concurrent)")}</span>
+          <strong>{L("BUDGET-BLOWN · storm aftermath", "BUDGET-BLOWN · storm aftermath")}</strong>
+          <code>{L("round 1 err 14.8% → round 3 err 0.39% · worst p99 2,225.7 ms · Δp99 +629ms vs 64c 时刻", "round 1 err 14.8% → round 3 err 0.39% · worst p99 2,225.7 ms · Δp99 +629 ms vs 64c")}</code>
+        </div>
+        <div className="fabric-stress-cell fabric-stress-bad">
           <span className="fabric-stress-lane">{L("车道 B · 静态 front door（冷启动）", "LANE B · static front door (cold start)")}</span>
           <strong>{L("超额但未崩", "over budget, did not crash")}</strong>
           <code>{L("round 1 p99 7588ms → round 2 p99 528ms · 冷盘 JIT；判 BUDGET-BLOWN", "round 1 p99 7588ms → round 2 p99 528ms · cold-disk JIT; BUDGET-BLOWN")}</code>
@@ -64,7 +69,7 @@ export default function FabricStress(): JSX.Element {
           <div className="fabric-evidence-row">
             <span>{L("敲击时间", "struck")} <strong>{evidence.latest.started_utc.slice(0, 16).replace("T", " ")}Z</strong></span>
             <span>{L("并发", "concurrency")} <strong>{evidence.latest.concurrency}</strong> · {L("预热", "warmups")} <strong>{evidence.latest.warmup_rounds}</strong></span>
-            <span>{L("总数", "total")} <strong>{evidence.latest.total_ok}/{evidence.latest.total}</strong> · {L("0 错", "0 err")}</span>
+            <span>{L("总数", "total")} <strong>{evidence.latest.total_ok}/{evidence.latest.total}</strong> · {L("失败", "err")} <strong>{evidence.latest.total - evidence.latest.total_ok}</strong></span>
             <span>{L("最差 p99", "worst p99")} <strong>{Math.round(evidence.latest.worst_p99_ms)}ms</strong></span>
             <span className={evidence.latest.verdict === "OK" ? "fabric-evidence-ok" : "fabric-evidence-blown"}>{L("判定", "verdict")} <strong>{evidence.latest.verdict}</strong></span>
           </div>

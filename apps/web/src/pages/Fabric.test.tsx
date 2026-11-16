@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
+import evidence from "./evidence.json";
 import Fabric from "./Fabric";
 
 /**
@@ -30,8 +31,10 @@ describe("fabric self-portrait", () => {
     const { container } = render(<Fabric />);
     const card = container.querySelector(".fabric-evidence");
     expect(card).not.toBeNull();
-    expect(card?.textContent ?? "").toMatch(/2026-11-16-static-warm[\d-]*\.json/);
-    expect(card?.textContent ?? "").toContain("OK");
+    const latest = evidence.latest as { file: string; verdict: string };
+    expect(card?.textContent ?? "").toContain(latest.file);
+    // The verdict must come verbatim from the committed JSON — never from a fixed string.
+    expect(card?.textContent ?? "").toContain(latest.verdict);
     const ledger = container.querySelector(".fabric-stress");
     expect(ledger).not.toBeNull();
     expect(ledger?.textContent ?? "").toMatch(/2026-11-16/);
