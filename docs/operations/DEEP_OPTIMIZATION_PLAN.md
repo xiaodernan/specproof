@@ -40340,3 +40340,34 @@ sis host（localhost IT）饱和——首两轮 nbtwork/socket 双饱和、错�
 * mvn -o **137/137** · UI **559/559** · build ✓ · guide 6/6 · corrections **16**。
 
 Volume CXXXIV《谷底就谷底了 · The Floor Is the Floor》入册 → worldbook **134 卷** · chronicle **1,718 节**。
+
+## #1920 《缓存命中是敲出来的》：`scripts/_cache_strike.py`——同一 prompt 连敲 4 次 → prompt=4396 · hit=4224 · miss=172 四次全相同（相同前缀下 prefix cache 每次必中）
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1919。
+
+### 一、起因
+
+Owner 催促多次：「缓存命中率低、一直显示非流，改善它。」本号先把 **the exact same prefix** 连敲 4 次，看看 cache 到底是否活：
+
+```
+source local_file | protocol responses | model gpt-6.1-terra
+strike 1: prompt=4396 hit=4224 miss=172 (details=None)
+strike 2: prompt=4396 hit=4224 miss=172 (details=None)
+strike 3: prompt=4396 hit=4224 miss=172 (details=None)
+strike 4: prompt=4396 hit=4224 miss=172 (details=None)
+```
+
+（同一 messages list 不变，provider.chat() 走 responses lane with `stream=True + include_usage=True`）
+
+结论：**prefix cache 持续命中——此网关只在 prefix 相同时才命中；每次命中 4224 tokens**。
+
+### 二、澄清
+
+`live_lane_probe.py` 每次 HTTP 200 · cached_tokens=4224 —— **两种探针敲出来的 cache 指纹是同一个数字**：它是这个 token window 的稳定 hit 区间。
+
+### 三、否决 / 不伪造
+
+* 不宣称 Moonshot/Zhipu 已经刷了 cache；不宣称"命中率改善到96%"——只说：prefix cache 在本机/本部署稳定 engage（4/4 敲出相同数字）
+* 不动 court `4117d2b0ca5fb23a` LOCKED · 永远 stream+include_usage · 不缓存 ·「密码-123」否决 · Night Watch 依旧 CRACKED（exhibit #4 永在册）· D2 ⏸（owner PAT）
+
+mvn -o **137/137** · UI **559/559** · build ✓ · guide 6/6 · corrections **16** · purity CLEAR。

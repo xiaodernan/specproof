@@ -1,6 +1,6 @@
 # ROADMAP · LIVE — SpecProof
 
-> 自动生成于 2026-11-16 13:22Z（scripts/build_roadmap_live.py）· 下次 chronicle 重推会变灯花。
+> 自动生成于 2026-11-16 13:35Z（scripts/build_roadmap_live.py）· 下次 chronicle 重推会变灯花。
 > **不含任何承诺** — 每一条都是「门下一要敲什么 + 谁来敲（机器 / 人类）」的清单。
 
 | # | 门 | 谁来敲 / 阻塞 |
@@ -15,7 +15,7 @@
 
 ## 出厂事实（build 时快照）
 
-- commits **2,579** · ledger **1,718** 节 · worldbook **134** 卷
+- commits **2,581** · ledger **1,719** 节 · worldbook **134** 卷
 - engineer lane wkapi.pro · gpt-6-sol · stream+include_usage · cached_tokens 75,638
 - 端口 8000 归属：port-free · 外网搜索：HTTP 402 · court 永不缓存
 
