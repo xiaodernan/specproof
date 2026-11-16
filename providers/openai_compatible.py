@@ -634,17 +634,40 @@ class OpenAICompatibleProvider(ModelProvider):
         ):
             effective_protocol = "chat_completions"
         if effective_protocol == "responses":
-            kwargs: dict[str, Any] = request_kwargs(
-                self.model, messages, effort=self.reasoning_effort, tools=tools,
-                tool_choice=tool_choice, response_format=response_format, opts=opts,
-                timeout=timeout,
-            )
+            # Stream-only gateways refuse non-streamed /v1/responses
+            # (stream_required), and the products' own iron rule is that
+            # every answer lane streams. The one-response contract is a
+            # fold over the canonical SSE generator below — the same raw
+            # response-entry the streamed verb uses, never a second hole.
             async with self._metered():
-                result = parse_response(await self._create_response(kwargs))
-                self._record_responses_capabilities(
-                    result, response_format=response_format, tool_choice=tool_choice,
+                content_parts: list[str] = []
+                calls: dict[str, dict[str, Any]] = {}
+                usage: dict[str, Any] = {}
+                finish_reason = "stop"
+                model = self.model
+                async for part in self._responses_stream(
+                    messages, tools, opts, timeout,
+                    tool_choice=tool_choice, response_format=response_format,
+                ):
+                    if part.content:
+                        content_parts.append(part.content)
+                    for call in part.tool_calls or []:
+                        calls[str(call.get("id"))] = call
+                    if part.usage:
+                        usage = dict(part.usage)
+                    if part.finish_reason:
+                        finish_reason = part.finish_reason
+                    if part.model:
+                        model = part.model
+                if not content_parts and not calls:
+                    raise RuntimeError("The model returned no text or tool calls")
+                return LLMResponse(
+                    content="".join(content_parts) or None,
+                    tool_calls=list(calls.values()) or None,
+                    usage=usage,
+                    model=model,
+                    finish_reason=finish_reason,
                 )
-            return result
         probe = await self._ensure_probed()
         caps = probe.capabilities
 
@@ -886,12 +909,29 @@ class OpenAICompatibleProvider(ModelProvider):
     async def _responses_stream(
         self, messages: list[LLMMessage], tools: list[dict[str, Any]] | None,
         opts: dict[str, Any] | None, timeout: float,
+        *, tool_choice: str | None = None,
+        response_format: dict[str, Any] | None = None,
     ) -> AsyncIterator[LLMResponse]:
         kwargs = request_kwargs(
             self.model, messages, effort=self.reasoning_effort, tools=tools,
+            tool_choice=tool_choice, response_format=response_format,
             opts=opts, timeout=timeout,
         )
         stream = await self._create_response({**kwargs, "stream": True})
+        if not isinstance(stream, AsyncIterable):
+            # A gateway that ignored stream=True and handed back a completed
+            # body is accepted unchanged — the same tolerance
+            # _collect_chat_stream carries for chat-completions.
+            result = parse_response(stream)
+            self._record_responses_capabilities(
+                result, streaming=False,
+                response_format=response_format, tool_choice=tool_choice,
+            )
+            yield LLMResponse(
+                content=result.content, tool_calls=result.tool_calls,
+                usage=result.usage, finish_reason=result.finish_reason, model=result.model,
+            )
+            return
         completed = False
         saw_text_delta = False
         saw_tool_item = False
@@ -916,6 +956,7 @@ class OpenAICompatibleProvider(ModelProvider):
                     result = parse_response(response_field(event, "response"))
                     self._record_responses_capabilities(
                         result, streaming=saw_text_delta or saw_tool_item,
+                        response_format=response_format, tool_choice=tool_choice,
                     )
                     completed = True
                     # Completion contains the whole answer. Do not replay text

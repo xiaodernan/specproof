@@ -53,6 +53,14 @@ def provider_with(outcome):
 
     async def create(**kwargs):
         calls.append(kwargs)
+        if kwargs.get("stream"):
+            # stream-only gateways: every answer lane rides SSE, so the
+            # stub must answer a stream when one was asked for. A Stream
+            # outcome passes through by identity (its .closed flag is
+            # asserted); a completed() dict becomes one completed event.
+            if isinstance(outcome, Stream):
+                return outcome
+            return Stream([{"type": "response.completed", "response": outcome}])
         return outcome
 
     provider._client = SimpleNamespace(responses=SimpleNamespace(create=create))
