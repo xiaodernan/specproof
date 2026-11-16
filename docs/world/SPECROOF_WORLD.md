@@ -5234,3 +5234,42 @@ UI **564/564** · build ✓ · mvn -o **137/137**（本卷不动 Java）· guide
 UI **567/567** · build ✓ · mvn -o **137/137**（未动 Java）· guide 6/6 · corrections **17** · purity **CLEAR** · D1 ✅ · D2 ⏸ · exhibit_entries **13** · court `4117d2b0ca5fb23a` **LOCKED**。
 
 ---
+## 卷一百四十三 · 192 档——被体温记录的那一件
+
+> 512c 塌了、256c 塌了、128c 也塌了；
+> 这一卷冲的是它们当中的那一格——192c。
+> exhibit 记录的是「这一刻」，不是「定律」。
+
+### 143.1 exhibit #13 落册
+
+`docs/evidence/2026-11-16-static-warm-13.json`（本机 · static lane · 3 entry assets · fresh server）:
+
+| round | total | ok | err% | p99 |
+|---|---|---|---|---|
+| 1 | 384 | 134 | **65.10%** | 2,694.7 ms |
+| 2 | 384 | 130 | **66.15%** | 2,626.6 ms |
+| 3 | 384 | 114 | **70.31%** | 2,971.5 ms |
+| 4 | 384 | 136 | **64.58%** | 2,677.1 ms |
+
++3 warmup（不计入判词）；verdict **BUDGET-BLOWN**；sample_errors：`URLError WinError 10061 由于目标计算机积极拒绝，无法连接`——本机自己在丢端口上的连接。
+
+### 143.2 不按常理来的那一件
+
+- 顺序上，192c 该介于 128c（err 15.2% · p99 2,225.7 ms）与 256c（err 45.1% · p99 2,253.8 ms）——**本机当晚却报出 err 64.6–70.3%、最糟 p99 2,971.5 ms**。主机刚跑完 79 文件 / 567 用例的完整 vitest（165 s）后仍在退热，exhibit #12 落册后几分钟 #13 就落锤——这就是那一刻的真相，不修饰、不补测；
+- 饱和曲线 x 轴加 **192c** 刻度（`Exhibits.tsx xTicks`）；红色 BUDGET-BLOWN 点阵：128 → 192 → 256 → 512；
+- exhibits_entries **13 → 14**；
+- 顺手修掉 `build_evidence.py` 一个真 bug：`delta_vs_previous` 此前把最新展品跟「排序前一位文件」直接对比——cache-witness.json 入库后对比对象变成了 summary of a cache HIT（p99 0.0），毫无意义。**现在 delta 只对比上一件 static exhibit**（本件 vs #12：worst p99 **−7,077.7 ms** · avg_p95 **−4,084.3 ms** · bytes **+79.4 MiB** · reqs **−2,560**）；`evidence.json` 新增动态 `exhibits_count`（14）；
+- exhibits 一个字节都没删、没涂、没挪。
+
+### 143.3 这一卷拒绝说的话
+
+1. 「192c 就是性能上限」——没有：这是这一刻这台机器的一次体检，下一刻读数可能不同；exhibit 永远记录时刻，不颁布定律；
+2. 顺序异常不改口：69.9% 的 err 与 #11 的 45.1% **不成单调**——如实登记：主机退热前后的瞬态就是瞬态，不靠删展品拼出"楼梯感"；
+3. Night Watch 依旧 **CRACKED**（exhibit #4 1,526.1 ms · #10/#11/#12/#13 四件 BUDGET-BLOWN 永在册）；exhibit entries **14**；没有一个门槛动过；
+4. court `4117d2b0ca5fb23a` **LOCKED** · 永远 `stream=True + include_usage=True` · 永远不缓存；mvn -o **137/137** 原样；「密码-123」否决；D1 ✅ · D2 ⏸。
+
+### 143.4 裁判
+
+UI **567/567** · build ✓ · guide 6/6 · corrections **17** · purity **CLEAR** · exhibit_entries **14** · chronicle 随本提交增员。
+
+---

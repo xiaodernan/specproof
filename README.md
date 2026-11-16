@@ -122,8 +122,8 @@ Craft（AI 开发）的**独立验收摘要**现在也显示在执行结果页�
 - **LLM 扉页已切换**：`https://api.aizzz.xyz` · 模型 `gpt-6.1-terra` · Responses API · reasoning effort `max`；`.local/llm.json` 是未跟踪的本机配置（gitignore 守门）；任何密钥都不会进入 git；网关需要流式（`stream_required`，本仓所有应答车道本就是 stream）；直敲 `scripts/live_lane_probe.py` 每次返回 `cached_tokens: 4224`；court 永远 `stream=True + include_usage=True`、**court 永远不缓存** · court 永不缓。
 - **本机 Clash Verge 梯子（mihomo 127.0.0.1:7897）** 是出网前提；这台机器的一切 LLM 车道测试都走这条混合端口。
 - **provider smoke 全绿**（through the proxy）：probe → chat → JSON 5 字段 · JUnit 7 项断言全部通过 · Maven 编译 exit 0 · secret scan · digest 链；证据 `artifacts/p0.5/provider-smoke-20261116T070508Z/`（git-ignored）。
-- **137/137 车道绿**：`mvn -o test` gateway 84 · discovery 1 · config 1 · control-plane 51（应用层 fixture，offline，不是生产绿灯）· UI **562/562**（Exhibits 页面已登记 entries=13）。
-- **exhibit #12**：512c 在本机 100% err（rounds 1–2）、worst p99 **10,049.2 ms** · verdict **BUDGET-BLOWN** · /exhibits 页面有全部 13 件展品（#4 永 1,526.1 ms）· saturation 曲线直读 evidence.json（Concurrency 24→48→64→96→128→256→512）· Night Watch 依旧 **CRACKED**。
+- **137/137 车道绿**：`mvn -o test` gateway 84 · discovery 1 · config 1 · control-plane 51（应用层 fixture，offline，不是生产绿灯）· UI **567/567**（Exhibits 页面已登记 entries=**14**）。
+- **exhibit #12**：512c 在本机 100% err（rounds 1–2）、worst p99 **10,049.2 ms** · verdict **BUDGET-BLOWN** · **exhibit #13**：192c ×2×4（+3 warmup）· err 轮1–4 分别 **65.1% / 66.2% / 70.3% / 64.6%** · p99 **2,971.5 ms 最糟** · verdict **BUDGET-BLOWN**（格子里唯一满员 70% 档；#13 主机刚跑完完整 vitest 后最烫，有序性不保证——exhibit 记录的是「这一刻」不是「单调律」）· /exhibits 页面有全部 **14 件展品**（#4 永 1,526.1 ms）· saturation 曲线直读 evidence.json（Concurrency 24→48→64→96→128→**192**→256→512）· Night Watch 依旧 **CRACKED**。
 - **Night Watch 合体 StateGraph**（`agent/graphs/night_watch_graph.py`）：evidence∩purity∩audit 一条脊椎 verdict→report→END，当前 verdict = **CRACKED**（exhibit #4 p99 1,526ms 对 exhibit #3 的 1,030ms → Δ=+495.99ms > 25ms 铁规；图自己敲自己，不降门槛、不删 exhibit）；exhibit #5（1,035ms）OK。
 - **UI 542/542**（Engine night-watch 面板 × ChainBanner 六页 × Wheel 自然滚动 reform × /recall BM25 本地检索）。
 - 本机已敲：✅ **OBSERVABILITY.md 签字**（D1 · 2026-11-16 · owner 授权 ↘）；尚欠：**PORTFOLIO_TOKEN**（D2，你自己的 PAT · Settings → Secrets）。D1 是一条已落账的欠条——D2 仍等人的 key。

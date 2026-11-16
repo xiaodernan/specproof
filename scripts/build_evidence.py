@@ -1,5 +1,6 @@
 import io
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -61,10 +62,16 @@ def sort_key(p: dict) -> tuple[int, str]:
 
 picked.sort(key=sort_key, reverse=True)
 
+EXHIBIT_RE = re.compile(r"static-(warm|light)(-\d+)?\.json$")
+
+def is_exhibit(p: dict) -> bool:
+    return bool(p.get("readable") is not False and EXHIBIT_RE.search(str(p.get("file", ""))))
+
 latest = picked[0] if picked else None
+exhibits = [p for p in picked if is_exhibit(p)]
 delta = None
-if len(picked) >= 2 and picked[0].get("readable") is not False and picked[1].get("readable") is not False:
-    cur, prev = picked[0], picked[1]
+if len(exhibits) >= 2:
+    cur, prev = exhibits[0], exhibits[1]
     delta = {
         "vs_file": prev["file"],
         "worst_p99_delta_ms": cur["worst_p99_ms"] - prev["worst_p99_ms"],
@@ -77,10 +84,11 @@ doc = {
     "version": 1,
     "source": "docs/evidence/*.json (stress_smoke.py --json-report output; this host)",
     "files_count": len(picked),
+    "exhibits_count": len(exhibits),
     "latest": latest,
     "delta_vs_previous": delta,
     "all": picked,
 }
 OUT.write_text(json.dumps(doc, ensure_ascii=False, indent=1), encoding="utf-8")
 latest_name = latest["file"] if latest else "none"
-print(f"evidence.json: {len(picked)} file(s); latest -> {latest_name}; delta -> {delta!r}")
+print(f"evidence.json: {len(picked)} file(s); {len(exhibits)} exhibit(s); latest -> {latest_name}; delta -> {delta!r}")

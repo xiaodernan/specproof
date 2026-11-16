@@ -5117,3 +5117,42 @@ Sits beside R16, not on top of it: R16 recorded two **different-prefix** strikes
 * UI **567/567** · build ✓ · mvn -o **137/137** (Java untouched) · guide 6/6 · corrections **17** · purity **CLEAR** · D1 ✅ · D2 pending owner's PAT · exhibit_entries **13** · court `4117d2b0ca5fb23a` **LOCKED**.
 
 ---
+## Scroll CXLIII · The 192 Mark — the one recorded while the host was still warm
+
+> 512c fell. 256c fell. 128c had already fallen.
+> This scroll strikes the rung in between — 192c.
+> An exhibit records the moment, never a law.
+
+### 143.1 Exhibit #13 on file
+
+`docs/evidence/2026-11-16-static-warm-13.json` (this host · static lane · 3 entry assets · fresh server):
+
+| round | total | ok | err% | p99 |
+|---|---|---|---|---|
+| 1 | 384 | 134 | **65.10%** | 2,694.7 ms |
+| 2 | 384 | 130 | **66.15%** | 2,626.6 ms |
+| 3 | 384 | 114 | **70.31%** | 2,971.5 ms |
+| 4 | 384 | 136 | **64.58%** | 2,677.1 ms |
+
++3 warmup (not counted); verdict **BUDGET-BLOWN**; sample_errors: `URLError WinError 10061 — connection actively refused by the target machine` — the host refused its own loopback connections.
+
+### 143.2 The out-of-order one
+
+- Ordering-wise, 192c should sit between 128c (err 15.2% · p99 2,225.7 ms) and 256c (err 45.1% · p99 2,253.8 ms) — **this host tonight reported err 64.6–70.3% and worst p99 2,971.5 ms**. It had just run a full vitest (79 files / 567 tests, 165 s); seconds after exhibit #12 landed, exhibit #13 fell into the same hot chair — this is the truth of that moment, unsmoothed, unre-measured;
+- the saturation curve gained the **192c** tick (`Exhibits.tsx xTicks`); red BUDGET-BLOWN points: 128 → 192 → 256 → 512;
+- exhibit_entries **13 → 14**;
+- and one real bug fell out of `build_evidence.py`: `delta_vs_previous` compared the newest exhibit against whatever file sorted immediately before it — once `cache-witness.json` (a cache HIT, p99 0.0) entered the directory, the "delta" became meaningless. **The delta now compares only against the previous static exhibit** (this one vs #12: worst p99 **−7,077.7 ms** · avg_p95 **−4,084.3 ms** · bytes **+79.4 MiB** · reqs **−2,560**); `evidence.json` gained a dynamic `exhibits_count` (14);
+- not one exhibit was deleted, glazed, nudged, or re-cut.
+
+### 143.3 What this scroll refuses to claim
+
+1. "192c is the performance ceiling" — no. It is this host's reading at this moment; the next strike may read differently; an exhibit records the moment, never a law;
+2. the out-of-order err is not "fixed" by shuffling — 69.9% at 192c vs 45.1% at 256c is **not monotone**; it is recorded as-is (transients after a full UI suite are transients; we do not erase exhibits to compose a staircase);
+3. Night Watch remains **CRACKED** (exhibit #4 1,526.1 ms · #10/#11/#12/#13 — four straight BUDGET-BLOWN exhibits on permanent file); exhibit_entries=**14**; no threshold moved;
+4. court `4117d2b0ca5fb23a` **LOCKED** · always `stream=True + include_usage=True` · always never cached; mvn -o **137/137** untouched; "password-123" vetoed; D1 ✅ · D2 ⏸.
+
+### 143.4 The floor never moved
+
+* UI **567/567** · build ✓ · guide 6/6 · corrections **17** · purity **CLEAR** · exhibit_entries **14** · the chronicle grows with this commit.
+
+---

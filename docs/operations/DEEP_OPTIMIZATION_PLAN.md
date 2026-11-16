@@ -40706,3 +40706,23 @@ court `4117d2b0ca5fb23a` **LOCKED**（永远 stream+include_usage · 永远不�
 ### 四、裁判
 
 UI **567/567** · build ✓ · guide **6/6** · corrections **17** · purity **CLEAR** · chronicle 随本提交重敲增员。
+
+## #1935 《192 档——被体温记录的那一件》：exhibit #13 落册（`2026-11-16-static-warm-13.json` · 静态车道 · 干净 server）· 192c ×2×4（+3 warmup）· err 轮1–4 **65.10% / 66.15% / 70.31% / 64.58%** · 最糟 p99 **2,971.5 ms** · verdict **BUDGET-BLOWN** · exhibits **13→14** · `/exhibits` x 轴加 192c 刻度 · **`build_evidence.py` 一个真 bug 修掉**（`delta_vs_previous` 原会把最新展品跟 `cache-witness.json` 这类非展品 json 直接对比；现在 delta 只认 `static-(warm|light)` 展品 → 本件 vs #12：worst p99 **−7,077.7 ms** · avg_p95 **−4,084.3 ms** · bytes **+83.2 MB** · reqs **−2,560**）· `evidence.json` 新字段 `exhibits_count`=**14** · Scroll CXLIII 双语落册
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1934。
+
+### 一、顺序异常如实登记
+
+顺序上 192c 该落在 #10（128c · err 15.2% · p99 2,225.7 ms）与 #11（256c · err 45.1% · p99 2,253.8 ms）之间——**本机当晚实际报出 err 64.6–70.3% · 最糟 p99 2,971.5 ms**：主机刚跑完 79 文件 / 567 用例的完整 vitest（165 s）后仍在退热，#12 落册后数分钟 #13 就落锤。这是那个时刻的真值，不补测、不修饰、不删展品——**exhibit 记录的是时刻，不颁布定律**。
+
+### 二、刻意的修复（工具修复 · 不动证据字节）
+
+| 项 | 修前 | 修后 |
+|---|---|---|
+| `build_evidence.py` delta | 最新文件 vs 排序前一位任意 json（cache-witness.json 进库后对比对象变成了 `HIT · p99 0.0` —— 无意义） | delta 只认 `static-(warm|light)(-N)?` 展品对**上一件展品**对比；本件 vs #12：worst p99 **−7,077.7 ms** · avg_p95 **−4,084.3 ms** · bytes **+79.4 MiB** · reqs **−2,560** |
+| `exhibits_count` | 无 | 新增动态字段 **14**（/exhibits 页 `exhibits.length` 同值 · `/fabric`、README 已同步 entries=**14**） |
+| 证据 json | 一个字节都没动 | 一个字节都没动 |
+
+### 三、裁判
+
+UI **567/567** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（entries=**14**）· exhibit #13 永在册 · court `4117d2b0ca5fb23a` **LOCKED**（永远 stream+include_usage · 永远不缓存）· D1 ✅ D2 ⏸ ·「密码-123」否决 · chronicle 随本提交增员 · worldbook **卷一百四十三 · 143 卷**。

@@ -72,7 +72,7 @@ export default function Exhibits(): JSX.Element {
   const y = (p99: number) => chartPad.t + (1 - p99 / maxY) * (chartH - chartPad.t - chartPad.b);
   const polyPoints = saturation.map(([c, m]) => `${x(c).toFixed(1)},${y(m).toFixed(1)}`).join(" ");
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(maxY * f));
-  const xTicks = [24, 48, 64, 96, 128, 256, 512];
+  const xTicks = [24, 48, 64, 96, 128, 192, 256, 512];
 
   return (
     <div className="exhibits-page">
@@ -153,8 +153,8 @@ export default function Exhibits(): JSX.Element {
         </svg>
         <p className="exhibits-sat-note muted">
           {zh
-            ? "曲线不是预测，不是拟合——纯粹是 8 件并发档位每件最糟展品（取 max p99ms）。红色标记的点（128c/256c/512c）全部 BUDGET-BLOWN。"
-            : "The curve is not a model nor an extrapolation — it is the max p99 struck at each concurrency level by this host. The controls (green) hold; the pipes (128/256/512) all blow the budget."}
+            ? "曲线不是预测，不是拟合——纯粹是 9 件并发档位每件最糟展品（取 max p99ms）。红色标记的点（128c/192c/256c/512c）全部 BUDGET-BLOWN。"
+            : "The curve is not a model nor an extrapolation — it is the max p99 struck at each concurrency level by this host. The controls (green) hold; the pipes (128/192/256/512) all blow the budget."}
         </p>
       </section>
 
