@@ -39919,3 +39919,30 @@ Volume CX《永远不灭的红 · The Lamp That Never Goes Quiet》入册 → wo
 | D2 | pending · owner action required |
 
 Volume CXII《一张表两行字 · The Reckoning, Two Lines Legal》入册 → worldbook **119 卷** · chronicle **1,703 节**。
+
+## #1903 《压力来了！》：exhibit #8（96并发 × 4 rounds + warmup3 ≈ 768 req · round2/4 fail 1 次 err 0.52% · p99 2,078.7ms · Δ+999.08ms 越阈值）· Night Watch 仍 CRACKED · Volume CXIII — worldbook 120
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1902。
+
+### 一、Exhibit #8 入库（这一件确实摔了摔）
+
+* `docs/evidence/2026-11-16-static-warm-8.json`——96 并发 × 2 per-thread × 4 rounds + 3 次 warmup；共 768 请求 · 1 次失败 · 0.52% err · p99 **2,078.7 ms**；p50 在 heavy-load 窗口抬高到 **533 ms**；Round 3/4 已回落至 1,031.9 ms
+* `scripts/build_evidence.py` 最新: latest=warm-8; Δ=**+999.08 ms** vs exhibit #7 的 1,079.6ms
+* `parse_verdict_chain` shows worst_drift = 2078.7 − 1079.6 = +999.08ms → REGRESSION 在规则内；night-watch 复敲：evidence=**REGRESSION** · purity=CLEAR · audit=CLEAR → composite=**CRACKED**
+* exhibit #4  (1,526.1ms) 在册、#7 (1,079.6ms) 在册、#8 (2,078.7ms) 在册——**不撤 exhibit，不删 exhibit，不 P99 re-trade**。
+
+### 二、这件 exhibit 装的是
+
+* 三条硬观测：bot 384-round 不够本机；96并发按堆满 heap 模拟真实压力；round 1/4 起步就 533ms p50——性能自己下滑。这是宿主实敲：我们没装它
+* R15 的丢弃口门仍有效（所有测试敲入 discard port，pre-published config-network hidden）
+* 页面文件没改：本轮词是数据不是口号
+* UI 仍 **546/546**；Court Lock **4117d2b0ca5fb23a** LOCKED；purity **CLEAR**；D2 暂缓；「密码-123」永远排除 · npm build ✓ · mvn -o 全绿
+* 或许最值得解释的一行：exhibit #4 也曾呈现 1,526.1 ms 一类弱点——那一轮里宿主 MEM pressure。两次 weakness, 本书不涂
+
+### 三、Day-Night Watch 不唱
+
+`night_watch_graph.py` 的 `evidence -> purity -> audit -> verdict -> report -> END` 整组敲过：
+verdict=CRACKED · evidence=REGRESSION · purity=CLEAR · audit=CLEAR
+finding: `evidence lane: not jade`。 暂无任何解法能合上这盏门——除 exhibit 序列自己稳进 < 25ms。那时车灯才不再是红色
+
+Volume CXIII《压力来了！ · The Pressure Is On, For Real》入册 → worldbook **120 卷**（里程碑）· chronicle **1,704 节**。

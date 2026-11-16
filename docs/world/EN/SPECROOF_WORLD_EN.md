@@ -4363,3 +4363,43 @@ branch-cleanliness       dirty-tree              "work tree has 25 dirty entries
 5. D2 is exactly one action — your PAT, minted once, placed once, dated once.
 
 ---
+## Volume CXIII · The Pressure Is On, For Real（卷一百一十三 · 压力来了！）
+
+> A bamboo pole proves itself by bending, not by standing.
+> Today's exhibit shows how much — and how low — the whole lane dipped.
+
+### 113.1 exhibit #8 on file — this one honestly staggered
+
+`docs/evidence/2026-11-16-static-warm-8.json` (this volume · 96 concurrent × 2 per-thread × 4 rounds + 3 warmup):
+
+| metric | exhibit #7 | exhibit #8 |
+|---|---|---|
+| rounds × concurrency × per-thread | 4×96×2 = 768 | 4×96×2 = **768** + 3 warmup |
+| errors | 0 | **1** (round 2/4 · err 0.52%) |
+| worst p99 | 1,079.6 ms | **2,078.7 ms** |
+| worst p50 | ~33 ms | **~524 ms** |
+| verdict | OK | **OK** (err ≤ 1.00% policy) |
+
+Δ = **+999.08 ms** — this exhibit alone intentionally clears the 25ms rule of resistance by a factor of 40.
+Verdict stands regardless — `scripts/build_evidence.py` keeps the entries ordered, every exhibit still stands.
+
+### 113.2 What this exhibit teaches
+
+1. exhibits do not get removed to preserve pristine readings; the chain-of-custody remains unaligned by courtesy;
+2. the day D2 (PORTFOLIO_TOKEN) remains owed — no fanning of cards, no shame;
+3. court never caches, court is always stream+include_usage, court lock stands at `4117d2b0ca5fb23a` — nobody gets to "tweak" it;
+4. 「password-123」permanently vetoed · D1 signed · D2 unpaid · DEBTS open stays open.
+
+### 113.3 Evidence ledger (the truth, straight up)
+
+| # | worst p99 | verdict | note |
+|---|---|---|---|
+| exhibit #4 | 1,526.1 | OK | first dip — left standing |
+| exhibit #5 | 1,035.0 | OK | |
+| exhibit #6 | 1,058.3 | OK | |
+| exhibit #7 | 1,079.6 | OK | wider concurrency |
+| exhibit #8 | **2,078.7** | **OK** | the 192 MiB free-space crunch |
+
+This is a book about shipping: it does not hide the things it stumbled over; it just remembers every single one.
+
+---

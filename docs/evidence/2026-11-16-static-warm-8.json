@@ -1,0 +1,65 @@
+{
+  "started_utc": "2026-11-16T09:49:24.124150+00:00",
+  "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
+  "concurrency": 96,
+  "per_thread": 2,
+  "warmup_rounds": 3,
+  "rounds": [
+    {
+      "total": 192,
+      "ok": 192,
+      "err_rate": 0.0,
+      "p50_ms": 533.313100000214,
+      "p90_ms": 1558.4873400001015,
+      "p95_ms": 1598.671344999911,
+      "p99_ms": 2078.7235280005825,
+      "max_ms": 2148.635700000341,
+      "avg_ms": 615.5407968749861,
+      "bytes_read": 54410752,
+      "sample_errors": []
+    },
+    {
+      "total": 192,
+      "ok": 191,
+      "err_rate": 0.00520833333333337,
+      "p50_ms": 524.1261999999551,
+      "p90_ms": 1607.6905599995373,
+      "p95_ms": 2050.029695000376,
+      "p99_ms": 2064.8137900004167,
+      "max_ms": 2067.1032000000196,
+      "avg_ms": 718.8469598958042,
+      "bytes_read": 54409262,
+      "sample_errors": [
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+      ]
+    },
+    {
+      "total": 192,
+      "ok": 192,
+      "err_rate": 0.0,
+      "p50_ms": 42.76155000025028,
+      "p90_ms": 535.7615599998098,
+      "p95_ms": 1022.9362999996738,
+      "p99_ms": 1031.8581410000388,
+      "max_ms": 1042.2450999994908,
+      "avg_ms": 307.76774947917335,
+      "bytes_read": 54410752,
+      "sample_errors": []
+    },
+    {
+      "total": 192,
+      "ok": 192,
+      "err_rate": 0.0,
+      "p50_ms": 42.34174999965035,
+      "p90_ms": 532.721340000171,
+      "p95_ms": 1008.0827749996388,
+      "p99_ms": 1027.2348850003254,
+      "max_ms": 1032.390999999734,
+      "avg_ms": 290.1495833333409,
+      "bytes_read": 54410752,
+      "sample_errors": []
+    }
+  ],
+  "verdict": "OK",
+  "honesty": "This is a static-asset delivery probe on this host; it is not a FastAPI/MySQL/Redis rating."
+}

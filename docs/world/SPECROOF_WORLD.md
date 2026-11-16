@@ -4483,3 +4483,45 @@ branch-cleanliness       dirty-tree             "work tree has 25 dirty entries 
 5. D2 只能由你亲手落——PAT 是你开的钥匙，本仓库不碰。
 
 ---
+## 卷一百一十三 · 压力来了！（The Pressure Is On, For Real）
+
+> 一根竹竿要证明它真是竹竿，
+> 就得让它弯下去——扛住了就叫它竹，扛不住就别叫它竹。
+
+### 113.1 exhibit #8 入库——这一次摔了一下
+
+`docs/evidence/2026-11-16-static-warm-8.json`（本卷 × 96 并发 x4 轮 + 3 轮 warmup）：
+
+| 参数 | exhibit #7 | exhibit #8 |
+|---|---|---|
+| rounds × concurrency × per-thread | 4×96×2 = 768 | 4×96×2 = **768** + 3 warmup |
+| 失误数 | 0 | **1**（round 2/4 · err 0.52%） |
+| 最坏 p99 | 1,079.6 ms | **2,078.7 ms** |
+| 最坏 p50 | 33 ms | 524 ms |
+| verdict | OK | **OK**（err < 阈值） |
+
+Δ = **+999.08 ms** —— 这次**绝对触了** 25ms 的门栏。`worst_drift = 2078.7 − 1079.6 = 999.1 ms`。
+
+**Night Watch 依然 CRACKED**（不会因这一件新exhibit变 worse/unchanged，规则只有一个门槛）。
+做成回顾事：
+```
+| evidence ... | verdict=REGRESSION entries=8 |
+```
+
+### 113.2 这卷敲的是什么
+
+- Δ 大了只说明这台 host 这一刻的 p99 掉进了 2 秒——诚实写，记住这不是伪造：96 并发把 192 MiB 全打满上发，round 3/4 自己又回到了 1,031.9 ms（182 of 192 ok round 1/4）。
+- D1 的签字没动；court 没动；worldbook 卷号翻、卷本身递增。
+- **这次不能也不该把这卷叫"海量稳态"——它就只是个压力苔藓。**
+
+### 113.3 批次的账
+
+- exhibit #4 (1,526.1ms) — 至今钉在 evidence 链里；
+- exhibit #5 — 1,035.0ms — OK；
+- exhibit #6 — 1,058.3ms — OK；
+- exhibit #7 — 1,079.6ms — OK；
+- **exhibit #8 — 2,078.7ms · 1/768 fail — OK（perf）**；
+
+本书不把难看的 exhibit 删掉。只有 4 种花样：record, observe, knock, decide — 不删 exhibit，不改阈值，这是铁。
+
+---

@@ -1,29 +1,29 @@
 # SpecProof · FIELD CARD
 
-> xiaodernan/specproof · generated at 2026-11-16 09:46 UTC
+> xiaodernan/specproof · generated at 2026-11-16 09:51 UTC
 > This card prints only git-tracked facts. It is not a signature, not a seal, not a promise.
 
 ## The wall
 
 | | |
 |---|---|
-| commits | 2,563 |
-| ledger sections | 1,703 |
-| volumes (zh/en) | 119 / 119 |
-| source lines | 508,624 |
+| commits | 2,564 |
+| ledger sections | 1,704 |
+| volumes (zh/en) | 120 / 120 |
+| source lines | 508,778 |
 | Python test files | 618 |
 | web test files | 73 |
-| ledger bytes (KB) | 3859.6 |
-| latest chronicle | #1902 |
+| ledger bytes (KB) | 3861.8 |
+| latest chronicle | #1903 |
 
 ## Stress evidence
 
 | | |
 |---|---|
-| evidence | `2026-11-16-static-warm-7.json` |
-| worst p99 | 1079.6 ms |
+| evidence | `2026-11-16-static-warm-8.json` |
+| worst p99 | 2078.7 ms |
 | verdict | OK |
-| Δ vs previous | +21.4ms |
+| Δ vs previous | +999.1ms |
 
 ## Unsigned (live audit)
 
@@ -31,7 +31,7 @@
 |---|---|
 | real fleet telemetry · sign-off | signature-block-found |
 | the Monday knock · weekly-stress.yml | merged |
-| port 8000 · who answers right now | port-free |
+| port 8000 · who answers right now | other-project-answering |
 
 ```
 git log --oneline -1 && python scripts/build_repo_stats.py && python scripts/audit_unsigned.py
