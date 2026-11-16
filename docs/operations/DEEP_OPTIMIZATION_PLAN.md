@@ -39640,3 +39640,34 @@ UI **544/544**（+2）。
 - 机器仍不能代人生成「密码 123」的策略决策——`#1799` 的决策是人类写入的。
 
 Volume CII《敲两扇门的回声 · The Echo of Two Knocks》入册 → worldbook **109 卷** · chronicle **1,693 节**。
+
+## #1893 《第六件实证》：stress exhibit #6 入册（worst p99 1,058.3ms · OK · Δ+23.28ms 未超阈值）· Night Watch 仍 CRACKED（exhibit #4 拉 Δ+495.99ms）· Volume CIII
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1892。
+
+### 一、今夜复敲（exhibit #6 · 2026-11-16T16:30Z · proxied）
+
+* `scripts/stress_smoke.py --concurrency 48 --per-thread 2 --rounds 4 --warmup 2 --json-report docs/evidence/2026-11-16-static-warm-6.json` —— **384/384 OK**，err 0.00%，worst p99 **1,058.3ms**（Δ vs exhibit #5 = **+23.28ms**，未越 25ms 的门槛）
+* 带 `HTTPS_PROXY=http://127.0.0.1:7897` 复敲 `llm_cache_probe.py`：6/6 复通，stream 车道 cached_tokens 仍逐步爬升（4224→6400→6400）——transport 全场非关断
+* `build_evidence.py` → latest=warm-6, Δ_vs_warm-5=+23.28ms；`audit_evidence.py` CONSISTENT 7/7；audit-chain CLEAR
+* `night_watch_graph.py` 复敲：verdict=**CRACKED** evidence=**REGRESSION**（entries=6，exhibit #4 没法被改写；`worst_drift` 依然是 +495.99ms）
+
+### 二、exhibit 序列（如实登记）
+
+| exhibit | verdict | worst p99 | Δ vs prev |
+|---|---|---|---|
+| warm-3 | OK | 1,030.1 | — |
+| warm-4 | OK | 1,526.1 | +496.0 ← 炸门那一晚 |
+| warm-5 | OK | 1,035.0 | **−491.0** |
+| **warm-6** | **OK** | **1,058.3** | **+23.28** |
+
+exhibit #4 留库，不改写、不删档、不缩为「那波动波动吧」。任何 Night Watch future=run 都要先 vs 这两个 exhibit。
+
+### 三、仍然没变的
+
+1. court=4117d2b0ca5fb23a **LOCKED**；**密码-123** 永久否决；
+2. D1（OBSERVABILITY.md 真签）· D2（PORTFOLIO_TOKEN）照旧欠着；
+3. LLM 车道 aizzz/gpt-6.1-terra 通过 Clash Verge `:7897` 工作——任何不走代理的直连仍被对方网关按「地区」拦（本地双证据：curl+非流的措辞）——此行无法 magical workaround；
+4. UI 544/544；`npm run build` ✓。
+
+Volume CIII《第六件实证 · The Sixth Exhibit》入册 → worldbook **110 卷** · chronicle **1,694 节**。

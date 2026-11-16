@@ -1,0 +1,63 @@
+{
+  "started_utc": "2026-11-16T08:58:46.597878+00:00",
+  "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
+  "concurrency": 48,
+  "per_thread": 2,
+  "warmup_rounds": 2,
+  "rounds": [
+    {
+      "total": 96,
+      "ok": 96,
+      "err_rate": 0.0,
+      "p50_ms": 34.13795000005848,
+      "p90_ms": 526.7636500000208,
+      "p95_ms": 656.0193999998205,
+      "p99_ms": 1015.3997050001408,
+      "max_ms": 1033.062199999904,
+      "avg_ms": 257.47818854167076,
+      "bytes_read": 25230080,
+      "sample_errors": []
+    },
+    {
+      "total": 96,
+      "ok": 96,
+      "err_rate": 0.0,
+      "p50_ms": 29.686050000009345,
+      "p90_ms": 1019.0730500000882,
+      "p95_ms": 1024.1737249999119,
+      "p99_ms": 1058.2845749999692,
+      "max_ms": 1522.8208000000905,
+      "avg_ms": 287.8881114583412,
+      "bytes_read": 25230080,
+      "sample_errors": []
+    },
+    {
+      "total": 96,
+      "ok": 96,
+      "err_rate": 0.0,
+      "p50_ms": 28.333799999927578,
+      "p90_ms": 525.8685499999274,
+      "p95_ms": 1018.2526999998913,
+      "p99_ms": 1031.8406949998348,
+      "max_ms": 1035.3783999998996,
+      "avg_ms": 260.07507916666367,
+      "bytes_read": 25230080,
+      "sample_errors": []
+    },
+    {
+      "total": 96,
+      "ok": 96,
+      "err_rate": 0.0,
+      "p50_ms": 37.6616500000182,
+      "p90_ms": 527.9219999999896,
+      "p95_ms": 534.4833750000362,
+      "p99_ms": 1023.6932800000204,
+      "max_ms": 1025.3230999999232,
+      "avg_ms": 262.95542500002017,
+      "bytes_read": 25230080,
+      "sample_errors": []
+    }
+  ],
+  "verdict": "OK",
+  "honesty": "This is a static-asset delivery probe on this host; it is not a FastAPI/MySQL/Redis rating."
+}

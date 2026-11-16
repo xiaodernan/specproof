@@ -3978,3 +3978,46 @@ This fixes, on the page's head, the two questions a newcomer is most likely to a
 - “the court never caches” is still welded by `test_court_never_caches.py` (4/4) — never by BM25.
 
 ---
+## Volume CIII · The Sixth Exhibit（卷一百零三 · 第六件实证）
+
+> A door must remember how high it jumped that one night, to hold itself at exactly the right position.
+> This volume strikes only once — a little lower than last time; that, too, is evidence.
+
+### 103.1 exhibit #6 on file (struck tonight)
+
+`docs/evidence/2026-11-16-static-warm-6.json`:
+
+| metric | exhibit #5 | exhibit #6 |
+|---|---|---|
+| rounds × concurrency × per-thread | 4×48×2 | 4×48×2 (warmup ×2) |
+| requests | 384 | 384 |
+| error rate | 0.00% | 0.00% |
+| worst p99 | 1,035.0 ms | **1,058.3 ms** |
+| p50 | 33.1 ms | 32.2 ms |
+| verdict | OK | **OK** |
+
+Δ (#6 vs #5) = **+23.28 ms** — below the Δ>25.0 rule. Nobody touched the threshold: `evidence_graph.py`'s `worst_drift > 25.0` stays as it is.
+
+### 103.2 The Night Watch remains — CRACKED
+
+Re-struck `night_watch_graph.py` output stays:
+
+```
+verdict=CRACKED evidence=REGRESSION purity=CLEAR audit=CLEAR
+findings=[evidence lane: not jade]
+```
+
+Nobody is permitted to flip REGRESSION to OK — the Δ=+495.99 ms fact from exhibit #4 **remains on file**
+(`worst_p99 #4 = 1,526.1 ms`).
+Any hand that tries to erase it shall meet the fact face-on; this volume refuses to look away.
+
+### 103.3 What this volume refuses to do
+
+* to call exhibit #4 (1,526.1 ms) "just noise" — it was the host's honest strike the day Docker Desktop went dark;
+* court never caches; 「password-123」permanently vetoed; D1 (OBSERVABILITY signature) and D2 (PORTFOLIO_TOKEN) are still owed to a human's hand.
+
+### 103.4 Where the night lamp hangs
+
+The `/engine` footer panel keeps its place. When an exhibit strike lands under Δ<25 ms for enough consecutive strikes to tell one host from another, the evidence gate will close itself, and the lamp will jade itself — nobody paints that lamp.
+
+---

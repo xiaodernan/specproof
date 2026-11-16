@@ -1,10 +1,10 @@
 # Night Watch
 
-**verdict: CRACKED** · struck 2026-11-16T08:43:25+00:00
+**verdict: CRACKED** · struck 2026-11-16T09:00:32+00:00
 
 | lane | raw summary |
 |---|---|
-| evidence | verdict=REGRESSION entries=5 |
+| evidence | verdict=REGRESSION entries=6 |
 | purity   | verdict=CLEAR hits=0 |
 | audit    | verdict=CLEAR lanes=5 |
 

@@ -1,11 +1,11 @@
 {
  "version": 1,
  "source": "docs/evidence/*.json (stress_smoke.py --json-report output; this host)",
- "files_count": 12,
+ "files_count": 13,
  "latest": {
-  "file": "2026-11-16-static-warm-5.json",
+  "file": "2026-11-16-static-warm-6.json",
   "readable": true,
-  "started_utc": "2026-11-16T08:42:53.096043+00:00",
+  "started_utc": "2026-11-16T08:58:46.597878+00:00",
   "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
   "concurrency": 48,
   "warmup_rounds": 2,
@@ -13,47 +13,91 @@
    {
     "total": 96,
     "ok": 96,
-    "p50_ms": 29.934499999967557,
-    "p95_ms": 1018.6427999999808,
-    "p99_ms": 1027.0083550000209
+    "p50_ms": 34.13795000005848,
+    "p95_ms": 656.0193999998205,
+    "p99_ms": 1015.3997050001408
    },
    {
     "total": 96,
     "ok": 96,
-    "p50_ms": 38.05214999999862,
-    "p95_ms": 531.8707749999589,
-    "p99_ms": 1013.9095450000127
+    "p50_ms": 29.686050000009345,
+    "p95_ms": 1024.1737249999119,
+    "p99_ms": 1058.2845749999692
    },
    {
     "total": 96,
     "ok": 96,
-    "p50_ms": 30.04780000003393,
-    "p95_ms": 1025.702275000043,
-    "p99_ms": 1035.004749999996
+    "p50_ms": 28.333799999927578,
+    "p95_ms": 1018.2526999998913,
+    "p99_ms": 1031.8406949998348
    },
    {
     "total": 96,
     "ok": 96,
-    "p50_ms": 32.30859999996483,
-    "p95_ms": 528.3490500000028,
-    "p99_ms": 1021.3987699999961
+    "p50_ms": 37.6616500000182,
+    "p95_ms": 534.4833750000362,
+    "p99_ms": 1023.6932800000204
    }
   ],
-  "worst_p99_ms": 1035.004749999996,
-  "avg_p95_ms": 776.1412249999964,
+  "worst_p99_ms": 1058.2845749999692,
+  "avg_p95_ms": 808.232299999915,
   "total": 384,
   "total_ok": 384,
   "bytes_read": 100920320,
   "verdict": "OK"
  },
  "delta_vs_previous": {
-  "vs_file": "2026-11-16-static-warm-4.json",
-  "worst_p99_delta_ms": -491.05069499997853,
-  "avg_p95_delta_ms": -372.00554999993324,
-  "bytes_delta": 3574144,
+  "vs_file": "2026-11-16-static-warm-5.json",
+  "worst_p99_delta_ms": 23.279824999973243,
+  "avg_p95_delta_ms": 32.09107499991853,
+  "bytes_delta": 0,
   "total_delta": 0
  },
  "all": [
+  {
+   "file": "2026-11-16-static-warm-6.json",
+   "readable": true,
+   "started_utc": "2026-11-16T08:58:46.597878+00:00",
+   "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
+   "concurrency": 48,
+   "warmup_rounds": 2,
+   "rounds": [
+    {
+     "total": 96,
+     "ok": 96,
+     "p50_ms": 34.13795000005848,
+     "p95_ms": 656.0193999998205,
+     "p99_ms": 1015.3997050001408
+    },
+    {
+     "total": 96,
+     "ok": 96,
+     "p50_ms": 29.686050000009345,
+     "p95_ms": 1024.1737249999119,
+     "p99_ms": 1058.2845749999692
+    },
+    {
+     "total": 96,
+     "ok": 96,
+     "p50_ms": 28.333799999927578,
+     "p95_ms": 1018.2526999998913,
+     "p99_ms": 1031.8406949998348
+    },
+    {
+     "total": 96,
+     "ok": 96,
+     "p50_ms": 37.6616500000182,
+     "p95_ms": 534.4833750000362,
+     "p99_ms": 1023.6932800000204
+    }
+   ],
+   "worst_p99_ms": 1058.2845749999692,
+   "avg_p95_ms": 808.232299999915,
+   "total": 384,
+   "total_ok": 384,
+   "bytes_read": 100920320,
+   "verdict": "OK"
+  },
   {
    "file": "2026-11-16-static-warm-5.json",
    "readable": true,
@@ -320,7 +364,7 @@
    "total": 0,
    "total_ok": 0,
    "bytes_read": 0,
-   "verdict": "CLEAR"
+   "verdict": "CRACKED"
   },
   {
    "file": "tally.json",

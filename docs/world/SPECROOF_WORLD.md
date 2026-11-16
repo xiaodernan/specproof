@@ -4106,3 +4106,46 @@ evidence_graph → purity_graph → auditor_graph → verdict → report → END
 - 「裁判永不缓存」仍由 `test_court_never_caches.py` 4/4 钉死；不走 BM25
 
 ---
+## 卷一百零三 · 第六件实证（The Sixth Exhibit）
+
+> 门要一直记得那一晚它翻了多高，才能把自己锁在正确的位置上。
+> 本卷只敲一次——敲得比上一次低一点，这也算一份证据。
+
+### 103.1 exhibit #6 入册（今日复敲）
+
+`docs/evidence/2026-11-16-static-warm-6.json`：
+
+| 项 | exhibit #5 | exhibit #6 |
+|---|---|---|
+| rounds × concurrency × per-thread | 4×48×2 | 4×48×2 (warmup ×2) |
+| 请求总数 | 384 | 384 |
+| 错误率 | 0.00% | 0.00% |
+| worst p99 | 1035.0 ms | **1058.3 ms** |
+| p50 | 33.1 ms | 32.2 ms |
+| verdict | OK | **OK** |
+
+Δ (#6 vs #5) = **+23.28 ms**——小于 25 ms 的阈值。谁都没有动阈值——`evidence_graph.py` 里的 `worst_drift > 25.0` **不动**。
+
+### 103.2 Night Watch 的判定不变：CRACKED
+
+复敲 `night_watch_graph.py` 依旧出：
+
+```
+verdict=CRACKED evidence=REGRESSION purity=CLEAR audit=CLEAR
+findings=[evidence lane: not jade]
+```
+
+谁去把 REGRESSION 翻成 OK 也算篡改——exhibit #4 那条 Δ=+495.99ms 的事实**仍然锁在证件里**：
+`worst_p99 #4=1526.1ms` 。
+任何人要再三把这页擦掉，都知道：本书没让任何人擦掉它，而它也照搬在面前。
+
+### 103.3 本卷不装的
+
+* exhibit #4（1,526.1ms）不被吹走、也不被编成「波动可忽略」——它是宿主在 Docker Desktop 复活当天的真实敲击；
+* court 永不缓存；「密码-123」永久否决；D1/D2 仍欠——OBSERVABILITY.md 签字仍然需要一只真手。
+
+### 103.4 夜灯的位置
+
+`/engine` 页尾夜眼面板这个位置会继续不更换。等到足够多的 exhibit 波动在 25ms 内的时刻，证据门自己会关上，夜灯自己会变玉色。
+
+---
