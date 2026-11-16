@@ -164,4 +164,13 @@ export const ERRATA: ErratumEntry[] = [
     },
     anchor: "#1915",
   },
+  {
+    id: "R17", category: { zh: "账页真值", en: "stale engine account" },
+    gloss: { zh: "/engine 上还挂着 wkapi 时代的旧账", en: "the wkapi-era account hung on /engine after the ledger moved on" },
+    detail: {
+      zh: "页脚写着「41 次真实敲 wkapi.pro …… total tokens 147,767 …… 51.2 % exact static-prefix hit rate」——那是 2026-11-13 的快照。当晚 .local/llm_usage.jsonl 已含 17 行 aizzz/gpt-6.1-terra（2026-11-16 经本机代理）。账于 2026-11-16 重建：63 行、cached 105,206、prompt 238,221 = 44.2%；四处文案与 lanes 备注（direct 29 · policy 12 → 实况 direct 46 · policy 17，本机统计）全数替换，并新增「前缀缓存 · 双敲见证」面板（cache_witness_graph：cached 4224×2 · hit_rate 95.3% · HIT）。守门测试 EngineWitness.test.tsx：页内不许再次出现 wkapi.pro / 147,767 / 51.2 / 75,638 / direct 29 · policy 12。",
+      en: "The footer claimed '41 calls to wkapi.pro … total tokens 147,767 … 51.2% exact static-prefix hit rate' — a 2026-11-13 snapshot. The same night .local/llm_usage.jsonl had 17 rows of aizzz/gpt-6.1-terra appended (through the local proxy). The account was rebuilt on 2026-11-16: 63 rows, cached 105,206, prompt 238,221 = 44.2%; the four stale copy spots and the lanes note (direct 29 · policy 12 → measured direct 46 · policy 17, counted on this host) were replaced, and a prefix-cache double-strike witness panel was added (cache_witness_graph: cached 4224×2 · hit_rate 95.3% · HIT). Gate: EngineWitness.test.tsx — the page must never again render wkapi.pro / 147,767 / 51.2 / 75,638 / direct 29 · policy 12.",
+    },
+    anchor: "#1934",
+  },
 ];

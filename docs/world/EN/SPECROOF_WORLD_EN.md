@@ -5080,3 +5080,40 @@ Sits beside R16, not on top of it: R16 recorded two **different-prefix** strikes
 * UI **564/564** · build ✓ · mvn -o **137/137** (no Java touched) · guide 6/6 · corrections **16** · purity **CLEAR** · D1 ✅ · D2 pending owner's PAT · exhibit_entries **13** · court `4117d2b0ca5fb23a` **LOCKED**.
 
 ---
+## Scroll CXLII · The Two-Eras Ledger
+
+> The old account hung on the door long after they thought it had closed;
+> the scroll says: it stayed open, waiting to be re-struck.
+> This scroll does one thing — take the old account off the door, re-hang it with what the machine actually typed.
+
+### 142.1 What I found (2026-11-16T15:0x, recounted against .local/llm_usage.jsonl)
+
+| find | the old account (/engine until this scroll) | re-struck truth |
+|---|---|---|
+| ledger rows | "41 calls" | **63** rows (46 gpt-6-sol from 2026-11-13 · 17 aizzz/gpt-6.1-terra from 2026-11-16, through the local proxy) |
+| cached tokens | 75,638 · "51.2%" | cached **105,206** · prompt 238,221 = **44.2 %** (cache counts reported on 39/63 calls; the rest count raw prompt bytes) |
+| lanes note | direct 29 · policy 12 | direct **46** = 29 sol + 17 terra · policy **17** = 17 sol (`Counter` over the ledger, on this host) |
+| hourly buckets | 6 | **10** covered |
+| errors | 4 (kept, verbatim) | 4 (kept, verbatim — not repainted) |
+| the honesty note | "two lanes, never folded into one account" | the 17 terra rows had landed in the same jsonl long before — "never folded" was itself the lie; **one account is the truth** |
+
+### 142.2 What I changed
+
+1. `engine.json` rebuilt (`scripts/build_engine.py` · byte-accounted against .local/llm_usage.jsonl · deterministic);
+2. `Engine.tsx` — four stale copy spots, the lanes note, and the honesty side-note — replaced with the rebuilt truth (zh/en);
+3. a new **Prefix cache · double-strike witness** panel — reads git-tracked `cache_witness.json` verbatim: strike A cached=**4224** · strike B cached=**4224** · hit_rate **95.3%** · verdict **HIT**, captioned "a reading, not a certificate";
+4. `EngineWitness.test.tsx` (3 tests): the page must never render `wkapi.pro` / `147,767` / `51.2` / `75,638` / `direct 29 · policy 12` again; UI **564 → 567/567**;
+5. **R17 on file** (APPENDIX_CORRECTIONS both locales · errata.copy.ts · corrections.json → **17**); this scroll lives at #1934.
+
+### 142.3 What this scroll refuses to claim
+
+1. "the 17 terra rows were struck by me today" — they were struck by this machine every day (smokes, strikes, the aizzz lane writes its own rows); the ledger records this host only, never anyone else;
+2. the court stands: `stream=True + include_usage=True` · court **never cached** · the lock `4117d2b0ca5fb23a` untouched;
+3. Night Watch remains **CRACKED** (exhibit #4 1,526.1 ms permanently on file · exhibits #10/#11/#12 on file); exhibit_entries=**13**; no threshold moved an inch;
+4. this scroll only moved text and its fidelity to the truth — it forged nothing, deleted nothing, hid nothing: the old page's "41 / 147,767 / 51.2%" is quoted verbatim as the indictment inside R17, waiting for you to re-knock it.
+
+### 142.4 The floor never moved
+
+* UI **567/567** · build ✓ · mvn -o **137/137** (Java untouched) · guide 6/6 · corrections **17** · purity **CLEAR** · D1 ✅ · D2 pending owner's PAT · exhibit_entries **13** · court `4117d2b0ca5fb23a` **LOCKED**.
+
+---

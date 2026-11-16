@@ -5197,3 +5197,40 @@ hit_rate(B) = 4224 / 4430 ≈ **95.3%** → verdict **HIT**（图自身不加任
 UI **564/564** · build ✓ · mvn -o **137/137**（本卷不动 Java）· guide 6/6 · corrections **16** · purity **CLEAR** · D1 ✅ · D2 ⏸ · exhibit_entries **13** · court `4117d2b0ca5fb23a` **LOCKED**。
 
 ---
+## 卷一百四十二 · 两车道并成一本账
+
+> 旧账挂在门口，你以为它早就关了；
+> 卷轴上的更正是：它一直开着，等着被重敲。
+> 这一卷就做一件事：把门口的旧账摘下来，按真敲的数目重新挂。
+
+### 142.1 我发现了什么（2026-11-16T15:0x，对账 .local/llm_usage.jsonl）
+
+| 发现 | 旧账（/engine 直到本卷之前） | 重敲后的实况 |
+|---|---|---|
+| 账本行数 | 「41 次调用」 | **63** 行（46 行 gpt-6-sol 起于 2026-11-13 · 17 行 aizzz/gpt-6.1-terra 2026-11-16 经本机代理） |
+| 缓存命中 | cached 75,638 · 「51.2%」 | cached **105,206** · prompt 238,221 = **44.2 %**（仅 39/63 次上报缓存数；其余只计 prompt 侧） |
+| lanes 备注 | direct 29 · policy 12 | direct **46** = 29 sol + 17 terra · policy **17** = 17 sol（本机 `Counter` 实敲统计） |
+| 小时刻度 | 6 个桶 | **10 个**桶覆盖 |
+| 错误 | 4 次（旧页写着 4·没变） | 4 次（如实保留） |
+| 诚实的备注栏 | 「两车道不混账」 | 早把新车道 17 行并进同一份 jsonl——「不混账」本身就是谎；**一份账才是实情** |
+
+### 142.2 我换了什么
+
+1. `engine.json` 重建（`scripts/build_engine.py` · 与 .local/llm_usage.jsonl 一字对账 · 确定性生成）；
+2. `Engine.tsx` 四处文案 + lanes 备注 + 页侧注全部替换为重建实况（zh/en 双语）；
+3. 新增「**前缀缓存 · 双敲见证**」面板——直读 git-tracked `cache_witness.json`：strike A cached=**4224** · strike B cached=**4224** · hit_rate **95.3%** · verdict **HIT**，并注明「这是读数，不是认证书」；
+4. 新增 `EngineWitness.test.tsx`（3 条）：页内不得再出现 `wkapi.pro` / `147,767` / `51.2` / `75,638` / `direct 29 · policy 12`；测试 **564 → 567/567**；
+5. **R17 落册**（APPENDIX_CORRECTIONS 双语 · errata.copy.ts · corrections.json → **17** 条）；本卷住在 #1934。
+
+### 142.3 这一卷拒绝说的话
+
+1. 「账本里的 17 行 terra 是我今天敲出来的」——是的，但来源不是我，是这台机器每天都在敲（smokes、strikes、aizzz 车道每敲必记）；账本只记本机，不记任何别人；
+2. court 依旧：`stream=True + include_usage=True` · 永不缓存 · 锁 `4117d2b0ca5fb23a` 原样；
+3. Night Watch 依旧 **CRACKED**（exhibit #4 1,526.1 ms 永在册 · #10/#11/#12 永在册）；exhibit entries **13**；门槛一根没动；
+4. 本卷只动文字与真值的忠实度——不伪造、不删账、不把旧账扔掉：旧页四处文案「41/147,767/51.2%」作为 R17 的原文永久埋在卷轴里等你重敲。
+
+### 142.4 裁判
+
+UI **567/567** · build ✓ · mvn -o **137/137**（未动 Java）· guide 6/6 · corrections **17** · purity **CLEAR** · D1 ✅ · D2 ⏸ · exhibit_entries **13** · court `4117d2b0ca5fb23a` **LOCKED**。
+
+---

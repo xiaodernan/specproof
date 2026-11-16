@@ -1,23 +1,23 @@
 {
  "version": 1,
  "source": ".local/llm_usage.jsonl (untracked; this host only)",
- "calls": 46,
- "errors": 0,
+ "calls": 63,
+ "errors": 4,
  "streamed_ratio": 1.0,
- "prompt_tokens": 179695,
- "completion_tokens": 19488,
- "cached_tokens": 75638,
- "cached_basis": 26,
- "cache_hit_rate": 0.4209243440273797,
- "latency_p50_ms": 14006,
- "latency_p95_ms": 37824,
+ "prompt_tokens": 238221,
+ "completion_tokens": 20350,
+ "cached_tokens": 105206,
+ "cached_basis": 39,
+ "cache_hit_rate": 0.4416319300145663,
+ "latency_p50_ms": 9304,
+ "latency_p95_ms": 32904,
  "latency_max_ms": 72373,
  "lanes": {
-  "direct": 29,
+  "direct": 46,
   "policy": 17
  },
  "kinds": {
-  "(unspecified)": 29,
+  "(unspecified)": 46,
   "draft": 10,
   "court": 6,
   "diagnose": 1
@@ -52,6 +52,26 @@
    "calls": 3,
    "prompt_tokens": 16800,
    "cached_tokens": 0
+  },
+  {
+   "calls": 1,
+   "prompt_tokens": 0,
+   "cached_tokens": 0
+  },
+  {
+   "calls": 3,
+   "prompt_tokens": 13376,
+   "cached_tokens": 12672
+  },
+  {
+   "calls": 3,
+   "prompt_tokens": 9352,
+   "cached_tokens": 0
+  },
+  {
+   "calls": 10,
+   "prompt_tokens": 35798,
+   "cached_tokens": 16896
   }
  ],
  "hourly_30_max_calls": 20

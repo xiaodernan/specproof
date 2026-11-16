@@ -1,17 +1,17 @@
 {
  "version": 1,
- "generated_utc": "2026-11-16T15:10:34+00:00",
+ "generated_utc": "2026-11-16T15:24:46+00:00",
  "verdict": "CONSISTENT",
  "checks": [
   {
    "id": "chronicle_vs_repoStats",
    "ok": true,
-   "detail": "chronicle entries=1732 repoStats ledger_sections=1732"
+   "detail": "chronicle entries=1733 repoStats ledger_sections=1733"
   },
   {
    "id": "worldbook_zh_en_symmetric",
    "ok": true,
-   "detail": "zh=141 en=141"
+   "detail": "zh=142 en=142"
   },
   {
    "id": "evidence_verdict_present",
@@ -31,7 +31,7 @@
   {
    "id": "engine_calls_positive",
    "ok": true,
-   "detail": "calls=46 kinds={'(unspecified)': 29, 'draft': 10, 'court': 6, 'diagnose': 1} lanes={'direct': 29, 'policy': 17}"
+   "detail": "calls=63 kinds={'(unspecified)': 46, 'draft': 10, 'court': 6, 'diagnose': 1} lanes={'direct': 46, 'policy': 17}"
   },
   {
    "id": "semantic_cache_evidence_literals_intact",

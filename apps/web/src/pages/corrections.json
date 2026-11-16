@@ -1,7 +1,7 @@
 {
  "version": 1,
  "source": "docs/world/APPENDIX_CORRECTIONS.md (append-only)",
- "count": 16,
+ "count": 17,
  "ids": [
   "R01",
   "R02",
@@ -18,7 +18,8 @@
   "R13",
   "R14",
   "R15",
-  "R16"
+  "R16",
+  "R17"
  ],
  "items": [
   "chronicle 1,645 节（2026-11-16T13:2xZ，#1845 入册时写错）",
@@ -36,6 +37,7 @@
   "`ChainBanner.tsx`（#1878）的 className 写的是 `chain-banner--ok/bad`，样式表定义的是 `.chain-banner-ok/.chain-banner-bad`",
   "Volume XCI/XCII 把「换钥后敲不通」登记为 **CLOSED_FOR_THIS_CHANNEL**（如实照抄了 6/6 红字节：「本站不对您所在的国家及地区进行商业服务」）",
   "gateway 测试套件的脱环境性：5 个 actuator 路由 / 2 个指标 / 1 个 refresh 用例，2026-11-16 本机两次爆红，每次都是「127.0.0.1:8888 上当时有没有活着的 config-server」在变",
-  "Volume CXV 与多处文档把 `live_lane_probe` 的**一次**敲出（HTTP 200 · cached 4224）写得像「缓存命中率已被改善」——并反复出现「缓存挂上了」句式（2026-11-16T20:55 起连续两 strike 实敲：`prompt_cache_hit_tokens: 0 / 0`，全 4676 未命中）"
+  "Volume CXV 与多处文档把 `live_lane_probe` 的**一次**敲出（HTTP 200 · cached 4224）写得像「缓存命中率已被改善」——并反复出现「缓存挂上了」句式（2026-11-16T20:55 起连续两 strike 实敲：`prompt_cache_hit_tokens: 0 / 0`，全 4676 未命中）",
+  "`/engine` 页写着「41 次真实敲 wkapi.pro …… 147,767 total tokens …… 51.2 % exact static-prefix hit rate」「双 lanes：direct 29 · policy 12」（wkapi 时代遗留，2026-11-16T15:0x 复核）"
  ]
 }

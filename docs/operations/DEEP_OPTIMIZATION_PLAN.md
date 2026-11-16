@@ -40678,3 +40678,31 @@ UI **562/562** · build ✓ · mvn -o **137/137** · guide 6/6 · corrections **
 ### 三、裁判
 
 UI **564/564** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **16** · purity **CLEAR** · D1 ✅ · D2 ⏸（属主的 PAT，本仓永不 mint）· worldbook **卷零–卷一百四十一 · 141 卷（中英对称）** · chronicle 随本提交重敲增员。
+
+## #1934 《两车道并成一本账》：/engine 四处文案 + lanes 备注在 2026-11-13 的快照上结霜——本机 `.local/llm_usage.jsonl` 早已累计 **63 行**（46 gpt-6-sol 起于 2026-11-13 · 17 aizzz/gpt-6.1-terra 起于 2026-11-16 经本机代理）。`engine.json` 重建（`scripts/build_engine.py` · prompt 238,221 · cached 105,206 · hit **44.2%** · streamed_ratio **1.0** · errors 4 · lanes **direct 46 = 29 sol + 17 terra · policy 17 = 17 sol**（本机 `Counter` 实敲）· 小时桶 **10**）· 页文案数值全数换成重建真值 · 新增「前缀缓存 · 双敲见证」面板（直读 git-tracked `cache_witness.json`：4224×2 · 95.3% · HIT · 「这是读数，不是认证书」）· **R17 落册**（APPENDIX 双语 · errata.copy.ts · corrections.json **16 → 17**）· Scroll CXLII 双语 · UI **564 → 567/567**（EngineWitness.test.tsx ×3：页内不许再出现 `wkapi.pro` / `147,767` / `51.2` / `75,638` / `direct 29 · policy 12`）
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1933。
+
+### 一、债是什么
+
+`/engine` 页 footer 自 dwkapi 时代遗留文案：「41 次真实敲 wkapi.pro …… 147,767 total tokens …… 51.2 % exact static-prefix hit rate」「两车道**不混账**」「双 lanes：direct 29 · policy 12」——**全部不是今天的账**：jsonl 在当晚早已累计 63 行，新增 17 行 aizzz/gpt-6.1-terra 与旧 46 行 gpt-6-sol 同属一份账；「不混账」是自我安慰，不是事实。
+
+### 二、清偿
+
+| 项 | 值 |
+|---|---|
+| engine.json | 重建：calls **63** · errors **4** · streamed_ratio **1.0** · prompt **238,221** · cached **105,206**（39/63 次上报）· hit_rate **44.2%** · p50 **9,304 ms** · p95 **32,904 ms** · max **72,373 ms** · lanes direct 46 / policy 17 · kinds (unspecified) 46 / draft 10 / court 6 / diagnose 1 · 小时桶 **10** |
+| Engine.tsx | 四处文案 + lanes 备注 + 页侧注（zh/en）换成重建真值；头注释 wkapi 字样删除；新增 `.engine-witness` 面板 |
+| EngineWitness.test.tsx | 3 条守门：verbatim（4224×2 · 95.3 · HIT · started_utc）· 页内不许再出现 `wkapi.pro` / `147,767` / `51.2` / `75,638` / `direct 29 · policy 12` |
+| EngineNote.test.tsx | 重绑：备注必须说出「63 行 = 两个车道的和」（zh/en · 含 `aizzz` + `provider_smoke 7/7` + `63` + `17`） |
+| APPENDIX_CORRECTIONS(+EN) | **R17** 落册（原文永存 · anchor §#1934） |
+| corrections.json | **16 → 17** · errata 页自动登记 |
+| worldbook | Scroll CXLII（卷一百四十二）双语落册 |
+
+### 三、不动
+
+court `4117d2b0ca5fb23a` **LOCKED**（永远 stream+include_usage · 永远不缓存）· Night Watch 依旧 **CRACKED**（exhibit #4 · #10 · #11 · #12 永在册 · entries=**13**）· exhibit 一个字节都没动 · mvn -o **137/137**（未碰 Java）·「密码-123」否决 · `.local/llm.json` 依然未跟踪、无 key、不入任何 markdown · D1 ✅ D2 ⏸。
+
+### 四、裁判
+
+UI **567/567** · build ✓ · guide **6/6** · corrections **17** · purity **CLEAR** · chronicle 随本提交重敲增员。
