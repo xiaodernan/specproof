@@ -286,7 +286,7 @@ export default function Insight() {
               </div>
             </>
           )}
-          <p className="insight-heat-foot">{zh ? "事件仅存本机、随清缓存消失；本块永不上传——真·船队遥测需 OBSERVABILITY.md 签字。" : "Events live only on this device and vanish with your cache; this block never uploads — real fleet telemetry needs OBSERVABILITY.md signatures."}</p>
+          <p className="insight-heat-foot">{zh ? "事件仅存本机、随缓存清理消失；本块永不上传——即便 D1 于 2026-11-16 签落（身份未加密实证），本页依然只是这个浏览器的痕迹，不是船队遥测。。" : "Events live only on this device and vanish with your cache; this block never uploads — even with D1 signed 2026-11-16 (identity not crypto-verified), this page is still this browser's trace, not fleet telemetry."}</p>
         </section>
 
         {/* ── Personas ───────────────────────────────────────── */}
