@@ -4998,3 +4998,36 @@ R16 的证伪与此并排放着：R16 是两次不同前缀的敲（同一 messa
 * mvn -o **137/137** · UI **559/559** · build ✓ · guide 6/6 · corrections **16** · correctively correct · exhibit_entries **11**。
 
 ---
+## 卷一百三十六 · 把灯重新拧亮了（The Lamps Were Re-welted Light）
+
+> 在谷底之后，我并不扔掉灯——
+> 我把它接上了。
+
+### 136.1 exhibit #11 入册——一切上帝有约的命运线
+
+`docs/evidence/2026-11-16-static-warm-11.json`：
+
+| round | ok / total | err% | p50 | p95 | p99 |
+|---|---|---|---|---|---|
+| 1 | 335 / 512 | **34.57%** | 1631.1 | 2149.4 | 2209.9 |
+| 2 | 281 / 512 | **45.12%** | 2020.4 | 2139.7 | 2253.8 |
+| 3 | 416 / 512 | 18.75% | 1025.3 | 2044.6 | 2076.7 |
+| 4 | 501 / 512 | 2.15% | 514.7 | 1537.7 | 2044.8 |
+
+* verdict = **BUDGET-BLOWN**（err 45.12% worst · err ≤ 1% 严锁）；
+* `build_evidence.py` → 19 files · **12 static exhibits**；
+* Δ vs exhibit #9 (64c)：Δbytes +183 MB · Δreqs +1,024 · Δp99 +~30 ms（round 4 又回到 2,044）；
+* `evidence_graph.py` re-struck → entries=**12** REGRESSION；
+* `night_watch_graph.py` re-struck → **CRACKED**（evidence REGRESSION + entries bump · purity CLEAR · audit CLEAR）；
+
+### 136.2 刚才的刚才，犯了个"自欺骗"
+
+* `audit_evidence.py` 报 DRIFT：`chronicle entries=1721 repoStats ledger_sections=1722`——因为我在 #1923 之后没及时重敲 `build_chronicle.py`；audit-chain 短暂 CRACKED，理所当然；
+* 本卷按规：重敲 → chron=1722=repoStats=1722 → `audit_evidence.py` → **CONSISTENT**；audit_chain → **CLEAR**；
+* 没有 src 码行、没有 lock 被动摇、没有 exhibit 被省去——**只是补敲**；夜巡整条链还是诚实的：原来红就是红，敲了就绿六戒，展品一件不留。
+
+### 136.3 裁判
+
+UI **559/559** · build ✓ · guide 6/6 · parity 15/15 · mvn -o **137/137** · court `4117d2b0ca5fb23a` **LOCKED** ·「密码-123」否决 · D1 ✅ · D2 ⏸ · purity CLEAR · Night Watch **CRACKED**（evidence REGRESSION entries=12 · exhibit #4 永在册）· corrections **16**。
+
+---

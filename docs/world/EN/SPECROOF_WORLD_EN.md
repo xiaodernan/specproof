@@ -4872,3 +4872,36 @@ R16 sits beside this, unrewritten: R16 was two **different-prefix** strikes → 
 * mvn -o **137/137** · UI **559/559** · build ✓ · guide 6/6 · corrections **16** · exhibit_entries **11**.
 
 ---
+## Volume CXXXVI · The Lamps Were Re-welted Light（卷一百三十六 · 把灯重新拧亮了）
+
+> Below the floor lay not desolation but a switched‑off lamp —
+> this volume plugs it back in.
+
+### 136.1 exhibit #11 — the 256-concurrent strike on the door
+
+`docs/evidence/2026-11-16-static-warm-11.json`:
+
+| round | ok / total | err% | p50 | p95 | p99 |
+|---|---|---|---|---|---|
+| 1 | 335 / 512 | **34.57%** | 1631.1 | 2149.4 | 2209.9 |
+| 2 | 281 / 512 | **45.12%** | 2020.4 | 2139.7 | 2253.8 |
+| 3 | 416 / 512 | 18.75% | 1025.3 | 2044.6 | 2076.7 |
+| 4 | 501 / 512 | 2.15% | 514.7 | 1537.7 | 2044.8 |
+
+* verdict = **BUDGET-BLOWN** (worst err 45% — the strictest rule still holds; err ≤ 1% for "OK");
+* `build_evidence.py` → **19 files** · **12 static exhibits**;
+* Δ vs #9 (64c): Δbytes +183 MB · Δreqs +1,024 · Δp99 ≈ +30 ms (round 4 fell back to 2,044 ms);
+* evidence_graph: entries=**12** REGRESSION;
+* Night Watch remains **CRACKED** (evidence=REGRESSION · purity=CLEAR · audit=CLEAR);
+
+### 136.2 The tiny thing #1923 did wrong, and how this volume undoes it
+
+* evidence drift triggered by the off‑by‑one (`chronicle entries=1721 ≠ repoStats ledger_sections=1722`): I appended the #1923 section without re‑striking `build_chronicle.py` — the audit‑chain turned red, as it should have;
+* this volume re‑strikes — chron=1722 now, repoStats=1722, `audit_evidence.py` returns **CONSISTENT**, and the audit_chain leader reverts to **CLEAR**;
+* **no exhibit was deleted; no threshold was moved; no lock was re-cut; only a re‑knock**.
+
+### 136.3 The floor never moved
+
+UI **559/559** · build ✓ · guide 6/6 · parity 15/15 · mvn -o **137/137** · court `4117d2b0ca5fb23a` **LOCKED** ·「password‑123」vetoed · D1 ✅ · D2 pending owner's PAT · purity **CLEAR** · Night Watch **CRACKED** (exhibit #4 stays on file) · corrections **16**.
+
+---

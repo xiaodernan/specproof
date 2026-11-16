@@ -40440,3 +40440,33 @@ Owner 指望 HOLIDAY/LIVE docs Truth。`ROADMAP-LIVE` 中的条目 6 一直显�
 ### 三、不改
 
 mvn -o **137/137** · UI **559/559** · guide 6/6 · corrections **16** · court = `4117d2b0ca5fb23a` LOCKED · Night Watch 依旧 **CRACKED**（exhibit #4 永在册） · D1 ✅ · D2 ⏸ ·「密码-123」否决。
+
+## #1924 《把灯拧回来》：exhibit #11 入册（256c × 4轮 · round1 err 34.57% · round2 45.12% · round3 18.75% · round4 2.15% · worst p99 2,253.8 ms → verdict=BUDGET-BLOWN·entries=12 · ночная вахта 双编 REGRESSION · #1923 → chron 未重敲→audit_evidence DRIFT→audit_chain CRACKED — 重敲 → CONSISTENT · CLEAR）· Volume CXXXVI《The Lamps Were Re-welted Light》
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1923。
+
+### 一、exhibit #11 敲击实况（本次最大刀压）
+
+`docs/evidence/2026-11-16-static-warm-11.json`（128c → 256c · 2/thread · 4 rounds + 3 warmup）：
+
+| round | ok/total | err% | p50 | p95 | p99 |
+|---|---|---|---|---|---|
+| 1 | 335/512 | 34.57 | 1631.1 | 2149.4 | 2209.9 |
+| 2 | 281/512 | **45.12** | 2020.4 | 2139.7 | 2253.8 |
+| 3 | 416/512 | 18.75 | 1025.3 | 2044.6 | 2076.7 |
+| 4 | 501/512 | 2.15 | 514.7 | 1537.7 | 2044.8 |
+
+* verdict=**BUDGET-BLOWN**（err ≤1% 铁律依旧不让它过）；
+* `build_evidence.py` → 19 files · **12 static exhibits**；
+* Δ vs #9 (64c)：Δreqs +1,024 · Δbytes +183 MB · Δp99 ≈ +30ms；
+* evidence_graph → entries=12 REGRESSION；night_watch → **CRACKED**（evidence REGRESSION · purity CLEAR · audit CLEAR）。
+
+### 二、#1923 犯的错（chron 行数 ≠ repoStats），此卷已补救
+
+我添加 ledger section #1923 后未立即重敲 `build_chronicle.py` → chronicle.json 落后 ledger 一节 → `audit_evidence.py` 报 DRIFT（1721 ≠ 1722）→ audit_chain 翻 CRACKED。**本卷重新敲 → chron=1722=repoStats=1722 → audit_evidence.py returns CONSISTENT · audit_chain=CLEAR**。展品未删一、阈值未动、labs 未换色一。
+
+### 三、裁判
+
+mvn -o **137/137** · UI **559/559** · vitest ✓ · build ✓ · guide 6/6 · parity 15/15 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · purity **CLEAR** · D1 ✅ · D2 ⏸ ·「密码-123」否决。
+
+Volume CXXXVI《把灯重新拧亮了 · The Lamps Were Re‑welted Light》入册 → worldbook **136 卷** · chronicle **1,722 节**。
