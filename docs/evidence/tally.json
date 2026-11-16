@@ -1,19 +1,19 @@
 {
  "version": 1,
  "source": "merged verbatim from unsigned/evidence/courtLock/purity/audit_chain/chronicle/repoStats/worldbook JSON",
- "generated_utc": "2026-11-16T13:18:04+00:00",
+ "generated_utc": "2026-11-16T13:22:00+00:00",
  "totals": {
-  "commits": 2577,
-  "chronicle_sections": 1716,
-  "worldbook_volumes_zh": 133,
-  "worldbook_volumes_en": 133,
+  "commits": 2578,
+  "chronicle_sections": 1717,
+  "worldbook_volumes_zh": 134,
+  "worldbook_volumes_en": 134,
   "python_test_files": 618,
   "web_test_files": 77
  },
  "lamps": {
-  "unsigned_phase": "2026-11-16T12:11:04+00:00",
+  "unsigned_phase": "2026-11-16T13:21:13+00:00",
   "weekly_stress_merged": "merged",
-  "port_8000": "other-project-answering",
+  "port_8000": "port-free",
   "branch_cleanliness": "dirty-tree",
   "observability_signature": "signature-block-found",
   "court_lock_verdict": "LOCKED",
@@ -23,11 +23,11 @@
   "purity_hits": 0
  },
  "stress": {
-  "latest_file": "2026-11-16-static-warm-9.json",
-  "latest_p99_ms": 1596.927,
-  "latest_verdict": "OK",
-  "files_count": 17,
-  "delta_p99_ms": 571.532
+  "latest_file": "2026-11-16-static-warm-10.json",
+  "latest_p99_ms": 2225.671,
+  "latest_verdict": "BUDGET-BLOWN",
+  "files_count": 18,
+  "delta_p99_ms": 628.744
  },
  "evidence_graph": {
   "chain_verdict": "CLEAR",
@@ -35,8 +35,8 @@
   "chain_generated_utc": "2026-11-16T12:11:06+00:00"
  },
  "book": {
-  "zh_bytes": 292973,
-  "en_bytes": 299768,
-  "ledger_bytes_kB": 3884.0
+  "zh_bytes": 294716,
+  "en_bytes": 301454,
+  "ledger_bytes_kB": 3885.7
  }
 }

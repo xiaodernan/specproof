@@ -40305,3 +40305,38 @@ UI **559/559** · mvn -o **137/137**（依赖未动，本次 commit 仅双语 RE
 
 UI **559/559** · build ✓ · guide 6/6 · parity 15/15 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED**（exhibit #4 permanent）· purity CLEAR · D1 ✅ · D2 ⏸ ·「密码-123」否决。
 mvn -o **137/137** · exhibit #9 已册（entries=10 · p99 1,596.9ms） · worldbook **133 卷**（CXXXI–CXXXIII）。
+
+## #1918 《谷底就谷底了》：exhibit #10 入册（128c × 4 轮 · round1/2 err 14.8–15.2% · round3/4 0.39% · worst p99 2,225.7 ms → verdict=BUDGET-BLOWN）· evidence_graph entries=11 为 REGRESSION · Night Watch 依旧 CRACKED · Volume CXXXIV《The Floor Is the Floor》
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1917。
+
+### 一、exhibit #10 敲击实况
+
+`docs/evidence/2026-11-16-static-warm-10.json`：
+
+| round | ok/total | err% | p50 | p95 | p99 |
+|---|---|---|---|---|---|
+| 1 | 218/256 | 14.84% | 386.2 | 2108.8 | **2225.7** |
+| 2 | 217/256 | 15.23% | 541.4 | 2042.0 | 2093.2 |
+| 3 | 255/256 | 0.39% | 536.2 | 1643.2 | 2049.1 |
+| 4 | 255/256 | 0.39% | 519.4 | 1588.9 | 2053.5 |
+
+* verdict = **BUDGET-BLOWN**（err>1% 且 p99<5s 双条件同不满足）；
+* 比 exhibit #9 (64c · 1,596.9) **Δp99 = +628.7 ms** · Δp95 = +781.8 ms · Δbytes +134 MiB · Δreqs +512；
+* `scripts/build_evidence.py` → 18 file → 11 static artifacts · latest=2026-11-16-static-warm-10.json；
+* `evidence_graph.py` re-struck → entries=**11** REGRESSION；
+* `night_watch_graph.py` re-struck → **verdict=CRACKED evidence=REGRESSION purity=CLEAR audit=CLEAR**；
+* exhibit #10 不可放行 · 不可改写 · 不可设阈值 · 不可删除（court 不系此账，但 desk 永远不抹这个数）。
+
+### 二、它说什么
+
+sis host（localhost IT）饱和——首两轮 nbtwork/socket 双饱和、错误率 1/7 · 恢复 round3/4 = 1/256 · 这不是 production 裁决，这不是 hardware 容量证明，只是 exhibit 如实敲出来的 p99/p95/err — 未来哪一天这个宿主若真 256c 敲进生产，那一天不只是"还是可以的"，那一天必须连埋 exhibit #10 一起读。
+
+### 三、不改
+
+* court `4117d2b0ca5fb23a` LOCKED（且永远 stream+include_usage · 不缓存 · 137/137）；
+* purity CLEAR（2,821 tracked · 0 hits）；「密码-123」否决； exhibit #4 永远 1,526.1 ms 不放行 · Night Watch 依旧 CRACKED；
+* D1 ✅ · D2 ⏸（owner PAT，不 mint）;
+* mvn -o **137/137** · UI **559/559** · build ✓ · guide 6/6 · corrections **16**。
+
+Volume CXXXIV《谷底就谷底了 · The Floor Is the Floor》入册 → worldbook **134 卷** · chronicle **1,718 节**。

@@ -213,7 +213,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/tour` — 六卷站整篇双语（`pages/tour.copy.ts`） | |
 | `/explorer` — 导语/字段/StatCard/铁证清单全量走表 | |
 | `/usage` — 标题/窗口芯片/六张卡/诚实口径句（含 `{basis}` 分母插值）/图例/空账本文案 | |
-| `/epic` — 中文十六卷原文 + 英文十六卷 + 双语尾声（`pages/epic.copy.ts`） | |
+| `/epic` — 中文十七卷原文 + 英文十七卷 + 双语尾声（`pages/epic.copy.ts`） | |
 | `/lexicon` — 十四条目逐条中英双语（term/gloss/iron/anchor） | |
 
 **原生英文的文档也全部有中文**：`CLAUDE.md` 逐段中英并列（#1696）、`ARCHITECT_CLAUDE.md` 逐段中英并列（#1697）、请查阅 `MCP_GUIDE.zh.md` 等成对手册。

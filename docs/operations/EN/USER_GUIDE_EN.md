@@ -37,7 +37,7 @@ Open `http://127.0.0.1:5173/` — the sidebar carries 39 first-level entries:
 | Admin | Audit Trail | every audit_logs write in the chain | compliance |
 | Admin | Model Connection | switch the real key of any OpenAI-compatible gateway | — |
 | Admin | Service Status | health (mysql/redis/rabbitmq/minio) + latency distribution | — |
-| — | Epic | sixteen scrolls of SpecProof's genesis (Scroll XV · The IOU Epigraph / Scroll XVI · The Screen That Speaks One Language) | full pixel-for-pixel real commits |
+| — | Epic | seventeen scrolls of SpecProof's genesis (Scrolls XV–XVII · The IOU Epigraph / The Screen That Speaks One Language / The Night Watch Inside the Badge) | full pixel-for-pixel real commits |
 | — | Tour | interactive six-stamp corridor | the mother of all passovers |
 
 > No `.env` needed either — the tour works without one. To connect a real LLM, ask for `.local/llm.json`.

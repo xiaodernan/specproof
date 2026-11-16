@@ -4805,3 +4805,35 @@ The user guide's **three stale lane references** (usage/billing/settings, cache�
 Books append. Exhibits land verbatim or not at all. Night Watch is CRACKED, long may it stay so, until an exhibit under Δ<25 ms lands on its own merit. The guide no longer pretends the live lane is wkapi.pro — it isn't.
 
 ---
+## Volume CXXXIV · The Floor Is the Floor（卷一百三十四 · 谷底就谷底了）
+
+> Nobody saws through the watch because the watch is already glowing —
+> the point of glowing is to see the floor is the floor.
+
+### 134.1 exhibit #10 on file — a truly blown budget
+
+`docs/evidence/2026-11-16-static-warm-10.json`:
+
+| round | concurrency × rounds | ok / total | err% | worst p99 |
+|---|---|---|---|---|
+| 1 | 128 × 2 × 256 | 218 / 256 | **14.84%** | 2,225.7 ms |
+| 2 | 128 × 2 × 256 | 217 / 256 | **15.23%** | 2,093.2 ms |
+| 3 | 128 × 2 × 256 | 255 / 256 | 0.39% | 2,049.1 ms |
+| 4 | 128 × 2 × 256 | 255 / 256 | 0.39% | 2,053.5 ms |
+
+* `err_rate ≤ 0.01 AND p99 < 5000` → **verdict = BUDGET-BLOWN**;
+* `evidence.json` → **11 static** · Δ vs #9 (64c) → **Δp99 = +628.7 ms** · Δp95 = +781.8 ms · Δbytes = +134 MiB · Δreqs = +512;
+* `evidence_graph.py` re-struck → **verdict=REGRESSION entries=11**;
+* `night_watch_graph.py` re-struck → **verdict=CRACKED evidence=REGRESSION purity=CLEAR audit=CLEAR**;
+* exhibit #10 did not get excused, did not get hidden, did not get glazed.
+
+### 134.2 What this volume does NOT do
+
+* exhibit #10 stays in the roster; no thresholds move; no apology phrases;
+* it does not claim this machine cannot bear load — correct reading: p50 still held (386–541 ms); p99/p95 blew in the first two rounds; rounds 3–4 recovered 99.6% — this is a **host saturation signal**, not a production verdict; the exhibit records, never endorses.
+
+### 134.3 The floor never moved
+
+* UI **559/559** · npm run build ✓ · mvn -o **137/137** · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **11** · purity **CLEAR** · D1 ✅ · D2 pending your PAT ·「password-123」vetoed.
+
+---

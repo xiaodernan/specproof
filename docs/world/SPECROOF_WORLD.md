@@ -4930,3 +4930,35 @@ faithfull: Volume CXV 文本保留原样（如实记当时怎么以为通了的�
 世界书按规只增不删；exhibit 按规只拷贝入册不改写阈值；更正卷轴 R01–R16 留档；Night Watch 就 CRACKED 不变成翡翠。GUIDE 凡提到的车道/模型/事实错误全替换真实当前（README 双语、UNRACK 双语）。
 
 ---
+## 卷一百三十四 · 谷底就谷底了（The Floor Is the Floor）
+
+> 有人锯断展品里没有的守夜灯——
+> 点亮一盏新不是因为它亮， 而是怎样在谷里看见谷自己。
+
+### 134.1 exhibit #10 入册——真实炸穿的又一个预算
+
+`docs/evidence/2026-11-16-static-warm-10.json`：
+
+| round | concurrency | ok / total | err% | worst p99 |
+|---|---|---|---|---|
+| 1 | 128 × 2 × 256 | 218 / 256 | **14.84%** | 2,225.7 ms |
+| 2 | 128 × 2 × 256 | 217 / 256 | **15.23%** | 2,093.2 ms |
+| 3 | 128 × 2 × 256 | 255 / 256 | 0.39% | 2,049.1 ms |
+| 4 | 128 × 2 × 256 | 255 / 256 | 0.39% | 2,053.5 ms |
+
+* `err_rate ≤ 0.01 AND p99 < 5s` → **verdict = BUDGET-BLOWN**（两条都不满足）；
+* `evidence.json` total → **11 static** · delta vs #9 (64c) → **Δp99 = +628.7 ms**, Δp95 = +781.8 ms · Δbytes = +134 MiB · Δ请求 = +512；
+* `evidence_graph.py` 现场敲 → **verdict=REGRESSION entries=11**；
+* `night_watch_graph.py` 现场敲 → **verdict=CRACKED evidence=REGRESSION purity=CLEAR audit=CLEAR**；
+* 这是 #9 的下一脚——不是伪造修正，不是敷衍承认。这是谷值。
+
+### 134.2 这一卷不怎么做
+
+* 不删 exhibit #10；不搬阈值；不宣称「这里**只是**暖身的鬼怪」
+* 但也不断言「这个系统挂不住东西了」——正确的断言：**在这次交付路径上，p50 一开始还站得住（386–541 ms），p95/p99 软烂了**；round 3/4 回报 99.6% 成功；是不是只有宿主机的 I/O 饱和（bytes 每请求 ~524 KiB × 512 = 巨大的 kernel socket 开销），本仓库不假装回答；**交给生产场景去量，这不是生产能力的判决**——exhibit 只做 record-keeping，不做 marketing。
+
+### 134.3 裁判
+
+* UI **559/559** · npm run build ✓ · mvn -o **137/137** · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **11** · purity **CLEAR** · D1 ✅ · D2 ⏸ (owner PAT) ·「密码-123」否决。
+
+---
