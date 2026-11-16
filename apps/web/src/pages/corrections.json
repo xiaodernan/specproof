@@ -1,7 +1,7 @@
 {
  "version": 1,
  "source": "docs/world/APPENDIX_CORRECTIONS.md (append-only)",
- "count": 11,
+ "count": 13,
  "ids": [
   "R01",
   "R02",
@@ -13,7 +13,9 @@
   "R08",
   "R09",
   "R10",
-  "R11"
+  "R11",
+  "R12",
+  "R13"
  ],
  "items": [
   "chronicle 1,645 节（2026-11-16T13:2xZ，#1845 入册时写错）",
@@ -26,6 +28,8 @@
   "`audit_unsigned.py` 首次敲出「branch-cleanliness: no-upstream」（2026-11-15，#1863 上线时）",
   "同一轮里 build_roadmap_live.py 入库 ≠ 它是确定性的——「commit 只修输出没跟脚本」（#1865 主提交遗漏生成器）",
   "RageCoach 测试断言 `\"Sign & seal\"` 期望 approve —— 实际规则在 tour-seal（规则内含 seal 关键词先吃掉）",
-  "证据复核子图的 `test_graph_ok_when_all_pass` 曾 flaky 红了一次"
+  "证据复核子图的 `test_graph_ok_when_all_pass` 曾 flaky 红了一次",
+  "Volume XCI 扉页切到 `api.aizzz.xyz/gpt-6.1-terra/responses/max` 后，我把「换钥」写得像「车道已通」",
+  "`ChainBanner.tsx`（#1878）的 className 写的是 `chain-banner--ok/bad`，样式表定义的是 `.chain-banner-ok/.chain-banner-bad`"
  ]
 }

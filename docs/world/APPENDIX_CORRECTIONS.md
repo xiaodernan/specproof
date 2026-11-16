@@ -22,6 +22,8 @@
 | **R10** | RageCoach 测试断言 `"Sign & seal"` 期望 approve —— 实际规则在 tour-seal（规则内含 seal 关键词先吃掉） | 规则命名本来就有重叠；测试 expectation 错了不是代码错了 | 测试期望改为 tour-seal；`approve` 规则加空白容错（`批\s*准` 等） | #1846：`apps/web/src/ui/rage.test.ts` |
 
 | **R11** | 证据复核子图的 `test_graph_ok_when_all_pass` 曾 flaky 红了一次 | 根因：intake_node 按 mtime 排序；tmp_path 写入两个 back-to-back 文件时 mtime 常同 tick → 随机判 REGRESSION | 改为 `started_utc` ISO 字典序降序（ISO = 时间序）· mtime 仅作 absence 缺省 | §#1872 · `tests/unit/test_evidence_graph.py` |
+| **R12** | Volume XCI 扉页切到 `api.aizzz.xyz/gpt-6.1-terra/responses/max` 后，我把「换钥」写得像「车道已通」 | 实敲 `scripts/llm_cache_probe.py`（短/长/重复 × non-stream/stream+include_usage）**6/6 全红**，原文照录：「本站不对您所在的国家及地区进行商业服务」—— 那是对方网关从字节里说的，不是本仓库说的 | 账本 #1881 如实登记 **CLOSED_FOR_THIS_CHANNEL**；恢复办法只有两条（仓库 Settings→Secrets `SPECPROOF_LLM_*` 环境车道 · 或本机能出网），绝不伪造接通 | §#1881 · `scripts/llm_cache_probe.py` 输出 2026-11-16（本轮重敲 6/6 同回） |
+| **R13** | `ChainBanner.tsx`（#1878）的 className 写的是 `chain-banner--ok/bad`，样式表定义的是 `.chain-banner-ok/.chain-banner-bad` | **绿/红两种变体一直没生效**——所有页面都显示同色 banner；**修复前 533/533 全绿也没人发现**，因为没有一条断言 class 契约 | 组件 class 改为 `.chain-banner-${ok ? "ok" : "bad"}`；新增 `pages/__tests__/ChainBanner.test.tsx`（zh/en × class 契约 × 跳转链接）锁住 | §#1882 · `apps/web/src/pages/ChainBanner.tsx` · `src/pages/__tests__/ChainBanner.test.tsx` |
 ## 使用约束
 
 1. 本卷轴条目不许删，只许增量 append；

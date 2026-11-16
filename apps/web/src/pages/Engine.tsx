@@ -2,6 +2,7 @@ import { useI18n } from "../i18n";
 import { ProductIcon } from "../ui/ProductIcon";
 import engine from "./engine.json";
 import courtLock from "./courtLock.json";
+import ChainBanner from "./ChainBanner";
 import "../styles/engine.css";
 
 /**
@@ -77,6 +78,7 @@ export default function Engine(): JSX.Element {
           </p>
         </div>
       </header>
+      <ChainBanner />
 
       <div className="engine-grid">
         <section className="engine-panel" aria-label={L("延迟分布", "Latency")}>

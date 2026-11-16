@@ -40,12 +40,6 @@ export const COACH_MARKS: readonly CoachMark[] = [
       zh: "全界面中文⇄English——两表逐键对齐，不会半中半英。",
       en: "Whole UI Chinese ⇄ English — every string parity-tested; never a half-and-half screen.",
     } },
-  { key: "topbar.invert",
-    title: { zh: "滚轮方向", en: "Scroll direction" },
-    body: {
-      zh: "往下滑＝往下看（默认，符合人体工学）；若你系统/鼠标堆叠已反转滚轮，再点一次恢复。",
-      en: "Scroll down = look down (default, natural). If your stack already inverts the wheel, press once more to restore.",
-    } },
   { key: "topbar.menu",
     title: { zh: "移动菜单", en: "Mobile menu" },
     body: {

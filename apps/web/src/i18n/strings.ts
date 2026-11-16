@@ -132,8 +132,6 @@ const zh = {
   "topbar.helpLink": "使用帮助",
   "topbar.theme.toLight": "切换浅色主题",
   "topbar.theme.toDark": "切换深色主题",
-  "topbar.invertScroll": "反转滚轮方向（当前：自然滚动，往下划=往下看）",
-  "topbar.invertScrollOn": "反转滚轮方向（当前：已反转，适合系统级鼠标反向）",
   "footer.tagline": "SpecProof · 为交付提供可核验的证据",
   "footer.startLink": "从这里开始",
 
@@ -631,8 +629,6 @@ const en: Record<keyof typeof zh, string> = {
   "topbar.helpLink": "Help",
   "topbar.theme.toLight": "Switch to light theme",
   "topbar.theme.toDark": "Switch to dark theme",
-  "topbar.invertScroll": "Invert scroll direction (now: natural — scroll down = look down)",
-  "topbar.invertScrollOn": "Invert scroll direction (now: inverted — for reversed OS/mouse stacks)",
   "footer.tagline": "SpecProof · verifiable evidence for every delivery",
   "footer.startLink": "Start here",
 

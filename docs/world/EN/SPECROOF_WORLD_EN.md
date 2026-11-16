@@ -3538,3 +3538,62 @@ Carry-over from one day's green does NOT make tomorrow's. The eye sees nothing w
 — The key was never kept in this book, and never would be.
 
 ---
+## Volume XCII · The Knocker of the Dry Echo（卷九十二 · 回声无水的敲门者）
+
+> Knock the door and there is no echo — that is not "nobody's home";
+> that is "this door stays shut today; stop knocking."
+> This volume records what was struck, what was repaired, and what was not.
+
+### 92.1 One roll-call, five headers — same ink, five entrances
+
+`ChainBanner.tsx` (since #1878) reads `audit_chain.json` and paints one line: **audit chain · CLEAR · 5 lamps**.
+From this volume on, it hangs under the masthead of five pages — `#/chronicle`, `#/archive`, `#/atlas`, `#/engine`, `#/gazette`:
+
+| page | placement |
+|---|---|
+| #/chronicle | directly under the head (as it was since #1878) |
+| #/archive | under `archive-mast`, above `MidnightLamp` |
+| #/atlas | under `page-head`, above the island tabs |
+| #/engine | under `engine-mast`, above the grid |
+| #/gazette | under the gazette masthead, above the front page |
+
+**One JSON, one component, one line — five doors. Knock red anywhere, and that page shows red;
+no page gets to be the cheerful one.** The new `pages/__tests__/ChainBanner.test.tsx`
+(zh/en lanes × the `.chain-banner-ok` class contract × the `#/archive` link) welds that contract —
+**R13 is the scar tissue of it.** (Verbatim: R13; scroll is at thirteen.)
+
+### 92.2 The jade never painted — R13 verbatim
+
+Since #1878, the component emitted `chain-banner--ok/bad` (double dash); the stylesheet defined `.chain-banner-ok/.chain-banner-bad` (single dash).
+**Two characters off — the jade and red variants never executed. Everybody (me included) saw a colourless banner; 533/533 tests stayed green because no assertion touched the class contract.**
+This turn: fixed, asserted, filed as **R13**.
+
+**The ledger line of the day is exactly one: green needs its green class; red needs its red class; one glance tells you which event you are in.**
+
+### 92.3 The wheel, third and final stage: not "default off" — demolish the road
+
+Owner pointed at it at least three times: scroll up shows what's below; scroll down shows what's above; it feels wrong.
+#1800 turned the inversion from shipped-on into opt-in-off; this volume removes it entirely:
+
+* **no invertScroll state** — gone;
+* **no wheel listener** — gone;
+* **no localStorage key** (`specproof_invert_scroll`) — never read again;
+* **no topbar invert button** — gone;
+* **no i18n strings** and **no coachData entry** — gone with the same delete.
+
+The browser's native wheel (scroll down = look down, scroll up = look up) is the product standard.
+**It is not a preference; it is the absence of that fork in the road.**
+
+### 92.4 Re-struck today: nothing changed — six knocks, one sentence
+
+`api.aizzz.xyz/gpt-6.1-terra/responses/max`, re-struck this round (short/long/repeat × non-stream/stream+include_usage):
+**6/6 FAILED — 「本站不对您所在的国家及地区进行商业服务」** — the identical sentence, byte for byte with the batch earlier today.
+**CLOSED_FOR_THIS_CHANNEL stands.** Exactly two lawful roads back (repo Settings→Secrets `SPECPROOF_LLM_*` env lane · or this host reaching the network).
+No retry-hoping, no "maybe it woke up this morning" — the ledger carries what the gateway answered.
+
+### 92.5 Standing after this volume
+
+UI **535/535** (+2); web build passes; court = `4117d2b0ca5fb23a` LOCKED; purity CLEAR; corrections scroll **13 entries**; worldbook **99 volumes**.
+Unchanged debts: D1 (OBSERVABILITY signature, a human's hand) · D2 (PORTFOLIO_TOKEN) · the closed LLM lane · 「密码 123」 permanently vetoed.
+
+---

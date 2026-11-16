@@ -181,36 +181,13 @@ function Workspace() {
   const [hasKey, setHasKey] = useState(() => getApiKey() !== "" || getBearerToken() !== "");
   const [principal, setPrincipal] = useState<PrincipalInfo | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  // Natural scrolling by default (scroll down = look down) — what the owner asked for,
-  // repeatedly. The topbar invert button stays as an opt-in escape hatch for users
-  // whose own mouse/system stack reverses scroll globally; localStorage "1" opts in.
-  const [invertScroll, setInvertScroll] = useState((): boolean => {
-    try {
-      return window.localStorage.getItem("specproof_invert_scroll") === "1";
-    } catch {
-      return false;
-    }
-  });
   const contentRef = useRef<HTMLElement>(null);
   const { resolved, toggle } = useTheme();
-  // Opt-in wheel inversion for the main content column. Default OFF ("scroll
-  // down = look down" — the comfortable direction); users whose system or
-  // mouse stack reverses scroll globally can flip this once and get the
-  // app-standard direction back inside SpecProof.
-  useEffect(() => {
-    const el = contentRef.current;
-    if (!el) return;
-    const onWheel = (event: WheelEvent) => {
-      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? (el.clientHeight || 1) : 1;
-      event.preventDefault();
-      el.scrollTop -= event.deltaY * unit;
-    };
-    if (invertScroll) {
-      el.addEventListener("wheel", onWheel, { passive: false });
-      return () => el.removeEventListener("wheel", onWheel);
-    }
-    return;
-  }, [invertScroll]);
+  // Natural scrolling, unconditional (scroll down = look down, up = look up).
+  // Owner ruled repeatedly: the wheel behaves the standard way, full stop -
+  // no opt-in inversion, no localStorage escape hatch, no preventDefault.
+  // (The browser default IS the product standard.)
+
   const { t, toggleLocale, locale } = useI18n();
   useEffect(() => {
     const onChange = () => {
@@ -267,7 +244,7 @@ function Workspace() {
       <div className="sidebar-guide" data-coach="boot.guide"><ProductIcon name="guide" /><strong>{t("sidebar.guideTitle")}</strong><p>{t("sidebar.guideBody")}</p><a href="#/guide">{t("sidebar.guideCta")} <span aria-hidden="true">↗</span></a></div>
       <div className="sidebar-foot"><TenantSwitcher /><div className="account-row"><span className="account-avatar">{hasKey ? "SP" : "?"}</span><span><strong>{hasKey ? t("session.current") : t("session.guest")}</strong><small>{hasKey ? t("session.currentHint") : t("session.guestHint")}</small></span><Button variant="ghost" size="sm" onClick={async () => { const idpUrl = await logout(); setPrincipal(null); setHasKey(false); if (idpUrl) { window.location.href = idpUrl; } else { window.location.hash = "#/login"; } }}>{hasKey ? t("session.logout") : t("session.connect")}</Button></div></div>
     </aside>
-    <div className="workspace-main"><header className="workspace-topbar"><div className="topbar-left"><button className="icon-button mobile-menu" data-coach="topbar.menu" aria-label={t("topbar.menu")} aria-expanded={menuOpen} aria-controls="workspace-navigation" onClick={() => setMenuOpen(!menuOpen)}><ProductIcon name={menuOpen ? "close" : "menu"} /></button><span className="topbar-workspace">{t("topbar.workspace")}</span><span className="breadcrumb-separator">/</span><strong>{label}</strong></div><div className="topbar-actions"><button className="command-trigger" data-coach="topbar.search" onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }))}><SearchIcon /><span>{t("topbar.searchPages")}</span><Kbd>Ctrl K</Kbd></button><a className="topbar-help" data-coach="topbar.help" href="#/guide">{t("topbar.helpLink")}</a><button className="icon-button" data-coach="topbar.theme" aria-label={resolved === "dark" ? t("topbar.theme.toLight") : t("topbar.theme.toDark")} onClick={toggle}>{resolved === "dark" ? <SunIcon size={18} /> : <MoonIcon size={18} />}</button><button type="button" className="icon-button" data-coach="topbar.locale" onClick={toggleLocale} aria-label={t("topbar.switchLocale")} title={t("topbar.switchLocale")}>{locale === "zh" ? "EN" : "中"}</button><button type="button" className="icon-button" data-coach="topbar.invert" aria-label={t(invertScroll ? "topbar.invertScrollOn" : "topbar.invertScroll")} aria-pressed={invertScroll} title={t(invertScroll ? "topbar.invertScrollOn" : "topbar.invertScroll")} onClick={() => setInvertScroll((prev) => { const next = !prev; try { window.localStorage.setItem("specproof_invert_scroll", next ? "1" : "0"); } catch { /* unavailable */ } return next; })}><ProductIcon name="invert" size={18} /></button><button type="button" className="icon-button" data-coach="topbar.coach" onClick={() => window.dispatchEvent(new Event("specproof-coach-marks:toggle"))} aria-label={t("coach.toggleAria")} title={t("coach.toggleAria")}><Kbd>H</Kbd></button></div></header>
+    <div className="workspace-main"><header className="workspace-topbar"><div className="topbar-left"><button className="icon-button mobile-menu" data-coach="topbar.menu" aria-label={t("topbar.menu")} aria-expanded={menuOpen} aria-controls="workspace-navigation" onClick={() => setMenuOpen(!menuOpen)}><ProductIcon name={menuOpen ? "close" : "menu"} /></button><span className="topbar-workspace">{t("topbar.workspace")}</span><span className="breadcrumb-separator">/</span><strong>{label}</strong></div><div className="topbar-actions"><button className="command-trigger" data-coach="topbar.search" onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }))}><SearchIcon /><span>{t("topbar.searchPages")}</span><Kbd>Ctrl K</Kbd></button><a className="topbar-help" data-coach="topbar.help" href="#/guide">{t("topbar.helpLink")}</a><button className="icon-button" data-coach="topbar.theme" aria-label={resolved === "dark" ? t("topbar.theme.toLight") : t("topbar.theme.toDark")} onClick={toggle}>{resolved === "dark" ? <SunIcon size={18} /> : <MoonIcon size={18} />}</button><button type="button" className="icon-button" data-coach="topbar.locale" onClick={toggleLocale} aria-label={t("topbar.switchLocale")} title={t("topbar.switchLocale")}>{locale === "zh" ? "EN" : "中"}</button><button type="button" className="icon-button" data-coach="topbar.coach" onClick={() => window.dispatchEvent(new Event("specproof-coach-marks:toggle"))} aria-label={t("coach.toggleAria")} title={t("coach.toggleAria")}><Kbd>H</Kbd></button></div></header>
       <main className="content" id="main-content" tabIndex={-1} ref={contentRef}><ErrorBoundary key={active}><Suspense fallback={<Spinner />}>{renderRoute(route)}</Suspense></ErrorBoundary><footer className="workspace-footer"><span>{t("footer.tagline")}</span><a href="#/guide">{t("footer.startLink")} <span aria-hidden="true">↗</span></a></footer></main>
     </div>
   </div>;

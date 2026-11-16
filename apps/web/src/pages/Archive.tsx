@@ -9,6 +9,7 @@ import MidnightLamp from "./MidnightLamp";
 import courtLock from "./courtLock.json";
 import corrections from "./corrections.json";
 import chronicle from "./chronicle.json";
+import ChainBanner from "./ChainBanner";
 import "../styles/archive.css";
 
 /**
@@ -122,6 +123,7 @@ export default function Archive(): JSX.Element {
         </div>
       </header>
 
+      <ChainBanner />
       <MidnightLamp />
 
       <section className="archive-court-lock" aria-label="the judge and the iron">

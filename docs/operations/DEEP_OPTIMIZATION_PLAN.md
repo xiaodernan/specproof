@@ -39281,3 +39281,49 @@ draft#2    → 0.00s · 5600/14  (重复命中)
 
 * 卷八十七（敲门的人）的 `CLEAR` 是当时这台机器这台车道的真实敲击记录 — 如实登记，非"一切如旧"；
 * 敲门的人不以为"上一 swich 有响声" → 项目未被任何响声潮流捆绑——今天带你看它在静的一息。
+
+## #1882 《回声无水的敲门者》：ChainBanner 五页布全（+class 契约修复 R13）· 滚轮倒置路彻底拆除 · Volume XCII
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、ChainBanner 布五页（this turn）
+
+`apps/web/src/pages/ChainBanner.tsx`#1878 原本只挂在 `#/chronicle`；本轮起挂满五张页面页眉：
+
+| 页面 | 位置 |
+|---|---|
+| `#/chronicle` | head 正下方（本来就有） |
+| `#/archive` | `archive-mast` 之下、`MidnightLamp` 之上 |
+| `#/atlas` | `page-head` 之下、岛屿 tabs 之上 |
+| `#/engine` | `engine-mast` 之下、engine grid 之上 |
+| `#/gazette` | 报头 masthead 之下、第一版面之上 |
+
+**同一份 `audit_chain.json`、同一个组件、同一行话，五扇门——哪扇敲红哪扇就红。**
+新增 `pages/__tests__/ChainBanner.test.tsx`（zh/en × `.chain-banner-ok` 类契约 × `#/archive` 链接）锁住这份契约。UI **535/535**（+2），web build 通过。
+
+### 二、顺手抓到并修掉的 R13（#1878 以来的死 class）
+
+`ChainBanner.tsx` 的 className 写的是 `chain-banner--ok/bad`（双横线），`chainBanner.css` 定义的是 `.chain-banner-ok/.chain-banner-bad`（单横线）——**绿/红两种变体自 11-15 起从未生效**；所有页面一直显示「无色 banner」。**533/533 UI 全绿照样照不亮它**，因为没有一条断言 class 契约。本轮修好 class + 补断言 + 登记 **R13**。
+
+### 三、滚轮倒置，第三阶段：不是「默认关」——把路彻底拆了
+
+owner 至少三次点名（往上滑看下面、往下滑看上面）。#1800 曾把默认从「开」改「自然」；本轮把这条分叉路彻底拆掉：
+
+* 删 `invertScroll` state（连 `specproof_invert_scroll` localStorage 键都不再读）；
+* 删 `wheel` 事件监听（`preventDefault` 不复存在）；
+* 删顶栏「反转滚轮」按钮 + 4 条 i18n 文案（zh/en 各 2）+ `coachData.ts` 的 `topbar.invert` 入口。
+
+**浏览器原生滚动（往下滑=往下看）就是本产品的标准；反转不再是任何人的偏好选项，而是不存在的路。**
+
+### 四、LLM 车道复检（本轮重敲 6/6 同回）
+
+`api.aizzz.xyz/gpt-6.1-terra/responses/max`：short/long/long-repeat × non-stream/stream+include_usage —— **6/6 FAILED**；对方网关逐字节同一句：「本站不对您所在的国家及地区进行商业服务」。`CLOSED_FOR_THIS_CHANNEL` 成立。恢复办法仍只有两条：仓库 Settings→Secrets `SPECPROOF_LLM_*` 环境车道 · 或本机出网。**不伪造、不重试赌运气。**
+
+### 五、更正 R12/R13 入卷轴 → corrections **13 条**（`APPENDIX_CORRECTIONS.md` / EN 对称，`build_corrections.py` 现敲）
+
+Volume XCII《回声无水的敲门者 · The Knocker of the Dry Echo》入册（zh/en 对称）→ worldbook **99 卷** · chronicle **1,683 节**。
+
+### 六、诚实边界
+
+* court=4117d2b0ca5fb23a LOCKED · purity CLEAR ·「密码-123」永久否决 · D1（OBSERVABILITY 真人签字）仍欠 · PORTFOLIO_TOKEN 未配；
+* UI 535/535 · web build ✓ · markers: 之前遗留的死 class 今日才补上断言。

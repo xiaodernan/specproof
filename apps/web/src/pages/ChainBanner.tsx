@@ -15,7 +15,7 @@ export default function ChainBanner(): JSX.Element {
   const lanes = (chain as { lane_count?: number }).lane_count ?? 0;
   const ok = verdict === "CLEAR";
   return (
-    <aside className={`chain-banner chain-banner--${ok ? "ok" : "bad"}`} role="note" aria-label={zh ? "审计链今天" : "The audit chain today"}>
+    <aside className={`chain-banner chain-banner-${ok ? "ok" : "bad"}`} role="note" aria-label={zh ? "审计链今天" : "The audit chain today"}>
       <ProductIcon name="shield" size={14} />
       <p className="chain-banner-text">
         {zh

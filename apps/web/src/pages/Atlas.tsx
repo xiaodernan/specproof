@@ -4,6 +4,7 @@ import { ATLAS_REGIONS, EXPEDITIONS, type AtlasRegionId } from "./atlas.copy";
 import stats from "./repoStats.json";
 import evidence from "./evidence.json";
 import MidnightLamp from "./MidnightLamp";
+import ChainBanner from "./ChainBanner";
 import { ProductIcon } from "../ui/ProductIcon";
 import "../styles/atlas.css";
 
@@ -58,6 +59,7 @@ export default function Atlas() {
             : "Three islands, twenty-four halls, three expedition routes — big enough to never finish, never so big you get lost. Click an island, click a room-dot; the panel on the right unfolds everything inside."}
         </div>
       </div>
+      <ChainBanner />
 
       {/* ── Island tabs (keyboard & screen-reader friendly) ── */}
       <div className="atlas-tabs" role="tablist" aria-orientation="horizontal">

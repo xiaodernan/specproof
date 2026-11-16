@@ -3670,3 +3670,59 @@ unsigned → court_lock → evidence → scratch_residue → portfolio → verdi
 — 那条钥匙没留任何值让本书收。
 
 ---
+## 卷九十二 · 回声无水的敲门者（The Knocker of the Dry Echo）
+
+> 一扇门一敲无回声——不叫「这屋子没人」，只叫「别再敲了，这门今天不开」。
+> 本卷记录今天如实敲到的、修到的、以及没有修到的每一件事。
+
+### 92.1 五灯一签：同一条 roll-call 挂满五扇页眉
+
+`ChainBanner.tsx`（#1878 起）读 `audit_chain.json`，画同一行：**审计链 · CLEAR · 5 盏灯**。
+从本卷起，它挂在五张页面的页眉之下——`#/chronicle`、`#/archive`、`#/atlas`、`#/engine`、`#/gazette`：
+
+| 页面 | 位置 |
+|---|---|
+| #/chronicle | 页眉正下方（#1878 原本就在） |
+| #/archive | `archive-mast` 之下、`MidnightLamp` 之上 |
+| #/atlas | `page-head` 之下、岛屿 tabs 之上 |
+| #/engine | `engine-mast` 之下、engine-grid 之上 |
+| #/gazette | 报头 masthead 之下、头版之上 |
+
+**同一份 JSON、同一个组件、同一行话——五处入口；哪一处敲红，哪一处就红；不存在谁只报喜不报忧。**
+新增 `pages/__tests__/ChainBanner.test.tsx`（zh/en 双车道 + `.chain-banner-ok` 类契约 + `#/archive` 链接）锁住这份契约——
+**R13 就是这个契约缺失的一课。**（据实：R13；卷轴十三条）
+
+### 92.2 绿/红从未上过屏——R13 的原话
+
+`#1878` 的组件 className 写的是 `chain-banner--ok/bad`（双横线）；样式表里定义的是 `.chain-banner-ok/.chain-banner-bad`（单横线）。
+**差了两个字符，两个变体一直没生效——所有人（含我）看到的一直是「无色 banner」；测试 533/533 全绿照样照不亮它，因为没有一条断言这两个 class。**
+今天：修好、再配上专门的断言、登记 **R13**。
+
+**这页银行的意义只有一条：绿的要有绿的 class，红的要有红的 class；看一眼就知道它是哪一件事。**
+
+### 92.3 滚轮，第三阶段收官：不是「默认关」，是「拆掉这条路」
+
+Owner 至少三次点名：往上滑看下面、往下滑看上面，用起来难受。
+`#1800` 把倒置从「默认开」该回「opt-in 关」；今天这一步更进一步：
+
+* **没有 invertScroll state**——删了；
+* **没有 wheel 事件监听器**——删了；
+* **没有 localStorage 键**（`specproof_invert_scroll`）——不读了；
+* **没有顶栏倒置按钮**——也删了；
+* **没有两条 i18n 文案**、**没有 coachData 入口**——都删了。
+
+浏览器的原生滚动（往下滑=往下看、往上滑=往上看）就是本产品的标准；**它不是某个偏好，而是不再存在的那条分叉路。**
+
+### 92.4 车道今天再敲：没有变——六次，六句同一话
+
+`api.aizzz.xyz/gpt-6.1-terra/responses/max` 本轮重敲（short/long/long-repeat × non-stream/stream+include_usage）：
+**6/6 FAILED —「本站不对您所在的国家及地区进行商业服务」**——与今早那一批是同一句话、同一个字节故事。
+**CLOSED_FOR_THIS_CHANNEL 成立。**恢复办法仍只有两条（Settings→Secrets 环境车道 `SPECPROOF_LLM_*` · 或本机能出网）。
+没有任何「重试试试」、没有任何「可能今天好了」——账本只记敲到的回响。
+
+### 92.5 本卷之后
+
+UI 535/535（+2）；web build 通过；court=4117d2b0ca5fb23a LOCKED；purity CLEAR；错误卷轴 **13 条**；worldbook **99 卷**。
+欠条照旧：D1（OBSERVABILITY 真人签字）· D2（PORTFOLIO_TOKEN）· LLM 车道闭关 ·「密码-123 永久否决」。
+
+---

@@ -6,6 +6,7 @@ import worldbook from "./worldbook.json";
 import evidence from "./evidence.json";
 import unsigned from "./unsigned.json";
 import auditChain from "./audit_chain.json";
+import ChainBanner from "./ChainBanner";
 import { ProductIcon } from "../ui/ProductIcon";
 import "../styles/gazette.css";
 
@@ -60,6 +61,7 @@ export default function Gazette() {
           <span>{zh ? `编年史共 ${entryNum} 节` : `${entryNum} entries and counting`}</span>
         </div>
       </header>
+      <ChainBanner />
 
       {/* ── Front page: lead story + columns ─────────────────── */}
       <div className="gazette-front">
