@@ -4243,3 +4243,25 @@ OBSERVABILITY.md is not a configuration, not a manual, not an encyclopaedia. It 
 For every day D1 went unpaid, this book could not speak for itself out loud; today it can.
 
 ---
+## Volume CIX · A Signature Is Not Every Light（卷一百零九 · 签了字，不等于家里有灯火）
+
+> A signature stamp is not a light—but a lamp that hung on "awaiting" cannot hang on it forever.
+> This volume makes sure each page stops lying to its reader about the one thing that just changed.
+
+### 109.1 The line items
+
+| page | edit |
+|---|---|
+| `#/insight` | 「真·船队遥测需 OBSERVABILITY.md 签字」 → 「D1 已于 2026-11-16 签落（身份未加密实证）；本页仍然只是这个浏览器的痕迹，不是船队遥测」 |
+| `#/weekly-voyage` | reads `unsigned.json` at build time; now shows `Signature present (identity NOT verified)` with a jade dot; the pre-#1887 record of awaiting-signature is intact — before the signature, after the signature, the ledger records both |
+| `#/crewcard` | D1 row flips from awaiting → signed; the rest of the card is unchanged |
+| `#/gazette` | the tick copy shows the present tense of today's signed state; the historical "awaiting-signature" tick of an earlier issue stays in the pre-flight archive |
+| `#/midnightlamp` | if it had "D1 · awaiting-signature", it now has "closed" (own-struck present) |
+
+### 109.2 What this volume refuses to do
+
+- assemble any numeric claim about fleet telemetry — signing Observability does not turn Port 8000 into SpecProof (it is career-os-ai answering with 200);
+- touch a single lock/sequence/court line (`4117d2b0ca5fb23a` stands on its own pin; 「守住契约永远 stream+include_usage」不需要任何修改);
+- pretend a copy-text edit is actual engineering — this volume refuses to pose as more than what it is: the last sweep of every stale "awaiting a signature" self-description.
+
+---

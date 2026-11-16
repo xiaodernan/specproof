@@ -39810,3 +39810,26 @@ Volume CVIII《夜灯签字 · The Night the Lamp Got Signed》入册 → worldb
 
 D2 = PORTFOLIO_TOKEN —— Settings → Secrets，Contents: read+write，target `xiaodernan/xiaodernan.github.io`，
 `.github/workflows/portfolio-sync.yml` 已 dry run 现敲通过；syncing 不需要任何代铸、脚本已封住凭据，全书只欠 owner 一手。
+
+## #1899 《签了字，但它不是我点的灯》：/insight 文案同步 D1 已签落 · 所有 UI 靠 unsigned.json 自读 · Volume CIX《A Signature Is Not Every Light》
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1898 + Insight copy fix（dba9c49）。
+
+### 一、变动清单
+
+| 件 | 动作 |
+|---|---|
+| `apps/web/src/pages/Insight.tsx` | 两段文案「真·船队遥测需 OBSERVABILITY.md 签字」→「D1 已于 2026-11-16 签落（身份未加密实证），本页仍只是浏览器级痕迹，不是船队遥测」（zh/en 对称） |
+| `unsigned.json` 于 CrewCard / WeeklyVoyage / Gazette；`purity_sift.json`、`tally.json`、`repoStats.json`、`chronicle.json`、`worldbook.json`、roadmap 全量重推 | 全页自 `unsigned.json` 读 → 不再硬编「awaiting-signature」 stale text |
+| UI 544/544（无回归）· web build ✓ |
+| Court 锁 `4117d2b0ca5fb23a` LOCKED；court 永远 stream+include_usage |
+
+### 二、世界书新卷
+
+Volume CIX《A Signature Is Not Every Light（卷一百零九 · 签了字，不等于家里有灯火）》中英对称入册 → worldbook **116 卷** · chronicle **1,700 节**。
+
+### 三、再次申明
+
+- D1 是签落——**不构成 fleet 遥测上架**：Port 8000 是 career-os-ai 在应答；
+- D2 仍悬：**PORTFOLIO_TOKEN** 为 owner 亲配；本仓库不做 PAT 的铸造与推送；
+- Court Lock LOCKED；「密码-123」永远不出现；purity CLEAR；正确性永远 stream=True+include_usage。
