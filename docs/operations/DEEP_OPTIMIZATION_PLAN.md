@@ -40866,3 +40866,27 @@ bytes 总计 = **946.7 MiB** · delta vs #14：worst_p99 **+986.6 ms** · avg_p9
 ### 三、裁判
 
 UI **570/570** · build ✓ · mvn -o **137/137**（Java 零触碰）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（exhibit_entries=**16**）· exhibit #15 永在册 · court `4117d2b0ca5fb23a` **LOCKED** · D1 ✅ D2 ⏸ ·「密码-123」否决 · chronicle 随本提交增员 · worldbook **卷一百四十八 · 148 卷**。
+
+## #1941 《首班之前的全线预检》：ROADMAP-LIVE 欠条 #1（weekly-stress 首班）机制体检全绿——`.github/workflows/weekly-stress.yml` 语义在 CI 门禁 9/9（`tests/unit/test_ci_jobs_can_run_the_repo_gates.py`）· `npm ci --no-audit --no-fund --dry-run` 通过（`up to date in 23s`）· `scripts/stress_smoke.py` 本机按工作流原命令复敲（warmup 2 + rounds 2 · 48c · err 0.00% · p99 1,714.5 ms · **OK**）· YAML 结构入仓有效（cron `0 3 * * 1` UTC · concurrency cancel-in-progress · `contents: read` · artifact 不自动 commit、不红旗不门禁）· dry-run 证物已随收口删除（不入库）· **首班 2026-11-23 周一 03:00 UTC 自动触发，无需人工介入；artifact 到手后人工决定是否入 evidence**
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1940。
+
+### 一、体检清单
+
+| 项 | 结果 |
+|---|---|
+| workflow YAML 入仓解析 | ✓（CI 门禁 9/9 · 含 `test_the_frontend_is_a_ci_leg` 等 9 件 CI 车道测试） |
+| install 步 | `pip install -e ".[dev]"`——宿主 venv 等价物 `.venv` 存活 · 通过 |
+| web build 步 | `npm ci` dry-run `up to date in 23s` · `npm run build` 每日已敲通 |
+| stress 步 | `python scripts/stress_smoke.py --warmup 2 --concurrency 48 --rounds 2 --per-thread 2 --timeout 10.0` · err 0.00% · p99 1,714.5 ms · **OK** |
+| artifact 步 | `upload-artifact@v4` · `weekly-stress-${run_id}` · 不 push · 不红旗 |
+
+### 二、不说
+
+1. 不说「CI 已经签收了」——工作流**本周才首班**，到手之前不算交付；本次只是机制体检而非成绩宣布；
+2. 不说「weekly-stress 会红」——工作流设计上 `set +e` 把 p99 当成 **信息** 不当门禁，自动不会红；
+3. exhibit entries=**16** 不动 · Night Watch 依旧 **CRACKED** · court `4117d2b0ca5fb23a` **LOCKED**。
+
+### 三、裁判
+
+UI **570/570** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **148 卷**。
