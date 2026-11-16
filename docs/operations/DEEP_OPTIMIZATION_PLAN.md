@@ -40371,3 +40371,26 @@ strike 4: prompt=4396 hit=4224 miss=172 (details=None)
 * 不动 court `4117d2b0ca5fb23a` LOCKED · 永远 stream+include_usage · 不缓存 ·「密码-123」否决 · Night Watch 依旧 CRACKED（exhibit #4 永在册）· D2 ⏸（owner PAT）
 
 mvn -o **137/137** · UI **559/559** · build ✓ · guide 6/6 · corrections **16** · purity CLEAR。
+
+## #1921 《在门缝里敲一下》：build_roadmap_live.py 改口——「live lane = aizzz/gpt-6.1-terra · responses · stream+include_usage；每次 live_lane_probe ≈4224 cached_tokens const；本仓库已全车道 stream+include_usage；更续R16：两次不同前缀 probe → 0/0（#1915）」
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1920。
+
+### 一、起因
+
+Owner 重复一句：「现在大模型的api已经修改了记得换新的地址和秘钥 用这个新的这个内容」。本号把最新的 live lane：**aizzz/gpt-6.1-terra · responses · stream+include_usage** 钉进 ROADMAP-LIVE，不再让旧 wkapi/gpt-6-sol 暗语留在 prompt 侧面——连 build 脚本里的硬编码也改过来。
+
+### 二、改了什么
+
+1. `scripts/build_roadmap_live.py` 两处硬编码：
+   - item 7「LLM 账本 live lane」——写明现状 cached_tokens≈4224（每次 live_lane 相同前缀命中，probe-2 连敲仍 4224）；详述"减 prompt · 稳 ordering · 全车道 stream+include_usage（已做）"；
+   - `出厂事实` 脚注「engineer lane aizzz/gpt-6.1-terra · responses · stream+include_usage · cached_tokens {stats.cached_tokens}（live_lane_probe ≈4224；R16）」——出厂机器人不说谎。
+2. `build_roadmap_live.py` 可以被叫任何人再跑（确定性，无 actor）——regen 完 `docs/ROADMAP-LIVE.md` 即最新真值。
+
+### 三、不改的量
+
+* court `4117d2b0ca5fb23a` LOCKED ·「密码-123」否决 · Night Watch 依旧 **CRACKED**（exhibit #4 永在册）
+* D1 ✅ 签落 · D2 ⏸ 等 owner PAT ·「demo 不冒充生产」不动摇 · 端口 8000 仍断
+* mvn -o **137/137** · UI **559/559** · guide 6/6 · corrections **16** · purity **CLEAR** · exhibits entries **11**
+
+mvn -o **137/137** · UI **559/559** · guide 6/6 · corrections **16** · court LOCKED · Night Watch **CRACKED**

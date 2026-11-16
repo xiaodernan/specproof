@@ -31,7 +31,7 @@ tasks = [
     (5, "已确认：24 个 hash-named 文件＝SWE-bench eval 证据（非 scratch、非垃圾）",
      "`scripts/audit_scratch_residue.py` 逐件定性：docs/eval/swebench-logs/*/craft/backup/*.<timestamp>.<6-hex> 是 SWE-bench runner 对源码快照的内容寻址备份，21 件 git-tracked、591,524 字节、全部位于 eval 日志目录——**不删除、不动它们、不是 scratch**；.md 文件里早先‘可疑约 1000 个 542-byte hash 残片’的猜测已被此次审计否证并入账。"),
     (6, "新增卷继续随本体入账", f"编年史 {latest_sec:,} 节；每本书都要 atomic 入账，数量漂了就要重跑 build_chronicle.py。"),
-    (7, "LLM 账本如实变冷不过夜", f"cached_tokens {engine.get('cached_tokens', 0):,} · cache_hit_rate {engine.get('cache_hit_rate', 0) * 100:.1f}%。**它不是 SLO，也不许被写成 SLO**；提升缓存 = 缩 prefix、稳 ordering、stream 车道（本仓库已全车道 stream+include_usage）。"),
+    (7, "LLM 账本 live lane", f"engineer lane = aizzz/gpt-6.1-terra · responses · stream+include_usage；每次 live_lane_probe 敲回 cached_tokens≈4224；两次不同前缀 probe 命中 0/0（R16）。它不是 SLO，也不许被写成 SLO；要提升命中 = 减 prompt · 稳 ordering · 全车道 stream（本仓库已全车道 stream+include_usage）。"),
 ]
 
 lines = [
@@ -50,7 +50,7 @@ lines += [
     "## 出厂事实（build 时快照）",
     "",
     f"- commits **{stats['git_commit_count']:,}** · ledger **{stats['ledger_sections']:,}** 节 · worldbook **{len(world_volumes := json.loads((PAGES / 'worldbook.json').read_text(encoding='utf-8'))['locales']['zh']['volumes'])}** 卷",
-    f"- engineer lane wkapi.pro · gpt-6-sol · stream+include_usage · cached_tokens {engine.get('cached_tokens', 0):,}",
+    f"- engineer lane aizzz/gpt-6.1-terra · responses · stream+include_usage · cached_tokens {engine.get('cached_tokens', 0):,}（live_lane_probe 每次敲回 ≈4224；R16）",
     f"- 端口 8000 归属：{audit.get('port-8000-answers', 'port-free')} · 外网搜索：HTTP 402 · court 永不缓存",
     "",
     "## 字典",
