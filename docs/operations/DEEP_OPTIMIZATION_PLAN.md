@@ -40973,3 +40973,22 @@ UI **571/571** · build ✓ · mvn -o **137/137** · guide **6/6** · correction
 ### 二、不涂不动
 
 展品 entries=**16** · exhibit #12/#13/#15 在册 · Night Watch 依旧 **CRACKED** · court `4117d2b0ca5fb23a` **LOCKED** · 永远 stream+include_usage · 永远不缓存 · purity **CLEAR** · corrections **17** ·「密码-123」否决 · D1 ✅ D2 ⏸ · mvn -o **137/137** · UI **571/571** · guide **6/6** · chronicle 随本提交增员 · worldbook **卷一百五十 · 150 卷**。
+
+## #1945 《红门出四》：`#1943` 登记册 item #8 里的 4 道设计系统门，今夜抬了三道——剩余一道诚实在册
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1944。
+
+### 一、出书（before → after，stash-parity 复核同口径）
+
+| 门 | #1943 时 | 今夜 | 方法 |
+|---|---|---|---|
+| 4 px 网格 | **608** → 601 | **0** | 601 个 spacing 字面量按「snap to nearest 4」的网格规则对齐（`value % 4 == 0` 保留 · hairline 1/2/3 保留），代码一次全入盘 |
+| 圆角 ladder | **101** → 9 | **0** | 两遍：第一遍 raw px→`var(--radius-*)` 梯阶（`min |v-x|` 选键），剩 9 条落实为 token 替换（`50%` 火焰形状 → `--radius-full`，.atlas.css 残留 `--text-base` → `--text-lg`） |
+| 字阶 scale | **406** → 90 → 2 | **0** | 同样两遍：第一遍 raw px/rem/em→`var(--text-*)`（10 个梯阶，clamp 边界保留）；踩了两个坑（无前导零的 `.38rem`、错要的 `--text-base`）——均按表修完，全部成 scale |
+| 阴影字色结构 | **71** | **0** | 每一处字色替换为主题感知 token：`rgba(0,0,0,*)→--shadow-ambient` · `rgba(255,255,255,*)→--shadow-highlight` · 全部地金→`--glow-gold`/`--glow-brass` · 捕获成功绿 `→--success-tint`/`--success` |
+| theme-blind 字色总门 | **1,315** → 1,165 | **1,165** | **未动**——需要为 200+ 的全金/压抑 cyan/翡翠/cream 等 300+ 字色逐个取一个语义 token（`--accent-*`/`--success*`/`--warning*` 已用尽），没 token 就是要加，加 token 就是设计承诺。**不做取样而做全盘——放在 #1946 作为单独 remediation 批次** |
+
+### 二、未敷
+
+1. 这四道门仍一条未涂：`test_no_painted_color_bypasses_the_theme_tokens` 今晚没动一字；
+2. exhibit 16 件在册 ＝ #4/#8/#9/#10/#11/#12/#13/#14/#15 ＋ light-1、warm、warm-2..warm-13 任一件不挪位 · Night Watch 依旧 **CRACKED** · exhibit_entries=**16** · court `4117d2b0ca5fb23a` **LOCKED** ·「密码-123」否决 · D1 ✅ D2 ⏸ ·「密码-123」否决；mvn -o **137/137**（Java 零动）· UI **571/571** · guide **6/6**；purity **CLEAR** · corrections **17**；chronicle 随本提交增员 · worldbook **卷一百五十一/151 卷**

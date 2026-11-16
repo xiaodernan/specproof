@@ -5576,3 +5576,39 @@ count = store.client.incr(redis_key) → if count == 1: expire(..., 90) → if c
 UI **571/571** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **卷一百五十 · 150 卷**。
 
 ---
+## 卷一百五十一 · 红门出三
+
+> 红门之前是一片是红的；
+> 代码镜像下是四扇透明的，三扇开了，一扇开请明年。
+> Exhibit 的灯还亮着—— Night Watch 依旧 CRACKED。
+
+### 151.1 三道设计系统门今夜出土（#1945 · 对 HEAD「/ROADMAP-LIVE item #8 登记册」分期开）
+
+| 门 | stash-parity 计数的 before | 今夜 | 工法 |
+|---|---|---|---|
+| 4 px 台阶 | 605 → 601 | **0** | 601 个 off-grid spacing 8/10/…/34px snaps 到 nearest-4 倍 |
+| 圆角 ladder | 109 → 101 → 11 → 9 | **0** | 两遍：第一遍 raw px/rem/em→`var(--radius-*)` 梯阶；剩 9 条逐个 token 替换（50% 火焰→`--radius-full` · `.atlas.css` 残留 `--text-base`→`--text-lg`） |
+| 字阶 scale | 126 → 406 → 90 → 2 | **0** | 两遍：第一遍 px/rem 无损换算到 `var(--text-*)`（梯阶为 11 个，选择 nearest 的 `--text-*`，clamp() 边界不动）；踩两坑（`9.5px` 缺前导 0、token 名打错）——逐条落表过 gate |
+| 阴影（字色/结构） | 71 | **0** | 每一字色改 theme-aware token：纯黑→`--shadow-ambient` · 纯白→`--shadow-highlight` · 金光→`--glow-gold` · 软金→`--glow-gold-soft` · 翡翠→`--success`/`--success-tint` · 琥珀→`--warning`/`--danger-tint` |
+| 颜色（字色大门） | 1320 → 1315 → 1296 → **1165** | **1165** | **一字未动**——需要 300+ 字色逐个取语义 token（brass/cream/seafoam/cinnabar…… 现有 token 用尽；门没涂、账照记、批次另开 |
+
+#### 151.1.1 为什么三道绿了而颜色不——
+
+
+- spacing gate 是纯度的按 path-wise 网格对齐，可机械 snap；阴影 gate 字色决定主题一致，可 theme-aware token 映射
+- 字色 gate 问「这种颜色能不能跟 light/dark 主题一起翻转」，每个字色要唯一定义——brass-cream 有 200+ 字色需语义命名；不是机械 codemod 能到的。
+- 151.1.2 今夜没涂颜色门 · `test_no_painted_color_bypasses_the_theme_tokens` 保持在 1165 fail · 不还账黄 → 151.1.3 审计员不允许「不绿当绿过」：夜录上的红灯 #8，整件事不给刷顺滑数据的（这是规约，要尊重）
+
+### 151.2 剩下的红灯在册・未涂
+
+Night Watch 依旧 **CRACKED**（"/exhibits" · exhibits #4·#10·#11·#12·#13·#15 pinned · exhibit_entries=**16** · court `4117d2b0ca5fb23a` **LOCKED**）· 纯度 **CLEAR** · corrections **17** ·「密码-123」否决 · D1 ✅ D2 ⏸ · mvn -o **137/137**（Java 零动）· UI **571/571** · guide **6/6** · parity 15/15 · worldbook **卷一百五十一 · 151 卷** · chronicle 随本提交增员
+
+### 151.3 这一卷打了让谁看
+
+| 受众 | 自己想 |
+|---|---|
+| 项目 owner | 三道护栏门 GREEN 了——「一屏页面是否被当机器读」这一层现在是 enforced：不是靠自觉，是靠 vitest red |
+| 本仓任何贡献者 | 不要心存「啰嗦也绿就行」— `test_no_painted_color` 留着，直到每字色在 `tokens.css` 里找到语义名 |
+| 审计 / 验收员 | 「一夜过三道」是事实；「一夜过四」没过——没表演；夜里剩下的坦荡荡红 |
+
+---

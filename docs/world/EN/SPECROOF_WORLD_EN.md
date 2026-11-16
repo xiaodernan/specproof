@@ -5464,3 +5464,40 @@ count = store.client.incr(redis_key) → if count == 1: expire(redis_key, 90) �
 * UI **571/571** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **16** · the chronicle grows with this commit · worldbook **Scroll CL · 150 scrolls**.
 
 ---
+## Scroll CLI · Three doors open
+
+> Three of the four red doors opened tonight; the fourth is recorded, never repainted.
+> The exhibit lamps stay on; Night Watch remains **CRACKED**.
+
+### 151.1 Three design-system gates cleared tonight (#1945 · splitting ROADMAP-LIVE item #8)
+
+| gate | HEAD at #1943 (| stash-review) | tonight | how |
+|---|---|---|---|
+| 4 px grid | 608 → 601 | **0** | 601 off-grid spacing literals snapped to nearest-4 (multiples of 4 win; hairline 1/2/3 kept) |
+| radius ladder | 109 → 101 → 11 → 9 | **0** | two passes: pass 1 replaces px/rem raw radii with the nearest --radius-* step; the remaining nine are replaced individually (50% flame → --radius-full · .atlas.css stray --text-base → --text-lg) |
+| type scale | 126 → 406 → 90 → 2 | **0** | two passes: px/rem sizes snap to the nearest **eleven** --text-* steps (clamp() bounds untouched); two bad swipes needed point-fix (`9.5px` missing leading 0 · typoed `--text-base`) |
+| shadow (colour & structure) | 71 | **0** | every colour is now theme-aware tokens: pure black → `--shadow-ambient` · white → `--shadow-highlight` · gold → `--glow-gold` · soft gold → `--glow-gold-soft` · seafoam → `--success`/`--success-tint` · amber → `--warning`/`--danger-tint` |
+| theme-blind colours (the whole door) | 1320 → 1315 → 1296 → **1,165** | **1,165** | **UNTOUCHED** — over 300 distinct brass/cream/seafoam/cinnabar literals need individual semantic naming; token ladder is exhausted; this door splits into its own remediation pass |
+
+#### 151.1.1 Why three gates turn green and the fourth doesn't
+
+- the spacing gate is a lattice-snap decision per declaration — every px can be snapped without authorship;
+- the shadow gate is a theme-aware replacement — shrugging off a literal colour never kills the look;
+- the font-size gate is a ladder lookup — 11 steps cover the app's actual size catalogue;
+- the colour gate asks, for EVERY literal, "does this hex have a semantic home?" — it demands 300+ new token decisions; codemods can't author semantics.
+
+**151.1.2 Undone deliberately**: `test_no_painted_color_bypasses_the_theme_tokens` stays red at 1165; no greened gloss is permitted by the book's rule — a red gate stays until genuinely green; **151.1.3 no "it passed on my machine" — audit runs the same command you do**.
+
+### 151.2 The rest stays on file, none repainted
+
+Night Watch remains **CRACKED** (exhibit #4 · #10 · #11 · #12 · #13 · #15 pinned · exhibit_entries=**16** · court `4117d2b0ca5fb23a` **LOCKED**) · purity **CLEAR** · corrections **17** · "password-123" vetoed · D1 ✅ D2 pending owner's PAT · mvn -o **137/137** (Java untouched) · UI **571/571** · guide **6/6** · parity 15/15 · worldbook **Scroll CLI · 151 scrolls** · the chronicle grows with this commit.
+
+### 151.3 For whom this gate matters
+
+| audience | what it means |
+|---|---|
+| owner of this repo | three rails enforce themselves now — whether a page "reads like a machine wrote it" is no longer enforced by nobody's eye |
+| contributor to this repo | don't slip a "mostly passes" clause — `test_no_painted_color` stays red until every one of the 1165 literals finds its token |
+| auditor / acceptance officer | three green is the truth; fourth staying red is the truth — no greened gloss sold here, tonight |
+
+---

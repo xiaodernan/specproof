@@ -1,11 +1,11 @@
 ﻿
-.chain-banner { display: flex; align-items: center; gap: 10px; margin: 10px 0 14px; padding: 8px 14px; border: 1px solid; border-radius: 6px; font-size: .72rem; line-height: 1.5; }
-.chain-banner-ok { border-color: rgba(165, 242, 217, .4); background: rgba(165, 242, 217, .06); color: #a5f2d9; }
+.chain-banner { display: flex; align-items: center; gap: 8px; margin: 8px 0 16px; padding: 8px 16px; border: 1px solid; border-radius: var(--radius-sm); font-size: var(--text-sm); line-height: 1.5; }
+.chain-banner-ok { border-color: var(--success-tint); background: rgba(165, 242, 217, .06); color: #a5f2d9; }
 .chain-banner-ok svg { color: #a5f2d9; }
 .chain-banner-bad { border-color: rgba(255, 107, 98, .45); background: rgba(255, 107, 98, .08); color: #ffb3a0; }
 .chain-banner-bad svg { color: #ffb3a0; }
 .chain-banner-text { margin: 0; flex: 1; }
-.chain-banner-link { color: inherit; border: 1px solid currentColor; border-radius: 4px; padding: 4px 9px; text-decoration: none; font-size: .64rem; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
-.chain-banner-link:hover { background: rgba(255, 255, 255, .06); }
+.chain-banner-link { color: inherit; border: 1px solid currentColor; border-radius: var(--radius-2xs); padding: 4px 8px; text-decoration: none; font-size: var(--text-2xs); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
+.chain-banner-link:hover { background: var(--shadow-highlight); }
 .chain-banner svg { flex: 0 0 auto; }
 @media print { .chain-banner { break-inside: avoid; } }

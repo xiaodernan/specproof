@@ -169,10 +169,10 @@
 }
 .stage-timeline-bar {
   position: absolute;
-  top: 7px;
-  bottom: 7px;
+  top: 8px;
+  bottom: 8px;
   min-width: 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-2xl);
   transition: filter var(--dur) var(--ease-out), transform var(--dur) var(--ease-out);
 }
 .stage-timeline-bar:hover {

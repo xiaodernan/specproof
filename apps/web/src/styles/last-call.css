@@ -4,43 +4,43 @@
 
 .last-call-page { max-width: 1180px; margin: 0 auto; color: #ead9b8; }
 
-.last-call-mast { padding: 24px 26px 20px; border: 1px solid rgba(232, 176, 75, 0.42); border-radius: 12px; background: radial-gradient(1100px 300px at 12% -28%, rgba(232, 176, 75, 0.2), transparent 60%), linear-gradient(180deg, #1d150c 0%, #150f07 100%); }
-.last-call-kicker { font-size: 11px; letter-spacing: 0.44em; color: rgba(232, 176, 75, 0.85); margin: 0 0 10px; font-weight: 600; }
-.last-call-mast h1 { font-family: Georgia, "Noto Serif SC", "Songti SC", serif; font-size: clamp(1.9rem, 4.4vw, 2.7rem); margin: 0; color: #f6ecd2; line-height: 1.1; letter-spacing: 0.02em; }
-.last-call-en { display: block; font-size: 0.22em; letter-spacing: 0.34em; color: rgba(232, 176, 75, 0.8); margin-top: 8px; text-transform: uppercase; }
-.last-call-lead { color: #b2a37c; line-height: 1.9; margin: 12px 0 0; max-width: 64ch; font-size: 0.9rem; }
-.last-call-facts { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; font-size: 11.5px; color: #8d8062; font-variant-numeric: tabular-nums; }
-.last-call-facts strong { color: #f0d896; font-size: 1.05em; }
+.last-call-mast { padding: 24px 24px 20px; border: 1px solid rgba(232, 176, 75, 0.42); border-radius: var(--radius-lg); background: radial-gradient(1100px 300px at 12% -28%, rgba(232, 176, 75, 0.2), transparent 60%), linear-gradient(180deg, #1d150c 0%, #150f07 100%); }
+.last-call-kicker { font-size: var(--text-xs); letter-spacing: 0.44em; color: rgba(232, 176, 75, 0.85); margin: 0 0 8px; font-weight: 600; }
+.last-call-mast h1 { font-family: Georgia, "Noto Serif SC", "Songti SC", serif; font-size: var(--text-4xl); margin: 0; color: #f6ecd2; line-height: 1.1; letter-spacing: 0.02em; }
+.last-call-en { display: block; font-size: var(--text-2xs); letter-spacing: 0.34em; color: rgba(232, 176, 75, 0.8); margin-top: 8px; text-transform: uppercase; }
+.last-call-lead { color: #b2a37c; line-height: 1.9; margin: 12px 0 0; max-width: 64ch; font-size: var(--text-lg); }
+.last-call-facts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 16px; font-size: var(--text-xs); color: #8d8062; font-variant-numeric: tabular-nums; }
+.last-call-facts strong { color: #f0d896; font-size: var(--text-xl); }
 .last-call-dot { color: #544c38; }
-.last-call-serve { margin-top: 16px; background: transparent; border: 1px solid rgba(232, 176, 75, 0.55); color: #f0d896; padding: 12px 22px; border-radius: 6px; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; cursor: pointer; }
+.last-call-serve { margin-top: 16px; background: transparent; border: 1px solid rgba(232, 176, 75, 0.55); color: #f0d896; padding: 12px 24px; border-radius: var(--radius-sm); font-size: var(--text-sm); letter-spacing: 0.18em; text-transform: uppercase; cursor: pointer; }
 .last-call-serve:hover { background: rgba(232, 176, 75, 0.14); }
 .last-call-serve:focus-visible { outline: 2px solid #e8b04b; outline-offset: 3px; }
 
 /* cards */
-.last-call-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.last-call-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
 @media (max-width: 1080px) { .last-call-cards { grid-template-columns: 1fr; } }
-.last-call-card { display: flex; flex-direction: column; gap: 10px; border-radius: 12px; padding: 18px; border: 1px solid rgba(255, 255, 255, 0.08); min-height: 220px; }
-.last-call-card h2 { font-family: Georgia, "Noto Serif SC", "Songti SC", serif; font-size: 1.25rem; line-height: 1.45; margin: 0; color: #f2e6c4; letter-spacing: 0.02em; border-bottom: 1px dashed rgba(255, 255, 255, 0.14); padding-bottom: 10px; overflow-wrap: anywhere; }
-.last-call-card-kicker { font-size: 9.5px; letter-spacing: 0.34em; color: #8d8062; margin: 0; text-transform: uppercase; }
+.last-call-card { display: flex; flex-direction: column; gap: 8px; border-radius: var(--radius-lg); padding: 16px; border: 1px solid rgba(255, 255, 255, 0.08); min-height: 220px; }
+.last-call-card h2 { font-family: Georgia, "Noto Serif SC", "Songti SC", serif; font-size: var(--text-2xl); line-height: 1.45; margin: 0; color: #f2e6c4; letter-spacing: 0.02em; border-bottom: 1px dashed rgba(255, 255, 255, 0.14); padding-bottom: 8px; overflow-wrap: anywhere; }
+.last-call-card-kicker { font-size: var(--text-2xs); letter-spacing: 0.34em; color: #8d8062; margin: 0; text-transform: uppercase; }
 
 .last-call-card-book { background: linear-gradient(165deg, #1c1510 0%, #14100a 100%); }
 .last-call-card-case { background: linear-gradient(165deg, #171310 0%, #100d09 100%); border-color: rgba(255, 255, 255, 0.1); }
 .last-call-card-chronicle { background: linear-gradient(165deg, #141519 0%, #0e0f13 100%); border-color: rgba(155, 172, 220, 0.18); }
 
-.last-call-excerpt { color: #cabd94; line-height: 1.95; font-size: 0.92rem; margin: 0; }
+.last-call-excerpt { color: #cabd94; line-height: 1.95; font-size: var(--text-lg); margin: 0; }
 .last-call-entry { color: #b8c3e0 !important; font-variant-numeric: tabular-nums; }
-.last-call-meta { display: flex; gap: 6px; flex-wrap: wrap; }
-.last-call-pill { font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; padding: 3px 9px; border-radius: 3px; border: 1px solid rgba(255, 255, 255, 0.16); color: #cfc4a5; font-weight: 600; }
+.last-call-meta { display: flex; gap: 8px; flex-wrap: wrap; }
+.last-call-pill { font-size: var(--text-2xs); letter-spacing: 0.14em; text-transform: uppercase; padding: 3px 8px; border-radius: var(--radius-2xs); border: 1px solid rgba(255, 255, 255, 0.16); color: #cfc4a5; font-weight: 600; }
 .last-call-pill-family { border-color: rgba(155, 172, 220, 0.5); color: #b8c3e0; }
 .last-call-pill-severity { border-color: rgba(232, 176, 75, 0.5); color: #ecd894; }
 .last-call-pill-detect { border-color: rgba(140, 210, 160, 0.5); color: #a5e0bd; }
 .last-call-pill-negative { border-style: dashed; color: #8d8062; }
-.last-call-card-foot { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; border-top: 1px dashed rgba(255, 255, 255, 0.12); padding-top: 10px; margin-top: auto; font-size: 10px; color: #8d8062; }
-.last-call-card-foot code { font-family: var(--font-mono); color: #9ecbff; font-size: 10px; }
-.last-call-card-foot a { color: #e8b04b; text-decoration: none; font-size: 10.5px; letter-spacing: 0.04em; white-space: nowrap; }
+.last-call-card-foot { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; border-top: 1px dashed rgba(255, 255, 255, 0.12); padding-top: 8px; margin-top: auto; font-size: var(--text-2xs); color: #8d8062; }
+.last-call-card-foot code { font-family: var(--font-mono); color: #9ecbff; font-size: var(--text-2xs); }
+.last-call-card-foot a { color: #e8b04b; text-decoration: none; font-size: var(--text-2xs); letter-spacing: 0.04em; white-space: nowrap; }
 .last-call-card-foot a:hover { color: #f6cf7d; text-decoration: underline; }
 
-.last-call-honesty { display: flex; gap: 10px; align-items: flex-start; border: 1px dashed rgba(155, 172, 220, 0.4); background: rgba(155, 172, 220, 0.06); border-radius: 10px; padding: 12px 14px; margin-top: 14px; color: #9aa0b4; line-height: 1.9; font-size: 11.5px; }
+.last-call-honesty { display: flex; gap: 8px; align-items: flex-start; border: 1px dashed rgba(155, 172, 220, 0.4); background: rgba(155, 172, 220, 0.06); border-radius: var(--radius-md); padding: 12px 16px; margin-top: 16px; color: #9aa0b4; line-height: 1.9; font-size: var(--text-xs); }
 .last-call-honesty svg { flex: 0 0 auto; margin-top: 2px; }
 
 @media print { .last-call-cards, .last-call-honesty { display: none; } .last-call-mast { background: #fffdf4; color: #221d10; border-color: #8a6d1f; } .last-call-mast h1, .last-call-lead { color: #221d10; } }

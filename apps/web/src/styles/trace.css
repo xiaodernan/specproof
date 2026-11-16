@@ -4,47 +4,47 @@
 
 .trace-page { max-width: 1180px; margin: 0 auto; color: #dcd6c3; }
 
-.trace-mast { padding: 24px 26px 20px; border: 1px solid rgba(200, 185, 140, 0.35); border-radius: 12px; background: radial-gradient(1100px 280px at 12% -25%, rgba(200, 185, 140, 0.14), transparent 60%), linear-gradient(180deg, #181614 0%, #100f0e 100%); }
-.trace-kicker { font-size: 11px; letter-spacing: 0.42em; color: rgba(200, 185, 140, 0.85); margin: 0 0 10px; font-weight: 600; }
-.trace-mast h1 { font-family: Georgia, "Noto Serif SC", "Songti SC", serif; font-size: clamp(1.9rem, 4.2vw, 2.5rem); margin: 0; color: #f0ead0; line-height: 1.1; letter-spacing: 0.03em; }
-.trace-en { display: block; font-size: 0.2em; letter-spacing: 0.34em; color: rgba(200, 185, 140, 0.8); margin-top: 8px; text-transform: uppercase; }
-.trace-lead { color: #a69e83; line-height: 1.9; margin: 12px 0 0; max-width: 66ch; font-size: 0.9rem; }
+.trace-mast { padding: 24px 24px 20px; border: 1px solid rgba(200, 185, 140, 0.35); border-radius: var(--radius-lg); background: radial-gradient(1100px 280px at 12% -25%, rgba(200, 185, 140, 0.14), transparent 60%), linear-gradient(180deg, #181614 0%, #100f0e 100%); }
+.trace-kicker { font-size: var(--text-xs); letter-spacing: 0.42em; color: rgba(200, 185, 140, 0.85); margin: 0 0 8px; font-weight: 600; }
+.trace-mast h1 { font-family: Georgia, "Noto Serif SC", "Songti SC", serif; font-size: var(--text-4xl); margin: 0; color: #f0ead0; line-height: 1.1; letter-spacing: 0.03em; }
+.trace-en { display: block; font-size: var(--text-2xs); letter-spacing: 0.34em; color: rgba(200, 185, 140, 0.8); margin-top: 8px; text-transform: uppercase; }
+.trace-lead { color: #a69e83; line-height: 1.9; margin: 12px 0 0; max-width: 66ch; font-size: var(--text-lg); }
 
 .trace-search-row { margin-top: 16px; }
-.trace-search { width: 100%; padding: 15px 18px; font-size: 15px; border-radius: 9px; border: 1px solid rgba(200, 185, 140, 0.42); background: #141210; color: #efe8d1; font-family: var(--font-mono); outline: none; }
-.trace-search:focus-visible { border-color: rgba(200, 185, 140, 0.75); box-shadow: 0 0 0 3px rgba(200, 185, 140, 0.2); }
+.trace-search { width: 100%; padding: 16px 16px; font-size: var(--text-lg); border-radius: var(--radius-md); border: 1px solid rgba(200, 185, 140, 0.42); background: #141210; color: #efe8d1; font-family: var(--font-mono); outline: none; }
+.trace-search:focus-visible { border-color: rgba(200, 185, 140, 0.75); box-shadow: 0 0 0 3px var(--glow-brass); }
 .trace-search::placeholder { color: #6a6555; font-family: var(--font-mono); }
 
-.trace-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 11px; }
-.trace-chip { font-family: var(--font-mono); font-size: 10.5px; background: rgba(200, 185, 140, 0.1); color: #d6c98f; border: 1px solid rgba(200, 185, 140, 0.35); border-radius: 5px; padding: 6px 13px; cursor: pointer; }
-.trace-chip:hover { background: rgba(200, 185, 140, 0.2); color: #efe4a8; }
+.trace-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.trace-chip { font-family: var(--font-mono); font-size: var(--text-2xs); background: rgba(200, 185, 140, 0.1); color: #d6c98f; border: 1px solid rgba(200, 185, 140, 0.35); border-radius: var(--radius-xs); padding: 8px 12px; cursor: pointer; }
+.trace-chip:hover { background: var(--glow-brass); color: #efe4a8; }
 
-.trace-count { margin: 14px 0 0; font-size: 11px; color: #a69e83; font-variant-numeric: tabular-nums; display: flex; gap: 14px; flex-wrap: wrap; }
+.trace-count { margin: 16px 0 0; font-size: var(--text-xs); color: #a69e83; font-variant-numeric: tabular-nums; display: flex; gap: 16px; flex-wrap: wrap; }
 .trace-count strong { color: #efe4a8; }
 
-.trace-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+.trace-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
 @media (max-width: 1080px) { .trace-grid { grid-template-columns: 1fr; } }
 
-.trace-panel { border: 1px solid rgba(255, 255, 255, 0.08); background: #14120f; border-radius: 10px; padding: 18px; min-width: 0; max-height: 70vh; overflow: auto; }
+.trace-panel { border: 1px solid rgba(255, 255, 255, 0.08); background: #14120f; border-radius: var(--radius-md); padding: 16px; min-width: 0; max-height: 70vh; overflow: auto; }
 .trace-chrono { border-color: rgba(200, 185, 140, 0.25); }
 .trace-world { border-color: rgba(155, 172, 220, 0.25); }
-.trace-panel h2 { font-size: 0.9rem; margin: 0 0 12px; color: #e9e2c6; border-bottom: 1px solid rgba(200, 185, 140, 0.22); padding-bottom: 10px; letter-spacing: 0.04em; position: sticky; top: 0; background: #14120f; z-index: 1; }
+.trace-panel h2 { font-size: var(--text-lg); margin: 0 0 12px; color: #e9e2c6; border-bottom: 1px solid rgba(200, 185, 140, 0.22); padding-bottom: 8px; letter-spacing: 0.04em; position: sticky; top: 0; background: #14120f; z-index: 1; }
 .trace-world h2 { border-bottom-color: rgba(155, 172, 220, 0.22); }
-.trace-empty { color: #6a6555; font-size: 12px; line-height: 1.9; }
-.trace-tooshort { text-align: center; color: #6a6555; font-size: 13px; margin: 28px 0; }
+.trace-empty { color: #6a6555; font-size: var(--text-sm); line-height: 1.9; }
+.trace-tooshort { text-align: center; color: #6a6555; font-size: var(--text-md); margin: 28px 0; }
 
 .trace-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.trace-row { border: 1px solid rgba(255, 255, 255, 0.06); background: rgba(255, 255, 255, 0.02); border-radius: 7px; padding: 9px 12px; }
-.trace-row-head { display: flex; align-items: baseline; gap: 10px; text-decoration: none; color: inherit; }
+.trace-row { border: 1px solid var(--shadow-highlight); background: rgba(255, 255, 255, 0.02); border-radius: var(--radius-sm); padding: 8px 12px; }
+.trace-row-head { display: flex; align-items: baseline; gap: 8px; text-decoration: none; color: inherit; }
 .trace-row-head:hover .trace-row-title { color: #efe4a8; }
-.trace-row-n { font-family: var(--font-mono); font-size: 10.5px; color: #9ecbff; flex: 0 0 auto; }
-.trace-row-title { color: #ded7ba; line-height: 1.55; font-size: 0.86rem; overflow-wrap: anywhere; }
-.trace-row-badge { font-size: 8.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #6a6555; border: 1px solid rgba(255, 255, 255, 0.11); border-radius: 3px; padding: 2px 6px; flex: 0 0 auto; }
-.trace-row-body { color: #a49a7c; font-size: 11px; line-height: 1.8; margin: 6px 0 0; overflow-wrap: anywhere; }
+.trace-row-n { font-family: var(--font-mono); font-size: var(--text-2xs); color: #9ecbff; flex: 0 0 auto; }
+.trace-row-title { color: #ded7ba; line-height: 1.55; font-size: var(--text-lg); overflow-wrap: anywhere; }
+.trace-row-badge { font-size: var(--text-2xs); letter-spacing: 0.08em; text-transform: uppercase; color: #6a6555; border: 1px solid rgba(255, 255, 255, 0.11); border-radius: var(--radius-2xs); padding: 2px 8px; flex: 0 0 auto; }
+.trace-row-body { color: #a49a7c; font-size: var(--text-xs); line-height: 1.8; margin: 8px 0 0; overflow-wrap: anywhere; }
 
-.trace-empty-panel { text-align: center; padding: 60px 20px; color: #a69e83; line-height: 1.9; display: flex; flex-direction: column; gap: 14px; align-items: center; max-width: 62ch; margin: 14px auto; }
+.trace-empty-panel { text-align: center; padding: 60px 20px; color: #a69e83; line-height: 1.9; display: flex; flex-direction: column; gap: 16px; align-items: center; max-width: 62ch; margin: 16px auto; }
 
-.trace-honesty { display: flex; gap: 10px; align-items: flex-start; border: 1px dashed rgba(155, 172, 220, 0.4); background: rgba(155, 172, 220, 0.06); border-radius: 10px; padding: 12px 14px; margin-top: 14px; color: #9aa0b4; line-height: 1.9; font-size: 11.5px; }
+.trace-honesty { display: flex; gap: 8px; align-items: flex-start; border: 1px dashed rgba(155, 172, 220, 0.4); background: rgba(155, 172, 220, 0.06); border-radius: var(--radius-md); padding: 12px 16px; margin-top: 16px; color: #9aa0b4; line-height: 1.9; font-size: var(--text-xs); }
 .trace-honesty svg { flex: 0 0 auto; margin-top: 2px; }
 
 @media print { .trace-search, .trace-chips { display: none; } .trace-page { color: #111; } }

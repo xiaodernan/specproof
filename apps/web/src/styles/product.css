@@ -288,8 +288,8 @@ table.data td { padding: 12px 16px; font-size: var(--text-xs); }
 .result-raw summary { cursor: pointer; padding-bottom: 12px; }
 @media (max-width: 760px) { .result-metrics, .result-gates { grid-template-columns: 1fr; } .result-overview { padding: 20px; } .result-overview h2 { font-size: var(--text-2xl); } }
 
-.dashboard-census { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; border: 1px dashed rgba(165, 242, 217, .4); background: rgba(165, 242, 217, .05); border-radius: 6px; padding: 10px 16px; margin: 0 0 18px; font-size: .75rem; color: #8f9f95; }
-.dashboard-census strong { color: #a5f2d9; font-variant-numeric: tabular-nums; font-size: .85rem; }
-.dashboard-census a { color: #a5f2d9; text-decoration: none; border: 1px solid rgba(165, 242, 217, .35); border-radius: 4px; padding: 3px 9px; white-space: nowrap; }
+.dashboard-census { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; border: 1px dashed var(--success-tint); background: rgba(165, 242, 217, .05); border-radius: var(--radius-sm); padding: 8px 16px; margin: 0 0 16px; font-size: var(--text-sm); color: #8f9f95; }
+.dashboard-census strong { color: #a5f2d9; font-variant-numeric: tabular-nums; font-size: var(--text-lg); }
+.dashboard-census a { color: #a5f2d9; text-decoration: none; border: 1px solid rgba(165, 242, 217, .35); border-radius: var(--radius-2xs); padding: 3px 8px; white-space: nowrap; }
 .dashboard-census a:hover { background: rgba(165, 242, 217, .1); }
 @media print { .dashboard-census { display: none !important; } }
