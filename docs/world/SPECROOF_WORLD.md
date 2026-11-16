@@ -3814,3 +3814,53 @@ cache 前缀效应与 wkapi 当年的 4224 常量同构：**网关按前缀字�
 * 「密码-123」永久否决。
 
 ---
+## 卷九十五 · 铁门响应（The Whole Chain Answers）
+
+> 昨天敲开了一扇门；今天翻开了门后的机关。
+> 这一卷的胜利不在敲通——在「通了以后，走之前的那段路是不是也通着」。
+
+### 95.1 同一天里的第二个 bug：门通了，后半段不通
+
+#1884 复敲 `provider_smoke.py` 时，Stage-2 直接抛出：
+
+> **`stream_required` — This group only supports streaming generation requests.**
+
+真因链：对方 `/v1/responses` 车道只收 `stream=true`；而本仓的 one-response 应答路径（`_chat_dispatch` 的 responses 分支）还在发**不流式**调用。
+产品自己早知「所有应答车道都是流」的铁律——但跨协议折叠只写了 chat-completions 一半；**responses 那半没被真枪打过**（wkapi 当年允许非流所以没报）。
+
+### 95.2 修法（machine 守门，机器不许绕）
+
+| 件 | 内容 |
+|---|---|
+| `_chat_dispatch` responses 分支 | 弃用裸 `responses.create`；改为经由本仓既有的 `_responses_stream` SSE 车道**就地折叠**：文本增量拼接 · tool calls 按 id 去重 · 在 `response.completed` 事件取 `usage/finish_reason` |
+| 容错 | 对方若**忽略** stream=true 直接回完成体，同样接受（与 chat 车道的 `_collect_chat_stream` 对称）——绝不考验运气 |
+| `_responses_stream` 签名 | 新增 `tool_choice` / `response_format` 透传（`request_kwargs` 既有翻译器；json_schema 线型不变） |
+| 能力记录 | `response.completed` 事件现在带着 `response_format/tool_choice` 入 `_record_responses_capabilities`（json_output 能力复原） |
+| 测试桩 | `test_responses_provider.py::provider_with` 改为 stream 感知（Stream 原件原样返回 · 完成体 dict 包一个 completed 事件——与真实 stream-only 网关对齐） |
+
+### 95.3 验证（真机，这台机器，7897 出网）
+
+| 车道 | 结果 |
+|---|---|
+| 单元 143 件（provider 全套 + responses + net + cache + metrics census floor=3） | **143/143 green** |
+| 响应协议专项 | **20/20 green**（含流式 completed 事件的能力钉、text 不复读、函数调用只发一次） |
+| `Court Lock` | **4117d2b0ca5fb23a LOCKED** · 5/5 切片 |
+| **`scripts/provider_smoke.py`** | **7/7 PASS**（probe → chat → json(5 字段） → JUnit 7 schema check → Maven compile exit 0 → Secret scan → Digest chain）· Verdict **PASS** |
+
+Report：`artifacts/p0.5/provider-smoke-20261116T070508Z/provider-smoke-report.json`（**git-ignored，不入库**；端点与耗时只作为现环记录，不加入任何账）。
+
+### 95.4 诚实边界
+
+* **court 永远 stream=True + include_usage=True，court 永不缓存**；`4117d2b0ca5fb23a` LOCKED。本修复只到应答路径，不越界到裁判车道；
+* 本修复**不改变裁判**——court 仍由 `test_court_never_caches.py`（4/4）和 byte-slice 机器锁守；
+* `.local/llm.json` 未动一字节之外的任何物；digest 记录的是本机本刻。
+* engine.json **本轮未重建**：它记录 2026-11-15 wkapi 车道的 46 次真敲（51.2%）；今天的 aizzz 车道记入 `.local/llm_usage.jsonl`（本机私密、不入仓），两车道数字不混入同一 JSON；
+* D1/D2 欠着；「密码-123」永久否决；「演示数据不冒充生产」不动摇。
+
+### 95.5 这一卷的真里程
+
+**本仓库第一次在新扉页（aizzz/gpt-6.1-terra）上，用自己的生产代码路径，从门到 JUnit 编译全绿。**
+不是 stub、不是 SKIP、不是「本机回避全部网络」——是真的；只是这列叹息不在账里充电量。
+（下一个周末若 aizzz 再被关回 402，本卷记的是这一刻它亮过。）
+
+---

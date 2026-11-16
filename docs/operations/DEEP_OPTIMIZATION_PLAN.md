@@ -39407,3 +39407,41 @@ python scripts/live_lane_probe.py   # HTTP 200 · 9 chunks
 * 代理 **7897** 是本机事实：绝不落入任何 tracked 文件；
 * 本轮把两件事记住：**R14 纠偏**（可删? 不删——卷轴只增不删）、以及**stream/responses 铁律被服务端确认**；
 * D1（OBSERVABILITY 签字）、D2（PORTFOLIO_TOKEN）照旧；纯网页中文/英文环境、全页尾 ChainBanner 六页，无变更。
+
+## #1885 《铁门响应》：stream-only 网关逼出产品真 bug——one-response responses 车道发非流请求（stream_required）；#1724-era 假设被敲碎；修复=折叠 SSE 车道 · provider_smoke 7/7 PASS · Volume XCIV《梯光复明》
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1884（梯复通）与 63d015d（代码修复）。
+
+### 一、二级发现：egress 修完，还埋着一项产品债（#1884 未竟）
+
+* `scripts/provider_smoke.py` 带梯复敲：Stage-2 crash — `openai.BadRequestError: 400 stream_required — This group only supports streaming generation requests. Set stream to true.`
+* 追因：产品的 one-response 应答路径（`_chat_dispatch` responses 分支）直接 `responses.create(**kwargs)` 且**不带 stream=True**——wkapi 年代此调用被接受，一直没被真敲过；aizzz 强制 stream；
+* 这正是 owner 反复指出的「一直显示非流 / 缓存命中低」的深层代码病之一——应答这个语义在本仓有**两半**：chat-completions（#1644 起流式化，aggregates）和 responses（一直没被真敲过 stream 契约）。
+
+### 二、修复（providers/openai_compatible.py，本轮落【commit 63d015d】）
+
+| 件 | 内容 |
+|---|---|
+| one-response responses | 直接折叠既有 `_responses_stream`（canonical SSE 生成器，metrics census floor=3 不让路）：deltas 一次拼接，tool calls 按 id 去重，usage/finish_reason 取自 `response.completed` |
+| completed-body tolerance | 对方忽略 stream=true 直接返完成体 → `parse_response` 照收（与 chat 车道 `_collect_chat_stream` 同款容错） |
+| `_responses_stream` 签名 | `tool_choice` / `response_format` 透传到 `request_kwargs`（json_schema 线型保持；required tool choice 能到线上） |
+| 能力记录补正 | `response.completed` 带着 `response_format/tool_choice` 进 `_record_responses_capabilities`——**json_output capability test 复绿** |
+| 测试桩 `provider_with` | stream 感知：Stream 原件原样返回，完成体 dict → 一个 completed 事件（=真 stream-only 网关的形状；既有测试全部按真行为钉死） |
+
+### 三、验证（本轮实敲）
+
+| 车道 | 结果 |
+|---|---|
+| unit（provider stack） | **143/143**（含 `test_every_entry_call_in_the_verb_bodies_is_metered` floor=3 ✓、responses 专项 20/20）|
+| court never cached | `test_court_never_caches.py` 4/4 · `test_court_lock_machine.py CAP 6/6 · LOCKED 4117d2b0ca5fb23a` |
+| **provider_smoke（带梯）** | **7/7 PASS** — probe · chat · json(5 字段） · JUnit 7 schema ✓ · Maven compile exit 0 · Secret scan ✓ · Digest chain ✓ — **Verdict PASS**；report 写 artifacts/p0.5/provider-smoke-20261116T070508Z（**git-ignored**） |
+
+### 四、诚实边界
+
+* engine.json **本轮不重建**：它忠实记录 2026-11-15 wkapi 的 46 次真敲（cached 75,638 · 51.2%）；今天 aizzz 车道写入本机 `.local/llm_usage.jsonl`（未跟踪、不入仓）——不混、不换、不 claim 新命中率；
+* D1（OBSERVABILITY 签字）· D2（PORTFOLIO_TOKEN）照旧；「密码-123 全员进管理员」永久否决；演示不冒充生产、court 永远 stream+include_usage、court 永不缓存（4117d2b0ca5fb23a **LOCKED**）。
+
+### 五、Volume XCV《铁门响应 · The Whole Chain Answers》入册 → worldbook **102 卷**；chronicle **1,686 节**。
+
+这是本仓库第一次：从 `.local/llm.json` 的新扉页上，用**自己的生产代码路径**把门敲通、JSON 出、JUnit 生成并编译过。
+不是 stub、不是 SKIP、不是「这次别打网络」——是真敲的。只是钱是你的，章是我的，账我如实记。

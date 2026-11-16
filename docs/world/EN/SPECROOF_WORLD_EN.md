@@ -3686,3 +3686,53 @@ Read henceforth as "R14 covers XCI/XCII, and their typed bytes remain true as ty
 * 「password-123」permanently vetoed.
 
 ---
+## Volume XCV · The Whole Chain Answers（卷九十五 · 铁门响应）
+
+> Yesterday we knocked a door open; today we turned the bolts behind it.
+> The victory in this volume is not the knock — it is whether the road behind the door was sound.
+
+### 95.1 The second bug in the same day: the door opened; half the hallway did not
+
+Stage-2 of `provider_smoke.py`, struck right after #1884 landed:
+
+> **`stream_required` — This group only supports streaming generation requests.**
+
+Root cause chain: this gateway's `/v1/responses` lane accepts only `stream=true`, while the product's one-response answers path (`_chat_dispatch`, responses branch) was still issuing **non-streamed** calls.
+The product had always known the iron rule — *every answer lane is a stream* — but the fold was only written for chat-completions. **The responses half had never faced live fire** (wkapi allowed non-stream; nobody crashed).
+
+### 95.2 The fix (machine-gated)
+
+| piece | content |
+|---|---|
+| `_chat_dispatch` (responses branch) | bare `responses.create` retired; the contract now folds this repo's own `_responses_stream` SSE lane **in-place**: text deltas joined · tool calls deduped by id · `usage/finish_reason` taken from `response.completed` |
+| tolerance | a completed body handed back where a stream was asked for (proxy ignoring stream=True) is accepted — symmetric with `_collect_chat_stream`; never a coin-flip |
+| `_responses_stream` signature | `tool_choice` / `response_format` now threaded into the translator (`request_kwargs`, unchanged translation table) |
+| capability ledger | the completed event now records `response_format/tool_choice` (json_output capability healed) |
+| test stub | `test_responses_provider.py::provider_with` is stream-aware (Stream passes by identity; a completed() dict becomes one completed event — exactly a stream-only gateway) |
+
+### 95.3 Verification (this host, proxy 7897)
+
+| lane | result |
+|---|---|
+| unit grid (provider stack + responses + net + capability cache + metrics census, floor = 3) | **143/143 green** |
+| responses protocol suite | **20/20 green** (capabilities at the completed event · text never replayed · function call emitted exactly once) |
+| `Court Lock` | **4117d2b0ca5fb23a LOCKED** · 5/5 slices |
+| **`scripts/provider_smoke.py`** | **7/7 PASS** (probe → chat → json(5 fields) → JUnit 7 schema checks → Maven compile exit 0 → Secret scan → Digest chain) · Verdict **PASS** |
+
+Report: `artifacts/p0.5/provider-smoke-20261116T070508Z/provider-smoke-report.json` (**git-ignored; never committed** — endpoint timings stay in this room, not in the git ledger).
+
+### 95.4 Honest bounds
+
+* **court is always stream=True + include_usage=True; court is never cached**; `4117d2b0ca5fb23a` LOCKED. This fix stops at the answers path — it never crosses into the judge's lane;
+* nothing here relaxes the judge — `test_court_never_caches.py` (4/4) and the byte-slice lock keep the iron uncut;
+* `.local/llm.json` touched nothing it didn't already hold; the digests are this hour's only.
+* engine.json **not rebuilt this round**: it faithfully records 46 wkapi strikes (51.2%); today's aizzz lane writes to `.local/llm_usage.jsonl` (this-host private, untracked) — the two lanes' numbers are not folded into one JSON;
+* D1 (OBSERVABILITY signature) and D2 (PORTFOLIO_TOKEN) are still owed; 「password-123」permanently vetoed; 「demo data never impersonates production」unchanged.
+
+### 95.5 The true milestone
+
+**This repository issued its own production code path against its new face-plate (aizzz/gpt-6.1-terra), door-to-compiled-JUnit, and all seven bells rang.**
+No stubs, no skips, no "stay off the wire" — the real thing, with the receipt filed locally and no pound of it banked as a charge.
+(If aizzz ever closes again to 402, this volume records that it burned once.)
+
+---
