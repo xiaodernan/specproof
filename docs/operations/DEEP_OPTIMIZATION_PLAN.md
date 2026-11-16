@@ -40211,3 +40211,22 @@ management:
 *「密码-123」否决；D1 ✅ 签落；D2 ⏸（owner PAT）；prod yml 未动（只动 test profile）。
 
 Volume CXXIX《两道门影 · The Two Shadows on the Door》入册 → worldbook **129 卷** · chronicle **1,713 节**。
+
+## #1913 《欠条的两卷》：史诗增卷十五《欠条的钉法》 + 卷十六《界》（双语对称 · 至 #1912 入册完毕）· guide 双语「十四→十六卷竹简」同步 · Volume CXXX《Two Scrolls for the IOU》
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1912。
+
+### 一、内容
+
+`apps/web/src/pages/epic.copy.ts` — SCROLLS_ZH/EN 各追加两卷（共四卷文字），永久入编年史架：
+
+* **卷十五 · 欠条的钉法 / Scroll XV · The IOU Epigraph**（#1884–#1912）：D1 已于 2026-11-16 签落（identity 未加密实证）· D2 仍未还 · Night Watch 仍 CRACKED（exhibit #4/#8 永在册）· exhibit #9 入册（64c · p99 1,596.9 ms）;
+* **卷十六 · 界 / Scroll XVI · The Screen That Speaks One Language**（#1908–#1912）：纯度闸 i18n.purity.test.ts · /errata · /stategraph · 溢出保护层 · 8888 影子被曝光 pin（**mvn -o 137/137 复敲 GREEN**）。
+
+guide 双语全线十四→十六卷（行：史诗宪／目录／/epic 行——三处 zh + 两处 en）。
+
+### 二、裁判与界
+
+UI **556/556** · vitest ✓ · build ✓ · guide 6/6 · court=`4117d2b0ca5fb23a` LOCKED · Night Watch **CRACKED** · exhibit #4 不动 · D1 ✅ · D2 ⏸（owner PAT，不 mint）。
+
+Volume CXXX《欠条的两卷 · Two Scrolls for the IOU》入册 → worldbook **130 卷** · chronicle **1,714 节**。

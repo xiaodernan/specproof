@@ -4815,3 +4815,26 @@ UI **556/556** · npm run build ✓ · court = `4117d2b0ca5fb23a` LOCKED · D1 �
 「optional」只让死服务器不报错，不让活影子不露面。
 
 ---
+## 卷一百三十 · 欠条的两卷（Two Scrolls for the IOU）
+
+> 史官不许漏。
+> 卷十五欠条钉法 · 卷十六界——两卷今天入册。
+
+### 130.1 这一卷钉落的
+
+史诗《铁证之书》增刊两卷：
+
+* **卷十五 · 欠条的钉法（The IOU Epigraph）** —— 把 #1884–#1912 的真相钉进竹简：D1 已于 2026-11-16 签落（identity 未加密实证，如实入册），D2 仍未还，Night Watch 仍 CRACKED（exhibit #4 1,526.1 ms 永在册），exhibit #9（64c · p99 1,596.9 ms · #1912）已入册；
+* **卷十六 · 界（The Screen That Speaks One Language）** —— 纯度之卷：i18n.purity.test.ts 上闸（#1909），/errata 落地（#1908），/stategraph 落地（#1910），溢出保护层（#1911），8888 影子两度命中 → exposure pin（#1912）。
+
+guide 行已把「十四卷竹简」全部改为「十六卷竹简」（zh + en 对称各证一条）。
+
+### 130.2 政策不变
+
+* exhibit 不删不改不剔 · Night Watch 依旧 CRACKED ·「密码-123」否决；
+* D1 ✅ 签落 · D2 ⏸（owner PAT，不 mint）；
+* mvn -o **137/137**（含 exposure pin 复敲后的 CP 51/51）。
+
+UI **556/556** · vitest ✓ · npm run build ✓ · guide 6/6。
+
+---

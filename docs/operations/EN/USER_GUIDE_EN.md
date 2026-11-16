@@ -37,7 +37,7 @@ Open `http://127.0.0.1:5173/` — the sidebar carries 39 first-level entries:
 | Admin | Audit Trail | every audit_logs write in the chain | compliance |
 | Admin | Model Connection | switch the real key of any OpenAI-compatible gateway | — |
 | Admin | Service Status | health (mysql/redis/rabbitmq/minio) + latency distribution | — |
-| — | Epic | fourteen scrolls of SpecProof's genesis | full pixel-for-pixel real commits |
+| — | Epic | sixteen scrolls of SpecProof's genesis (Scroll XV · The IOU Epigraph / Scroll XVI · The Screen That Speaks One Language) | full pixel-for-pixel real commits |
 | — | Tour | interactive six-stamp corridor | the mother of all passovers |
 
 > No `.env` needed either — the tour works without one. To connect a real LLM, ask for `.local/llm.json`.
@@ -109,7 +109,7 @@ Every scroll has a Case File cover — repository / change / verdict / the iron 
 
 ### 2.5 `#/epic` — the Chronicles
 
-Fourteen scrolls, every anchor a real `git` commit hash — a verifiable epic. Scroll XIV is the newest: #1774. **The Chinese book's volume ships free — see `#/census` for live figures**; the English edition mirrors it at `docs/world/EN/SPECROOF_WORLD_EN.md`.
+Sixteen scrolls, every anchor a real `git` commit hash — a verifiable epic. Scroll XVI is the newest (#1908–#1912). **The Chinese book's volume ships free — see `#/census` for live figures**; the English edition mirrors it at `docs/world/EN/SPECROOF_WORLD_EN.md`.
 
 ### 2.6 MCP in the CLI — tools for external AI agents (`#/mcp` is not an in-app page)
 

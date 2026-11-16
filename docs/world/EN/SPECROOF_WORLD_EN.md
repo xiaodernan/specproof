@@ -4691,3 +4691,26 @@ This host's config-server can rot and respawn. **Every test profile must say it 
 "optional" merely means a dead server doesn't error — it never meant a living shadow can't show its face.
 
 ---
+## Volume CXXX · Two Scrolls for the IOU（卷一百三十 · 欠条的两卷）
+
+> The keeper does not omit.
+> Scroll XV, the IOU answered — and Scroll XVI, the one language per screen — inked today.
+
+### 130.1 What this volume pinned down
+
+The Epic gained two scrolls (both locales):
+
+* **Scroll XV · The IOU Epigraph（欠条的钉法）** — the truth of #1884–#1912 nailed into the bamboo: D1 closed 2026-11-16 (identity NOT crypto-verified, recorded as such), D2 still owed, Night Watch still **CRACKED** (exhibit #4 1,526.1 ms permanently on file), exhibit #9 (#1912 · 64c · p99 1,596.9 ms) pinned today;
+* **Scroll XVI · The Screen That Speaks One Language（界）** — the purity volume: i18n.purity.test.ts gate shipped (#1909), /errata landed (#1908), /stategraph landed (#1910), the overflow guard (#1911), and the two door-shadows answered by the exposure pin (#1912).
+
+The guide now reads 16 scrolls in both languages (zh + en rows edited in lockstep).
+
+### 130.2 The policy does not move
+
+* exhibits are never deleted, glazed, or re-cut · Night Watch remains **CRACKED** ·「password-123」vetoed;
+* D1 ✅ signed · D2 pending the owner's PAT;
+* mvn -o **137/137** (re-struck after the exposure pins: CP 51/51 green).
+
+UI **556/556** · vitest ✓ · npm run build ✓ · guide 6/6.
+
+---

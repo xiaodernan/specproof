@@ -273,6 +273,41 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "书房会老", value: "合一次 master 重跑 scripts/build_worldbook.py，书才不褪色——世书更新的节奏，就是书房亮灯的节奏" },
     ],
   },
+  {
+    num: "卷十五",
+    title: "欠条的钉法",
+    en: "The IOU Epigraph",
+    era: "2026-11 · 至今",
+    verses: [
+      "一张欠条不是羞耻——它是地图；每一处空白都有名字、有账本编号。",
+      "2026-11-16 这一天，owner 亲笔一行：「把这些全部做了，我全部批准。」——OBSERVABILITY.md §9 签字落了；分身的 D2（PORTFOLIO_TOKEN）依然欠着。",
+      "铁证可以不眨眼：exhibit #4 永远留在那里，Night Watch 今晚的判词是 CRACKED——没人求它绿。",
+    ],
+    details: [
+      { label: "D1 已签落 · OBSERVABILITY.md", value: "owner 授权（#1897）落字；signature block found，identity 未加密实证——如实入册，不涂成 verified" },
+      { label: "D2 仍未还", value: "PORTFOLIO_TOKEN 在你自己的 Secrets 里；本仓不 mint。工作流周日 06:00 UTC 敲门：products.json · latest.md · .github-sync.json 三件静默待主" },
+      { label: "Night Watch 的红", value: "exhibit #4（1,526.1 ms）与 exhibit #8（2,078.7 ms）永远挂在 /engine；Δ>25 ms 铁规不动（#1890）；exhibit #9（64c · p99 1,596.9 ms · #1912）已入册" },
+      { label: "R14 的邮戳", value: "出网没挂梯子时全红（区域封锁）；挂 Clash Verge（7897）后真跑通：HTTP 200 · 9 chunks · cached 4224 → 6400（#1884）" },
+    ],
+  },
+  {
+    num: "卷十六",
+    title: "界",
+    en: "The Screen That Speaks One Language",
+    era: "2026-11 · 至今",
+    verses: [
+      "一个屏幕说两种话，不是双语——是噪音；中文模式全中文，英文模式全英文。",
+      "状态图不是装饰——它是契约：五张图在线跑，判词 fail-closed；Night Watch 永远 CRACKED。",
+      "铁证之书的每一页都能被敲开：/errata 是十五条亲笔更正，/stategraph 是八词说明书和五张活着的图。",
+    ],
+    details: [
+      { label: "纯度闸已上 · i18n.purity.test.ts", value: "en 零 CJK / CJK 标点 / 全宽；zh 零英语连词三连——随 vitest 生效（#1909）" },
+      { label: "更正展厅 /errata", value: "R01–R15 · 全双语 · 可搜索 · 每条钉提交；查询只寻不删（#1908）" },
+      { label: "状态图谱 /stategraph", value: "八词教材 + recall/evidence/purity/auditor/night_watch 五张活图 + 夜巡判词 verbatim——CRACKED 不涂（#1910）" },
+      { label: "溢出保护层", value: "h1 任意换行 · media max-width · pre overflow-x；不藏组件，只加滚动（#1911）" },
+      { label: "两道门影 · 8888 影子", value: "control-plane test profile 被遮蔽 prometheus/refresh → exposure pin 落（#1912）；mvn -o 137/137 复敲 GREEN" },
+    ],
+  },
 ];
 
 export const CLOSING_ZH = [
@@ -514,6 +549,41 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "One quarry of raw material", value: "docs/world/SPECROOF_WORLD.md (zh) + EN/SPECROOF_WORLD_EN.md (en) — build_worldbook.py shelves them verbatim" },
       { label: "A reading room, not a showroom", value: "marked renders tables/code/quotes; two hits in the current volume light up instantly; one stamp per finished volume" },
       { label: "The room ages", value: "every master merge re-runs scripts/build_worldbook.py — the room lights up at the pace of the book" },
+    ],
+  },
+  {
+    num: "Scroll 15",
+    title: "The IOU Epigraph",
+    en: "The IOU Epigraph",
+    era: "2026-11 · today",
+    verses: [
+      "An IOU is not a shame — it is a map; every blank in it carries a name and a ledger number.",
+      "On 2026-11-16 the owner wrote one line by hand: 'do them all, I approve everything.' §9 of OBSERVABILITY.md now carries the signature; the D2 twin (PORTFOLIO_TOKEN) is still owed.",
+      "The iron does not blink: exhibit #4 stays on file forever, and tonight the composite watch reads CRACKED — nobody asked it to be jade.",
+    ],
+    details: [
+      { label: "D1 signed · OBSERVABILITY.md", value: "owner-authorised (#1897); signature block found; identity NOT crypto-verified — recorded as such, never as verified" },
+      { label: "D2 still owed", value: "PORTFOLIO_TOKEN lives in your own Settings→Secrets; nobody mints it here. Sundays 06:00 UTC the workflow knocks: products.json · latest.md · .github-sync.json — silent until you decree" },
+      { label: "The red of the watch", value: "exhibit #4 (1,526.1 ms) and exhibit #8 (2,078.7 ms) hang on /engine forever; the Δ>25 ms rule never moved (#1890); exhibit #9 (64c · p99 1,596.9 ms · #1912) pinned today" },
+      { label: "R14's postmark", value: "without the ladder every probe came back region-blocked; through Clash Verge (7897) the lane answered (#1884): HTTP 200 · 9 chunks · cached 4224→6400" },
+    ],
+  },
+  {
+    num: "Scroll 16",
+    title: "The Screen That Speaks One Language",
+    en: "The Screen That Speaks One Language",
+    era: "2026-11 · today",
+    verses: [
+      "A screen that speaks two languages is not bilingual — it is noise. Chinese mode is all Chinese; English mode is all English.",
+      "Graphs are not decoration; they are the contract. Five run live here — every verdict fail-closed; Night Watch stays CRACKED.",
+      "Every page in this book is knockable: /errata keeps the fifteen corrections; /stategraph is the eight words with the five living graphs.",
+    ],
+    details: [
+      { label: "The purity gate · i18n.purity.test.ts", value: "zero CJK / punctuation / fullwidth in en; zero English link-word runs in zh — shipped with vitest (#1909)" },
+      { label: "/errata — the corrections wall", value: "R01–R15 · bilingual · searchable · each anchored to a commit; a query exposes, never erases (#1908)" },
+      { label: "/stategraph — the eight words", value: "the state-machine field guide + recall/evidence/purity/auditor/night_watch, plus the night-watch verdict verbatim — CRACKED never painted jade (#1910)" },
+      { label: "The overflow guard", value: "anywhere-wrap headings, media max-width, pre overflow-x — hidden nothing, only scroll (#1911)" },
+      { label: "The two shadows · 8888", value: "the control-plane's prometheus/refresh lights were shadowed by the stale 8888 server; the exposure pin fixed it (#1912); mvn -o 137/137 re-struck GREEN" },
     ],
   },
 ];
