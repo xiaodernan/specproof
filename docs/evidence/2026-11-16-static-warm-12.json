@@ -1,0 +1,87 @@
+{
+  "started_utc": "2026-11-16T14:15:31.658024+00:00",
+  "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
+  "concurrency": 512,
+  "per_thread": 2,
+  "warmup_rounds": 3,
+  "rounds": [
+    {
+      "total": 1024,
+      "ok": 0,
+      "err_rate": 1.0,
+      "p50_ms": 2039.5202999999924,
+      "p90_ms": 8516.46796,
+      "p95_ms": 9518.360190000027,
+      "p99_ms": 10040.206037000004,
+      "max_ms": 10098.515600000042,
+      "avg_ms": 4096.737578613283,
+      "bytes_read": 0,
+      "sample_errors": [
+        "TimeoutError: timed out",
+        "TimeoutError: timed out",
+        "TimeoutError: timed out",
+        "TimeoutError: timed out",
+        "TimeoutError: timed out"
+      ]
+    },
+    {
+      "total": 1024,
+      "ok": 0,
+      "err_rate": 1.0,
+      "p50_ms": 2048.518950000016,
+      "p90_ms": 8921.378740000015,
+      "p95_ms": 9545.167039999978,
+      "p99_ms": 10049.20784599998,
+      "max_ms": 10777.480800000034,
+      "avg_ms": 4303.346009472655,
+      "bytes_read": 0,
+      "sample_errors": [
+        "TimeoutError: timed out",
+        "TimeoutError: timed out",
+        "TimeoutError: timed out",
+        "TimeoutError: timed out",
+        "TimeoutError: timed out"
+      ]
+    },
+    {
+      "total": 1024,
+      "ok": 147,
+      "err_rate": 0.8564453125,
+      "p50_ms": 2029.5257500000048,
+      "p90_ms": 2049.3533500000126,
+      "p95_ms": 2061.739740000047,
+      "p99_ms": 3168.40909100001,
+      "max_ms": 4944.503200000099,
+      "avg_ms": 1982.3308686523435,
+      "bytes_read": 45347160,
+      "sample_errors": [
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+      ]
+    },
+    {
+      "total": 1024,
+      "ok": 120,
+      "err_rate": 0.8828125,
+      "p50_ms": 2030.1074999999855,
+      "p90_ms": 2818.752479999989,
+      "p95_ms": 3854.623485000036,
+      "p99_ms": 4850.742021999972,
+      "max_ms": 6289.681999999971,
+      "avg_ms": 2181.3370568359383,
+      "bytes_read": 39521725,
+      "sample_errors": [
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+        "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+      ]
+    }
+  ],
+  "verdict": "BUDGET-BLOWN",
+  "honesty": "This is a static-asset delivery probe on this host; it is not a FastAPI/MySQL/Redis rating."
+}

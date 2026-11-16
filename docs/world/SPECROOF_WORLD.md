@@ -5062,3 +5062,34 @@ UI **559/559** · build ✓ · guide 6/6 · parity 15/15 · mvn -o **137/137** �
 UI **562/562**（+3 /exhibits） · build ✓ · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · D1 ✅ · D2 ⏸ · purity CLEAR · D/dev/Night Watch 依旧 **CRACKED** ·「密码-123」否决。
 
 ---
+## 卷一百三十八 · 512 这个数字怎么看（The Notch at 512）
+
+> 512 不是一个评估——它是这台机器集体瘫痪的数字。
+> 它不是一张评委卡；它是地面上一行真实的失败。
+
+### 138.1 exhibit #12 入册——the true cliff
+
+`docs/evidence/2026-11-16-static-warm-12.json`（512 concurrent × 2 per-thread × 4 rounds + 3 warmup）:
+
+| round | total | ok | err% | p50 | p99 |
+|---|---|---|---|---|---|
+| 1 | 1024 | 0 | **100.00%** | 2039.5 | 10,040.2 |
+| 2 | 1024 | 0 | **100.00%** | 2048.5 | 10,049.2 |
+| 3 | 1024 | 147 | **85.64%** | 2029.5 | 3,168.4 |
+| 4 | 1024 | 120 | **88.28%** | 2030.1 | 4,850.7 |
+
+* verdict = **BUDGET-BLOWN**（100% err rounds 1-2 · worst p99 = **10,049.2 ms**）；
+* `evidence_graph.py` re-struck → entries=**13** REGRESSION；
+* `night_watch_graph.py` re-struck → **CRACKED evidence=REGRESSION purity=CLEAR audit=CLEAR**；
+* 本机死后连本机自己统计跑不动了；这是事实不是比喻——p99=10s 不是评场而是"say什么都不想说但记录它"；
+* exhibit 不删不改不藏；exhibit #12 永在册。
+
+### 138.2 这一卷写了什么
+
+一个真的 cliff——在 512c 那一刻， `ThreadingHTTPServer` + 这台 Windows + `simplehttpserver` 全部停机；p99 正好 10,049 ms；warmup 全部 0 success，无一字节进出。Chrome 在这本书看过注册表没数——只有 exhibit： #4 (1,526.1ms)、#8 (2,078.7)、#9 (1,596.9)、#10 (2,225.7)、#11 (2,253.8)、#12 (10,049.2ms)。这一条曲线不是随机，是饱和饱和 saturation cliff——c/512 之后，再不需要任何评估；它是这台机器的真值。
+
+### 138.3 裁判
+
+mvn -o **137/137** · UI **562/562** · build ✓ · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries=**13** · Night Watch 依旧 **CRACKED** · purity **CLEAR** · D1 ✅ · D2 ⏸ ·「密码-123」否决。
+
+---

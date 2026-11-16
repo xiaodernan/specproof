@@ -1,7 +1,7 @@
 {
  "version": 1,
  "source": "scripts/audit_unsigned.py (this host, this moment)",
- "generated_utc": "2026-11-16T13:47:49+00:00",
+ "generated_utc": "2026-11-16T14:24:02+00:00",
  "checks": [
   {
    "id": "observability-signature",
@@ -18,13 +18,13 @@
   {
    "id": "port-8000-answers",
    "status": "port-free",
-   "detail": "127.0.0.1:8000 refused/unreachable (URLError); no project answered",
+   "detail": "127.0.0.1:8000 refused/unreachable (TimeoutError); no project answered",
    "anchor": "live probe 127.0.0.1:8000/health"
   },
   {
    "id": "branch-cleanliness",
    "status": "dirty-tree",
-   "detail": "work tree has 15 dirty entries (new/modified/untracked); origin is clean-synced ahead=0 behind=0",
+   "detail": "work tree has 5 dirty entries (new/modified/untracked); origin is clean-synced ahead=0 behind=0",
    "anchor": "git rev-list --left-right --count @{u}...HEAD && git status --porcelain"
   }
  ]

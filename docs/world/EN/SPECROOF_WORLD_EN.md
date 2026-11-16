@@ -4936,3 +4936,35 @@ Both exhibits landed on the same sort of wall — host saturation, not falsified
 UI **562/562** (+3 /exhibits) · build ✓ · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · D1 ✅ · D2 pending owner's PAT · purity **CLEAR** · Night Watch still **CRACKED** ·「password-123」vetoed.
 
 ---
+## Volume CXXXVIII · The Notch at 512（卷一百三十八 · 512 这个数字怎么看）
+
+> 512 is not an evaluation —
+> it is the number at which this host collapses.
+> Not a judge's card; it's a line of real failure on the ground.
+
+### 138.1 exhibit #12 on file — the true cliff
+
+`docs/evidence/2026-11-16-static-warm-12.json` (512 × 2 × 4 rounds + 3 warmup):
+
+| round | total | ok | err% | p50 | p99 |
+|---|---|---|---|---|---|
+| 1 | 1024 | 0 | **100.00%** | 2039.5 | 10,040.2 |
+| 2 | 1024 | 0 | **100.00%** | 2048.5 | 10,049.2 |
+| 3 | 1024 | 147 | **85.64%** | 2029.5 | 3,168.4 |
+| 4 | 1024 | 120 | **88.28%** | 2030.1 | 4,850.7 |
+
+* verdict = **BUDGET-BLOWN** (rounds 1 and 2: 100% errors; worst p99 = **10,049.2 ms**);
+* `evidence_graph.py` re-struck → entries=**13** REGRESSION;
+* `night_watch_graph.py` re-struck → **CRACKED evidence=REGRESSION purity=CLEAR audit=CLEAR**;
+* the host itself stopped looping at this concurrency; warmup had 0/0 for the entire 3-round slate;
+* exhibit #12 is permanent — nothing is removed, nothing is re-scoped, nothing hidden.
+
+### 138.2 What this volume is for
+
+The cliff exists: at 512c the `ThreadingHTTPServer` (and this Windows host behind it) stopped answering entire rounds of requests. Warmup returned 0 successes for an entire 1024-request slate. That is the truth — not a laboratory result on a rack, not a production SLA, not a hypothesis. This volume does not claim the machine is "better than it looks"; it just publishes what actually happened.
+
+### 138.3 The floor never moved
+
+* UI **562/562** · build ✓ · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries=**13** · Night Watch still **CRACKED** · purity **CLEAR** · D1 ✅ · D2 pending owner's PAT ·「password-123」vetoed.
+
+---

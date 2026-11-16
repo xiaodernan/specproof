@@ -1,6 +1,6 @@
 {
  "version": 1,
- "generated_utc": "2026-11-16T14:14:47+00:00",
+ "generated_utc": "2026-11-16T14:24:04+00:00",
  "verdict": "CONSISTENT",
  "checks": [
   {
@@ -16,7 +16,7 @@
   {
    "id": "evidence_verdict_present",
    "ok": true,
-   "detail": "latest=2026-11-16-static-warm-11.json verdict=BUDGET-BLOWN"
+   "detail": "latest=2026-11-16-static-warm-12.json verdict=BUDGET-BLOWN"
   },
   {
    "id": "unsigned_four_unique_lamps",

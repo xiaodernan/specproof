@@ -29,7 +29,7 @@
   }
  ],
  "lane_count": 5,
- "generated_utc": "2026-11-16T13:47:53+00:00",
+ "generated_utc": "2026-11-16T14:24:09+00:00",
  "source": "agent/graphs/auditor_graph.py · docs/evidence/audit-chain.md",
- "emitted_utc": "2026-11-16T14:14:47+00:00"
+ "emitted_utc": "2026-11-16T14:25:53+00:00"
 }

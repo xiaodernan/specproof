@@ -40496,3 +40496,33 @@ Volume CXXXVI《把灯重新拧亮了 · The Lamps Were Re‑welted Light》入�
 UI **562/562**（+3 Exhibits）· build ✓ · guide 6/6 · parity 15/15 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · purity **CLEAR** · D1 ✅ · D2 ⏸ ·「密码-123」否决。
 
 mvn -o **137/137** · exhibit #10/#11 BUDGET-BLOWN 永在册 · entries=**12** · worldbook **137 卷** · chronicle **1,724 节**。
+
+## #1926 《512 这个数字怎么看》：exhibit #12 入册（512c × 1024 req/round · rounds 1–2 100% err · round 3 85.64% · round 4 88.28% · worst p99 10,049.2 ms → BUDGET-BLOWN · entries=13）· Volume CXXXVIII《The Notch at 512》
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1925。
+
+### 一、exhibit #12 — the real cliff
+
+`docs/evidence/2026-11-16-static-warm-12.json`（512c × 2/thread × 4 rounds + 3 warmup · 4,096 requests 总计）：
+
+| round | total | ok | err% | p50 | p99 |
+|---|---|---|---|---|---|
+| 1 | 1024 | 0 | 100.00% | 2039.5 | 10,040.2 |
+| 2 | 1024 | 0 | 100.00% | 2048.5 | 10,049.2 |
+| 3 | 1024 | 147 | 85.64% | 2029.5 | 3,168.4 |
+| 4 | 1024 | 120 | 88.28% | 2030.1 | 4,850.7 |
+
+* verdict=**BUDGET-BLOWN**（warmup 全 0 success · Σreq=4,096）；
+* evidence_graph → entries=**13** REGRESSION；night_watch → **CRACKED evidence=REGRESSION purity=CLEAR audit=CLEAR**；
+* exhibit #12 不可删除、不可改写、不可藏——12(+`static-light-1`+audit chains) = exhibit_entries=13；
+* /exhibits page 自动按时间顺序显示（latest: warm-12）；fabric LANE D 跟上 exhibit #10 之后还可以展示 L#11/#12 的证据；本步先稳住 entries 真相。
+
+### 二、本卷最重要的一句话
+
+The cliff is real but purely host-level: this Windows host, ThreadingHTTPServer under Python's GIL, at 512c it flatlines entire rounds of requests. This is NOT a production claim — it's just a keeper's ledger that says "at 512 it stops". Any Registrar who asks "can X concurrent run on your production rack" — this exhibit is not an answer to that. It is only an answer to "what does this machine do at 512".
+
+### 三、裁判
+
+mvn -o **137/137** · UI **562/562** · build ✓ · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · purity **CLEAR** · D1 ✅ · D2 ⏸ ·「密码-123」否决。
+
+Volume CXXXVIII《512 这个数字怎么看 · The Notch at 512》入册 → worldbook **138 卷** · chronicle **1,725 节**。

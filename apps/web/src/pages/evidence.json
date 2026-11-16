@@ -1,59 +1,103 @@
 {
  "version": 1,
  "source": "docs/evidence/*.json (stress_smoke.py --json-report output; this host)",
- "files_count": 19,
+ "files_count": 20,
  "latest": {
-  "file": "2026-11-16-static-warm-11.json",
+  "file": "2026-11-16-static-warm-12.json",
   "readable": true,
-  "started_utc": "2026-11-16T13:44:01.423458+00:00",
+  "started_utc": "2026-11-16T14:15:31.658024+00:00",
   "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
-  "concurrency": 256,
+  "concurrency": 512,
   "warmup_rounds": 3,
   "rounds": [
    {
-    "total": 512,
-    "ok": 335,
-    "p50_ms": 1631.1336499984463,
-    "p95_ms": 2149.434019999171,
-    "p99_ms": 2209.889308998172
+    "total": 1024,
+    "ok": 0,
+    "p50_ms": 2039.5202999999924,
+    "p95_ms": 9518.360190000027,
+    "p99_ms": 10040.206037000004
    },
    {
-    "total": 512,
-    "ok": 281,
-    "p50_ms": 2020.3897500014136,
-    "p95_ms": 2139.6663800011083,
-    "p99_ms": 2253.8099679980223
+    "total": 1024,
+    "ok": 0,
+    "p50_ms": 2048.518950000016,
+    "p95_ms": 9545.167039999978,
+    "p99_ms": 10049.20784599998
    },
    {
-    "total": 512,
-    "ok": 416,
-    "p50_ms": 1025.273199998992,
-    "p95_ms": 2044.579139999587,
-    "p99_ms": 2076.670976003006
+    "total": 1024,
+    "ok": 147,
+    "p50_ms": 2029.5257500000048,
+    "p95_ms": 2061.739740000047,
+    "p99_ms": 3168.40909100001
    },
    {
-    "total": 512,
-    "ok": 501,
-    "p50_ms": 514.7046500005672,
-    "p95_ms": 1537.7435450007397,
-    "p99_ms": 2044.8251900013565
+    "total": 1024,
+    "ok": 120,
+    "p50_ms": 2030.1074999999855,
+    "p95_ms": 3854.623485000036,
+    "p99_ms": 4850.742021999972
    }
   ],
-  "worst_p99_ms": 2253.8099679980223,
-  "avg_p95_ms": 1967.8557712501515,
-  "total": 2048,
-  "total_ok": 1533,
-  "bytes_read": 469596480,
+  "worst_p99_ms": 10049.20784599998,
+  "avg_p95_ms": 6244.972613750022,
+  "total": 4096,
+  "total_ok": 267,
+  "bytes_read": 84868885,
   "verdict": "BUDGET-BLOWN"
  },
  "delta_vs_previous": {
-  "vs_file": "2026-11-16-static-warm-10.json",
-  "worst_p99_delta_ms": 28.13880799865774,
-  "avg_p95_delta_ms": 122.12447749939201,
-  "bytes_delta": 183259806,
-  "total_delta": 1024
+  "vs_file": "2026-11-16-static-warm-11.json",
+  "worst_p99_delta_ms": 7795.397878001957,
+  "avg_p95_delta_ms": 4277.1168424998705,
+  "bytes_delta": -384727595,
+  "total_delta": 2048
  },
  "all": [
+  {
+   "file": "2026-11-16-static-warm-12.json",
+   "readable": true,
+   "started_utc": "2026-11-16T14:15:31.658024+00:00",
+   "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
+   "concurrency": 512,
+   "warmup_rounds": 3,
+   "rounds": [
+    {
+     "total": 1024,
+     "ok": 0,
+     "p50_ms": 2039.5202999999924,
+     "p95_ms": 9518.360190000027,
+     "p99_ms": 10040.206037000004
+    },
+    {
+     "total": 1024,
+     "ok": 0,
+     "p50_ms": 2048.518950000016,
+     "p95_ms": 9545.167039999978,
+     "p99_ms": 10049.20784599998
+    },
+    {
+     "total": 1024,
+     "ok": 147,
+     "p50_ms": 2029.5257500000048,
+     "p95_ms": 2061.739740000047,
+     "p99_ms": 3168.40909100001
+    },
+    {
+     "total": 1024,
+     "ok": 120,
+     "p50_ms": 2030.1074999999855,
+     "p95_ms": 3854.623485000036,
+     "p99_ms": 4850.742021999972
+    }
+   ],
+   "worst_p99_ms": 10049.20784599998,
+   "avg_p95_ms": 6244.972613750022,
+   "total": 4096,
+   "total_ok": 267,
+   "bytes_read": 84868885,
+   "verdict": "BUDGET-BLOWN"
+  },
   {
    "file": "2026-11-16-static-warm-11.json",
    "readable": true,
