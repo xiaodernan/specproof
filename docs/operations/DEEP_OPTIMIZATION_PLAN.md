@@ -40394,3 +40394,31 @@ Owner 重复一句：「现在大模型的api已经修改了记得换新的地�
 * mvn -o **137/137** · UI **559/559** · guide 6/6 · corrections **16** · purity **CLEAR** · exhibits entries **11**
 
 mvn -o **137/137** · UI **559/559** · guide 6/6 · corrections **16** · court LOCKED · Night Watch **CRACKED**
+
+## #1922 《四次敲出一个数字》：4× cacheStrike 同 prefix 敲出同样的 prompt/hit/miss（4396 · 4224 · 172）· R16（different-prefix 0/0）与同 prefix 4224×4 双条并排（前后代互不颠倒）· Volume CXXXV
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1921。
+
+### 一、现场敲出来的
+
+```
+scripts/_cache_strike.py（provider.chat · protocol responses · stream+include_usage）
+source local_file | protocol responses | model gpt-6.1-terra
+strike 1: prompt=4396 hit=4224 miss=172 (details=None)
+strike 2: prompt=4396 hit=4224 miss=172
+strike 3: prompt=4396 hit=4224 miss=172
+strike 4: prompt=4396 hit=4224 miss=172                        （每一敲相同字节）
+```
+
+四次 4396 / 4224 / 172 —— 此网关对前缀比特完全敏感。R16 敲前那代（不同前缀 · 0/0）与此条（同样前缀 · 满命中 × 4）并排在 worldbook，**不替换、不抹旧 § Volume CXV/XXXI、不替换 R16 子弹**。
+
+### 二、本卷的无可辩驳的两件
+
+1. 同一 prefix 连敲 4 次 → 连敲 4 次 **命中 4224 全部相同 bytes**——在此 host 上实测可复现；
+2. **R16 依然 R16**：两帧（R16 的 hit=0、同 prefix 的 hit=4224）不矛盾 —— **prefix 决定 cache，不是世界观、不是士气**。
+
+### 三、裁判
+
+UI **559/559** · build ✓ · guide 6/6 · parity 15/15 · corrections **16** · court `4117d2b0ca5fb23a` LOCKED · Night Watch 依旧 **CRACKED** · exhibit_entries **11** · D1 ✅ · D2 ⏸ ·「密码-123」否决。
+
+Volume CXXXV《四次敲出四个数字 · Four Strikes, One Number》入册 → worldbook **135 卷** · chronicle **1,722 节**。

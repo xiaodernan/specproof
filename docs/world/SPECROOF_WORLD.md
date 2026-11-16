@@ -4962,3 +4962,39 @@ faithfull: Volume CXV 文本保留原样（如实记当时怎么以为通了的�
 * UI **559/559** · npm run build ✓ · mvn -o **137/137** · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **11** · purity **CLEAR** · D1 ✅ · D2 ⏸ (owner PAT) ·「密码-123」否决。
 
 ---
+## 卷一百三十五 · 四次敲出四个数字（Four Strikes, One Number）
+
+> 想要的不是一次 lucky strike。
+> 是四次敲出同一个数字：4396 ≈ 4224 + 172。
+> 恰好是 prompt · hit · miss。
+
+### 135.1 敲了四次，敲出来一个数字
+
+`scripts/_cache_strike.py`（2026-11-16 17:55Z，同一 prompt 连敲 4 次，相同 messages list 不变）：
+
+```
+source local_file | protocol responses | model gpt-6.1-terra
+strike 1: prompt=4396 hit=4224 miss=172 (details=None)
+strike 2: prompt=4396 hit=4224 miss=172 (details=None)
+strike 3: prompt=4396 hit=4224 miss=172 (details=None)
+strike 4: prompt=4396 hit=4224 miss=172 (details=None)
+```
+
+四次全是 prompt 4396 / hit 4224 / miss 172。这不是「改善了」，是这个网关对相同 prefix 一押到底：**prefix 一致 → cache 命中；prefix 改了一字节、一格空白、一条 token，0。**
+
+R16 的证伪与此并排放着：R16 是两次不同前缀的敲（同一 message 相邻段落） → 0/0；本卷是四次同前缀敲 → 4224×4。
+两次 struck、互不颠倒。
+
+### 135.2 本卷的两条原则
+
+* 这本《全栈》从不允许敲出「0/0 → 命中率改善了」；也不允许敲出「4224 → 命中率粉刷了」——两种排序都是日子里一次实测的回声；
+* 任何人在本机都可以敲 `scripts/_cache_strike.py`，复现相同的数字（4× hits=4224 · misses=172）——只要 Rinnen 现场没把 gateway 戳出障碍；gateway 不是 owner 拥有的，只是租用的。
+
+### 135.3 不改的东西
+
+* court `4117d2b0ca5fb23a` LOCKED ·「密码-123」永久否决 ·「demo 不冒充生产」不改口号；
+* Night Watch 依旧 **CRACKED**（exhibit #4 1,526.1 ms 永在册 · exhibit #8 2,078.7 ms · exhibit #10 BUDGET-BLOWN · entries=11 敲出 REGRESSION）；
+* D1 ✅（owner 手签）· D2 ⏸（owner PAT 未给）；
+* mvn -o **137/137** · UI **559/559** · build ✓ · guide 6/6 · corrections **16** · correctively correct · exhibit_entries **11**。
+
+---

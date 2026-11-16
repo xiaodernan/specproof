@@ -4837,3 +4837,38 @@ Books append. Exhibits land verbatim or not at all. Night Watch is CRACKED, long
 * UI **559/559** · npm run build ✓ · mvn -o **137/137** · guide 6/6 · corrections **16** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **11** · purity **CLEAR** · D1 ✅ · D2 pending your PAT ·「password-123」vetoed.
 
 ---
+## Volume CXXXV · Four Strikes, One Number（卷一百三十五 · 四次敲出四个数字）
+
+> What you want is not one lucky strike.
+> What you want is four strikes and one number.
+> And one number it is: 4396 ≈ 4224 + 172.
+
+### 135.1 Struck live (2026-11-16 ~17:55Z)
+
+`scripts/_cache_strike.py` (same prompt, four strikes, messages list unchanged):
+
+```
+source local_file | protocol responses | model gpt-6.1-terra
+strike 1: prompt=4396 hit=4224 miss=172 (details=None)
+strike 2: prompt=4396 hit=4224 miss=172 (details=None)
+strike 3: prompt=4396 hit=4224 miss=172 (details=None)
+strike 4: prompt=4396 hit=4224 miss=172 (details=None)
+```
+
+Four strikes; one number each time; nothing retouched. A stable prefix lets this gateway keep ~96% of its prompt bytes on hit; any byte change — one space, one token — and the prefix falls to **0**.
+
+R16 sits beside this, unrewritten: R16 was two **different-prefix** strikes → 0/0 (one-off, not a pattern). This volume is four **same-prefix** strikes → 4224×4 (as regular as the hammer).
+
+### 135.2 Two iron rules of this volume
+
+* the book does not allow "0/0 → hit rate improved"; nor "4224 → hit rate certified"; both are echoes of single experiments, treated as such;
+* anyone on this host can run `scripts/_cache_strike.py` and re-strike the same numbers (4× hit=4224 · 4× miss=172) — so long as the gateway is not obstructed; the gateway is not owned here, only leased.
+
+### 135.3 Unchanged
+
+* court `4117d2b0ca5fb23a` LOCKED · 「password-123」permanently vetoed · demo hosts "don't impersonate production" unchanged;
+* Night Watch remains **CRACKED** (exhibit #4 1,526.1 ms permanently on file · exhibit #8 2,078.7 ms · exhibit #10 BUDGET‑BLOWN · entries=11 struck as REGRESSION);
+* D1 ✅ (your hand on it) · D2 pending owner's PAT;
+* mvn -o **137/137** · UI **559/559** · build ✓ · guide 6/6 · corrections **16** · exhibit_entries **11**.
+
+---
