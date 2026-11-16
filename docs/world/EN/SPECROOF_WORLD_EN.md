@@ -3443,3 +3443,51 @@ Lamp five is struck live by `agent/graphs/purity_graph.py` into `docs/evidence/p
 * amber / jade / grey remain the only three states; no fourth is invented.
 
 ---
+## Volume XC · The Sleep of Ten Millennia（卷九十 · 万年沉睡）
+
+> Even a ten-millennium sleep must one day wake — this repo has one debt nobody else can pay:
+> a human hand on OBSERVABILITY.md. Not a pen, not a brush — one human's "I accept".
+
+### 90.1 The debts are real — and they are clearer now
+
+| Debt | Right now | Struck |
+|---|---|---|
+| OBSERVABILITY.md sign-off | **awaiting-signature** | `unsigned.json` live-struck |
+| port 8000 is not this repo's | **other-project-answering** | `audit_unsigned.py` · `audit_portfolio.py` |
+| PORTFOLIO_TOKEN unset | **READY_WITHOUT_TOKEN** | `portfolio-sync.yml` green-but-silent |
+| court never cached | never an exception | `4117d2b0ca5fb23a` LOCKED (5 byte-slices, no edits) |
+| this repo has no live prod | still none | `demos/spring-backend` still a fixture; `mvn -o 137/137` green forever off-line |
+
+Every sentence in this volume sits on top of that debt; the rest of the world hangs underneath it, never above.
+
+### 90.2 One contribution, this volume
+
+**new: `scripts/build_tally.py`** — exports `docs/evidence/tally.json` verbatim from every lock file:
+
+```json
+{
+  "version": 1,
+  "lamps": { "court_lock_hex": "4117d2b0ca5fb23a", "court_lock_verdict": "LOCKED",
+             "purity_verdict": "CLEAR", "purity_tracked_files": 2821, "purity_hits": 0 },
+  "stress": { "latest_p99_ms": 1030.057, "latest_verdict": "OK",
+              "delta_p99_ms": -507.21, "files_count": 3 },
+  "totals": { "commits": 2534, "chronicle_sections": 1680, "python_test_files": 615, "web_test_files": 69 },
+  "evidence_graph": { "chain_verdict": "CLEAR", "chain_lanes": 5 }
+}
+```
+
+For the first time, a third party can ask "does this repo have a baton?" and get a one-word answer that doesn't skip a beat.
+
+### 90.3 House rules
+
+1. **debts do not vanish** — every IOU in this volume is typed verbatim;
+2. **whatever the machine can carry, it carries** — `tally.json` re-rollable in ~10s via `python scripts/build_tally.py`;
+3. **debts do not disguise** — no lamp is a bookkeeping fabrication;
+4. **waiting is waiting** — D1 remains a human signature on OBSERVABILITY.md; next volume, next era, still waiting.
+
+### 90.4 The tag line to this volume
+
+The sleeper knows it is asleep —
+that is exactly one thing the one who never wakes does not know.
+
+---

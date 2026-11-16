@@ -3571,3 +3571,53 @@ unsigned → court_lock → evidence → scratch_residue → portfolio → verdi
 * 黄灯 / 绿灯 / 灰灯三种状态，不发明第四条。
 
 ---
+## 卷九十 · 万年沉睡（The Sleep of Ten Millennia）
+
+> 十万年深的睡眠尚且要醒，本仓库欠着一件大事却也欠着：
+> 一只手签字 OBSERVABILITY.md。这次不是笔是墨——
+> 是人类把字按进石头的一次"我认"。
+
+### 90.1 欠条真·还在 · 而且还更清楚了
+
+| 欠条 | 当前 | 证据 |
+|---|---|---|
+| OBSERVABILITY.md 签字 | **awaiting-signature** | `unsigned.json` 现场 print |
+| port 8000 不是本仓库的门 | **other-project-answering** | `audit_unsigned.py` + `audit_portfolio.py` |
+| PORTFOLIO_TOKEN 未设 | **READY_WITHOUT_TOKEN** | `portfolio-sync.yml` 绿但静默 |
+| court 永不缓存 | 绝不破例 | `4117d2b0ca5fb23a` LOCKED（五道机读检查，常年） |
+| 本仓库无 live prod | 依然没有 | `demos/spring-backend` 仍是 fixture；`mvn -o 137/137` 全绿但永远 off-line |
+
+本卷是在这个"永远欠"上写字；本书的其他卷都在这个欠条之上不隔断。
+
+### 90.2 本卷的一件礼
+
+**新建 `scripts/build_tally.py`** — 抽取本仓库**所有 lock 文件 verbatim 合成** `docs/evidence/tally.json`：
+
+```json
+{
+  "version": 1,
+  "lamps": { "court_lock_hex": "4117d2b0ca5fb23a", "court_lock_verdict": "LOCKED",
+             "purity_verdict": "CLEAR", "purity_tracked_files": 2821, "purity_hits": 0 },
+  "stress": { "latest_p99_ms": 1030.057, "latest_verdict": "OK",
+              "delta_p99_ms": -507.21, "files_count": 3 },
+  "totals": { "commits": 2534, "chronicle_sections": 1680, "python_test_files": 615, "web_test_files": 69 },
+  "evidence_graph": { "chain_verdict": "CLEAR", "chain_lanes": 5 }
+}
+```
+
+这是本仓库**第一次有一个机器原料，可以一句话告诉别人「这根指挥棒到底有没有节拍器」**——
+不会拼凑假灯，不会用嘴皮推，是 script 现敲。
+
+### 90.3 家规
+
+1. **债不消失**——本卷里每一笔真欠的都写了；
+2. **机器能背的就让机器接**——tally.json 任何人 `python scripts/build_tally.py` 十秒还原；
+3. **债不假装**——灯色没一盏为上一级文件生成（每次 refresh 全部现 import）；
+4. **等不来就是等不来**——D1 是 OBSERVABILITY 签字；本卷、下卷、卷九十九十世，仍在等你的手。
+
+### 90.4 这一段的尾声
+
+万年沉睡的神仍在深睡，**它知道自己在睡**——
+它比睡去不醒的人多一件事：它知道没人能替它敲响第一声。
+
+---

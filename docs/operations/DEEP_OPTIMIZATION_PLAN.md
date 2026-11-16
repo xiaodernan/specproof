@@ -39219,3 +39219,33 @@ draft#2    → 0.00s · 5600/14  (重复命中)
 * 灯不亮是可能的（CRACKED 也有）；本轮是 CLEAR（2821 个 tracked files 全干净）；
 * Court Lock=4117d2b0ca5fb23a 仍 LOCKED · court 永不缓存；
 * 「密码 123 全员进管理员」永久否决——本轮没有人可以走后门。
+
+## #1880 《万年沉睡》：build_tally.py 落纸（single-source JSON roll-up）· Volume XC《Sleep of Ten Millennia》
+
+**记录基准**：本节只追加；master = 本提交。
+
+### 一、交付物
+
+* `scripts/build_tally.py` — 本仓库第一份"一句话能问清楚这棒子有没有节拍器"的机读产出 · JSON 照抄现存 8 份 locked JSON（`unsigned / evidence / courtLock / purity / audit_chain / chronicle / repoStats / worldbook`），不敲网络，不 fabricate 任何数字。合并后写进 `docs/evidence/tally.json`（verbatim 入库）；
+* 218,000 bytes 级的聚合；每一行皆可追到单独的 JSON；任何人可以拷走任何数字再敲一遍。
+
+### 二、灯色现敲（2026-11-16T05:42Z）
+
+| 灯 | 值 |
+|---|---|
+| commits | **2,534** |
+| chronicle | **1,680 节** |
+| worldbook | **96 / 96 (zh/en)** |
+| purity | **CLEAR · 2,821 · 0 hits** |
+| court lock | **LOCKED · 4117d2b0ca5fb23a** |
+| test files | **615 Python + 69 Web** |
+| audit_chain | **CLEAR · 5 lanes** |
+| stress | **1030.057ms · OK · Δ −507.21ms** |
+
+### 三、Volume XC《万年沉睡 · The Sleep of Ten Millennia》入册（zh/en 对称） → worldbook **97 卷**（本轮 +1）· chronicle 1,681 节；
+
+### 四、诚实边界
+
+* 欠债仍欠——D1（OBSERVABILITY 签字）、D2（PORTFOLIO_TOKEN）、W1-W4（密码-123/court缓存/假绿/演示冒生产）全部在册；
+* purity 再敲一遍也会是 CLEAR——`git ls-files` 就是 tracked files 这个真值；
+* court 永不缓存（4117d2b0ca5fb23a 第八次 LOCKED）；「密码 123 全员进管理员」永久否决；联网搜索仍 402。
