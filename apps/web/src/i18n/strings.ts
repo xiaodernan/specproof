@@ -470,7 +470,7 @@ const zh = {
   "errata.title": "更正卷轴",
   "errata.subtitle": "THE ERRATA SCROLL",
   "errata.lead":
-    "十五次我们写过错的话，每一次都进这个板子——没有一件展品是擦掉的；每件钉着一个真实账本号。",
+    "十六次我们写过错的话，每一次都进这个板子——没有一件展品是擦掉的；每件钉着一个真实账本号。",
   "errata.searchLabel": "搜索更正",
   "errata.placeholder": "搜索编号、英文名、关键字……（例：R14 / court / egress / 门）",
   "errata.noResult": "没有匹配——更正从来不是删除，查询只是暴露它们；换个关键词再敲一次。",
@@ -974,7 +974,7 @@ const en: Record<keyof typeof zh, string> = {
   "errata.title": "The Errata Scroll",
   "errata.subtitle": "THE ERRATA SCROLL",
   "errata.lead":
-    "Fifteen times we said something wrong. Every one is on this wall — none erased; every one carries a real ledger entry.",
+    "Sixteen times we said something wrong. Every one is on this wall — none erased; every one carries a real ledger entry.",
   "errata.searchLabel": "Search the errata",
   "errata.placeholder": "Search codes, English keywords, or phrases… (e.g. R14 / court / egress / door)",
   "errata.noResult": "Nothing matched — the scroll does not delete; the query only reveals it. Try a different word.",

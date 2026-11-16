@@ -155,4 +155,13 @@ export const ERRATA: ErratumEntry[] = [
     },
     anchor: "#1886",
   },
+  {
+    id: "R16", category: { zh: "缓存归因", en: "cache attribution" },
+    gloss: { zh: "我把一次 cached=4224 写得像改善了命中率", en: "one cached strike is not a higher hit rate" },
+    detail: {
+      zh: "Volume CXV 与多处文档把一次 live_lane_probe 敲出（HTTP 200 · cached 4224）写得像缓存命中率已改善。事实上：scripts/two_strike_probe.py（同一 prompt 连敲两次，本部署 aizzz/gpt-6.1-terra）两次都报 prompt_cache_hit_tokens=0（全 4676 未命中）；4224 很可能是网关的 tenant-shared 前缀，不是本应用的前缀。本仓车道已全流式 + include_usage；缓存是否命中不可控、不可宣称、不可写数。",
+      en: "Volume CXV and several documents wrote one cached=4224 strike from live_lane_probe as if the cache hit rate had already improved. Struck live: scripts/two_strike_probe.py (same prompt twice, this deployment) reported prompt_cache_hit_tokens=0/0 (all 4676 tokens missed, both times); the 4224 was likely the gateway's tenant-shared default prefix, not this app's. Every lane now rides stream+include_usage with a resident prefix — all we can control; whether the gateway caches us at all is not our claim to make.",
+    },
+    anchor: "#1915",
+  },
 ];

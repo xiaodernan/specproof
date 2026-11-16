@@ -298,7 +298,7 @@ export const SCROLLS_ZH: Scroll[] = [
     verses: [
       "一个屏幕说两种话，不是双语——是噪音；中文模式全中文，英文模式全英文。",
       "状态图不是装饰——它是契约：五张图在线跑，判词 fail-closed；Night Watch 永远 CRACKED。",
-      "铁证之书的每一页都能被敲开：/errata 是十五条亲笔更正，/stategraph 是八词说明书和五张活着的图。",
+      "铁证之书的每一页都能被敲开：/errata 是十六条亲笔更正，/stategraph 是八词说明书和五张活着的图。",
     ],
     details: [
       { label: "纯度闸已上 · i18n.purity.test.ts", value: "en 零 CJK / CJK 标点 / 全宽；zh 零英语连词三连——随 vitest 生效（#1909）" },
@@ -576,7 +576,7 @@ export const SCROLLS_EN: Scroll[] = [
     verses: [
       "A screen that speaks two languages is not bilingual — it is noise. Chinese mode is all Chinese; English mode is all English.",
       "Graphs are not decoration; they are the contract. Five run live here — every verdict fail-closed; Night Watch stays CRACKED.",
-      "Every page in this book is knockable: /errata keeps the fifteen corrections; /stategraph is the eight words with the five living graphs.",
+      "Every page in this book is knockable: /errata keeps the sixteen corrections; /stategraph is the eight words with the five living graphs.",
     ],
     details: [
       { label: "The purity gate · i18n.purity.test.ts", value: "zero CJK / punctuation / fullwidth in en; zero English link-word runs in zh — shipped with vitest (#1909)" },

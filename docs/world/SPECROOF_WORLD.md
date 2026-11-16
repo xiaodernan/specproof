@@ -4875,3 +4875,35 @@ UI **556/556** · vitest ✓ · npm run build ✓ · guide 6/6。
 「分支全收编」不是比喻，是三条 ancestry 链的客观事实；「藏品收编」也不是比喻，是三份 stash 的逐文件验收。
 
 ---
+## 卷一百三十二 · 第十六枚 · 两次敲（The Sixteenth R · The Two Strikes）
+
+> 「命中」不是一个愿望的词——它是一个要被敲两次的字节。
+> 第一枚敲是 OK 的；第二枚敲说：这根本不给我们敲。
+
+### 132.1 R16 钉在册子上
+
+**R16 · 缓存归因**（both 中文 / English）：
+Volume CXV 与多处文档把 `live_lane_probe` 的一次 cached=4224 写得像 cache 改善；`scripts/two_strike_probe.py`（同一 prompt 两次敲，本部署 gpt-6.1-terra）两次都报 `prompt_cache_hit_tokens: 0`（4676 全部 missed）。4224 很可能是 gateway 自带的 tenant-shared 前缀，不是本应用的前缀。
+
+> 全部车道已经 stream + include_usage——这是**我们能控制的全部**；网关是否愿意为我们缓存，不是本仓库有资格发证书的事。
+
+* `/errata` 今天把计数升到 **16**（R01–R16，双语，测试 4/4 仍全绿）
+* 本条随行：`corrections.json` 16 条 · APPENDIX_CORRECTIONS(+_EN) 入档 · 世界书历史不抹改
+
+### 132.2 two strikes struck live（2026-11-16 约 21 时）
+
+| strike | prompt | cached | miss |
+|---|---|---|---|
+| 1 | 4,676 tok（相同） | **0** | 4,676 |
+| 2 | 4,676 tok（相同） | **0** | 4,676 |
+
+两个敲 + 一次先前的 4224 = 账本据此降级：**一次 hit≠整役达标**；两次 0 strike = **缓存不可控，不许宣称**。
+faithfull: Volume CXV 文本保留原样（如实记当时怎么以为通了的——后来发现两次敲其实对）——更正只准增不准删：本卷替换的是**结论**，不是**字节**。
+
+### 132.3 不改的事
+
+* court `4117d2b0ca5fb23a` LOCKED · purity CLEAR ·「密码-123」否决 · Night Watch 依旧 CRACKED（exhibit #4 永在册）· exhibit #9 已入册（64c · p99 1,596.9 ms）；
+* D1 ✅（owner 2026-11-16 签）· D2 ⏸（owner PAT）；
+* mvn -o **137/137** · UI **559/559** · guide 6/6 · corrections **16**。
+
+---

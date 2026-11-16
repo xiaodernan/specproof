@@ -4752,3 +4752,35 @@ Branches and stashes rot; the ledger doesn't.
 "Everything is merged" is not a figure of speech; it is three ancestry chains and three file-level audits, both written down.
 
 ---
+## Volume CXXXII · The Sixteenth R · The Two Strikes（卷一百三十二 · 第十六枚 · 两次敲）
+
+> 「Hit」is not a wish — it is a byte to be struck twice.
+> The first strike said 200 OK; the second strike said: not for us.
+
+### 132.1 R16 on the scroll
+
+**R16 · cache attribution** (both locales):
+Volume CXV and several documents wrote one cached=4224 strike from `live_lane_probe` as if the cache had already improved; `scripts/two_strike_probe.py` (same prompt twice, this deployment `gpt-6.1-terra`) reported `prompt_cache_hit_tokens: 0` twice — all 4676 tokens missed both times. The 4224 was likely the gateway's own (tenant-shared) default prefix, not this application's prefix.
+
+> Every lane already rides stream + include_usage — that is all we control; whether the gateway caches us at all is not ours to certify.
+
+* `/errata` now carries **16** entries (R01–R16, bilingual; Errata.test 4/4 green)
+* companion: `corrections.json` 16 entries · APPENDIX_CORRECTIONS(+_EN) filed · the worldbook was never edited in this step
+
+### 132.2 Two strikes, struck live (2026-11-16, ~21:00)
+
+| strike | prompt tokens | cached | miss |
+|---|---|---|---|
+| 1 | 4,676 (identical) | **0** | 4,676 |
+| 2 | 4,676 (identical) | **0** | 4,676 |
+
+Two 0-strikes + one earlier 4224 = the ledger downgrades the claim: **one hit is not an improvement**; two consecutive 0-strikes mean **the cache is not under our control, and nobody may claim it is**.
+faithful note: Volume CXV's text stays as typed (the moment it looked like victory is part of the record) — errata appends, never rewrites; this volume replaces the **conclusion**, not the **bytes**.
+
+### 132.3 The floor never moved
+
+* court `4117d2b0ca5fb23a` LOCKED · purity CLEAR · 「password-123」permanently vetoed · Night Watch still **CRACKED** (exhibit #4 permanently on file) · exhibit #9 pinned (#1912 · 64c · p99 1,596.9 ms);
+* D1 ✅ (owner-signed 2026-11-16) · D2 pending owner's PAT;
+* mvn -o **137/137** · UI **559/559** · guide 6/6 · corrections **16**.
+
+---

@@ -6,7 +6,7 @@ import "../styles/errata.css";
 
 /**
  * 更正卷轴 · The Corrections Scroll —
- * a first-class page for the book's errata scroll, R01..R15.
+ * a first-class page for the book's errata scroll, R01..R16.
  *
  * Each entry is a place we actually got it wrong; every anchor links a real
  * ledger entry or a real commit/file. Nothing here is lore.

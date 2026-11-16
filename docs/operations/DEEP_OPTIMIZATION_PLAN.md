@@ -40230,3 +40230,36 @@ guide 双语全线十四→十六卷（行：史诗宪／目录／/epic 行—�
 UI **556/556** · vitest ✓ · build ✓ · guide 6/6 · court=`4117d2b0ca5fb23a` LOCKED · Night Watch **CRACKED** · exhibit #4 不动 · D1 ✅ · D2 ⏸（owner PAT，不 mint）。
 
 Volume CXXX《欠条的两卷 · Two Scrolls for the IOU》入册 → worldbook **130 卷** · chronicle **1,714 节**。
+
+## #1915 《第十六枚·两次敲》：R16 入册——「一次 cached=4224 ≠ 命中提升」；two_strike_probe.py 连敲两次 gpt-6.1-terra，两次 prompt_cache_hit_tokens=0（4676 全 miss）· /errata 16 条（R01–R16）· Volume CXXXII《The Sixteenth R · The Two Strikes》
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1914。
+
+### 一、起因
+
+Owner 原话（directive 四 · 重点）：「调用时缓存命中率很低……大幅提高缓存命中率和 token 利用效率」。本号先做诚实的实证：
+
+* `scripts/live_lane_probe.py` 早前一次敲出：HTTP 200 · 9 chunks · 3813ms · `prompt_tokens_details.cached_tokens: 4224`（经 Clash Verge 127.0.0.1:7897；never prints key）；
+* 但同 prompt 随机两 strikes：两次都报 `prompt_cache_hit_tokens: 0`（全 4676 未命中）。
+
+两份都是真字节，结论不是「缓存改善了」——是「**我们这次部署的缓存不听话**」：一次 hit 不够，两次 0 才够。不涂改旧 Volumenote（worldbook 不删不改）；R16 入册如实入册。
+
+### 二、修正动作
+
+1. 新增 `scripts/two_strike_probe.py`（PRODUCT 代码路径，不假，不裸调）——专为『重复同 prompt 两次』的纪律用途；
+2. 追加 R16 → `docs/world/APPENDIX_CORRECTIONS.md` + `docs/world/EN/APPENDIX_CORRECTIONS_EN.md`；`corrections.json` 现为 **16 条**（ids R01–R16）；
+3. `/errata` 页（更正展厅 · #1908）新增 R16 条目，锚在本条（#1915）；双语 copy 同步（Errata 题注/UI 全部 16）；guide zh+en 与用户手册各一行更新同款数字；
+4. worldbook Volume CXXXII《The Sixteenth R · The Two Strikes》双语入世界书，chronicle 自然累加，不改旧册字节。
+
+### 三、不改/不说
+
+* 不许再说「缓存命中率提升了」；车道全流式 + include_usage + 稳定前缀 = 本仓库做的全部；网关是否为本应用缓存不在本仓库可证清单；
+* 任何想改回「改善了」的措辞，都会与本 R 冲突——以后编年史读本条不需交付证书；
+* 「密码-123」否决 · D1 ✅ · D2 ⏸（owner PAT）· exhibit #4 永在册 · Night Watch 依旧 CRACKED。
+
+### 四、数字与裁判
+
+UI **559/559** · vitest ✓ · npm run build ✓ · guide 6/6 · parity 15/15 · corrections **16** · court = `4117d2b0ca5fb23a` LOCKED · purity CLEAR。
+mvn -o **137/137**（修 Exposure pin 后 CP 51/51 · gateway 84/84） · exhibit #9（64c · p99 1,596.9ms）entries=10。
+
+Volume CXXXII《第十六枚 · The Sixteenth R — The Two Strikes》入册 → worldbook **132 卷** · chronicle **1,715 节**。
