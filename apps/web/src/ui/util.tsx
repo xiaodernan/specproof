@@ -20,14 +20,15 @@ export function fmtTime(iso: string | null | undefined): string {
 export function fmtDurationSeconds(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined) return "—";
   if (!Number.isFinite(seconds) || seconds < 0) return "—";
-  if (seconds < 1) return seconds.toFixed(2) + " 秒";
-  if (seconds < 60) return seconds.toFixed(1) + " 秒";
+  const zhUnit = storedLocale() === "zh";
+  if (seconds < 1) return seconds.toFixed(2) + (zhUnit ? " 秒" : " s");
+  if (seconds < 60) return seconds.toFixed(1) + (zhUnit ? " 秒" : " s");
   const mins = Math.floor(seconds / 60);
   const rem = Math.floor(seconds % 60);
-  if (mins < 60) return mins + " 分 " + rem + " 秒";
+  if (mins < 60) return zhUnit ? mins + " 分 " + rem + " 秒" : mins + "m " + rem + "s";
   const hrs = Math.floor(mins / 60);
   const remMin = mins % 60;
-  return hrs + " 小时 " + remMin + " 分";
+  return zhUnit ? hrs + " 小时 " + remMin + " 分" : hrs + "h " + remMin + "m";
 }
 
 export function shortId(id: string | undefined): string {
@@ -96,9 +97,17 @@ const VERDICT_LABELS: Record<string, string> = {
   FAILED: "执行失败",
 };
 
+const VERDICT_LABELS_EN: Record<string, string> = {
+  VERIFIED: "Verified",
+  BLOCKED: "Blocked",
+  NEEDS_REVIEW: "Needs review",
+  FAILED: "Failed",
+};
+
 export function verdictLabel(v: string | undefined): string {
   if (!v) return "—";
-  return VERDICT_LABELS[v] ?? v;
+  const table = storedLocale() === "zh" ? VERDICT_LABELS : VERDICT_LABELS_EN;
+  return table[v] ?? v;
 }
 
 // #118: the acceptance-feedback verdict is a DIFFERENT vocabulary from the summary
@@ -116,13 +125,19 @@ const FEEDBACK_VERDICT_LABELS: Record<string, string> = {
   reject: "打回",
 };
 
+const FEEDBACK_VERDICT_LABELS_EN: Record<string, string> = {
+  accept: "Accept",
+  reject: "Reject",
+};
+
 export function feedbackVerdictWords(): string[] {
   return Object.keys(FEEDBACK_VERDICT_LABELS);
 }
 
 export function feedbackVerdictLabel(v: string | undefined): string {
   if (!v) return "—";
-  return FEEDBACK_VERDICT_LABELS[v] ?? v;
+  const table = storedLocale() === "zh" ? FEEDBACK_VERDICT_LABELS : FEEDBACK_VERDICT_LABELS_EN;
+  return table[v] ?? v;
 }
 
 export function kv(label: ReactNode, value: ReactNode): ReactNode {

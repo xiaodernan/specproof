@@ -383,7 +383,7 @@ export const SCROLLS_EN: Scroll[] = [
   {
     num: "Scroll 6",
     title: "The Unfinished Road",
-    en: "卷六 · 未完的路",
+    en: "The Unfinished Road",
     era: "2026-11 · today",
     verses: [
       "An IOU is not a shame — it is a map; every blank on it carries a name.",
@@ -400,7 +400,7 @@ export const SCROLLS_EN: Scroll[] = [
   {
     num: "Scroll 7",
     title: "The Twelve Iron Scales",
-    en: "卷七 · 十二把铁秤",
+    en: "The Twelve Iron Scales",
     era: "2026-11 · today",
     verses: [
       "When a tongue has two colours, evidence has one — press the button, the tone is the truth.",
@@ -417,7 +417,7 @@ export const SCROLLS_EN: Scroll[] = [
   {
     num: "Scroll 8",
     title: "The Two-Tongued Verdict",
-    en: "卷八 · 两种语言的验收",
+    en: "The Two-Tongued Verdict",
     era: "2026-11 · today",
     verses: [
       "Speak to the user in two languages; speak to the machine in two languages; speak to the ledger only in the truth.",
@@ -434,7 +434,7 @@ export const SCROLLS_EN: Scroll[] = [
   {
     num: "Scroll 9",
     title: "The Forge and the River",
-    en: "卷九 · 炉火与河流",
+    en: "The Forge and the River",
     era: "2026-11 · today",
     verses: [
       "A forge does not do the work for you — it only guarantees that everything you carry away from it is real iron.",
@@ -451,7 +451,7 @@ export const SCROLLS_EN: Scroll[] = [
   {
     num: "Scroll 11",
     title: "The Chronicle",
-    en: "卷十一 · 编年史",
+    en: "The Chronicle",
     era: "2026-11 · today",
     verses: [
       "The keeper wakes before dawn to check whether the teapot is full — because what was unfinished is not a scroll, it is a task.",
@@ -468,7 +468,7 @@ export const SCROLLS_EN: Scroll[] = [
   {
     num: "Scroll 12",
     title: "The Pocket Manual",
-    en: "卷十二 · 手札",
+    en: "The Pocket Manual",
     era: "2026-11 · today",
     verses: [
       "A sleeve does not hold a sword; it holds one folded page — the page that says what you must know before the door opens.",
@@ -485,7 +485,7 @@ export const SCROLLS_EN: Scroll[] = [
   {
     num: "Scroll 13",
     title: "The Evidence Archipelago",
-    en: "卷十三 · 证据群岛",
+    en: "The Evidence Archipelago",
     era: "2026-11 · today",
     verses: [
       "A world that never ends does not owe you lostness — the first chart drawn for you is the archipelago's whole hospitality.",
@@ -502,7 +502,7 @@ export const SCROLLS_EN: Scroll[] = [
   {
     num: "Scroll 14",
     title: "The Reading Room",
-    en: "卷十四 · 铁证书房",
+    en: "The Reading Room",
     era: "2026-11 · today",
     verses: [
       "A book worth keeping for life should not sleep in a terminal — the official history deserves a room, and the room deserves pages and a bookplate.",
@@ -533,3 +533,37 @@ export const CLOSING_BY_LOCALE: Record<Locale, string[]> = {
   zh: CLOSING_ZH,
   en: CLOSING_EN,
 };
+
+export interface PrologueSegment {
+  /** When true the segment renders inside a <strong> (the book's iron words). */
+  b?: boolean;
+  text: string;
+}
+
+/**
+ * The frontispiece paragraph. The Chinese text is the original; the English is
+ * its faithful translation (not a paraphrase — every claim maps one-to-one).
+ * Both render with the same three <strong> pins.
+ */
+export const PROLOGUE_BY_LOCALE: Record<Locale, PrologueSegment[]> = {
+  zh: [
+    { text: "此书始于一个简单的问题：" },
+    { b: true, text: "AI 写的代码，谁配说「过了」？" },
+    { text: "答案不是模型的自信、也不是评审的好运气，而是" },
+    { b: true, text: "一炉可复现的铁证" },
+    { text: "：契约编译成法律、差分执行成证言、矩阵列出罪名，再由确定性策略定谳。SpecProof 不是一个「检查代码的工具」，它是一台为每个变更验明来路的" },
+    { b: true, text: "验收机器" },
+    { text: "。" },
+  ],
+  en: [
+    { text: "This book started with one simple question: " },
+    { b: true, text: "who may say “passed” about AI-written code? " },
+    { text: "Not the model’s confidence. Not the reviewer’s luck — a furnace of " },
+    { b: true, text: "reproducible iron evidence" },
+    { text: ": contracts compiled into law, differential runs turned into testimony, the matrix listing the charges, and a deterministic policy hands down the verdict. SpecProof is not a “code-checking tool” — it is the " },
+    { b: true, text: "acceptance machine" },
+    { text: " that verifies the origin of every single change." },
+  ],
+};
+
+export const PROLOGUE_MARK_BY_LOCALE: Record<Locale, string> = { zh: "始", en: "P" };

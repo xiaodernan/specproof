@@ -3,6 +3,9 @@ import { listAgentApprovals } from "../../api";
 import { Empty, ErrorBox, Panel, Spinner } from "../../ui";
 import { loadFailed } from "../../ui/errorHints";
 import { AgentJobShell, ApprovalCard, useAgentJob } from "../components";
+import { storedLocale } from "../../i18n/strings";
+const isZh = (): boolean => storedLocale() === "zh";
+const L = (zh: string, en: string): string => (isZh() ? zh : en);
 
 export default function AgentJobApprovals(props: { jobId: string }) {
   const { jobId } = props;
@@ -30,23 +33,23 @@ export default function AgentJobApprovals(props: { jobId: string }) {
   if (!job) {
     return (
       <div>
-        <ErrorBox error={error || "任务不存在 (404)"} />
-        <a href="#/agent">← 返回 Agent 总览</a>
+        <ErrorBox error={error || L("任务不存在（404）", "Task not found (404)")} />
+        <a href="#/agent">{L("← 返回 Agent 总览", "← Back to Agent overview")}</a>
       </div>
     );
   }
 
   return (
     <AgentJobShell job={job} active="approvals">
-      <Panel title={"审批记录 Approvals (" + approvals.length + ")"}>
+      <Panel title={L("审批记录", "Approvals") + " (" + approvals.length + ")"}>
         {loadFailed(listError) ? (
           <div className="errorbox" role="alert" title={typeof listError === "string" ? listError : listError?.message}>
-            审批记录暂时无法加载（请求失败）— 这不代表该任务没有审批，请稍后重试。
+            {L("审批记录暂时无法加载（请求失败）——这不代表该任务没有审批，请稍后重试。", "The approval log failed to load (request failed); this does not mean the task has none — retry shortly.")}
           </div>
         ) : listError ? (
           <ErrorBox error={listError} />
         ) : approvals.length === 0 ? (
-          <Empty text="该任务尚无审批记录" />
+          <Empty text={L("该任务尚无审批记录", "This task has no approvals yet.")} />
         ) : (
           approvals.map((a) => <ApprovalCard key={a.id} approval={a} />)
         )}

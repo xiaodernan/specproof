@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { storedLocale } from "../i18n/strings";
 import { Button } from "./Button";
 import { XIcon } from "./icons";
 
@@ -100,7 +101,7 @@ export function ToastProvider(props: { children?: ReactNode }): JSX.Element {
 
 function ToastViewport(props: { toasts: ToastItem[]; onDismiss: (id: number) => void }): JSX.Element {
   return (
-    <div className="ui-toast-viewport" role="status" aria-live="polite" aria-label="通知 Notifications">
+    <div className="ui-toast-viewport" role="status" aria-live="polite" aria-label={storedLocale() === "zh" ? "通知" : "Notifications"}>
       {props.toasts.map((item) => (
         <ToastCard key={item.id} item={item} onDismiss={props.onDismiss} />
       ))}
@@ -139,7 +140,7 @@ function ToastCard(props: { item: ToastItem; onDismiss: (id: number) => void }):
         variant="ghost"
         size="sm"
         className="ui-toast-close"
-        aria-label="关闭通知 Dismiss"
+        aria-label={storedLocale() === "zh" ? "关闭通知" : "Dismiss"}
         onClick={beginExit}
       >
         <XIcon size={12} />

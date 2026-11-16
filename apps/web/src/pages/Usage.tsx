@@ -44,37 +44,37 @@ interface KindRow {
   hit_rate: number | null;
 }
 
-const KIND_COLUMNS: Column<KindRow>[] = [
+const KIND_COLUMNS = (zh: boolean): Column<KindRow>[] => [
   {
     key: "kind",
-    header: "类型 kind",
+    header: zh ? "类型 kind" : "Kind",
     sortable: true,
     render: (r) => <span className="mono">{r.kind}</span>,
   },
   {
     key: "calls",
-    header: "调用",
+    header: zh ? "调用" : "Calls",
     align: "right",
     sortable: true,
     render: (r) => <span className="mono">{r.calls}</span>,
   },
   {
     key: "prompt_tokens",
-    header: "Prompt\u2009token",
+    header: "Prompt token",
     align: "right",
     sortable: true,
     render: (r) => <span className="mono">{fmtTokens(r.prompt_tokens)}</span>,
   },
   {
     key: "cached_tokens",
-    header: "缓存命中\u2009token",
+    header: zh ? "缓存命中 token" : "Cached tokens",
     align: "right",
     sortable: true,
     render: (r) => <span className="mono">{fmtTokens(r.cached_tokens)}</span>,
   },
   {
     key: "hit_rate",
-    header: "命中率",
+    header: zh ? "命中率" : "Hit rate",
     align: "right",
     sortable: true,
     sortValue: (r) => (typeof r.hit_rate === "number" ? r.hit_rate : -1),
@@ -84,7 +84,7 @@ const KIND_COLUMNS: Column<KindRow>[] = [
 
 /** 每小时趋势：柱 = 调用次数（缩放到最大值），折线 = 命中率（0–100%）。纯 SVG。 */
 function TrendChart({ trend }: { trend: LlmUsageTrendBucket[] }): JSX.Element {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const W = 660;
   const H = 132;
   const PAD_L = 6;
@@ -113,7 +113,7 @@ function TrendChart({ trend }: { trend: LlmUsageTrendBucket[] }): JSX.Element {
 
   return (
     <div className="usage-trend">
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="每小时调用次数与缓存命中率">
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={locale === "zh" ? "每小时调用次数与缓存命中率" : "Calls per hour and cache hit rate"}>
         <line x1={PAD_L} y1={BAR_BOTTOM} x2={W - PAD_R} y2={BAR_BOTTOM} className="usage-trend-axis" />
         {points.map((p, i) => {
           const barH = (p.bucket.calls / maxCalls) * (BAR_BOTTOM - TOP);
@@ -235,10 +235,10 @@ export default function Usage() {
 
           <Panel title={t("usage.byKind")}>
             <Table<KindRow>
-              columns={KIND_COLUMNS}
+              columns={KIND_COLUMNS(locale === "zh")}
               rows={data.by_kind}
               rowKey={(r) => r.kind}
-              emptyTitle="暂无类型记录"
+              emptyTitle={locale === "zh" ? "暂无类型记录" : "No kind records yet"}
               emptyDescription={t("usage.trendEmpty")}
             />
           </Panel>

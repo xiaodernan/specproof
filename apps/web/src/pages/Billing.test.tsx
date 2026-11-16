@@ -236,6 +236,6 @@ describe("Billing page", () => {
     getAuthMeMock.mockReturnValue(new Promise<never>(() => {}));
     render(<Billing />);
 
-    expect(screen.getByText("加载中 LOADING…")).toBeTruthy();
+    expect(screen.getByText("加载中")).toBeTruthy();
   });
 });

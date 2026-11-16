@@ -40069,3 +40069,35 @@ Volume CXVII《第三块地标 · The Third Light in the Atlas》入册 → worl
 * guide route catalog 6/6 · CSS audits sheet 无其他必要
 
 Volume CXVIII《错误的展厅 · The Errarium》入册 → worldbook **125 卷** · chronicle **1,709 节**。
+
+## #1909 《两种语言只许说一种话》：i18n 纯度大修（ui-kit / agent 控制台 / strings.ts 英语表三处实泄漏）· 新增构建闸 `i18n.purity.test.ts` · Volume CXIX《The Language Purity Volume》
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1908。
+
+### 一、起因
+
+Owner 反复强调：「中文模式下全部内容统一用中文，原生英文的内容也得全部翻译成中文；英文模式下同理，全部统一为英文」「不要中英文夹杂」。本轮对全库做了一次纯度审计：AST 级扫描 572 条 CJK 出现在"非守卫"语境 → 分类为 (a) 真实未守卫的中文/混排串、(b) 注释、(c) 双语三元/L() 内、(d) 象形章字形（intentional）。
+
+### 二、修复清单（全部真实修复，非装饰）
+
+1. `strings.ts` 英语表：`tour.lead`「验讫」、`explorer.tally`「{verdict}」、`usage.basis`「—」（CJK 直角引号泄漏）→ 英文弯引号；
+2. `epic.copy.ts` en 版八个中文副标题 → 英语正题名；`Epic.tsx` 序言写死中文 → `PROLOGUE_BY_LOCALE`（中英各一份、三处 \<strong\> 对称）；闭页「尾」→ locale-aware；
+3. `drillQuestions.ts` / `lexicon.copy.ts`：`「considered」`/`「iron」`→“…”；
+4. 共享 UI 组件：Spinner、Table（emptyTitle）、Toast（viewport+close）、AreaChart、DonutMeter、Degraded、ErrorBox、ErrorBoundary（+返回链）、Modal、GoBack（Explorer 判词 EN 分支改调 verdictEpicEn）；
+5. agent 控制台 13 页：ApprovalDetail / ApprovalsInbox / DiffViewer / Edits / EventLog / Gates / JobApprovals / Overview / PlanReview / PlanStep / Result / ToolStream / Wizard —— 全部从「写死中英混排」改为本地 L()/isZh() 守卫；AgentResult 修复了三个因整行替换丢掉的 `return <Panel ...>` 关键词（修复后 21/21 通过）；
+6. 其他：Usage（KIND_COLUMNS locale 化 + TrendChart 的 aria-label/\<title\>/空态）、QualityLayout 分页、StageTimeline、SameRepoCraftPanel、PreflightCard、ControlRoomPreview、Gazette/Audit/Guide（去掉原生 `。`）、Recall（SUGGESTED 拆分中英各一套）；
+7. 中文象形章字形（Drill 的 见/验/印/铁、Explorer 的 铁/半铁、Epic 的「尾/END」处理）按设计保留——徽章不是文案；
+8. **新闸**：`apps/web/src/i18n/__tests__/i18n.purity.test.ts`（3 条断言）——en 表零 CJK/零 CJK 标点/零全宽字符；zh 表零「英语连词三连」句子；zh 值零「直引号包住 CJK」。随 vitest 与 parity 闸一起过。
+
+### 三、现场实摸
+
+* zh：`<html lang="zh-CN">` ·「工作台 · SpecProof」· h1「代码改好了？需求，真的实现了吗？」✅；
+* en：`<html lang="en">` · "Dashboard · SpecProof" · h1 "The code is ready. But is the requirement really implemented?" ✅。
+
+### 四、数字与裁判
+
+* UI **553/553**（75 文件）· npm run build ✓ · guide 6/6 · parity 15/15（含 feedback verdict parity 7 + severity 2 + guide 6）· court = `4117d2b0ca5fb23a` LOCKED；
+* 纯度泄漏计数 572 → 145 → **99**（余额全部为注释/双语三元/L() 内中文/象形章/zh 侧约束串）；
+* purity 仍 CLEAR · Night Watch 仍 CRACKED（exhibit #4 1,526.1 ms、exhibit #8 2,078.7 ms 原样入册）；「密码-123」永久否决；D1 ✅ 签 · D2 ⏸ 等 owner PAT（本仓不 mint）。
+
+Volume CXIX《两种语言只许说一种话 · The Language Purity Volume》入册 → worldbook **126 卷** · chronicle **1,710 节**。

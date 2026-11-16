@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from "react";
+import { storedLocale } from "../i18n/strings";
 
 // Render-crash fallback (guide §A row 32: 错误边界): when a route throws
 // during render, the shell survives and shows this notice instead of a
@@ -25,11 +26,11 @@ export class ErrorBoundary extends Component<
     if (this.state.error) {
       return (
         <div className="errorbox" data-testid="error-boundary" role="alert">
-          {"错误 ERROR — 页面渲染异常, 已降级 (error boundary): " +
+          {(storedLocale() === "zh" ? "错误 ERROR · 页面渲染异常，已降级（error boundary）: " : "ERROR · render boundary caught: ") +
             (this.state.error.message || String(this.state.error))}
           <div style={{ marginTop: 8 }}>
             <a className="btn btn-ghost btn-sm" href="#/dashboard">
-              ← 返回总览
+              {storedLocale() === "zh" ? "← 返回总览" : "← Back to overview"}
             </a>
           </div>
         </div>

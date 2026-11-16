@@ -128,7 +128,7 @@ export default function AgentWizard(props: { step: WizardStep }) {
             type="text"
             data-testid="wizard-task"
             value={draft.task_name}
-            placeholder="为服务端增加分页"
+            placeholder={L("为服务端增加分页", "Add pagination for the server")}
             onChange={(e) => set({ task_name: e.target.value })}
           />
           <label className="field" htmlFor="wizard-base">{L("基线 Base ref（仅参考，不切换工作目录）", "Base ref (informational — the workdir is not switched)")}</label>
@@ -221,8 +221,7 @@ export default function AgentWizard(props: { step: WizardStep }) {
             rows={12}
             data-testid="wizard-spec"
             value={draft.spec_text}
-            placeholder={"为 /users 列表接口增加分页参数 (page, page_size)，默认 page_size=20，" +
-              "上限 100；补充分页相关的单元测试。"}
+            placeholder={isZh() ? "为 /users 列表接口增加分页参数 (page, page_size)，默认 page_size=20，上限 100；补充分页相关的单元测试。" : "Add pagination (page, page_size) to the /users list endpoint — default page_size=20, max 100; add pagination unit tests."}
             onChange={(e) => set({ spec_text: e.target.value })}
           />
           {!draft.spec_text.trim() ? (
@@ -271,15 +270,15 @@ export default function AgentWizard(props: { step: WizardStep }) {
             <span className="kv-value mono">{draft.head_ref || "—"}</span>
           </div>
           <div className="kv">
-            <span className="kv-label">执行模式</span>
+            <span className="kv-label">{L("执行模式", "Execution mode")}</span>
             <span className="kv-value mono">
               {draft.execution_mode === "llm"
-                ? "LLM 增强档 llm"
-                : "确定性档 deterministic"}
+                ? L("LLM 增强", "LLM-enhanced")
+                : L("确定性档", "Deterministic")}
             </span>
           </div>
           <div className="degraded" style={{ marginTop: 14 }}>
-            <strong>提交后会先生成计划，你批准前不会改动仓库</strong>
+            <strong>{L("提交后会先生成计划，你批准前不会改动仓库。", "A plan is generated first — nothing is written to the repo before you approve.")}</strong>
             <p>
               {L("执行器根据项目环境运行适用的检查，并在结果中逐项列出通过、失败或跳过的检查；未执行的检查不算通过。运行预算与最大步数由服务端配置决定，这里不提供开关。", "The executor runs the applicable checks for the project environment and lists each one as passed, failed or skipped; unset checks do not count as passed. The run budget and max steps are set server-side — this page does not offer switches.")}
             </p>

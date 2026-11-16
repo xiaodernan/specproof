@@ -226,7 +226,7 @@ export default function Guide() {
       <section className="guide-shortcuts" aria-labelledby="guide-keyboard">
         <h2 id="guide-keyboard">{c.shortcutsTitle}</h2>
         <p>
-          {c.shortcutsBodyBefore} <Kbd>?</Kbd> {c.shortcutsBodyMid} <Kbd>Ctrl</Kbd> <Kbd>K</Kbd>。
+          {c.shortcutsBodyBefore} <Kbd>?</Kbd> {c.shortcutsBodyMid} <Kbd>Ctrl</Kbd> <Kbd>K</Kbd>
           {c.shortcutsBodyEnd} <Kbd>Esc</Kbd>{locale === "zh" ? "，随时取消当前动作。" : " — cancel the current action at any time."}
         </p>
       </section>

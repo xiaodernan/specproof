@@ -131,8 +131,8 @@ export default function TenantTokens() {
   return (
     <div>
       <div className="page-head">
-        <h1>Token 管理 Tokens</h1>
-        <div className="page-sub">IDENTITY — sp_* 本地凭证, show-once (RBAC: admin/operator)</div>
+        <h1>{L("Token 管理", "Tokens")}</h1>
+        <div className="page-sub">{L("IDENTITY — sp_* 本地凭证，show-once（RBAC: admin/operator）", "IDENTITY — sp_* local credentials, show-once (RBAC: admin/operator)")}</div>
       </div>
       <Panel title={L("签发新 Token", "Mint a token")}>
         <div style={{ display: "flex", gap: 8 }}>

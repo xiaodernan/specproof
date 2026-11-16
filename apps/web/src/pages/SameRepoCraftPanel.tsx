@@ -12,6 +12,9 @@ import { useEffect, useState } from "react";
 import { listAgentJobs, type AgentJobSummary } from "../api";
 import { agentStatusMeta } from "../agent/util";
 import { Empty, ErrorBox, Panel, Spinner, Table, fmtTime, shortId } from "../ui";
+import { storedLocale } from "../i18n/strings";
+const isZh = (): boolean => storedLocale() === "zh";
+const L = (zh: string, en: string): string => (isZh() ? zh : en);
 
 export function SameRepoCraftPanel(props: { repoPath?: string | null }) {
   const repoPath = props.repoPath || "";
@@ -42,7 +45,7 @@ export function SameRepoCraftPanel(props: { repoPath?: string | null }) {
   const columns = [
     {
       key: "task",
-      header: "开发任务",
+      header: L("开发任务", "Task"),
       render: (j: AgentJobSummary) => (
         <a href={"#/agent/jobs/" + encodeURIComponent(j.id)} title={j.id}>
           {j.task_name || shortId(j.id)}
@@ -51,7 +54,7 @@ export function SameRepoCraftPanel(props: { repoPath?: string | null }) {
     },
     {
       key: "status",
-      header: "状态",
+      header: L("状态", "Status"),
       render: (j: AgentJobSummary) => {
         const meta = agentStatusMeta(j.status);
         return <span className="pill pill-mute" title={j.status}>{meta.label}</span>;
@@ -59,24 +62,24 @@ export function SameRepoCraftPanel(props: { repoPath?: string | null }) {
     },
     {
       key: "created_at",
-      header: "创建时间",
+      header: L("创建时间", "Created"),
       render: (j: AgentJobSummary) => <span className="muted">{fmtTime(j.created_at)}</span>,
     },
   ];
 
   return (
-    <Panel title="AI 开发任务（同仓库）">
+    <Panel title={L("AI 开发任务（同仓库）", "AI development tasks (this repo)")}>
       <p className="muted" style={{ marginTop: 0 }}>
-        {"开发任务创建时登记的仓库路径（已归一分隔符，大小写不作归一）与本仓库"}
+        {L("开发任务创建时登记的仓库路径（已归一分隔符，大小写不作归一）与本仓库", "The repo path recorded when the dev task was created (separator-normalized, case kept) matches this repo:")}
         <code>{repoPath}</code>
-        {" 持久化匹配，重启后依然可查。两条链路之间没有外键，这里不是因果断言，只是同一仓库的工作对照；在本字段启用前创建的旧记录可能没有登记路径，因而不在此列出。"}
+        {L(" 持久化匹配，重启后依然可查。两条链路之间没有外键，这里不是因果断言，只是同一仓库的工作对照；在本字段启用前创建的旧记录可能没有登记路径，因而不在此列出。", " it is a durable match that survives restarts. There is no foreign key between the two lanes — this is not a causal claim, only a same-repo working comparison; tasks created before this field existed may carry no path and are honestly absent here.")}
       </p>
       {failed ? (
-        <ErrorBox error="开发任务列表暂时无法读取（请求失败）— 这不代表没有同仓库任务，请稍后重试。" />
+        <ErrorBox error={L("开发任务列表暂时无法读取（请求失败）——这不代表没有同仓库任务，请稍后重试。", "The task list failed to load (request failed); this does not mean none exist — retry shortly.")} />
       ) : jobs === null ? (
         <Spinner />
       ) : jobs.length === 0 ? (
-        <Empty text="同仓库路径下没有开发任务记录。" />
+        <Empty text={L("同仓库路径下没有开发任务记录。", "No development tasks recorded for this repo path.")} />
       ) : (
         <Table columns={columns} rows={jobs} rowKey={(j: AgentJobSummary) => j.id} />
       )}

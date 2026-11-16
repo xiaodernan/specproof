@@ -4,6 +4,9 @@ import { Empty, ErrorBox, Panel, Spinner } from "../../ui";
 import { AgentJobShell, useAgentJob } from "../components";
 import { diffFileStatusLabel, diffModeLabel } from "../util";
 import { loadFailed } from "../../ui/errorHints";
+import { storedLocale } from "../../i18n/strings";
+const isZh = (): boolean => storedLocale() === "zh";
+const L = (zh: string, en: string): string => (isZh() ? zh : en);
 
 function useDiff(jobId: string, mode: "unified" | "split") {
   const [diff, setDiff] = useState<AgentDiff | null>(null);
@@ -39,8 +42,8 @@ export default function AgentDiffViewer(props: { jobId: string; mode: "unified" 
   if (!job) {
     return (
       <div>
-        <ErrorBox error={jobError || "任务不存在 (404)"} />
-        <a href="#/agent">← 返回 Agent 总览</a>
+        <ErrorBox error={jobError || L("任务不存在（404）", "Task not found (404)")} />
+        <a href="#/agent">{L("← 返回 Agent 总览", "← Back to Agent overview")}</a>
       </div>
     );
   }
@@ -59,28 +62,28 @@ export default function AgentDiffViewer(props: { jobId: string; mode: "unified" 
     <AgentJobShell job={job} active="diff">
       <ErrorBox error={error} />
       <Panel
-        title={"结构化 Diff — " + (diff ? diff.stats.files_changed + " 文件" : "—")}
+        title={L("结构化 Diff —— ", "Structured diff — ") + (diff ? diff.stats.files_changed + L(" 个文件", " file(s)") : "—")}
         right={
           <div style={{ display: "flex", gap: 8 }}>
-            {modeBtn("unified", "统一 Unified")}
-            {modeBtn("split", "分栏 Split")}
+            {modeBtn("unified", L("统一", "Unified"))}
+            {modeBtn("split", L("分栏", "Split"))}
           </div>
         }
       >
         {!diff ? (
           loadFailed(error) ? (
-            <Empty text="变更包暂时无法加载（请求失败）— 这不代表没有改动，请稍后重试" />
+            <Empty text={L("变更包暂时无法加载（请求失败）——这不代表没有改动，请稍后重试。", "The change bundle failed to load (request failed); this does not mean there are no changes — retry shortly.")} />
           ) : (
-            <Empty text="变更包不可用 (worker 尚未产生 bundle — 诚实 404 空态)" />
+            <Empty text={L("变更包不可用（worker 尚未产生 bundle——诚实 404 空态）", "Change bundle unavailable (the worker has not produced one yet — honest 404 empty state).")} />
           )
         ) : diff.files.length === 0 ? (
-          <Empty text="变更包为空 (无文件改动)" />
+          <Empty text={L("变更包为空（无文件改动）", "The change bundle is empty (no file changes).")} />
         ) : (
           <>
             <div className="diff-stats mono">
               <span className="diff-add">+{diff.stats.insertions}</span>
               <span className="diff-del">-{diff.stats.deletions}</span>
-              <span className="muted">{diff.stats.files_changed} 个文件 files</span>
+              <span className="muted">{diff.stats.files_changed} {L("个文件", "file(s)")}</span>
               <span className="muted">{diffModeLabel(diff.mode)}</span>
             </div>
             {diff.files.map((file) => (

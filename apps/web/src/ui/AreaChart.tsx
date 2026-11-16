@@ -1,4 +1,5 @@
 import { useId } from "react";
+import { storedLocale } from "../i18n/strings";
 
 /**
  * AreaChart — a dependency-free, theme-aware SVG area chart with a smooth
@@ -53,7 +54,7 @@ export function AreaChart({
   className,
   ariaLabel,
   formatValue,
-  emptyHint = "暂无数据",
+  emptyHint = storedLocale() === "zh" ? "暂无数据" : "No data",
 }: AreaChartProps): JSX.Element {
   const gradId = useId().replace(/:/g, "");
   if (data.length === 0) {
@@ -87,7 +88,7 @@ export function AreaChart({
       viewBox={`0 0 ${W} ${H}`}
       preserveAspectRatio="none"
       role="img"
-      aria-label={ariaLabel || "趋势图"}
+      aria-label={ariaLabel || (storedLocale() === "zh" ? "趋势图" : "Trend chart")}
     >
       <defs>
         <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">

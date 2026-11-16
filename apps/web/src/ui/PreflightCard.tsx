@@ -6,6 +6,10 @@ import {
   type PreflightCheck, type PreflightResult,
 } from "./preflight";
 
+import { storedLocale } from "../i18n/strings";
+const isZh = (): boolean => storedLocale() === "zh";
+const L = (zh: string, en: string): string => (isZh() ? zh : en);
+
 // 环境预检结果卡（roadmap Phase 1.4）。
 //
 // 设计原则：先说"缺什么、下一步怎么办"，再说细节。未识别的项目语言明确
@@ -17,22 +21,22 @@ const STATUS_TONE: Record<string, string> = {
   WARN: "var(--warning, var(--accent-text))",
 };
 
-const CHECK_COLUMNS: Column<PreflightCheck>[] = [
+const CHECK_COLUMNS = (): Column<PreflightCheck>[] => [
   {
     key: "check",
-    header: "检查项",
+    header: L("检查项", "Check"),
     render: (c) => <span title={c.check}>{preflightCheckLabel(c.check ?? "")}</span>,
   },
   {
     key: "status",
-    header: "结果",
+    header: L("结果", "Result"),
     render: (c) => (
       <span style={{ color: STATUS_TONE[c.status ?? ""] }}>{preflightStatusLabel(c.status)}</span>
     ),
   },
   {
     key: "detail",
-    header: "详情",
+    header: L("详情", "Detail"),
     render: (c) => (
       <span className="mono" title={c.detail}>{c.detail || "—"}</span>
     ),
@@ -53,7 +57,7 @@ export function PreflightCard(props: { preflight?: PreflightResult | null }): JS
 
   return (
     <Panel
-      title="执行环境预检"
+      title={L("执行环境预检", "Environment pre-flight")}
       right={
         <span
           className="pill"
@@ -65,7 +69,7 @@ export function PreflightCard(props: { preflight?: PreflightResult | null }): JS
                 : "var(--success)",
           }}
         >
-          {blocked ? "环境不满足" : unverified ? "环境未验证" : "环境正常"}
+          {blocked ? L("环境不满足", "ENVIRONMENT NOT SATISFIED") : unverified ? L("环境未验证", "ENVIRONMENT UNVERIFIED") : L("环境正常", "ENVIRONMENT OK")}
         </span>
       }
     >
@@ -73,14 +77,14 @@ export function PreflightCard(props: { preflight?: PreflightResult | null }): JS
 
       {p.language ? (
         <div className="kv">
-          <span className="kv-label">识别到的项目类型</span>
+          <span className="kv-label">{L("识别到的项目类型", "Detected project type")}</span>
           <span className="kv-value">{preflightLanguageLabel(p.language)}</span>
         </div>
       ) : null}
 
       {p.errors && p.errors.length > 0 ? (
         <>
-          <div className="kv-label">需要先处理</div>
+          <div className="kv-label">{L("需要先处理", "Needs attention first")}</div>
           {p.errors.map((e, i) => (
             <div key={i} className="errorbox" style={{ marginBottom: 6 }} title={String(e)}>
               {describePreflightError(String(e))}
@@ -92,7 +96,7 @@ export function PreflightCard(props: { preflight?: PreflightResult | null }): JS
       {p.checks && p.checks.length > 0 ? (
         <div style={{ marginTop: 10 }}>
           <Table<PreflightCheck>
-            columns={CHECK_COLUMNS}
+            columns={CHECK_COLUMNS()}
             rows={p.checks}
             rowKey={(c, i) => `${c.check ?? "check"}-${i}`}
             stickyHeader={false}
@@ -102,7 +106,7 @@ export function PreflightCard(props: { preflight?: PreflightResult | null }): JS
 
       {p.warnings && p.warnings.length > 0 ? (
         <>
-          <div className="kv-label">提醒</div>
+          <div className="kv-label">{L("提醒", "Reminder")}</div>
           {p.warnings.map((w, i) => (
             <div key={i} className="kv-value" style={{ marginBottom: 4 }} title={String(w)}>{String(w)}</div>
           ))}
@@ -112,10 +116,10 @@ export function PreflightCard(props: { preflight?: PreflightResult | null }): JS
       {p.skipped && p.skipped.length > 0 ? (
         <details style={{ marginTop: 10 }}>
           <summary style={{ fontSize: 12, color: "var(--color-text-2)" }}>
-            不适用于该项目类型的检查（{p.skipped.length} 项）
+            {isZh() ? `不适用于该项目类型的检查（${p.skipped.length} 项）` : `Checks not applicable to this project type (${p.skipped.length})`}
           </summary>
           <div className="kv-value" style={{ marginTop: 6 }}>
-            {p.skipped.map(preflightCheckLabel).join("、")}
+            {p.skipped.map(preflightCheckLabel).join(", ")}
           </div>
         </details>
       ) : null}

@@ -3,6 +3,9 @@ import { AgentJobSummary, listAgentJobs } from "../../api";
 import { Empty, ErrorBox, Panel, Spinner, Table, fmtTime, shortId, type Column } from "../../ui";
 import { loadFailed } from "../../ui/errorHints";
 import { agentStatusMeta } from "../util";
+import { storedLocale } from "../../i18n/strings";
+const isZh = (): boolean => storedLocale() === "zh";
+const L = (zh: string, en: string): string => (isZh() ? zh : en);
 
 const STATUS_TONE: Record<string, string> = {
   ok: "pill-ok",
@@ -13,7 +16,7 @@ const STATUS_TONE: Record<string, string> = {
 const COLUMNS: Column<AgentJobSummary>[] = [
   {
     key: "task_name",
-    header: "任务",
+    header: L("任务", "Task"),
     sortable: true,
     render: (j) => (
       <span className="mono">
@@ -22,10 +25,10 @@ const COLUMNS: Column<AgentJobSummary>[] = [
       </span>
     ),
   },
-  { key: "repo_path", header: "仓库 Repository", sortable: true, render: (j) => <span className="muted">{j.repo_path}</span> },
+  { key: "repo_path", header: L("仓库", "Repo"), sortable: true, render: (j) => <span className="muted">{j.repo_path}</span> },
   {
     key: "status",
-    header: "状态",
+    header: L("状态", "Status"),
     sortable: true,
     render: (j) => {
       const meta = agentStatusMeta(j.status);
@@ -36,10 +39,10 @@ const COLUMNS: Column<AgentJobSummary>[] = [
       );
     },
   },
-  { key: "plan_steps", header: "计划步骤", align: "right", sortable: true, render: (j) => <span className="mono">{j.plan_steps}</span> },
-  { key: "events_count", header: "事件", align: "right", sortable: true, render: (j) => <span className="mono">{j.events_count}</span> },
-  { key: "approvals_count", header: "审批", align: "right", sortable: true, render: (j) => <span className="mono">{j.approvals_count}</span> },
-  { key: "updated_at", header: "更新时间", sortable: true, render: (j) => <span className="muted">{fmtTime(j.updated_at)}</span> },
+  { key: "plan_steps", header: L("计划步骤", "Plan steps"), align: "right", sortable: true, render: (j) => <span className="mono">{j.plan_steps}</span> },
+  { key: "events_count", header: L("事件", "Events"), align: "right", sortable: true, render: (j) => <span className="mono">{j.events_count}</span> },
+  { key: "approvals_count", header: L("审批", "Approvals"), align: "right", sortable: true, render: (j) => <span className="mono">{j.approvals_count}</span> },
+  { key: "updated_at", header: L("更新时间", "Updated"), sortable: true, render: (j) => <span className="muted">{fmtTime(j.updated_at)}</span> },
 ];
 
 export default function AgentOverview() {
@@ -76,25 +79,25 @@ export default function AgentOverview() {
   return (
     <div>
       <div className="page-head">
-        <h1>SpecCraft Agent 工作台</h1>
+        <h1>{L("SpecCraft Agent 工作台", "SpecCraft Agent Workbench")}</h1>
         <div className="page-sub">
-          AGENT CONSOLE — 任务向导 / 计划审阅 / 实时工具流 / 审批 / Diff
+          {L("AGENT CONSOLE · 任务向导 / 计划审阅 / 实时工具流 / 审批 / Diff", "AGENT CONSOLE · wizard / plan review / tool stream / approvals / diff")}
         </div>
       </div>
       <ErrorBox error={error} />
       <div style={{ marginBottom: 16, display: "flex", flexWrap: "wrap", gap: 10 }}>
         <a className="btn" href="#/agent/new" style={{ display: "inline-block" }}>
-          + 新建任务 New task
+          + {L("新建任务", "New task")}
         </a>
-        <a className="btn btn-ghost" href="#/agent/settings">模型连接</a>
+        <a className="btn btn-ghost" href="#/agent/settings">{L("模型连接", "Model connection")}</a>
       </div>
       <Panel
-        title={"Agent 任务 (" + jobs.length + ")"}
+        title={L("Agent 任务", "Agent tasks") + " (" + jobs.length + ")"}
         right={
-          <select aria-label="按状态筛选 Filter by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <select aria-label={L("按状态筛选", "Filter by status")} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             {statuses.map((s) => (
               <option key={s} value={s}>
-                {s === "ALL" ? "全部状态" : agentStatusMeta(s).label}
+                {s === "ALL" ? L("全部状态", "All statuses") : agentStatusMeta(s).label}
               </option>
             ))}
           </select>
@@ -102,10 +105,10 @@ export default function AgentOverview() {
       >
         {loadFailed(error) ? (
           <div className="errorbox" role="alert">
-            任务列表暂时无法加载（请求失败）— 这不代表没有任务，请稍后重试。
+            {L("任务列表暂时无法加载（请求失败）——这不代表没有任务，请稍后重试。", "The task list failed to load (request failed); this does not mean there are no tasks — retry shortly.")}
           </div>
         ) : jobs.length === 0 ? (
-          <Empty text="暂无 Agent 任务 — 通过任务向导提交第一条需求规格" />
+          <Empty text={L("暂无 Agent 任务 — 通过任务向导提交第一条需求规格", "No Agent tasks yet — file the first spec through the wizard.")} />
         ) : (
           <Table<AgentJobSummary>
             columns={COLUMNS}

@@ -1,3 +1,4 @@
+import { storedLocale } from "../i18n/strings";
 /**
  * DonutMeter — a dependency-free SVG donut for a small composition (e.g. the
  * verified / blocked / running / failed split of a verification workspace). Each
@@ -32,7 +33,7 @@ export function DonutMeter({
   centerValue,
   className,
   ariaLabel,
-  emptyHint = "暂无数据",
+  emptyHint = storedLocale() === "zh" ? "暂无数据" : "No data",
 }: DonutMeterProps): JSX.Element {
   const total = segments.reduce((s, seg) => s + Math.max(0, seg.value), 0);
 
@@ -79,7 +80,9 @@ export function DonutMeter({
             style={{ ["--arc" as string]: a.fraction, animationDelay: `${a.index * 120}ms` }}
           >
             <title>
-              {a.label}：{a.value}（{Math.round(a.fraction * 100)}%）
+              {storedLocale() === "zh"
+                ? `${a.label}：${a.value}（${Math.round(a.fraction * 100)}%）`
+                : `${a.label}: ${a.value} (${Math.round(a.fraction * 100)}%)`}
             </title>
           </circle>
         ))}

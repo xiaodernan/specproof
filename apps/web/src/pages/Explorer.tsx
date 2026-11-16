@@ -200,7 +200,7 @@ export default function Explorer() {
                       <span className="case-evidence-letter">{tier}</span>
                       <div className="case-evidence-body">
                         <div className="case-evidence-head">
-                          <span className="case-evidence-contract">{f.contract_id ?? "未提供"}</span>
+                          <span className="case-evidence-contract">{f.contract_id ?? (locale === "zh" ? "未提供" : "not provided")}</span>
                           {(() => {
                             const pill = severityPill(String(f.severity ?? "MINOR"));
                             return <span className={"pill " + pill.cls} title={pill.label}>{pill.label}</span>;
@@ -217,7 +217,7 @@ export default function Explorer() {
             <p className="case-verdict-tally">
               {locale === "zh"
                 ? `${ironCount} 项铁证 · ${steelCount} 项静证 · 共 ${findings.length} 桩发现。此案${summary && summary.verdict ? `被判为「${verdictEpic(summary.verdict)}」` : "未获裁决"}——${job.status ? `执行轨迹：${job.status}` : ""}。AI 在本案中没有作决定，证据替它开口。`
-                : `${ironCount} iron · ${steelCount} quiet · ${findings.length} findings in all. This case was judged 「${verdictEpic(summary && summary.verdict)}」${job.status ? ` — trail: ${job.status}` : ""}. The AI did not decide; the evidence spoke.`}
+                : `${ironCount} iron · ${steelCount} quiet · ${findings.length} findings in all. This case was judged “${verdictEpicEn(summary && summary.verdict)}”${job.status ? ` — trail: ${job.status}` : ""}. The AI did not decide; the evidence spoke.`}
             </p>
           </Panel>
 

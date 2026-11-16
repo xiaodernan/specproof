@@ -134,7 +134,8 @@ function snippet(body: string, query: string, radius = 110): string {
   return (start > 0 ? "…" : "") + body.slice(start, end).replace(/\s+/g, " ").trim() + (end < body.length ? "…" : "");
 }
 
-const SUGGESTED = ["court 永不缓存", "滚轮", "cache", "LLM", "密钥", "密码 123", "stream"];
+const SUGGESTED_ZH = ["court 永不缓存", "滚轮", "cache", "LLM", "密钥", "密码 123", "stream"];
+const SUGGESTED_EN = ["court is never cached", "wheel", "cache", "LLM", "secrets", "password 123", "stream"];
 
 export default function Recall() {
   const { locale } = useI18n();
@@ -178,7 +179,7 @@ export default function Recall() {
         <div className="recall-empty">
           <p className="recall-empty-lead">{L("从这些敲门声开始：", "Begin with one of these knocks:")}</p>
           <div className="recall-chips">
-            {SUGGESTED.map((s) => (
+            {(zh ? SUGGESTED_ZH : SUGGESTED_EN).map((s) => (
               <button key={s} type="button" className="recall-chip" onClick={() => setQuery(s)}>{s}</button>
             ))}
           </div>

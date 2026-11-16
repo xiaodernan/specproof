@@ -326,7 +326,7 @@ export default function Audit(): JSX.Element {
             </div>
           ) : (
             <ErrorBox
-              error={c.genericFailurePrefix + (error.code || error.status || c.unknownError) + "：" + error.detail}
+              error={c.genericFailurePrefix + (error.code || error.status || c.unknownError) + " — " + error.detail}
             />
           )
         ) : jobFilter && rows.length === 0 ? (

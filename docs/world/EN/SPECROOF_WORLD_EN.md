@@ -4568,3 +4568,41 @@ Wrongness is not edited; it is stored verbatim. Each entry was authored in the m
 - D1 signed / D2 still owed / 「password-123」permanently vetoed.
 
 ---
+## Volume CXIX · The Language Purity Volume（卷一百一十九 · 两种语言只许说一种话）
+
+> A screen that shows two languages is not bilingual — it is noise.
+> This world now carries two signs: 「全中文」and「全英文」.
+
+### 119.1 What this volume fixed
+
+* `strings.ts` en table, three real leaks: `tour.lead`'s 「验讫」, `explorer.tally`'s 「{verdict}」, `usage.basis`'s 「—」 — all switched to English typographic quotes;
+* `drillQuestions.ts` (「considered」→“considered”), `lexicon.copy.ts` (「iron」→“iron”), `epic.copy.ts` — eight untranslated Chinese captions (卷六–卷十四) in the EN edition restored to the canonical English short titles the zh edition always used;
+* `Epic.tsx`'s prologue, previously hard-coded Chinese, moved to `PROLOGUE_BY_LOCALE` (zh + en, three symmetric `<strong>` pins; closing-chapter glyph「尾」→ locale-aware「尾/END」);
+* Shared UI kit: Spinner, Table (emptyTitle 「暂无数据」 → locale-aware), Toast (viewport + close aria-labels), AreaChart, DonutMeter (incl. the `<title>` arc rows), Degraded, ErrorBox, ErrorBoundary (+ the back-link), Modal (close aria-label);
+* The agent console: 13 pages converted from hard-coded mixed zh/en to their local L() — ApprovalDetail / ApprovalsInbox / DiffViewer / Edits / EventLog / Gates / JobApprovals / Overview / PlanReview / PlanStep / Result / ToolStream / Wizard (incl. Wizard's two placeholders and the two false-positive sample paragraphs, which were already L(zh, en) pairs);
+* Other pages: Explorer (the EN branch was calling the Chinese verdictEpic by mistake → verdictEpicEn; 「未提供」 → locale-aware), Usage (by-kind table headers `KIND_COLUMNS` locale-fed, aria-label / `<title>` / kindToneLabel spots / empty state all locale-aware), QualityLayout pagination, StageTimeline (aria-label / window / empty / skipped note), SameRepoCraftPanel, PreflightCard (headers / pill / labels / skipped note), ControlRoomPreview (the whole control-room showcase converted to builder + L()), four leftovers in AgentResult fixed (the three dropped `return <Panel` keywords + two truncated-notice paragraphs), Gazette / Audit / Guide (raw `。` removed) / Recall (`SUGGESTED` split into `SUGGESTED_ZH` / `SUGGESTED_EN`);
+* CommandPalette / Atlas / Archive / Engine and friends were already L()/ternary wired — untouched;
+* Chinese glyph seals (Drill's「见/验/印/铁」, Explorer's 铁/半铁) stay — they are badge glyphs, not copy;
+* **New build gate**: `apps/web/src/i18n/__tests__/i18n.purity.test.ts` — the EN table refuses CJK ideographs / CJK punctuation / fullwidth forms; the ZH table refuses English link-word sentence runs; zh values refuse CJK wrapped in straight ASCII quotes. It fails the build like the parity gate, and stops the leak from regressing.
+
+### 119.2 Struck live (both directions)
+
+* This host built `vite preview` and walked both roads:
+  locale=zh → `<html lang="zh-CN">`, title「工作台 · SpecProof」, h1「代码改好了？需求，真的实现了吗？」 — all-Chinese screen;
+  locale=en → `<html lang="en">`, title "Dashboard · SpecProof", h1 "The code is ready. But is the requirement really implemented?" — all-English screen, buttons too.
+
+### 119.3 Standing after this volume
+
+* UI **553/553** (75 files; +3 purity-gate assertions) · npm run build ✓ · guide 6/6 · parity 15/15 · court = `4117d2b0ca5fb23a` LOCKED;
+* leak counter 572 → 145 → 99 (the remainder is comments / already-bilingual ternary branches / the zh half of L() pairs / intentional Chinese glyphs / zh-side constraint strings);
+* purity CLEAR · Night Watch still **CRACKED** (exhibit #4 1,526.1 ms and exhibit #8 2,078.7 ms remain on file — untouched);
+* D1 ✅ (owner-signed 2026-11-16) · D2 ⏸ (your PAT, never minted here);
+* 「password-123」permanently vetoed.
+
+### 119.4 One culture
+
+Chinese with English syntax is not Chinese; English with Chinese words is not English.
+Every screen in this book gets to speak — but speaks one language at a time,
+unless both words would be mispronounced in either tongue. (Iron. Half-iron. A number.)
+
+---

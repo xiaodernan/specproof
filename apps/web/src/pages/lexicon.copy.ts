@@ -59,7 +59,7 @@ export const LEXICON: LexiconEntry[] = [
     gloss: { zh: "差分执行", en: "differential execution" },
     iron: {
       zh: "base 与 head 编译进同一个沙箱，同一套测试依次跑过，看结论往哪边倒——倒的方向就是反例。`base_pass_head_fail` 是唯一被冠以「铁」的证据等级。",
-      en: "base and head compile into one sandbox; the same test suite runs in both; the direction the verdict tips is the counterexample. `base_pass_head_fail` is the only evidence grade crowned with 「iron」.",
+      en: "base and head compile into one sandbox; the same test suite runs in both; the direction the verdict tips is the counterexample. `base_pass_head_fail` is the only evidence grade crowned with “iron”.",
     },
     anchor: "docker_sandbox.py · tests/integration/",
   },

@@ -24,7 +24,7 @@ function AcceptProjection({ job, jobId }: { job: AgentJob; jobId: string }) {
   const cliCommand = "specproof craft accept --job " + jobId;
 
   if (accept?.malformed) {
-    return <Panel title="独立验收记录 ACCEPT">
+    return <Panel title={L("独立验收记录", "Independent acceptance record")}>
       <div className="errorbox" role="alert">
         <strong>{L("验收记录读不出来", "The acceptance record cannot be read")}</strong>
         <p>{L("作业里存在验收投影，但它的内容无法解析（存储损坏或版本不匹配）。这", "An accept projection exists on this job, but its content cannot be parsed (storage corrupt or version mismatch). This is ")}<strong>{L("不等于“没有验收”", "not the same as “no acceptance”")}</strong>{L("，也不能据此判断交付状态。可在命令行重新读取该作业：", ", and says nothing about the delivery state. Re-read the job from the CLI:")}</p>
@@ -38,7 +38,7 @@ function AcceptProjection({ job, jobId }: { job: AgentJob; jobId: string }) {
     // a SEPARATE attach write that only matches a finished run (storage
     // agent_jobs._ATTACH_ACCEPT_SQL: status IN succeeded/failed), so a
     // cancelled job never gets one and "refresh later" would be a false promise.
-    return <Panel title="独立验收记录 ACCEPT">
+    return <Panel title={L("独立验收记录", "Independent acceptance record")}>
       {phase === "unknown" ? <>
         {/* A status this console has never seen is not "still running". The
             runtime maps unknown store statuses through verbatim, so an
@@ -52,7 +52,7 @@ function AcceptProjection({ job, jobId }: { job: AgentJob; jobId: string }) {
         <p className="result-boundary">{L("验收投影只挂在执行完的轮次上（成功或失败），取消的轮次不会补出它。需要独立验收结论，请重新发起一次开发执行。", "The acceptance projection is attached only to completed rounds (success or failed) — cancelled rounds never gain one. If you need an acceptance verdict, start a development run again.")}</p>
       </> : <>
         <Empty text={L("这次运行还没有独立验收记录。", "This run has no acceptance record yet.")} />
-        <p className="result-boundary">独立验收由 <strong>开发执行完成</strong>之后的一次单独闭包产生（门禁复核 + 合并证书 + 签名），它与执行终态是两次写入，所以刚完成的一瞬间可能还没有——可稍后刷新本页；也可以直接在命令行补一次：</p>
+        <p className="result-boundary">{L("独立验收在开发执行完毕之后的一次单独闭包产生（门禁复核 + 合并证书 + 签名），它与执行终态是两次写入，所以刚完成的一瞬间可能还没有——可稍后刷新本页；也可以直接在命令行补一次:", "Independent acceptance is produced by a separate closure after development finishes (gate review + merge certificate + signature); the terminal state and the accept projection are two writes, so right after completion it may not exist yet — refresh this page later, or run it once from the CLI:")}</p>
         <pre className="json">{cliCommand}</pre>
       </>}
     </Panel>;
@@ -62,7 +62,7 @@ function AcceptProjection({ job, jobId }: { job: AgentJob; jobId: string }) {
   const blocked = accept.verdict === "BLOCKED" ? acceptBlockedNotice(acceptBlockedMeaning(accept.gates?.overall)) : "";
   const gates = accept.gates;
   const findings = accept.findings || [];
-  return <Panel title="独立验收记录 ACCEPT">
+  return <Panel title={L("独立验收记录", "Independent acceptance record")}>
     <div className="result-accept-head">
       <span className={"pill " + (verdict.tone === "ok" ? "pill-ok" : verdict.tone === "bad" ? "pill-bad" : verdict.tone === "warn" ? "pill-unverified" : "pill-mute")} title={accept.verdict || undefined}>{verdict.label}</span>
       {accept.rolled_back === true ? <span className="pill pill-bad">{L("已回滚", "Rolled back")} (rolled_back)</span> : null}
@@ -77,7 +77,7 @@ function AcceptProjection({ job, jobId }: { job: AgentJob; jobId: string }) {
         <div><strong>{gateLabel(entry.gate)}</strong><span className={gateStatusPillClass(entry.status)} title={entry.status}>{gateStatusLabel(entry.status)}</span></div>
         <p>{entry.note || L("（无说明）", "(no note)")}{entry.findings_total > 0 ? (isZh() ? ` · 关联发现 ${entry.findings_total} 条` : ` · ${entry.findings_total} linked finding${entry.findings_total === 1 ? "" : "s"}`) : ""}</p>
       </div>)}</div> : <Empty text={L("验收投影里没有逐条门禁记录。", "The accept projection carries no per-gate entries.")} />}
-      {gates.truncated ? <p className="result-boundary">门禁记录较多，此处仅展示前 {gates.entries.length} 条（共 {gates.total} 条）。</p> : null}
+      {gates.truncated ? <p className="result-boundary">{isZh() ? `门禁记录较多，此处仅展示 ${gates.entries.length} 条（共 ${gates.total} 条）。` : `Many gate entries — showing ${gates.entries.length} of ${gates.total}.`}</p> : null}
       <p className="muted mono" style={{ fontSize: 11 }} title={gates.summary || undefined}>overall: {gates.overall || L("未知", "unknown")}</p>
     </> : <p className="result-boundary">{L("该投影不含门禁摘要（例如验收过程本身出错时）。缺摘要不等于全通过。", "This projection carries no gate summary (e.g. when the acceptance process itself errored). No summary does not mean “all passed”.")}</p>}
     {accept.certificate_path ? <p className="mono muted" style={{ fontSize: 11 }} title={L("证书由服务端本机路径保存，Web 端不提供下载", "The certificate is held at a server-side local path; the web app does not offer downloads")}>{L("合并证书：", "Merge certificate: ")}{accept.certificate_path}</p> : <p className="result-boundary">{L("本次未签发合并证书。", "No merge certificate issued this time.")}</p>}
@@ -98,7 +98,7 @@ function AcceptProjection({ job, jobId }: { job: AgentJob; jobId: string }) {
         </div>
         <p>{finding.description || L("（该发现没有描述文字）", "(This finding has no description.)")}</p>
       </div>)}</div>
-      {accept.findings_truncated ? <p className="result-boundary">发现记录较多，此处仅展示前 {findings.length} 条（共 {accept.findings_total ?? findings.length} 条）。</p> : null}
+      {accept.findings_truncated ? <p className="result-boundary">{isZh() ? `发现记录较多，此处仅展示 ${findings.length} 条（共 ${accept.findings_total ?? findings.length} 条）。` : `Many findings — showing ${findings.length} of ${accept.findings_total ?? findings.length}.`}</p> : null}
     </> : null}
     <details className="result-raw"><summary>{L("查看完整验收投影", "View the full accept projection")}</summary><pre className="json">{JSON.stringify(accept, null, 2)}</pre></details>
   </Panel>;
@@ -142,7 +142,7 @@ export default function AgentResult({ jobId }: { jobId: string }) {
     <ErrorBox error={error} />
     {!result ? <Panel title={L("执行结果", "Development result")}>{phase === "unknown" ? <>
       <Empty text={L("这一轮上报的状态不在本页词表里，无法判断它是仍在执行还是已经结束。", "The status reported is not in this page's vocabulary — cannot tell whether it is still running or already finished.")} />
-      <p className="result-boundary">{agentUnknownNotice(job.status)}要判断这一轮发生了什么，请查看执行进度与事件记录，或在命令行用 <code>specproof craft accept --job {jobId}</code> 复核。<strong>这里不会替这个状态编一个含义，也不会因为读不出来就说“还在处理中”。</strong></p>
+      <p className="result-boundary">{agentUnknownNotice(job.status)}{L("要判断这一轮发生了什么，请查看执行进度与事件记录，或在命令行 ", "To see what happened this round, check the progress view and the event log, or re-read the job from the CLI: ")}<code>specproof craft accept --job {jobId}</code>{L(" 复核。", ".")}<strong>{L("这里不会替这个状态编一个含义，也不会因为读不出来就说“还在处理中”。", "This page will not invent a meaning for that status — nor claim “still processing” just because it cannot be read.")}</strong></p>
     </> : phase === "terminal" ? (job.status === "COMPLETED" ? <>
       <Empty text={L("任务显示已完成，但记录里没有执行结果投影。", "The job shows as completed but carries no result projection.")} />
       {/* Status and result ride the SAME UPDATE (storage agent_jobs
@@ -162,7 +162,7 @@ export default function AgentResult({ jobId }: { jobId: string }) {
             silent rather than become "verified" — so this panel is absent, not
             reassuring, when there is nothing to disclose. */}
       </Panel>}
-      {approvalsError ? <Panel title={L("审批记录", "Approvals")}><div className="errorbox" title={approvalsError instanceof Error ? approvalsError.message : String(approvalsError)}>审批记录暂时无法加载（请求失败）— 不代表没有审批，请稍后重试</div></Panel> : approvals.length > 0 ? <Panel title="审批记录">{approvals.map(approval => <ApprovalCard key={approval.id} approval={approval} />)}</Panel> : null}
+      {approvalsError ? <Panel title={L("审批记录", "Approvals")}><div className="errorbox" title={approvalsError instanceof Error ? approvalsError.message : String(approvalsError)}>{L("审批记录暂时无法加载（请求失败）——不代表没有审批，请稍后重试。", "The approvals log failed to load (request failed); this does not mean there are none — retry shortly.")}</div></Panel> : approvals.length > 0 ? <Panel title={L("审批记录", "Approvals")}>{approvals.map(approval => <ApprovalCard key={approval.id} approval={approval} />)}</Panel> : null}
       <details className="result-raw"><summary>{L("查看完整执行记录", "View the full execution record")}</summary><pre className="json">{JSON.stringify(result, null, 2)}</pre></details>
     </>}
     {/* Mounted outside the result branch on purpose: the accept projection is

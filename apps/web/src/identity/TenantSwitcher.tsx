@@ -8,6 +8,9 @@ import {
   setBearerToken,
 } from "../api";
 import { roleLabel } from "./labels";
+import { storedLocale } from "../i18n/strings";
+const isZh = (): boolean => storedLocale() === "zh";
+const L = (zh: string, en: string): string => (isZh() ? zh : en);
 
 // Tenant switcher: the active credential IS the tenant context — every
 // sp_*/OIDC credential is bound to exactly one tenant server-side, and the
@@ -60,14 +63,14 @@ export default function TenantSwitcher(props: { onSwitch?: () => void }) {
       {saved.length > 0 ? (
         <select
           className="tenant-select"
-          aria-label="切换租户 Switch tenant"
+          aria-label={L("切换租户", "Switch tenant")}
           disabled={busy}
           value=""
           onChange={(e) => {
             if (e.target.value) activate(e.target.value);
           }}
         >
-          <option value="">切换租户 Switch…</option>
+          <option value="">{L("切换租户…", "Switch tenant…")}</option>
           {saved.map((s, i) => (
             <option key={i} value={s.token}>
               {s.name}
@@ -82,7 +85,7 @@ export default function TenantSwitcher(props: { onSwitch?: () => void }) {
               {s.name}
               <button
                 className="btn btn-ghost tenant-remove"
-                aria-label={"移除已保存的租户 " + s.name}
+                aria-label={L("移除已保存的租户 ", "Remove saved tenant ") + s.name}
                 onClick={() => {
                   removeSavedToken(s.token);
                   setSaved(listSavedTokens());

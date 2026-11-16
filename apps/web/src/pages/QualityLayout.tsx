@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { storedLocale } from "../i18n/strings";
 import { Button } from "../ui";
 import { ProductIcon, type ProductIconName } from "../ui/ProductIcon";
 import "../styles/quality.css";
@@ -16,5 +17,7 @@ export function QualityEmpty({ icon, title, description, action }: { icon: Produ
 export function QualityPagination({ page, pageSize, total, onChange }: { page: number; pageSize: number; total: number; onChange: (page: number) => void }) {
   if (total <= pageSize) return null;
   const pages = Math.ceil(total / pageSize);
-  return <nav className="quality-pagination" aria-label="表格分页"><span>第 {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} 条，共 {total} 条</span><div><Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>上一页</Button><span>{page} / {pages}</span><Button variant="ghost" size="sm" disabled={page >= pages} onClick={() => onChange(page + 1)}>下一页</Button></div></nav>;
+  const zh = storedLocale() === "zh";
+  const rangeText = `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)}`;
+  return <nav className="quality-pagination" aria-label={zh ? "表格分页" : "Table pages"}><span>{zh ? `${rangeText} 条，共 ${total} 条` : `${rangeText} of ${total}`}</span><div><Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>{zh ? "上一页" : "Prev"}</Button><span>{page} / {pages}</span><Button variant="ghost" size="sm" disabled={page >= pages} onClick={() => onChange(page + 1)}>{zh ? "下一页" : "Next"}</Button></div></nav>;
 }

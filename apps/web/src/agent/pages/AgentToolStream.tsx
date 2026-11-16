@@ -64,8 +64,8 @@ export default function AgentToolStream(props: { jobId: string }) {
   if (!job) {
     return (
       <div>
-        <ErrorBox error={error || "任务不存在 (404)"} />
-        <a href="#/agent">← 返回 Agent 总览</a>
+        <ErrorBox error={error || L("任务不存在（404）", "Task not found (404)")} />
+        <a href="#/agent">{L("← 返回 Agent 总览", "← Back to Agent overview")}</a>
       </div>
     );
   }
@@ -73,13 +73,13 @@ export default function AgentToolStream(props: { jobId: string }) {
   const toolish = events.filter((ev) => ev.type !== "progress");
   const gapNotice = activeGap
     ? isZh()
-      ? `\n[日志缺口 replay_gap：请求 seq>${activeGap.requested_after}，首个可用 seq=${activeGap.first_available}，中间缺了 ${activeGap.first_available - activeGap.requested_after - 1} 条]\n`
+      ? (isZh() ? `\n[日志缺口 replay_gap：请补 seq>${activeGap.requested_after}，首个可见 seq=${activeGap.first_available}，中间缺 ${activeGap.first_available - activeGap.requested_after - 1} 条]\n` : `\n[replay_gap: please re-fetch seq>${activeGap.requested_after} — first visible seq=${activeGap.first_available}; ${activeGap.first_available - activeGap.requested_after - 1} missing]\n`)
       : `\n[Replay gap: requested seq>${activeGap.requested_after}; first available seq=${activeGap.first_available}; ${activeGap.first_available - activeGap.requested_after - 1} event(s) missing in between]\n`
     : "";
   const consoleText =
     toolish.length === 0
       ? (isZh()
-          ? "[等待工具事件… 计划批准后 worker 会发出 tool_call/tool_result/edit/gate]\n" + gapNotice
+          ? (isZh() ? "[等待工具事件——计划批准后 worker 会发送 tool_call/tool_result/edit/gate]\n" : "[waiting for tool events — the worker emits tool_call/tool_result/edit/gate after plan approval]\n") + gapNotice
           : "[waiting for tool events — after plan approval the worker emits tool_call/tool_result/edit/gate]\n" + gapNotice)
       : toolish
           .map((ev) => {

@@ -54,7 +54,7 @@ export const DRILL_QUESTIONS: DrillQuestion[] = [
     id: "red-light",
     prompt: {
       zh: "门禁红了，但合并前大家都说「考虑过」。这算不算证据？",
-      en: "The gate is red, but everyone 「considered」 it before merging. Is that evidence?",
+      en: "The gate is red, but everyone “considered” it before merging. Is that evidence?",
     },
     choices: {
       zh: ["算——集体判断可以替代机器", "不算——门禁红就是门禁红，考虑过不是一个状态", "算一半，取决于谁考虑的"],

@@ -3,6 +3,9 @@ import { AgentApproval, AgentJobSummary, listAgentApprovals, listAgentJobs } fro
 import { Empty, ErrorBox, Panel, Spinner, fmtTime, shortId } from "../../ui";
 import { loadFailed } from "../../ui/errorHints";
 import { ApprovalCard } from "../components";
+import { storedLocale } from "../../i18n/strings";
+const isZh = (): boolean => storedLocale() === "zh";
+const L = (zh: string, en: string): string => (isZh() ? zh : en);
 import { aggregateApprovals, approvalDecisionLabel } from "../util";
 
 export default function AgentApprovalsInbox() {
@@ -58,23 +61,23 @@ export default function AgentApprovalsInbox() {
   return (
     <div>
       <div className="page-head">
-        <h1>审批收件箱 Approvals inbox</h1>
+        <h1>{L("审批收件箱", "Approvals inbox")}</h1>
         <div className="page-sub">
-          跨任务审批记录 (计划/步骤/门禁) — 按时间倒序
+          {L("跨任务审批记录（计划/步骤/门禁）— 按时间倒序", "Cross-task approval log (plan / step / gate) — newest first")}
         </div>
       </div>
       <ErrorBox error={error} />
       <Panel
-        title={"审批 (" + filtered.length + " / " + approvals.length + ")"}
+        title={L("审批", "Approvals") + " (" + filtered.length + " / " + approvals.length + ")"}
         right={
           <select
-            aria-label="按处理状态筛选 Filter by decision"
+            aria-label={L("按处理状态筛选", "Filter by decision")}
             value={decisionFilter}
             onChange={(e) => setDecisionFilter(e.target.value)}
           >
             {["ALL", "approve", "reject"].map((s) => (
               <option key={s} value={s}>
-                {s === "ALL" ? "全部决策 All" : approvalDecisionLabel(s)}
+                {s === "ALL" ? L("全部决策", "All") : approvalDecisionLabel(s)}
               </option>
             ))}
           </select>
@@ -82,21 +85,21 @@ export default function AgentApprovalsInbox() {
       >
         {loadFailed(error) ? (
           <div className="errorbox" role="alert">
-            审批列表暂时无法加载（请求失败）— 这不代表没有审批，请稍后重试。
+            {L("审批列表暂时无法加载（请求失败）— 这不代表没有审批，请稍后重试。", "The approvals list failed to load (request failed); this does not mean there are none — retry shortly.")}
           </div>
         ) : filtered.length === 0 ? (
           failedJobReads > 0 ? (
             <div className="errorbox" role="alert">
-              有 {failedJobReads} 个任务的审批无法读取（请求失败）— 这不代表没有审批，请稍后重试。
+              {isZh() ? `有 ${failedJobReads} 个任务的审批无法读取（请求失败）— 这不代表没有审批，请稍后重试。` : `${failedJobReads} job(s) had approvals that failed to load (request failed); this does not mean there are none — retry shortly.`}
             </div>
           ) : (
-            <Empty text="尚无审批记录 — 计划审阅/步骤审阅/门禁的每个决策都会出现在这里" />
+            <Empty text={L("尚无审批记录 — 计划审阅/步骤审阅/门禁的每个决策都会出现在这里", "No approvals yet — every plan / step / gate decision will appear here.")} />
           )
         ) : (
           <>
             {failedJobReads > 0 && (
               <div className="errorbox" role="alert">
-                有 {failedJobReads} 个任务的审批无法读取，列表可能不完整。
+                {isZh() ? `有 ${failedJobReads} 个任务的审批无法读取，列表可能不完整。` : `${failedJobReads} job(s) had approvals that failed to load — the list may be incomplete.`}
               </div>
             )}
             {filtered.map((a) => (
@@ -105,7 +108,7 @@ export default function AgentApprovalsInbox() {
                 <ApprovalCard approval={a} jobLabel={(label[a.job_id] || shortId(a.job_id)) + " · " + fmtTime(a.created_at)} />
               </a>
               <a className="btn btn-ghost btn-sm" href={"#/agent/jobs/" + a.job_id}>
-                打开任务
+                {L("打开任务", "Open job")}
               </a>
             </div>
           ))}

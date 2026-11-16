@@ -897,7 +897,7 @@ const en: Record<keyof typeof zh, string> = {
   "tour.title": "Grand Tour",
   "tour.subtitle": "THE GRAND TOUR OF SPECPROOF",
   "tour.lead":
-    "Six stations — connect · read · verify · trace · record · seal. Each one is a real verification, not the hundredth link in a guide. Finish a station and stamp it; six stamps make 「验讫」.",
+    "Six stations — connect · read · verify · trace · record · seal. Each one is a real verification, not the hundredth link in a guide. Finish a station and stamp it; six stamps complete the seal.",
   "tour.prologue":
     "The tour is not a checklist; it is the first night's journey. To have 'finished the tour' is not to have clicked every page, but to have pressed the seal yourself on every real verification. Five seals in, you are more like an acceptance officer than when you arrived; the sixth turns the word on the seal from 'visitor' to 'officer'.",
   "tour.chapter": "Station",
@@ -938,7 +938,7 @@ const en: Record<keyof typeof zh, string> = {
   "explorer.evidencePanel": "Evidence list",
   "explorer.noFindings":
     "This case carries no findings — that is not the same as 'no defects', only that this verification caught nothing. Missing iron evidence means missing evidence, not a victory lap.",
-  "explorer.tally": "This case was judged 「{verdict}」. The AI did not decide; the evidence spoke.",
+  "explorer.tally": "This case was judged “{verdict}”. The AI did not decide; the evidence spoke.",
   "explorer.capsulePanel": "Evidence requested",
   "explorer.noCapsule": "This case handed over no reproduction capsule (it may be a DEMO run — read the whole trail)",
   "explorer.reportPath": "Report path",
@@ -1003,7 +1003,7 @@ const en: Record<keyof typeof zh, string> = {
   "usage.p50": "Latency P50",
   "usage.p95": "Latency P95",
   "usage.basis":
-    "The hit rate counts only calls the gateway reported cached_tokens for ({basis} calls in this window); calls without a report still count as calls but not as hits; when the gateway reports nothing the rate shows as 「—」, never as a fabricated zero.",
+    "The hit rate counts only calls the gateway reported cached_tokens for ({basis} calls in this window); calls without a report still count as calls but not as hits; when the gateway reports nothing the rate shows as “—”, never as a fabricated zero.",
   "usage.errorRate": "Error rate",
   "usage.streamRatio": "Streaming share",
   "usage.streamAria": "Streaming share",

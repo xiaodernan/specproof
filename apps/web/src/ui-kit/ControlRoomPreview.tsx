@@ -4,6 +4,9 @@ import { Progress } from "../ui/Progress";
 import { StatusDot, type DotStatus } from "../ui/StatusDot";
 import { Table, type Column } from "../ui/Table";
 import { Timeline, type TimelineEvent } from "../ui/Timeline";
+import { storedLocale } from "../i18n/strings";
+const isZh = (): boolean => storedLocale() === "zh";
+const L = (zh: string, en: string): string => (isZh() ? zh : en);
 
 interface CheckRow {
   id: string;
@@ -15,27 +18,27 @@ interface CheckRow {
   verdict: string;
 }
 
-const CHECKS: CheckRow[] = [
-  { id: "SP-2481", spec: "AUTH-01 邮箱变更认证", status: "success", statusLabel: "完成", checkpoints: 6, duration: 38.2, verdict: "VERIFIED" },
-  { id: "SP-2480", spec: "EVT-04 事件幂等", status: "running", statusLabel: "运行中", checkpoints: 4, duration: null, verdict: "RUNNING" },
-  { id: "SP-2479", spec: "BROKER-02 重试去重", status: "danger", statusLabel: "失败", checkpoints: 5, duration: 51.7, verdict: "BLOCKED" },
-  { id: "SP-2478", spec: "AUTH-02 令牌失效", status: "success", statusLabel: "完成", checkpoints: 6, duration: 29.4, verdict: "VERIFIED" },
-  { id: "SP-2477", spec: "EVT-03 时间戳保留", status: "idle", statusLabel: "排队", checkpoints: 6, duration: null, verdict: "QUEUED" },
+const buildChecks = (): CheckRow[] => [
+  { id: "SP-2481", spec: L("AUTH-01 邮箱变更认证", "AUTH-01 email-change auth"), status: "success", statusLabel: L("完成", "Done"), checkpoints: 6, duration: 38.2, verdict: "VERIFIED" },
+  { id: "SP-2480", spec: L("EVT-04 事件幂等", "EVT-04 event idempotency"), status: "running", statusLabel: L("运行中", "Running"), checkpoints: 4, duration: null, verdict: "RUNNING" },
+  { id: "SP-2479", spec: L("BROKER-02 重试去重", "BROKER-02 retry dedup"), status: "danger", statusLabel: L("失败", "Failed"), checkpoints: 5, duration: 51.7, verdict: "BLOCKED" },
+  { id: "SP-2478", spec: L("AUTH-02 令牌失效", "AUTH-02 token revocation"), status: "success", statusLabel: L("完成", "Done"), checkpoints: 6, duration: 29.4, verdict: "VERIFIED" },
+  { id: "SP-2477", spec: L("EVT-03 时间戳保留", "EVT-03 timestamp retention"), status: "idle", statusLabel: L("排队", "Queued"), checkpoints: 6, duration: null, verdict: "QUEUED" },
 ];
 
-const COLUMNS: Column<CheckRow>[] = [
+const buildColumns = (): Column<CheckRow>[] => [
   { key: "id", header: "ID", width: 84, render: (row) => <span className="ui-kit-num">{row.id}</span> },
-  { key: "spec", header: "契约" },
+  { key: "spec", header: L("契约", "Contract") },
   {
     key: "status",
-    header: "状态",
+    header: L("状态", "Status"),
     width: 120,
     render: (row) => <StatusDot status={row.status} label={row.statusLabel} />,
   },
-  { key: "checkpoints", header: "检查点", align: "right", sortable: true, render: (row) => <span className="ui-kit-num">{row.checkpoints}</span> },
+  { key: "checkpoints", header: L("检查点", "Checkpoints"), align: "right", sortable: true, render: (row) => <span className="ui-kit-num">{row.checkpoints}</span> },
   {
     key: "duration",
-    header: "耗时",
+    header: L("耗时", "Time"),
     align: "right",
     sortable: true,
     sortValue: (row) => row.duration ?? -1,
@@ -43,7 +46,7 @@ const COLUMNS: Column<CheckRow>[] = [
   },
   {
     key: "verdict",
-    header: "结论",
+    header: L("结论", "Verdict"),
     width: 100,
     render: (row) => {
       const tone =
@@ -59,15 +62,18 @@ const COLUMNS: Column<CheckRow>[] = [
   },
 ];
 
-const PIPELINE: TimelineEvent[] = [
-  { id: "intake", title: "intake — 需求接收", description: "解析规格 AUTH-01，提取 6 条契约", time: "14:02:11", status: "success" },
-  { id: "contracts", title: "contracts — 契约编译", description: "6/6 契约可验证，无编译错误", time: "14:02:19", status: "success" },
-  { id: "differential", title: "differential — 差分执行", description: "base vs head-v1 · JUnit 回归运行中", time: "14:02:47", status: "running" },
-  { id: "review", title: "review — 审查庭复核", description: "等待差分证据汇总", time: "—", status: "idle" },
-  { id: "certificate", title: "certificate — 合并证书", description: "SHA-256 签名", time: "—", status: "idle" },
+const buildPipeline = (): TimelineEvent[] => [
+  { id: "intake", title: L("intake — 需求接收", "intake — spec accepted"), description: L("解析规格 AUTH-01，提取 6 条契约", "Parsed spec AUTH-01; 6 contracts extracted"), time: "14:02:11", status: "success" },
+  { id: "contracts", title: L("contracts — 契约编译", "contracts — compile"), description: L("6/6 契约可验证，无编译错误", "6/6 contracts verifiable, no compile errors"), time: "14:02:19", status: "success" },
+  { id: "differential", title: L("differential — 差分执行", "differential — execution"), description: L("base vs head-v1 · JUnit 回归运行中", "base vs head-v1 · JUnit regression running"), time: "14:02:47", status: "running" },
+  { id: "review", title: L("review — 审查庭复核", "review — court review"), description: L("等待差分证据汇总", "Waiting for the differential evidence to land"), time: "—", status: "idle" },
+  { id: "certificate", title: L("certificate — 合并证书", "certificate — merge"), description: L("SHA-256 签名", "SHA-256 signature"), time: "—", status: "idle" },
 ];
 
 export function ControlRoomPreview(): JSX.Element {
+  const checks = buildChecks();
+  const columns = buildColumns();
+  const pipeline = buildPipeline();
   return (
     <div className="prev-root">
       <div className="prev-topbar">
@@ -77,50 +83,50 @@ export function ControlRoomPreview(): JSX.Element {
         <span className="prev-name">SpecProof Control Room</span>
         <span className="prev-crumb">verify · specproof/demo — base → head-v1</span>
         <span className="prev-spacer" />
-        <StatusDot status="running" label="pipeline 运行中" />
+        <StatusDot status="running" label={L("pipeline 运行中", "pipeline running")} />
         <Badge tone="danger">BLOCKER ×1</Badge>
       </div>
 
       <div className="prev-hero">
         <div className="prev-title">
-          差分验证 · <span className="ui-text-gradient">AUTH-01 邮箱变更认证</span>
+          {L("差分验证", "Differential verification")} · <span className="ui-text-gradient">AUTH-01 · {L("邮箱变更认证", "email-change auth")}</span>
         </div>
         <div className="prev-sub">
-          静态源码差分 + 运行时 JUnit 双重证据 · 独立于变更作者的 AI 审查 · 合并前拦截回归
+          {L("静态源码差分 + 运行时 JUnit 双重证据 · 独立于变更作者的 AI 审查 · 合并前拦截回归", "Static source diff + runtime JUnit, double-witnessed · AI review independent of the change author · regressions blocked pre-merge")}
         </div>
         <div className="prev-actions">
-          <Button variant="primary">查看完整报告</Button>
-          <Button variant="secondary">回放 Capsule</Button>
-          <Button variant="ghost">生成证书</Button>
+          <Button variant="primary">{L("查看完整报告", "Open the full report")}</Button>
+          <Button variant="secondary">{L("回放 Capsule", "Replay the capsule")}</Button>
+          <Button variant="ghost">{L("生成证书", "Issue the certificate")}</Button>
         </div>
         <div className="prev-metrics">
           <div className="prev-metric">
             <div className="prev-metric-label">
-              <StatusDot status="success" size="sm" /> 今日验证
+              <StatusDot status="success" size="sm" /> {L("今日验证", "Verified today")}
             </div>
             <div className="prev-metric-value">42</div>
-            <div className="prev-metric-delta prev-delta-up">+12 vs 昨日</div>
+            <div className="prev-metric-delta prev-delta-up">+12 {L("vs 昨日", "vs yesterday")}</div>
           </div>
           <div className="prev-metric">
             <div className="prev-metric-label">
-              <StatusDot status="danger" size="sm" /> 拦截回归
+              <StatusDot status="danger" size="sm" /> {L("拦截回归", "Regressions blocked")}
             </div>
             <div className="prev-metric-value">9</div>
-            <div className="prev-metric-delta prev-delta-up">+3 新增拦截</div>
+            <div className="prev-metric-delta prev-delta-up">+3 {L("新增拦截", "new blocks")}</div>
           </div>
           <div className="prev-metric">
             <div className="prev-metric-label">
-              <StatusDot status="info" size="sm" /> 平均验证时长
+              <StatusDot status="info" size="sm" /> {L("平均验证时长", "Mean verify time")}
             </div>
             <div className="prev-metric-value">4m 12s</div>
-            <div className="prev-metric-delta prev-delta-up">−38s 更快</div>
+            <div className="prev-metric-delta prev-delta-up">−38s {L("更快", "faster")}</div>
           </div>
           <div className="prev-metric">
             <div className="prev-metric-label">
-              <StatusDot status="warning" size="sm" /> 契约覆盖
+              <StatusDot status="warning" size="sm" /> {L("契约覆盖", "Contract coverage")}
             </div>
             <div className="prev-metric-value">96.4%</div>
-            <div className="prev-metric-delta prev-delta-up">+2.1% 覆盖提升</div>
+            <div className="prev-metric-delta prev-delta-up">+2.1% {L("覆盖提升", "coverage")}</div>
           </div>
         </div>
       </div>
@@ -128,20 +134,20 @@ export function ControlRoomPreview(): JSX.Element {
       <div className="prev-body">
         <div className="prev-card">
           <div className="prev-card-title">
-            <span>最近验证 Recent checks</span>
+            <span>{L("最近验证", "Recent checks")} · Recent checks</span>
             <Badge tone="neutral">LIVE</Badge>
           </div>
-          <Table columns={COLUMNS} rows={CHECKS} rowKey={(row) => row.id} dense />
+          <Table columns={columns} rows={checks} rowKey={(row) => row.id} dense />
         </div>
         <div className="prev-card">
           <div className="prev-card-title">
-            <span>执行管道 Pipeline</span>
+            <span>{L("执行管道", "Pipeline")} · Pipeline</span>
           </div>
-          <Timeline events={PIPELINE} />
+          <Timeline events={pipeline} />
           <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-            <Progress label="门禁通过率" value={98} tone="success" showValue />
-            <Progress label="证据覆盖" value={86} showValue />
-            <Progress label="回归检测" value={74} tone="warning" showValue />
+            <Progress label={L("门禁通过率", "Gates passed")} value={98} tone="success" showValue />
+            <Progress label={L("证据覆盖", "Evidence coverage")} value={86} showValue />
+            <Progress label={L("回归检测", "Regression checks")} value={74} tone="warning" showValue />
           </div>
         </div>
       </div>

@@ -3,6 +3,9 @@
 // （Redis 流丢帧、旧数据）不进入条形区，而是在下方如实列出：绝不编造
 // 一个位置来填满图表。
 import { Empty } from "../ui";
+import { storedLocale } from "../i18n/strings";
+const isZh = (): boolean => storedLocale() === "zh";
+const L = (zh: string, en: string): string => (isZh() ? zh : en);
 
 interface StageRow {
   node: string;
@@ -70,7 +73,7 @@ export function StageTimeline(props: { stages?: StageRow[] | null }) {
   if (rows.length === 0) return null;
   if (spans.length === 0) {
     return (
-      <Empty text="阶段没有可解析的时间戳，无法绘制时间线——下方列表仍是完整事实。" />
+      <Empty text={L("阶段没有可解析的时间戳，无法绘制时间线——下方列表仍是完整事实。", "No parseable timestamps — the timeline cannot be drawn; the list below is still the complete record.")} />
     );
   }
   const windowStart = Math.min(...spans.map((s) => s.startMs));
@@ -85,7 +88,7 @@ export function StageTimeline(props: { stages?: StageRow[] | null }) {
     return "stage-bar-run";
   };
   return (
-    <div className="stage-timeline" role="img" aria-label="执行阶段时间线">
+    <div className="stage-timeline" role="img" aria-label={L("执行阶段时间线", "Stage timeline")}>
       <div className="stage-timeline-track">
         {spans.map((s) => {
           const left = ((s.startMs - windowStart) / spanMs) * 100;
@@ -111,7 +114,7 @@ export function StageTimeline(props: { stages?: StageRow[] | null }) {
       </div>
       <div className="stage-timeline-scale" aria-hidden="true">
         <span>{fmtClock(windowStart)}</span>
-        <span>窗口 {(spanMs / 1000).toFixed(2)}s</span>
+        <span>{L("窗口", "Window")} {(spanMs / 1000).toFixed(2)}s</span>
         <span>{fmtClock(windowEnd)}</span>
       </div>
       <div className="stage-timeline-list">
@@ -124,7 +127,7 @@ export function StageTimeline(props: { stages?: StageRow[] | null }) {
       </div>
       {skipped.length > 0 ? (
         <p className="muted">
-          {skipped.length} 个阶段没有可解析的时间戳，未进入条形区（诚实省略）。
+          {isZh() ? `${skipped.length} 个阶段没有可解析的时间戳，未进入条形区（诚实省略）。` : `${skipped.length} stage(s) carry no parseable timestamp — omitted from the bars (honest omission).`}
         </p>
       ) : null}
     </div>

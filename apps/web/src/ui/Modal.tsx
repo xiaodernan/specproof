@@ -10,6 +10,7 @@ import {
 import { createPortal } from "react-dom";
 import { Button } from "./Button";
 import { XIcon } from "./icons";
+import { storedLocale } from "../i18n/strings";
 
 export interface ModalProps {
   open: boolean;
@@ -129,7 +130,7 @@ export function Modal(props: ModalProps): JSX.Element | null {
           <Button
             variant="ghost"
             size="sm"
-            aria-label="关闭 Close"
+            aria-label={storedLocale() === "zh" ? "关闭" : "Close"}
             onClick={onCloseRef.current}
           >
             <XIcon size={14} />

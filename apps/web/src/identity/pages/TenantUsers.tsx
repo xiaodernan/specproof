@@ -122,8 +122,8 @@ export default function TenantUsers() {
   return (
     <div>
       <div className="page-head">
-        <h1>用户管理 Users</h1>
-        <div className="page-sub">IDENTITY — 当前租户用户 (RBAC: admin/operator)</div>
+        <h1>{L("用户管理", "Users")}</h1>
+        <div className="page-sub">{L("IDENTITY — 当前租户用户（RBAC: admin/operator）", "IDENTITY — users of the current tenant (RBAC: admin/operator)")}</div>
       </div>
       <Panel title={L("新建用户", "New user")}>
         <div style={{ display: "flex", gap: 8 }}>

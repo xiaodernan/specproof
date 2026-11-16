@@ -155,17 +155,17 @@ export default function Gazette() {
           <div className="gazette-lane-cell">
             <span className="gazette-lane-k">{zh ? "SPA 直出" : "SPA SHIPS"}</span>
             <strong>{zh ? "/ 与 /manual → 200" : "/ and /manual → 200"}</strong>
-            <code>1,490 bytes · zh-CN · 服务端 fallback</code>
+            <code>1,490 bytes · zh-CN · server fallback</code>
           </div>
           <div className="gazette-lane-cell">
             <span className="gazette-lane-k">{zh ? "并发压测" : "LOAD BENCH"}</span>
             <strong>{zh ? "48/48 · 0 err" : "48/48 · 0 err"}</strong>
-            <code>p99 587ms · 此前一组 192 req 亦 0 err</code>
+            <code>p99 587ms · prior week 192 req · 0 err</code>
           </div>
           <div className="gazette-lane-cell">
             <span className="gazette-lane-k">{zh ? "计数器入账" : "COUNTER DELTAS"}</span>
             <strong>{zh ? "5 → 55" : "5 → 55"}</strong>
-            <code>specproof_http_requests_total · 逐请求计入</code>
+            <code>specproof_http_requests_total · counted per request</code>
           </div>
           <div className="gazette-lane-cell">
             <span className="gazette-lane-k">{zh ? "假闭实证" : "FAIL-CLOSED"}</span>

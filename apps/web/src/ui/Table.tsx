@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
+import { storedLocale } from "../i18n/strings";
 import { EmptyState } from "./EmptyState";
 
 export interface Column<T> {
@@ -39,7 +40,7 @@ export function Table<T>(props: TableProps<T>): JSX.Element {
     stickyHeader = true,
     sort,
     onSortChange,
-    emptyTitle = "暂无数据",
+    emptyTitle = storedLocale() === "zh" ? "暂无数据" : "Nothing here yet",
     emptyDescription,
     className,
     onRowClick,

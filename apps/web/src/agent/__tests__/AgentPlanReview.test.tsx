@@ -73,8 +73,8 @@ describe("AgentPlanReview", () => {
   it("posts a whole-plan approve decision", async () => {
     const { calls } = stubFetch();
     render(<AgentPlanReview jobId="job-1" />);
-    await waitFor(() => expect(screen.getByText("批准整个计划 Approve plan")).toBeTruthy());
-    fireEvent.click(screen.getByText("批准整个计划 Approve plan"));
+    await waitFor(() => expect(screen.getByText("批准整个计划")).toBeTruthy());
+    fireEvent.click(screen.getByText("批准整个计划"));
     await waitFor(() => {
       const approveCalls = calls.filter((c) => c.url.endsWith("/approve"));
       expect(approveCalls.length).toBe(1);
@@ -86,8 +86,8 @@ describe("AgentPlanReview", () => {
     vi.stubGlobal("prompt", vi.fn(() => "rollback missing"));
     const { calls } = stubFetch();
     render(<AgentPlanReview jobId="job-1" />);
-    await waitFor(() => expect(screen.getByText("拒绝计划 Reject plan")).toBeTruthy());
-    fireEvent.click(screen.getByText("拒绝计划 Reject plan"));
+    await waitFor(() => expect(screen.getByText("拒绝计划")).toBeTruthy());
+    fireEvent.click(screen.getByText("拒绝计划"));
     await waitFor(() => {
       const rejectCalls = calls.filter((c) => c.url.endsWith("/approve"));
       expect(rejectCalls.length).toBe(1);

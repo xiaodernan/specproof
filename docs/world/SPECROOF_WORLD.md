@@ -4695,3 +4695,37 @@ UI 上的行为：搜一下即动词就 narrow 没匹配就完全不上屏；
 - court locked。
 
 ---
+## 卷一百一十九 · 两种语言只许说一种话（The Language Purity Volume）
+
+> 一个屏幕上出现两种语言，不是双语，是噪音。
+> 这个世界现在有两块牌子：一块写「全中文」，一块写「全英文」。
+
+### 119.1 这一卷修了什么
+
+* `strings.ts` 英语表的三个真实泄漏：`tour.lead` 里的「验讫」、`explorer.tally` 的「{verdict}」、`usage.basis` 的「—」——全部改成英文弯引号；
+* `drillQuestions.ts`（「considered」→“considered”）、`lexicon.copy.ts`（「iron」→“iron”）、`epic.copy.ts` 八个未翻译的中文副标题（卷六〜卷十三）→ 回到本书一直用的英语正题名；
+* `Epic.tsx` 的首页序言从写死的中文改成 `PROLOGUE_BY_LOCALE`（中英各一份、三处 \<strong\> 完全对称；序言的闭卷章脚环徽「尾」→ locale-aware「尾/END」）；
+* 共享 UI 件：Spinner、Table（emptyTitle 默认「暂无数据」→ locale-aware）、Toast（viewport / close 的 aria-label）、AreaChart、DonutMeter（含 \<title\> 行）、Degraded、ErrorBox、ErrorBoundary（含返回链）、Modal（关闭 aria-label）；
+* agent 控制台 13 个页面全部从「写死的中英混排」改成本地 L()：ApprovalDetail/ApprovalsInbox/DiffViewer/Edits/EventLog/Gates/JobApprovals/Overview/PlanReview/PlanStep/Result/ToolStream/Wizard（含 Wizard 两个 placeholder 与两个非法误判的 false-positive 示例段落——示例段落本身就是 L(zh, en) 的双份了，没有动）；
+* 其他页面：Explorer（en 分支的判词误用中文 verdictEpic → verdictEpicEn；「未提供」→ locale-aware）、Usage（表头 KIND_COLUMNS locale 化 + `趋势`/`命中`/aria-label/空态全部 locale-aware）、QualityLayout 分页、StageTimeline（aria-label/窗口/空态/跳过说明）、SameRepoCraftPanel、PreflightCard（表头/pill/标签/跳过说明）、ControlRoomPreview（整个 control-room 预览改成 builder + L()）、AgentResult 里的四个遗漏（`return <Panel` 三处丢 `return` 的修复 + 两个截断提示 locale 化）、Gazette/Audit/Guide/Recall（SUGGESTED 双语化）；
+* CommandPalette / Atlas / Archive / Engine 等本就走 L() 或三元的页没有动；中文象形字章（Drill 的「见/验/印/铁」、Explorer 的 铁/半铁）按设计保留——它们是徽章字形而不是文案；
+* **新构建闸**：`apps/web/src/i18n/__tests__/i18n.purity.test.ts`——en 表不许出现 CJK 统汉字/CJK 标点/全宽字符；zh 表不许出现「英语连词三连」的句子泄漏；zh 值里不许有被直引号包住的 CJK。它像 parity 测试一样在 CI 里生效，防止回归。
+
+### 119.2 现场实摸（两个方向都验了）
+
+* 本机构建 `vite preview` 打开：locale=zh → `<html lang="zh-CN">`，标题「工作台 · SpecProof」，h1「代码改好了？需求，真的实现了吗？」✅ 全屏中文；
+* locale=en → `<html lang="en">`，标题 "Dashboard · SpecProof"，h1 "The code is ready. But is the requirement really implemented?"，按钮全为 "Connect workspace" 等英文 ✅。
+
+### 119.3 数字与裁判
+
+* UI **553/553**（75 个测试文件；+3 纯度闸断言）· npm run build ✓ · guide 6/6 · parity 15/15 · court = `4117d2b0ca5fb23a` LOCKED；
+* 纯度泄漏计数 572 → 145 → 99（余额全是注释 / 已双语三元分支 / L() 的中文参数 / 故意的中文象形字章 / zh 侧约束串）；
+* 「密码-123」永久否决 · purity CLEAR · Night Watch 仍 CRACKED（exhibit #4 1,526.1 ms 与 exhibit #8 2,078.7 ms 永在册）；
+* D1 ✅（owner 2026-11-16 签）· D2 ⏸（待 owner PAT，不 mint）。
+
+### 119.4 一条文化
+
+带着英语语序的中文不是中文；嵌着中文词的英语不是英语。
+一个屏幕只许讲一种语言，除非那两个词同时是两种语言都不会说错的东西——比如铁、半铁和编号。
+
+---

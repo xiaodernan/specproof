@@ -1,5 +1,5 @@
 import "../styles/verification.css";
-import { CLOSING_BY_LOCALE, SCROLLS_BY_LOCALE } from "./epic.copy";
+import { CLOSING_BY_LOCALE, PROLOGUE_BY_LOCALE, PROLOGUE_MARK_BY_LOCALE, SCROLLS_BY_LOCALE } from "./epic.copy";
 import { useI18n } from "../i18n";
 
 // 史诗 · The Chronicles of SpecProof —— 给一切验收动作一个起源与一个收束。
@@ -21,9 +21,11 @@ export default function Epic() {
       </div>
 
       <div className="chronicles-prologue">
-        <span className="chronicles-prologue-mark" aria-hidden="true">{locale === "zh" ? "序" : "P"}</span>
+        <span className="chronicles-prologue-mark" aria-hidden="true">{PROLOGUE_MARK_BY_LOCALE[locale]}</span>
         <p>
-          此书始于一个简单的问题：<strong>AI 写的代码，谁配说「过了」？</strong>答案不是模型的自信、也不是评审的好运气，而是<strong>一炉可复现的铁证</strong>：契约编译成法律、差分执行成证言、矩阵列出罪名，再由确定性策略定谳。SpecProof 不是一个「检查代码的工具」，它是一台为每个变更验明来路的<strong>验收机器</strong>。
+          {PROLOGUE_BY_LOCALE[locale].map((seg, i) =>
+            seg.b ? <strong key={i}>{seg.text}</strong> : <span key={i}>{seg.text}</span>,
+          )}
         </p>
       </div>
 
@@ -57,7 +59,7 @@ export default function Epic() {
       ))}
 
       <div className="chronicles-closing">
-        <span className="chronicles-prologue-mark" aria-hidden="true">尾</span>
+        <span className="chronicles-prologue-mark" aria-hidden="true">{locale === "zh" ? "尾" : "END"}</span>
         <div>
           <h3>{closing[0]}</h3>
           <p>{closing[1]}</p>
