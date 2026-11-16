@@ -19,5 +19,5 @@
 .errata-colophon { line-height: 1.8; margin-top: 24px; }
 @media print {
   .errata-search { display: none; }
-  .errata-item { break-inside: avoid; border-color: #999; }
+  .errata-item { break-inside: avoid; border-color: var(--pigment-soot-5); }
 }

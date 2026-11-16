@@ -5,39 +5,39 @@
 .nightwatch-page { position: relative; max-width: 1080px; margin: 0 auto; padding: 8px 8px 60px; overflow: hidden; }
 
 /* sky layers */
-.night-sky { position: absolute; inset: -40px -80px 0; background: radial-gradient(120% 70% at 78% -10%, #1b2b4d 0%, #0c1526 45%, var(--steel-midnight) 100%); z-index: 0; }
+.night-sky { position: absolute; inset: -40px -80px 0; background: radial-gradient(120% 70% at 78% -10%, var(--pigment-steel-32) 0%, var(--pigment-steel-33) 45%, var(--steel-midnight) 100%); z-index: 0; }
 .night-moon { position: absolute; top: 60px; right: 120px; width: 108px; height: 108px; border-radius: 50%;
-  background: radial-gradient(circle at 38% 35%, #fffdf0 0%, #f2e9c9 55%, #c9bd93 100%);
+  background: radial-gradient(circle at 38% 35%, var(--pigment-paper-7) 0%, var(--pigment-parchment-39) 55%, var(--pigment-parchment-41) 100%);
   box-shadow: 0 0 34px 12px var(--glow-gold), 0 0 140px 60px var(--glow-gold-soft); }
-.night-moon::after { content: ""; position: absolute; left: 32px; top: 40px; width: 14px; height: 14px; border-radius: 50%; background: rgba(120,110,80,.35); box-shadow: 22px -18px 0 -3px var(--glow-brass), -14px 12px 0 -5px var(--glow-brass); }
+.night-moon::after { content: ""; position: absolute; left: 32px; top: 40px; width: 14px; height: 14px; border-radius: 50%; background: var(--pigment-gilt-glow-62); box-shadow: 22px -18px 0 -3px var(--glow-brass), -14px 12px 0 -5px var(--glow-brass); }
 .night-stars { position: absolute; inset: 0;
   background-image:
-    radial-gradient(1.6px 1.6px at 12% 22%, rgba(255,255,255,.9), transparent),
-    radial-gradient(1.2px 1.2px at 28% 12%, rgba(255,255,255,.7), transparent),
-    radial-gradient(2px 2px at 44% 26%, rgba(255,255,255,.85), transparent),
-    radial-gradient(1.3px 1.3px at 59% 8%, rgba(255,255,255,.6), transparent),
-    radial-gradient(1.8px 1.8px at 71% 30%, rgba(255,255,255,.8), transparent),
-    radial-gradient(1.1px 1.1px at 84% 18%, rgba(255,255,255,.7), transparent),
-    radial-gradient(2.2px 2.2px at 92% 36%, rgba(255,255,255,.55), transparent),
-    radial-gradient(1.4px 1.4px at 35% 34%, rgba(255,255,255,.65), transparent),
+    radial-gradient(1.6px 1.6px at 12% 22%, var(--pigment-veil-10), transparent),
+    radial-gradient(1.2px 1.2px at 28% 12%, var(--pigment-veil-11), transparent),
+    radial-gradient(2px 2px at 44% 26%, var(--pigment-veil-12), transparent),
+    radial-gradient(1.3px 1.3px at 59% 8%, var(--pigment-veil-13), transparent),
+    radial-gradient(1.8px 1.8px at 71% 30%, var(--pigment-veil-14), transparent),
+    radial-gradient(1.1px 1.1px at 84% 18%, var(--pigment-veil-11), transparent),
+    radial-gradient(2.2px 2.2px at 92% 36%, var(--pigment-veil-15), transparent),
+    radial-gradient(1.4px 1.4px at 35% 34%, var(--pigment-veil-16), transparent),
     radial-gradient(1px 1px at 18% 40%, var(--shadow-highlight), transparent); }
 .night-fog { position: absolute; left: -10%; right: -10%; top: 34%; height: 240px;
-  background: linear-gradient(180deg, transparent, rgba(148,183,255,.06) 40%, rgba(148,183,255,.1) 60%, transparent);
+  background: linear-gradient(180deg, transparent, var(--pigment-steel-glow-26) 40%, var(--pigment-steel-glow-27) 60%, transparent);
   filter: blur(18px); animation: night-fog-drift 14s ease-in-out infinite alternate; }
 @keyframes night-fog-drift { from { transform: translateX(-3%); opacity: .7; } to { transform: translateX(4%); opacity: 1; } }
 
 .night-header, .night-panel, .night-rail, .night-oil { position: relative; z-index: 1; }
-.night-kicker { font-size: var(--text-2xs); letter-spacing: .46em; color: rgba(212,175,55,.72); margin: 8px 0 8px; }
+.night-kicker { font-size: var(--text-2xs); letter-spacing: .46em; color: var(--pigment-gilt-glow-63); margin: 8px 0 8px; }
 .night-title { font-family: Georgia, 'Noto Serif SC', serif; font-size: var(--text-4xl); letter-spacing: -.01em; line-height: 1.06; margin: 0; color: var(--parchment-mid); text-shadow: 0 2px 26px var(--shadow-ambient); }
 .night-title-en { display: inline-block; font-size: var(--text-2xs); letter-spacing: .28em; color: var(--archive-gold-bright); vertical-align: .4em; margin-left: .45em; }
-.night-best { margin: 8px 0 0; font-size: var(--text-xs); letter-spacing: .08em; color: rgba(158,203,255,.75); }
+.night-best { margin: 8px 0 0; font-size: var(--text-xs); letter-spacing: .08em; color: var(--pigment-steel-glow-28); }
 
 /* panels */
-.night-panel { margin-top: 24px; background: linear-gradient(165deg, rgba(16,24,46,.92), rgba(9,14,28,.94)); border: 1px solid rgba(212,175,55,.3); border-radius: var(--radius-xl); box-shadow: 0 30px 80px -30px var(--shadow-ambient), inset 0 1px 0 var(--shadow-highlight); padding: 28px 32px; backdrop-filter: blur(3px); }
+.night-panel { margin-top: 24px; background: linear-gradient(165deg, var(--pigment-steel-glow-29), var(--pigment-steel-glow-30)); border: 1px solid var(--pigment-gilt-glow-24); border-radius: var(--radius-xl); box-shadow: 0 30px 80px -30px var(--shadow-ambient), inset 0 1px 0 var(--shadow-highlight); padding: 28px 32px; backdrop-filter: blur(3px); }
 .night-lead { font-family: Georgia, 'Noto Serif SC', serif; font-size: var(--text-2xl); line-height: 1.9; color: var(--parchment-mid); margin: 0; }
 .night-body { color: var(--steel-moonwash); line-height: 2.0; margin: 16px 0 0; }
 .night-rule { color: var(--archive-silver); font-size: var(--text-lg); border-left: 2px solid var(--archive-gold-mid); padding-left: 16px; }
-.night-begin { margin-top: 24px; display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border-radius: var(--radius-full); border: 1px solid var(--archive-brass); background: linear-gradient(160deg, var(--archive-gold-share), rgba(212,175,55,.06)); color: var(--lamp-lantern); font-size: var(--text-lg); letter-spacing: .12em; cursor: pointer; transition: transform .18s ease, box-shadow .18s ease; font-family: Georgia, 'Noto Serif SC', serif; }
+.night-begin { margin-top: 24px; display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border-radius: var(--radius-full); border: 1px solid var(--archive-brass); background: linear-gradient(160deg, var(--archive-gold-share), var(--pigment-gilt-glow-64)); color: var(--lamp-lantern); font-size: var(--text-lg); letter-spacing: .12em; cursor: pointer; transition: transform .18s ease, box-shadow .18s ease; font-family: Georgia, 'Noto Serif SC', serif; }
 .night-begin:hover { transform: translateY(-2px); box-shadow: 0 12px 34px -8px var(--glow-gold-soft); }
 
 /* progress rail */
@@ -45,18 +45,18 @@
 .night-rail li { flex: 1; min-width: 64px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative; }
 .night-rail li::before { content: ""; position: absolute; top: 8px; left: -50%; width: 100%; border-top: 1px dashed var(--glow-gold-soft); }
 .night-rail li:first-child::before { content: none; }
-.night-rail-hour { font-family: Georgia, 'Noto Serif SC', serif; font-size: var(--text-xs); letter-spacing: .1em; color: #9aa7c4; }
-.night-rail-dot { width: 13px; height: 13px; border-radius: 50%; border: 1px solid var(--glow-gold); background: #0a1020; }
+.night-rail-hour { font-family: Georgia, 'Noto Serif SC', serif; font-size: var(--text-xs); letter-spacing: .1em; color: var(--pigment-steel-34); }
+.night-rail-dot { width: 13px; height: 13px; border-radius: 50%; border: 1px solid var(--glow-gold); background: var(--pigment-steel-35); }
 .night-rail li.is-done .night-rail-dot { background: var(--archive-brass); box-shadow: 0 0 10px var(--glow-gold); border-color: var(--lamp-lantern); }
 .night-rail li.is-done .night-rail-hour { color: var(--archive-brass); }
-.night-rail li.is-current .night-rail-dot { background: #818cf8; border-color: #c7d2fe; box-shadow: 0 0 12px var(--glow-primary); animation: night-pulse 1.6s ease-in-out infinite; }
-.night-rail li.is-current .night-rail-hour { color: #e0e7ff; }
+.night-rail li.is-current .night-rail-dot { background: var(--pigment-steel-36); border-color: var(--pigment-steel-37); box-shadow: 0 0 12px var(--glow-primary); animation: night-pulse 1.6s ease-in-out infinite; }
+.night-rail li.is-current .night-rail-hour { color: var(--pigment-steel-38); }
 @keyframes night-pulse { 50% { box-shadow: 0 0 22px 4px var(--glow-primary); } }
 
 /* oil lanterns */
 .night-oil { display: flex; align-items: center; gap: 8px; margin: 16px 2px 0; }
-.oil-flame { width: 12px; height: 20px; border-radius: var(--radius-full); background: linear-gradient(180deg, #fff7cf, #f6c445 55%, #c26a1b); box-shadow: 0 0 12px var(--glow-gold), 0 0 26px var(--glow-gold-soft); animation: night-flick 1.15s ease-in-out infinite; }
-.oil-flame.is-dead { background: #1c2333; box-shadow: inset 0 0 4px var(--shadow-ambient); animation: none; border: 1px solid #2c3650; }
+.oil-flame { width: 12px; height: 20px; border-radius: var(--radius-full); background: linear-gradient(180deg, var(--pigment-parchment-42), var(--pigment-gilt-36) 55%, var(--pigment-gilt-37)); box-shadow: 0 0 12px var(--glow-gold), 0 0 26px var(--glow-gold-soft); animation: night-flick 1.15s ease-in-out infinite; }
+.oil-flame.is-dead { background: var(--pigment-steel-39); box-shadow: inset 0 0 4px var(--shadow-ambient); animation: none; border: 1px solid var(--pigment-steel-40); }
 @keyframes night-flick { 0%,100% { transform: scaleY(1) scaleX(1); } 30% { transform: scaleY(1.16) scaleX(.88); } 60% { transform: scaleY(.9) scaleX(1.1); } }
 .night-oil-label { font-size: var(--text-2xs); letter-spacing: .22em; color: var(--glow-gold); }
 
@@ -66,29 +66,29 @@
 .night-station-hour { font-family: Georgia, 'Noto Serif SC', serif; letter-spacing: .3em; color: var(--archive-gold-bright); font-size: var(--text-md); margin: 0; }
 .night-station-sep { color: var(--archive-gold-mid); margin: 0 .6em; }
 .night-station-place { color: var(--parchment-mid); letter-spacing: .18em; }
-.night-lore { font-style: italic; color: #aeb9d4; line-height: 2.0; margin: 16px 0 0; border-left: 2px solid rgba(129,140,248,.35); padding-left: 16px; }
+.night-lore { font-style: italic; color: var(--pigment-steel-41); line-height: 2.0; margin: 16px 0 0; border-left: 2px solid var(--pigment-steel-glow-31); padding-left: 16px; }
 .night-question { font-family: Georgia, 'Noto Serif SC', serif; font-size: var(--text-2xl); color: var(--parchment-mid); line-height: 1.55; margin: 20px 0 0; max-width: 760px; }
 .night-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 20px; }
-.night-option { display: flex; align-items: baseline; gap: 12px; text-align: left; padding: 16px 16px; border-radius: var(--radius-lg); border: 1px solid rgba(255,255,255,.09); background: var(--shadow-highlight); color: #dde3f2; font-size: var(--text-xl); line-height: 1.75; cursor: pointer; transition: background .16s ease, border-color .16s ease, transform .16s ease; }
-.night-option:hover { background: rgba(212,175,55,.07); border-color: var(--archive-gold-mid); transform: translateY(-1px); }
-.night-option.is-wrong { border-color: rgba(248,113,113,.75); background: rgba(127,29,29,.35); animation: night-shake .4s ease; }
+.night-option { display: flex; align-items: baseline; gap: 12px; text-align: left; padding: 16px 16px; border-radius: var(--radius-lg); border: 1px solid var(--pigment-veil-7); background: var(--shadow-highlight); color: var(--pigment-steel-42); font-size: var(--text-xl); line-height: 1.75; cursor: pointer; transition: background .16s ease, border-color .16s ease, transform .16s ease; }
+.night-option:hover { background: var(--pigment-gilt-glow-65); border-color: var(--archive-gold-mid); transform: translateY(-1px); }
+.night-option.is-wrong { border-color: var(--pigment-oxide-glow-6); background: var(--pigment-gilt-glow-66); animation: night-shake .4s ease; }
 @keyframes night-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-7px); } 75% { transform: translateX(7px); } }
 .night-option-mark { color: var(--archive-gold-bright); font-size: var(--text-xl); }
 
 /* dawn and dusk endings */
-.night-dawn { background: linear-gradient(168deg, #3a2c10 0%, #191423 55%, #0d0a14 100%); border-color: rgba(245,224,138,.5); }
-.night-dusk { background: linear-gradient(168deg, #141b33 0%, #0b0f1f 60%, var(--steel-midnight) 100%); border-color: rgba(129,140,248,.3); }
+.night-dawn { background: linear-gradient(168deg, var(--pigment-umber-26) 0%, var(--pigment-steel-43) 55%, var(--pigment-steel-44) 100%); border-color: var(--pigment-gilt-glow-67); }
+.night-dusk { background: linear-gradient(168deg, var(--pigment-steel-45) 0%, var(--pigment-steel-46) 60%, var(--steel-midnight) 100%); border-color: var(--pigment-steel-glow-32); }
 .night-dawn-kicker, .night-dusk-kicker { font-size: var(--text-2xs); letter-spacing: .46em; margin: 0; }
-.night-dawn-kicker { color: rgba(245,224,138,.85); }
-.night-dusk-kicker { color: rgba(129,140,248,.8); }
-.night-panel h2 { font-family: Georgia, 'Noto Serif SC', serif; font-size: var(--text-display); margin: 8px 0 0; color: #fdf6d8; }
+.night-dawn-kicker { color: var(--pigment-gilt-glow-68); }
+.night-dusk-kicker { color: var(--pigment-steel-glow-33); }
+.night-panel h2 { font-family: Georgia, 'Noto Serif SC', serif; font-size: var(--text-display); margin: 8px 0 0; color: var(--pigment-parchment-43); }
 .night-dawn-stats { display: flex; gap: 32px; margin-top: 24px; flex-wrap: wrap; }
 .night-dawn-stats p { font-size: var(--text-4xl); font-weight: 700; color: var(--lamp-lantern); margin: 0; font-variant-numeric: tabular-nums; }
 .night-dawn-stats span { font-size: var(--text-2xs); letter-spacing: .18em; color: var(--steel-moonwash); text-transform: uppercase; }
-.night-newbest { color: #86efac; margin-top: 16px; font-size: var(--text-md); letter-spacing: .1em; }
+.night-newbest { color: var(--pigment-jade-17); margin-top: 16px; font-size: var(--text-md); letter-spacing: .1em; }
 .night-dawn-actions { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
-.night-ghost { color: var(--lamp-verified); text-decoration: none; border-bottom: 1px dotted rgba(158,203,255,.5); padding: 2px 2px; font-size: var(--text-lg); }
-.night-ghost:hover { color: #cfe7ff; }
+.night-ghost { color: var(--lamp-verified); text-decoration: none; border-bottom: 1px dotted var(--pigment-steel-glow-34); padding: 2px 2px; font-size: var(--text-lg); }
+.night-ghost:hover { color: var(--pigment-steel-47); }
 
 @media (max-width: 860px) {
   .night-options { grid-template-columns: 1fr; }

@@ -5543,3 +5543,52 @@ UI **571/571** · build ✓ (lite + minified, two passes) · mvn -o **gateway 84
 **14** unowned (never-`var()`-referenced) tokens were removed tonight (`--parchment-2x`, `--ink-shadow*`, `--surface-soft`, `--iron-ink-faint`, `--archive-glow-faint/soft`, `--archive-dark-canvas/slate`, `--archive-gold-bright-light`, `--archive-steel-midnight-alt`, `--surface-mid-mint`, …); before deletion, two checks were made: the `var(--token)` reference count across `apps/web/src` was **0**, and no test string referenced them either. Pre-existing system tokens (`--blur-lg`, `--fw-400`, `--h-6`, …) were **left alone** — that is not tonight's story.
 
 ---
+
+## Scroll CLIII · Every door is open
+
+> #130 was always a doorplate, not the door.
+
+### 153.1 The last 593, in one night
+
+| step | reading (`test_no_painted_color_bypasses_the_theme_tokens`) |
+|---|---|
+| #1945 HEAD | 1,165 |
+| #1945 landed | 1,165 → registers opened, count frozen |
+| #1946 landed | **593** |
+| #1947 landed | **0** — the gate is green on master |
+
+Every one of the 593 painted literals was registered byte-for-byte into the theme:
+**463 new `--pigment-*` tokens** inside one `:root` block in `tokens.css` (the
+"Pigment registry" block, one pigment · one token, families: gilt / parchment /
+umber / jade / steel / oxide / carbon / soot / paper / veil / shade / gilt-glow /
+jade-glow / steel-glow / oxide-glow, theme-invariant by design).
+**13 more were re-bound to pre-existing context-invariant tokens** (`--zinc-0`,
+`--surface*`, `--lamp-*`, `--archive-brass`, `--accent-2-*`, …) — reuse allowed
+only when every declaration of the name carries the identical normalised value,
+and never the `--print-*` lane.
+Not one byte of colour value was touched; nothing was "adjusted", nothing clamped.
+
+### 153.2 The scars, on file
+
+* 12 four/eight-hex literals (`#32976c35`, `#10201765`, `#1843`, …) are **on file,
+  untouched** — the gate's regex does not see them; this sweep did not either.
+* The first sweep wave replaced `#130` inside prose (`Chronicle.tsx`'s comment,
+  then `Atlas.tsx`'s engrave line) — caught both, reverted both. The final fix:
+  `EST. Nº 130 · MMXXVI` — the issue glyph stays a glyph, and the gate stays green.
+* The colour count in #1946 (**593**) and this scroll's (**0**) are both struck
+  by the same pytest command in the same process family; no numbers moved by hand.
+
+### 153.3 The ledger
+
+UI **571/571** · build ✓ (minified) · `lightningcss.transform` per-file: **42/42 OK** ·
+mvn -o **137/137** (Java untouched — carried from #1945/#1946) · purity **CLEAR** ·
+Night Watch still **CRACKED** (exhibit_entries **16** · exhibits #4 / #12 / #13 / #15
+none shifted) · court `4117d2b0ca5fb23a` **LOCKED** · D1 ✅ · D2 ⏸ ·
+「密码-123」vetoed · chronicle grows with this commit · worldbook **Scroll CLIII / 153
+scrolls, zh+en symmetric** · corrections **17** · guide **6/6**.
+POSTSCRIPT: ROADMAP-LIVE item #8's design-system family — 4 px grid 601→0, radius
+ladder 101→0, font scale 406→0, shadow 71→0, **theme-blind colours 1,315→0** — every
+gate in that family is green on master as of tonight. The other preexisting red
+families in item #8 remain on file as written; none were smoothed.
+
+---

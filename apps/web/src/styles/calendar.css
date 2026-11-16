@@ -12,10 +12,10 @@
 .calendar-swatch { width: 15px; height: 15px; border-radius: var(--radius-2xs); }
 .calendar-count-note { margin-left: auto; font-size: var(--text-xs); color: var(--color-text-3); font-family: var(--font-mono); }
 
-.calendar-bucket-0 { background: #141d2e; }
-.calendar-bucket-1 { background: #173a44; }
-.calendar-bucket-2 { background: #145a54; }
-.calendar-bucket-3 { background: #1f8a63; }
+.calendar-bucket-0 { background: var(--pigment-steel-2); }
+.calendar-bucket-1 { background: var(--pigment-jade-2); }
+.calendar-bucket-2 { background: var(--pigment-jade-3); }
+.calendar-bucket-3 { background: var(--pigment-jade-4); }
 .calendar-bucket-4 { background: var(--archive-brass); }
 
 .calendar-scroll { overflow-x: auto; padding: 4px 2px 8px; }

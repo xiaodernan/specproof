@@ -84,9 +84,9 @@ export default function Inkwell(): JSX.Element {
         <section className="inkwell-panel inkwell-clock-panel" aria-label={L("时辰墨盘", "Ink clock")}>
           <h2>{L("时辰墨盘 · 一天 24 小时的墨深", "The Ink Clock — 24 hours deep")}</h2>
           <svg viewBox="0 0 300 300" className="inkwell-clock" role="img" aria-label={L("24 小时提交密度环形图", "24-hour commit density ring")}>
-            <circle cx={cx} cy={cy} r="40" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1.5" />
+            <circle cx={cx} cy={cy} r="40" fill="none" stroke="var(--pigment-veil-5)" strokeWidth="1.5" />
             {D.hours_local.map((_, hour) => (
-              <path key={hour} d={slicePath(hour)} fill={hour >= 22 || hour < 6 ? "#e3a845" : "#8a6d3a"} opacity={0.28 + 0.72 * (D.hours_local[hour] / maxHour)} />
+              <path key={hour} d={slicePath(hour)} fill={hour >= 22 || hour < 6 ? "var(--pigment-gilt-47)" : "var(--pigment-gilt-48)"} opacity={0.28 + 0.72 * (D.hours_local[hour] / maxHour)} />
             ))}
             {[0, 6, 12, 18].map((h) => {
               const p = pt(128, h * 15);

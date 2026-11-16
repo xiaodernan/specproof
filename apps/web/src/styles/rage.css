@@ -1,20 +1,20 @@
 ﻿
-.rage-coach { position: fixed; right: 16px; bottom: 88px; z-index: 70; width: min(360px, calc(100vw - 36px)); background: linear-gradient(165deg, #1c1210 0%, #141013 100%); border: 1px solid rgba(255, 179, 160, .4); border-radius: var(--radius-md); padding: 16px 16px 12px; color: #f5d9cf; box-shadow: 0 24px 60px -18px var(--shadow-ambient); backdrop-filter: blur(6px); font-size: var(--text-md); line-height: 1.65; }
-.rage-coach-head { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255, 179, 160, .25); padding-bottom: 8px; margin-bottom: 8px; }
+.rage-coach { position: fixed; right: 16px; bottom: 88px; z-index: 70; width: min(360px, calc(100vw - 36px)); background: linear-gradient(165deg, var(--pigment-umber-27) 0%, var(--pigment-steel-48) 100%); border: 1px solid var(--pigment-oxide-glow-10); border-radius: var(--radius-md); padding: 16px 16px 12px; color: var(--pigment-oxide-10); box-shadow: 0 24px 60px -18px var(--shadow-ambient); backdrop-filter: blur(6px); font-size: var(--text-md); line-height: 1.65; }
+.rage-coach-head { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--pigment-oxide-glow-11); padding-bottom: 8px; margin-bottom: 8px; }
 .rage-coach-head svg { color: var(--lamp-pink-hi); }
-.rage-coach-kicker { font-size: var(--text-2xs); letter-spacing: .32em; color: rgba(255, 179, 160, .85); margin: 0; text-transform: uppercase; font-family: Georgia, serif; }
+.rage-coach-kicker { font-size: var(--text-2xs); letter-spacing: .32em; color: var(--pigment-oxide-glow-12); margin: 0; text-transform: uppercase; font-family: Georgia, serif; }
 .rage-coach-close { margin-left: auto; background: transparent; border: 0; color: var(--lamp-pink-hi); font-size: var(--text-2xl); cursor: pointer; padding: 2px 8px; border-radius: var(--radius-sm); line-height: 1; }
-.rage-coach-close:hover { background: rgba(255, 179, 160, .12); }
-.rage-coach-lead { color: #d8b8ac; margin: 0 0 8px; }
+.rage-coach-close:hover { background: var(--pigment-oxide-glow-13); }
+.rage-coach-lead { color: var(--pigment-parchment-44); margin: 0 0 8px; }
 .rage-coach-hints { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.rage-coach-hints li { border-left: 2px solid rgba(255, 179, 160, .45); padding-left: 8px; }
-.rage-coach-hints strong { display: block; color: #ffd9cd; font-size: var(--text-sm); letter-spacing: .04em; }
-.rage-coach-hints span { color: #b8a096; font-size: var(--text-sm); }
+.rage-coach-hints li { border-left: 2px solid var(--pigment-oxide-glow-14); padding-left: 8px; }
+.rage-coach-hints strong { display: block; color: var(--pigment-oxide-11); font-size: var(--text-sm); letter-spacing: .04em; }
+.rage-coach-hints span { color: var(--pigment-parchment-45); font-size: var(--text-sm); }
 .rage-coach-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.rage-coach-arm { background: rgba(255, 179, 160, .16); color: var(--lamp-pink-hi); border: 1px solid rgba(255, 179, 160, .45); border-radius: var(--radius-sm); padding: 8px 8px; font-size: var(--text-xs); letter-spacing: .1em; cursor: pointer; text-transform: uppercase; }
-.rage-coach-arm:hover { background: rgba(255, 179, 160, .24); }
-.rage-coach-ack { background: transparent; color: var(--steel-graphite-2); border: 1px solid rgba(141, 151, 179, .3); border-radius: var(--radius-sm); padding: 8px 8px; font-size: var(--text-xs); letter-spacing: .08em; cursor: pointer; }
-.rage-coach-ack:hover { color: #c3ccdf; border-color: rgba(141, 151, 179, .55); }
+.rage-coach-arm { background: var(--pigment-oxide-glow-15); color: var(--lamp-pink-hi); border: 1px solid var(--pigment-oxide-glow-14); border-radius: var(--radius-sm); padding: 8px 8px; font-size: var(--text-xs); letter-spacing: .1em; cursor: pointer; text-transform: uppercase; }
+.rage-coach-arm:hover { background: var(--pigment-oxide-glow-16); }
+.rage-coach-ack { background: transparent; color: var(--steel-graphite-2); border: 1px solid var(--pigment-steel-glow-35); border-radius: var(--radius-sm); padding: 8px 8px; font-size: var(--text-xs); letter-spacing: .08em; cursor: pointer; }
+.rage-coach-ack:hover { color: var(--pigment-steel-31); border-color: var(--pigment-steel-glow-36); }
 @media (prefers-reduced-motion: no-preference) { .rage-coach { animation: rage-rise .38s ease-out; } }
 @keyframes rage-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 700px) { .rage-coach { right: 8px; bottom: 72px; } }

@@ -21,13 +21,13 @@
 .atlas-island { cursor: pointer; transition: fill-opacity .25s ease, stroke-opacity .25s ease, stroke-width .25s ease; outline: none; }
 .atlas-island:focus-visible { stroke-width: 3; }
 
-.atlas-island-label { font-size: var(--text-lg); letter-spacing: .3em; font-weight: 700; opacity: .92; text-transform: uppercase; paint-order: stroke; stroke: #050d16; stroke-width: 3px; }
+.atlas-island-label { font-size: var(--text-lg); letter-spacing: .3em; font-weight: 700; opacity: .92; text-transform: uppercase; paint-order: stroke; stroke: var(--pigment-steel-1); stroke-width: 3px; }
 
 .atlas-dot { cursor: pointer; outline: none; }
 .atlas-dot-halo { opacity: 0; transition: opacity .18s ease; }
 .atlas-dot-core { transition: r .18s ease; transform-box: fill-box; }
 .atlas-dot:hover .atlas-dot-halo, .atlas-dot:focus-visible .atlas-dot-halo, .atlas-dot.is-active .atlas-dot-halo { opacity: .35; }
-.atlas-dot.is-active .atlas-dot-core { stroke: #f5f3ff; stroke-width: 2.4; }
+.atlas-dot.is-active .atlas-dot-core { stroke: var(--pigment-paper-1); stroke-width: 2.4; }
 
 .atlas-compass-n { fill: var(--archive-brass); font-size: var(--text-xs); letter-spacing: .08em; }
 .atlas-compass circle, .atlas-compass path { transition: opacity .2s ease; }
@@ -46,7 +46,7 @@
 
 .atlas-rooms { list-style: none; padding: 0; margin: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; scrollbar-width: thin; max-height: 560px; }
 .atlas-room { display: grid; grid-template-columns: 34px 1fr 22px; gap: 12px; align-items: center; padding: 8px 12px; border-radius: var(--radius-lg); border: 1px solid transparent; text-decoration: none; transition: background .16s ease, border-color .16s ease, transform .16s ease; }
-.atlas-room:hover { background: var(--color-surface-2, rgba(255,255,255,.035)); border-color: var(--color-border); transform: translateX(4px); }
+.atlas-room:hover { background: var(--color-surface-2, var(--pigment-veil-1)); border-color: var(--color-border); transform: translateX(4px); }
 .atlas-room.is-active { background: var(--color-surface-2, var(--shadow-highlight)); border-color: var(--accent, var(--accent-text)); }
 .atlas-room-icon { width: 34px; height: 34px; border-radius: var(--radius-md); display: grid; place-items: center; color: var(--accent, var(--accent-text)); background: var(--shadow-highlight); border: 1px solid var(--color-border); }
 .atlas-room-text strong { display: block; color: var(--color-text); font-size: var(--text-sm); letter-spacing: .01em; }

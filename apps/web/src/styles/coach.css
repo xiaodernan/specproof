@@ -2,16 +2,16 @@
    Gold badges pinned to the live shell; small tips on hover/focus; a
    persistent legend bottom-right with one dismiss button. */
 
-.coach-badge { position: fixed; z-index: 60; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle at 36% 32%, #ffe98a, var(--archive-brass) 62%, var(--archive-brass-dim)); box-shadow: 0 2px 8px var(--shadow-ambient), 0 0 10px var(--glow-gold); cursor: help; animation: coach-pop .3s ease; }
+.coach-badge { position: fixed; z-index: 60; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle at 36% 32%, var(--pigment-gilt-4), var(--archive-brass) 62%, var(--archive-brass-dim)); box-shadow: 0 2px 8px var(--shadow-ambient), 0 0 10px var(--glow-gold); cursor: help; animation: coach-pop .3s ease; }
 @keyframes coach-pop { from { transform: scale(.4); opacity: 0; } }
-.coach-badge-num { font-size: var(--text-xs); font-weight: 800; color: #241a05; font-family: var(--font-mono); }
+.coach-badge-num { font-size: var(--text-xs); font-weight: 800; color: var(--pigment-umber-2); font-family: var(--font-mono); }
 
 .coach-tip { display: none; position: absolute; left: 50%; right: auto; top: calc(100% + 8px); transform: translateX(-50%); width: min(240px, calc(100vw - 32px)); background: var(--steel-midnight); border: 1px solid var(--glow-gold); border-radius: var(--radius-md); padding: 8px 12px; z-index: 70; box-shadow: 0 14px 40px -10px var(--shadow-ambient); white-space: normal; }
 .coach-badge:hover .coach-tip, .coach-badge:focus-visible .coach-tip { display: block; }
 .coach-tip strong { display: block; color: var(--lamp-lantern); font-size: var(--text-sm); letter-spacing: .04em; margin-bottom: 4px; }
-.coach-tip span:last-child { color: #cdd5e8; font-size: var(--text-xs); line-height: 1.7; }
+.coach-tip span:last-child { color: var(--pigment-steel-3); font-size: var(--text-xs); line-height: 1.7; }
 
-.coach-legend { position: fixed; right: 16px; bottom: 16px; z-index: 60; width: 268px; background: linear-gradient(168deg, rgba(22,30,52,.96), rgba(11,16,30,.97)); border: 1px solid rgba(212,175,55,.42); border-radius: var(--radius-lg); padding: 12px 16px 12px; box-shadow: 0 18px 50px -12px var(--shadow-ambient), inset 0 1px 0 var(--shadow-highlight); }
+.coach-legend { position: fixed; right: 16px; bottom: 16px; z-index: 60; width: 268px; background: linear-gradient(168deg, var(--pigment-steel-glow-2), var(--pigment-steel-glow-3)); border: 1px solid var(--pigment-gilt-glow-3); border-radius: var(--radius-lg); padding: 12px 16px 12px; box-shadow: 0 18px 50px -12px var(--shadow-ambient), inset 0 1px 0 var(--shadow-highlight); }
 .coach-legend-kicker { font-size: var(--text-2xs); letter-spacing: .4em; color: var(--glow-gold); margin: 0; }
 .coach-legend-title { font-family: Georgia, 'Noto Serif SC', serif; color: var(--parchment-mid); font-size: var(--text-lg); margin: 8px 0 0; }
 .coach-legend-body { color: var(--steel-moonwash); font-size: var(--text-xs); line-height: 1.75; margin: 8px 0 8px; }

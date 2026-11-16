@@ -2,32 +2,32 @@
    A museum-wall of the world book's every volume: parchment tiles,
    wax seals, ember language. Click any tile to read the full chapter. */
 
-.gallery-page { max-width: 1240px; margin: 0 auto; color: #eae4d2; }
+.gallery-page { max-width: 1240px; margin: 0 auto; color: var(--pigment-parchment-21); }
 
-.gallery-mast { padding: 24px 24px 16px; border: 1px solid var(--parchment-lit-mid); border-radius: var(--radius-lg); background: radial-gradient(1000px 280px at 14% -22%, rgba(214, 183, 120, 0.16), transparent 60%), linear-gradient(180deg, var(--archive-cell) 0%, #131009 100%); }
-.gallery-kicker { font-size: var(--text-xs); letter-spacing: 0.42em; color: rgba(214, 183, 120, 0.85); margin: 0 0 8px; font-weight: 600; }
-.gallery-mast h1 { font-family: Georgia, "Noto Serif SC", "Songti SC", serif; font-size: var(--text-4xl); margin: 0; color: #f5eed6; line-height: 1.08; letter-spacing: 0.03em; }
-.gallery-en { display: block; font-size: var(--text-2xs); letter-spacing: 0.3em; color: rgba(214, 183, 120, 0.8); margin-top: 8px; text-transform: uppercase; }
-.gallery-lead { color: #b4a988; line-height: 1.9; margin: 12px 0 0; max-width: 66ch; font-size: var(--text-lg); }
+.gallery-mast { padding: 24px 24px 16px; border: 1px solid var(--parchment-lit-mid); border-radius: var(--radius-lg); background: radial-gradient(1000px 280px at 14% -22%, var(--pigment-gilt-glow-21), transparent 60%), linear-gradient(180deg, var(--archive-cell) 0%, var(--pigment-umber-14) 100%); }
+.gallery-kicker { font-size: var(--text-xs); letter-spacing: 0.42em; color: var(--pigment-gilt-glow-1); margin: 0 0 8px; font-weight: 600; }
+.gallery-mast h1 { font-family: Georgia, "Noto Serif SC", "Songti SC", serif; font-size: var(--text-4xl); margin: 0; color: var(--pigment-parchment-22); line-height: 1.08; letter-spacing: 0.03em; }
+.gallery-en { display: block; font-size: var(--text-2xs); letter-spacing: 0.3em; color: var(--pigment-gilt-glow-17); margin-top: 8px; text-transform: uppercase; }
+.gallery-lead { color: var(--pigment-parchment-23); line-height: 1.9; margin: 12px 0 0; max-width: 66ch; font-size: var(--text-lg); }
 
 .gallery-stats { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
 .gallery-stat { border: 1px solid var(--surface); background: var(--surface-faint); border-radius: var(--radius-md); padding: 8px 16px; min-width: 92px; }
-.gallery-stat-v { font-size: var(--text-2xl); font-weight: 700; color: #f0e5be; font-variant-numeric: tabular-nums; margin: 0; }
+.gallery-stat-v { font-size: var(--text-2xl); font-weight: 700; color: var(--pigment-parchment-24); font-variant-numeric: tabular-nums; margin: 0; }
 .gallery-stat-l { font-size: var(--text-2xs); letter-spacing: 0.14em; text-transform: uppercase; color: var(--archive-slate-dim); margin: 4px 0 0; }
 
 .gallery-search { width: 100%; margin-top: 16px; padding: 12px 16px; font-size: var(--text-lg); border-radius: var(--radius-md); border: 1px solid var(--parchment-lit-mid); background: var(--archive-cell); color: var(--sheet-mid); outline: none; }
-.gallery-search:focus-visible { border-color: rgba(214, 183, 120, 0.75); box-shadow: 0 0 0 3px var(--glow-brass); }
+.gallery-search:focus-visible { border-color: var(--pigment-gilt-glow-22); box-shadow: 0 0 0 3px var(--glow-brass); }
 .gallery-search::placeholder { color: var(--archive-olive); }
 
 .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; margin-top: 16px; }
 
-.gallery-tile { display: flex; flex-direction: column; gap: 8px; text-decoration: none; border: 1px solid var(--glow-brass); background: linear-gradient(168deg, #1d1811 0%, #15110b 100%); border-radius: var(--radius-md); padding: 16px 16px 12px; transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease; min-width: 0; }
-.gallery-tile:hover { transform: translateY(-3px); border-color: rgba(214, 183, 120, 0.55); box-shadow: 0 16px 36px -18px var(--shadow-ambient), 0 0 0 1px var(--glow-brass); }
+.gallery-tile { display: flex; flex-direction: column; gap: 8px; text-decoration: none; border: 1px solid var(--glow-brass); background: linear-gradient(168deg, var(--pigment-umber-15) 0%, var(--pigment-umber-16) 100%); border-radius: var(--radius-md); padding: 16px 16px 12px; transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease; min-width: 0; }
+.gallery-tile:hover { transform: translateY(-3px); border-color: var(--pigment-gilt-glow-23); box-shadow: 0 16px 36px -18px var(--shadow-ambient), 0 0 0 1px var(--glow-brass); }
 .gallery-tile:focus-visible { outline: 2px solid var(--archive-gold-mid-light); outline-offset: 2px; }
 
 .gallery-tile-seal { align-self: flex-start; font-family: Georgia, "Noto Serif SC", serif; font-size: var(--text-sm); letter-spacing: 0.16em; color: var(--archive-cell); background: var(--gold-deep); border-radius: var(--radius-2xs); padding: 3px 8px; font-weight: 800; }
-.gallery-tile-title { font-family: Georgia, "Noto Serif SC", "Songti SC", serif; font-size: var(--text-xl); line-height: 1.5; margin: 0; color: #efe4bd; letter-spacing: 0.02em; min-height: 2.6em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.gallery-tile-excerpt { font-size: var(--text-2xs); color: #a89b7a; line-height: 1.8; margin: 0; min-height: 4.2em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.gallery-tile-title { font-family: Georgia, "Noto Serif SC", "Songti SC", serif; font-size: var(--text-xl); line-height: 1.5; margin: 0; color: var(--pigment-parchment-25); letter-spacing: 0.02em; min-height: 2.6em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.gallery-tile-excerpt { font-size: var(--text-2xs); color: var(--pigment-parchment-26); line-height: 1.8; margin: 0; min-height: 4.2em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .gallery-tile-foot { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--surface); padding-top: 8px; margin-top: auto; }
 .gallery-tile-id { font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--archive-slate-deep-shadow); flex: 0 0 auto; }
 .gallery-tile-meter { flex: 1; height: 4px; background: var(--shadow-highlight); border-radius: var(--radius-2xl); overflow: hidden; }
@@ -35,9 +35,9 @@
 .gallery-tile-goto { font-size: var(--text-2xs); letter-spacing: 0.08em; color: var(--archive-gold-mid-light); white-space: nowrap; }
 
 .gallery-empty { grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: var(--archive-slate-dim); display: flex; flex-direction: column; gap: 12px; align-items: center; }
-.gallery-reset { border: 1px solid var(--parchment-lit-mid); background: transparent; color: #e5cf92; padding: 8px 16px; border-radius: var(--radius-xs); cursor: pointer; font-size: var(--text-xs); letter-spacing: 0.12em; text-transform: uppercase; }
+.gallery-reset { border: 1px solid var(--parchment-lit-mid); background: transparent; color: var(--pigment-gilt-19); padding: 8px 16px; border-radius: var(--radius-xs); cursor: pointer; font-size: var(--text-xs); letter-spacing: 0.12em; text-transform: uppercase; }
 
 .gallery-footer { display: flex; gap: 8px; align-items: flex-start; border: 1px dashed var(--archive-steel-mid); background: var(--archive-steel-faint); border-radius: var(--radius-md); padding: 12px 16px; margin-top: 16px; color: var(--midnight-lamp); line-height: 1.85; font-size: var(--text-xs); }
 .gallery-footer svg { flex: 0 0 auto; margin-top: 2px; }
 
-@media print { .gallery-footer, .gallery-search { display: none; } .gallery-page { color: #111; } }
+@media print { .gallery-footer, .gallery-search { display: none; } .gallery-page { color: var(--pigment-carbon-1); } }

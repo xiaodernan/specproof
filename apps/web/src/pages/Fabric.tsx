@@ -73,13 +73,13 @@ const NODES: FabricNode[] = [
 ];
 
 const GROUP_COLOR: Record<FabricNode["group"], string> = {
-  annals:  "#d6b778",
-  palace:  "#8ec5ff",
-  doors:   "#a5f2d9",
-  water:   "#c8a2ff",
-  service: "#ff9f9f",
-  admin:   "#ffd97a",
-  dev:     "#9ecbff",
+  annals:  "var(--archive-gold-mid-light)",
+  palace:  "var(--pigment-steel-62)",
+  doors:   "var(--lamp-jade)",
+  water:   "var(--pigment-steel-63)",
+  service: "var(--lamp-pink)",
+  admin:   "var(--lamp-lantern-hi)",
+  dev:     "var(--lamp-verified)",
 };
 
 const GROUP_LABEL: Record<FabricNode["group"], Record<Locale, string>> = {
@@ -125,18 +125,18 @@ export default function Fabric(): JSX.Element {
         <svg viewBox="0 0 1200 720" role="img" aria-label={L("SpecProof 的全体房间织纹", "The whole weave of SpecProof")}>
           {/* horizontal warp lanes */}
           {[70, 220, 360, 510].map((y, i) => (
-            <line key={y} x1="0" y1={y} x2="1200" y2={y} stroke="rgba(214,183,120,0.10)" strokeWidth="1.5" strokeDasharray={i % 2 ? "" : "4 6"} />
+            <line key={y} x1="0" y1={y} x2="1200" y2={y} stroke="var(--pigment-gilt-glow-87)" strokeWidth="1.5" strokeDasharray={i % 2 ? "" : "4 6"} />
           ))}
           {/* cross-warp seasons */}
           {[640, 930, 1130].map((x) => (
-            <line key={x} x1={x} y1="0" x2={x} y2="720" stroke="rgba(214,183,120,0.08)" strokeWidth="1.2" strokeDasharray="8 10" />
+            <line key={x} x1={x} y1="0" x2={x} y2="720" stroke="var(--pigment-gilt-glow-19)" strokeWidth="1.2" strokeDasharray="8 10" />
           ))}
 
           {/* edges (random visible weave between adjacent nodes) */}
           {NODES.slice(1).map((n, i) => {
             const prev = NODES[i];
             if (Math.abs(prev.y - n.y) < 90 && Math.abs(prev.x - n.x) < 250) {
-              return <line key={i} x1={prev.x} y1={prev.y} x2={n.x} y2={n.y} stroke="rgba(214,183,120,0.18)" strokeWidth="1" />;
+              return <line key={i} x1={prev.x} y1={prev.y} x2={n.x} y2={n.y} stroke="var(--pigment-gilt-glow-79)" strokeWidth="1" />;
             }
             return null;
           })}

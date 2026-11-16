@@ -2,34 +2,34 @@
    Every room in SpecProof on one cloth — a woven naïve map with
    hand-placed warps. Hover to title, click to enter the room. */
 
-.fabric-page { max-width: 1280px; margin: 0 auto; color: #ece1c1; }
+.fabric-page { max-width: 1280px; margin: 0 auto; color: var(--pigment-parchment-15); }
 
-.fabric-mast { padding: 24px 28px 24px; border: 1px solid var(--parchment-lit-mid); border-radius: var(--radius-lg); background: radial-gradient(1200px 300px at 15% -25%, var(--glow-brass), transparent 60%), linear-gradient(180deg, #1e1810 0%, #14100b 100%); }
-.fabric-kicker { font-size: var(--text-xs); letter-spacing: 0.46em; color: rgba(214, 183, 120, 0.85); margin: 0 0 12px; font-weight: 600; }
-.fabric-mast h1 { font-family: Georgia, "Noto Serif SC", "Songti SC", serif; font-size: var(--text-4xl); margin: 0; color: #f5ecd1; line-height: 1.05; letter-spacing: 0.03em; }
-.fabric-en { display: block; font-size: var(--text-2xs); letter-spacing: 0.34em; color: rgba(214, 183, 120, 0.8); margin-top: 8px; text-transform: uppercase; }
-.fabric-lead { color: #b0a380; line-height: 1.9; margin: 12px 0 0; max-width: 68ch; font-size: var(--text-lg); }
+.fabric-mast { padding: 24px 28px 24px; border: 1px solid var(--parchment-lit-mid); border-radius: var(--radius-lg); background: radial-gradient(1200px 300px at 15% -25%, var(--glow-brass), transparent 60%), linear-gradient(180deg, var(--pigment-umber-9) 0%, var(--pigment-umber-10) 100%); }
+.fabric-kicker { font-size: var(--text-xs); letter-spacing: 0.46em; color: var(--pigment-gilt-glow-1); margin: 0 0 12px; font-weight: 600; }
+.fabric-mast h1 { font-family: Georgia, "Noto Serif SC", "Songti SC", serif; font-size: var(--text-4xl); margin: 0; color: var(--pigment-parchment-16); line-height: 1.05; letter-spacing: 0.03em; }
+.fabric-en { display: block; font-size: var(--text-2xs); letter-spacing: 0.34em; color: var(--pigment-gilt-glow-17); margin-top: 8px; text-transform: uppercase; }
+.fabric-lead { color: var(--pigment-parchment-17); line-height: 1.9; margin: 12px 0 0; max-width: 68ch; font-size: var(--text-lg); }
 
 .fabric-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 16px; }
 .fabric-chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--surface); background: var(--surface-faint); border-radius: var(--radius-2xl); font-size: var(--text-xs); color: var(--archive-rust-shadow); letter-spacing: 0.06em; text-transform: uppercase; }
 .fabric-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
 
-.fabric-loom { position: relative; margin-top: 16px; border: 1px solid rgba(214, 183, 120, 0.3); border-radius: var(--radius-lg); background: radial-gradient(1500px 500px at 50% 120%, rgba(214, 183, 120, 0.08), transparent 65%), #13110d; padding: 16px 0; overflow: hidden; }
+.fabric-loom { position: relative; margin-top: 16px; border: 1px solid var(--pigment-gilt-glow-18); border-radius: var(--radius-lg); background: radial-gradient(1500px 500px at 50% 120%, var(--pigment-gilt-glow-19), transparent 65%), var(--pigment-umber-11); padding: 16px 0; overflow: hidden; }
 .fabric-loom svg { display: block; width: 100%; height: auto; }
 
 .fabric-node { cursor: pointer; outline: none; }
 .fabric-node circle { transition: all .15s ease; }
 .fabric-node:hover circle, .fabric-node:focus-visible circle { stroke-width: 2.5; }
 
-.fabric-tip { position: absolute; pointer-events: none; transform: translate(-50%, -110%); border: 1px solid var(--parchment-lit-mid); background: rgba(19, 17, 13, 0.95); color: #ece1c1; border-radius: var(--radius-sm); padding: 8px 12px; font-size: var(--text-xs); min-width: 150px; box-shadow: 0 10px 24px var(--shadow-ambient); z-index: 5; }
-.fabric-tip-title { font-size: var(--text-sm); color: #f0e5ad; font-weight: 600; margin: 0 0 4px; font-family: Georgia, "Noto Serif SC", "Songti SC", serif; }
+.fabric-tip { position: absolute; pointer-events: none; transform: translate(-50%, -110%); border: 1px solid var(--parchment-lit-mid); background: var(--pigment-gilt-glow-20); color: var(--pigment-parchment-15); border-radius: var(--radius-sm); padding: 8px 12px; font-size: var(--text-xs); min-width: 150px; box-shadow: 0 10px 24px var(--shadow-ambient); z-index: 5; }
+.fabric-tip-title { font-size: var(--text-sm); color: var(--pigment-parchment-18); font-weight: 600; margin: 0 0 4px; font-family: Georgia, "Noto Serif SC", "Songti SC", serif; }
 .fabric-tip-route { margin: 0; font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--lamp-verified); }
-.fabric-tip-group { margin: 4px 0 0; font-size: var(--text-2xs); letter-spacing: 0.14em; text-transform: uppercase; color: #a39169; }
+.fabric-tip-group { margin: 4px 0 0; font-size: var(--text-2xs); letter-spacing: 0.14em; text-transform: uppercase; color: var(--pigment-gilt-18); }
 
 .fabric-index { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-top: 16px; }
-.fabric-chip-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid rgba(255, 255, 255, 0.07); background: #16130f; color: #d4caad; text-decoration: none; text-align: left; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--text-sm); transition: border-color .15s ease, transform .15s ease; }
-.fabric-chip-row:hover { border-color: var(--parchment-lit-mid); transform: translateY(-1px); color: #efe5bd; }
-.fabric-chip-route { font-family: var(--font-mono); font-size: var(--text-2xs); color: #8c8470; margin-left: auto; }
+.fabric-chip-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--pigment-veil-4); background: var(--pigment-umber-12); color: var(--pigment-parchment-19); text-decoration: none; text-align: left; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--text-sm); transition: border-color .15s ease, transform .15s ease; }
+.fabric-chip-row:hover { border-color: var(--parchment-lit-mid); transform: translateY(-1px); color: var(--pigment-parchment-20); }
+.fabric-chip-route { font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--pigment-umber-13); margin-left: auto; }
 .fabric-chip-title { font-size: var(--text-xs); }
 
 .fabric-honesty { display: flex; gap: 8px; align-items: flex-start; border: 1px dashed var(--archive-steel-mid); background: var(--archive-steel-faint); border-radius: var(--radius-md); padding: 12px 16px; margin-top: 16px; color: var(--midnight-lamp); line-height: 1.85; font-size: var(--text-xs); }

@@ -5655,3 +5655,36 @@ UI **571/571** · build ✓（lite + minified 双 pass）· mvn -o **gateway 84/
 本夜清掉 **14** 枚无人引用的 dead token（`--parchment-2x`、`--ink-shadow*`、`--surface-soft`、`--iron-ink-faint`、`--archive-glow-faint/soft`、`--archive-dark-canvas/slate`、`--archive-gold-bright-light`、`--archive-steel-midnight-alt`、`--surface-mid-mint` 等）；删除前做了双重校验：`var(--token)` 引用计数在 `apps/web/src` 全库为 **0**、且不在任何测试字符串里。既有系统 token（`--blur-lg`、`--fw-400`、`--h-6` 等）**没动**——那不是本夜的故事。
 
 ---
+
+## 卷一百五十三 · 门全绿了
+
+> #130 从一开始就是门牌，不是门。
+
+### 153.1 593，一夜收尽
+
+| 步 | 读数（`test_no_painted_color_bypasses_the_theme_tokens`） |
+|---|---|
+| #1945 收工 | 1,165 |
+| #1945 落册 | 1,165 → 铁册登门，数冻结 |
+| #1946 落册 | **593** |
+| #1947 落册 | **0** —— 这道门在 master 上绿了 |
+
+593 条被搪在墙面的字色，一条没动值、一条没调暗，**逐字节登记**进主题：**463 枚新 `--pigment-*` token**（一个 `:root` 块 —— "Pigment registry"，一枚漆面·一个 token，族：gilt / parchment / umber / jade / steel / oxide / carbon / soot / paper / veil / shade / gilt-glow / jade-glow / steel-glow / oxide-glow，一律 theme-invariant）。**另有 13 枚绑定到既有"全上下文同值"token**（`--zinc-0`、`--surface*`、`--lamp-*`、`--archive-brass`、`--accent-2-*`……）—— 只有「同名 token 的每个声明值完全一致」的才允许复用，`--print-*` lane 一律不复用。**一色没调过，只是被命了名。**
+
+### 153.2 疤痕，留在册上
+
+* 12 处 4/8-hex（`#32976c35`、`#10201765`、`#1843`……）**原地不动**——这道门的正则看不见它们，这一夜的扫光也没动它们，账本记名。
+* 第一轮扫光曾把正文里的 `#130` 换成了 `var(--pigment-jade-35)`（`Chronicle.tsx` 注释、`Atlas.tsx` 雕刻线 `EST. #130`）—— 两处都被当场捕获、原数回退。最终形态：`EST. Nº 130 · MMXXVI` —— 门牌还是门牌，门还是门。
+* #1946 的 **593** 与本号的 **0** 都是用同一条 pytest 命令在同一进程家族里敲出来的；没有人工搬数。
+
+### 153.3 账房
+
+UI **571/571** · build ✓（minified）· lightningcss 逐文件变换：**42/42 OK** ·
+mvn -o **137/137**（Java 未动 · 沿用 #1945/#1946）· purity **CLEAR** · Night Watch
+依旧 **CRACKED**（exhibit_entries **16** · exhibit #4 / #12 / #13 / #15 一件没挪）·
+court `4117d2b0ca5fb23a` **LOCKED** · D1 ✅ · D2 ⏸ · 「密码-123」否决 ·
+chronicle 随本提交增员 · worldbook **卷一百五十三 / 153 卷（中英对称）** ·
+corrections **17** · guide **6/6**。
+补遗：ROADMAP-LIVE item #8 的设计系统家族 —— 4 px 网格 601→0、圆角 ladder 101→0、字阶 scale 406→0、阴影 71→0、**主题盲字色 1,315→0** —— 这家族的门在 master 上全部落窗。Item #8 剩余既存红门家族（payload-census / audit-disposition / verdict-channel 等）照册在册，一户都没被涂绿。
+
+---

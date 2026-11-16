@@ -18,7 +18,7 @@
 .recall-hit { border: 1px solid var(--color-border); border-radius: var(--radius-xl); background: var(--color-surface); padding: 16px 16px; display: grid; gap: 8px; }
 .recall-hit-head { display: flex; align-items: center; gap: 8px; }
 .recall-badge { font: 11px var(--font-mono); letter-spacing: .08em; border-radius: var(--radius-full); padding: 3px 8px; border: 1px solid var(--color-border-strong); color: var(--accent-text); background: color-mix(in srgb, var(--accent-text) 8%, transparent); }
-.recall-badge-erratum { color: #e08a3c; border-color: rgba(224, 138, 60, .45); background: rgba(224, 138, 60, .08); }
+.recall-badge-erratum { color: var(--pigment-gilt-38); border-color: var(--pigment-oxide-glow-17); background: var(--pigment-oxide-glow-18); }
 .recall-score { margin-left: auto; font: 12px var(--font-mono); color: var(--color-text-2); }
 .recall-hit-title { margin: 0; font-size: var(--text-lg); font-weight: 600; line-height: 1.5; letter-spacing: -.01em; }
 .recall-hit-body { margin: 0; color: var(--color-text-2); font-size: var(--text-sm); line-height: 1.85; }
@@ -34,5 +34,5 @@
 }
 @media print {
   .recall-search, .recall-chips { display: none; }
-  .recall-hit { break-inside: avoid; border-color: #999; }
+  .recall-hit { break-inside: avoid; border-color: var(--pigment-soot-5); }
 }

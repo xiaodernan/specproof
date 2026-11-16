@@ -13,10 +13,10 @@ const LANG_ORDER = Object.entries(stats.by_language as Record<string, { files: n
   .sort((a, b) => b[1].lines - a[1].lines);
 
 const LANG_BAR_COLOR: Record<string, string> = {
-  Python: "#3b82f6", TypeScript: "#f59e0b", "TypeScript/TSX": "#fbbf24",
-  "JavaScript": "#f97316", "JavaScript/ESM": "#fb923c", Java: "#ef4444",
-  Markdown: "#10b981", CSS: "#8b5cf6", YAML: "#06b6d4", JSON: "#ec4899",
-  SQL: "#f43f5e", HTML: "#22d3ee",
+  Python: "var(--pigment-steel-59)", TypeScript: "var(--archive-amber-lantern-accent)", "TypeScript/TSX": "var(--pigment-gilt-44)",
+  "JavaScript": "var(--pigment-gilt-45)", "JavaScript/ESM": "var(--pigment-gilt-46)", Java: "var(--pigment-oxide-15)",
+  Markdown: "var(--pigment-jade-36)", CSS: "var(--pigment-steel-60)", YAML: "var(--accent-2-500)", JSON: "var(--pigment-oxide-16)",
+  SQL: "var(--pigment-oxide-12)", HTML: "var(--accent-2-400)",
 };
 
 export default function Stats() {
@@ -79,7 +79,7 @@ export default function Stats() {
               <span className="census-lang-name">{lang}</span>
               <div className="census-lang-bar">
                 <div
-                  style={{ width: `${Math.round((stat.lines / langMax) * 100)}%`, background: LANG_BAR_COLOR[lang] ?? "#94a3b8" }}
+                  style={{ width: `${Math.round((stat.lines / langMax) * 100)}%`, background: LANG_BAR_COLOR[lang] ?? "var(--pigment-steel-61)" }}
                 />
               </div>
               <span className="census-lang-num">

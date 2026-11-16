@@ -41030,3 +41030,33 @@ UI **571/571** · build ✓ · mvn -o **137/137** · guide **6/6** · correction
 ### 五、裁判
 
 UI **571/571** · build ✓（lite + minified 双 pass）· mvn -o **137/137**（gateway 84 + control-plane 51 本进程复敲；discovery 1 / config 1 未触碰）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（entries **16** · exhibit #4 / #12 / #13 / #15 一件不挪）· court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **卷一百五十二 / 152 卷（中英对称）** · D1 ✅ · D2 ⏸（属主 PAT）·「密码-123」否决 · Scroll CLII 双语落册 · ROADMAP-LIVE item #8 **补记更新** · README 双语补条 · stash@{0} 保留
+
+## #1947 《门全绿了》：theme-blind 字色总门 **593 → 0**（`test_no_painted_color_bypasses_the_theme_tokens` **3/3 绿**）· 设计系统家族自此全部落窗 · 值一字节未挪
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1946。
+
+### 一、出书（同口径：`pytest tests/unit/test_web_css_stays_on_the_design_system.py -q` → **3 passed**）
+
+| 步 | 值 | 注记 |
+|---|---|---|
+| #1946 收工 | **593** | ROADMAP-LIVE item #8 补记值 |
+| Pigment registry 落册 | **0** | 463 枚新 `--pigment-*` token（一枚漆面·一个 token · theme-invariant · 全家族 `--pigment-{gilt,parchment,umber,jade,steel,oxide,carbon,soot,paper,veil,shade}-N` + `*-glow` 族）；13 枚完全context-invariant 既有 token 复用（`--zinc-0`／`--surface`／`--surface-faint`／`--surface-mid`／`--lamp-*`／`--archive-brass`／`--archive-gold-mid-light`／`--archive-amber-lantern-accent`／`--accent-2-400/500`／`--shimmer`／`--color-glass`／`--shadow-highlight`）—— 复用条件：**该 token 的每个声明值完全一致**，且不在 `--print-*` lane |
+| Atlas 门牌收尾 | **0** | `EST. #130`（3-hex issue ref）→ `EST. Nº 130 · MMXXVI`；那一条曾让第一轮 `src/**/*.tsx` 整体替换误伤正文，两处误伤（Chronicle 注释、Atlas engrave 文案）已当场捕获还原 |
+
+### 二、fidelity 三记
+
+1. **值一个没动**：463 次替换按规范化比对精确映射——hex → 同值 token；含空格 rgba → 同构 token。色度零改动、渐变零改动、`var()` 不带兜底（因主题始终在场）。
+2. **4/8-hex 12 处在册不动**：`#32976c35`／`#10201765`／`#1858`／`#1843`／`#1790`／`#1781`／`#1800`／`#1819`／`#fee`…… 这些字面不被本门正则计数；此夜不动它们，账本记名（`product.css:27`／`product.css:230` 两处尤其）。未来若要挪，归入独立叙事。
+3. **Chronicle.tsx 首刀误伤**：首轮扫光把 `#130` 无差别替换进注释（`var(--pigment-jade-35)`）——git checkout 整体回退、扫光器改为 comment-aware 口径（再扫无伤），此次零净损伤。**当夜有两次抓到自己出错，两次都回退重做——疤痕留在本号。**
+
+### 三、清理
+
+（本号未删一枚既存 token；增补的是 `--pigment-*` 登记，不在删除清单。）
+
+### 四、红门为什么开了（注：不是「变干净了」，是「裱好了」）
+
+这批漆面不是表层的「暗门」——它们是**书房颜料库的全称入册**。自此 `apps/web/src` 不得再涂任何未登记字色。设计系统四门全部落窗（4 px 网格 601→0 · 圆角 ladder 101→0 · 字阶 scale 406→0 · 阴影 71→0 · 主题盲字色 1,315→0）；Night Watch 依旧 **CRACKED**（和门无关，这是另一道黎明）。
+
+### 五、裁判
+
+UI **571/571** · build ✓（minified pass · `lightningcss.transform` 逐文件 **42/42 OK**）· mvn -o **137/137**（Java 未动 · 沿用 #1945/#1946 口径）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（entries **16** · exhibit #4 / #12 / #13 / #15 一件不挪）· court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **卷一百五十三 / 153 卷（中英对称）** · D1 ✅ · D2 ⏸ ·「密码-123」否决 · Scroll CLIII 双语落册 · ROADMAP-LIVE item #8 再补记 · README 双语补条

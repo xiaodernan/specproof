@@ -91,35 +91,35 @@ export default function Atlas() {
           <svg viewBox="0 0 1160 700" className="atlas-svg" role="group" aria-label={zh ? "SpecProof 证据群岛地图" : "SpecProof evidence archipelago map"}>
             <defs>
               <radialGradient id="atlas-sea" cx="50%" cy="36%" r="85%">
-                <stop offset="0%" stopColor="#0e2233" />
-                <stop offset="55%" stopColor="#081726" />
-                <stop offset="100%" stopColor="#050d16" />
+                <stop offset="0%" stopColor="var(--pigment-steel-57)" />
+                <stop offset="55%" stopColor="var(--pigment-steel-58)" />
+                <stop offset="100%" stopColor="var(--pigment-steel-1)" />
               </radialGradient>
               <pattern id="atlas-hatch" width="9" height="9" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
-                <line x1="0" y1="0" x2="0" y2="9" stroke="rgba(255,255,255,.055)" strokeWidth="1.3" />
+                <line x1="0" y1="0" x2="0" y2="9" stroke="var(--pigment-veil-19)" strokeWidth="1.3" />
               </pattern>
               <filter id="atlas-soft" x="-20%" y="-20%" width="140%" height="140%">
-                <feDropShadow dx="0" dy="10" stdDeviation="18" floodColor="#000000" floodOpacity="0.55" />
+                <feDropShadow dx="0" dy="10" stdDeviation="18" floodColor="var(--pigment-carbon-2)" floodOpacity="0.55" />
               </filter>
             </defs>
 
             {/* sea */}
             <rect x="10" y="10" width="1140" height="680" fill="url(#atlas-sea)" rx="4" />
             {/* cartographic frame: double hairline */}
-            <rect x="10" y="10" width="1140" height="680" fill="none" stroke="#d4af37" strokeOpacity="0.75" strokeWidth="2.4" rx="4" />
-            <rect x="20" y="20" width="1120" height="660" fill="none" stroke="#d4af37" strokeOpacity="0.4" strokeWidth="1" rx="2" />
+            <rect x="10" y="10" width="1140" height="680" fill="none" stroke="var(--archive-brass)" strokeOpacity="0.75" strokeWidth="2.4" rx="4" />
+            <rect x="20" y="20" width="1120" height="660" fill="none" stroke="var(--archive-brass)" strokeOpacity="0.4" strokeWidth="1" rx="2" />
 
             {/* faint meridian hairlines */}
             {[140, 310, 480, 650, 820, 990].map((x) => (
-              <line key={x} x1={x} y1="22" x2={x} y2="678" stroke="#ffffff" strokeOpacity="0.035" strokeWidth="1" />
+              <line key={x} x1={x} y1="22" x2={x} y2="678" stroke="var(--zinc-0)" strokeOpacity="0.035" strokeWidth="1" />
             ))}
             {[170, 250, 490, 570].map((y) => (
-              <line key={y} x1="22" y1={y} x2="1138" y2={y} stroke="#ffffff" strokeOpacity="0.035" strokeWidth="1" />
+              <line key={y} x1="22" y1={y} x2="1138" y2={y} stroke="var(--zinc-0)" strokeOpacity="0.035" strokeWidth="1" />
             ))}
 
             {/* sea routes between islands (dashed) */}
-            <path d="M 890 214 C 940 246, 760 250, 716 292" fill="none" stroke="#5eead4" strokeOpacity="0.5" strokeWidth="1.6" strokeDasharray="6 7" strokeLinecap="round" />
-            <path d="M 664 466 C 700 492, 640 500, 600 522" fill="none" stroke="#5eead4" strokeOpacity="0.5" strokeWidth="1.6" strokeDasharray="6 7" strokeLinecap="round" />
+            <path d="M 890 214 C 940 246, 760 250, 716 292" fill="none" stroke="var(--pigment-jade-34)" strokeOpacity="0.5" strokeWidth="1.6" strokeDasharray="6 7" strokeLinecap="round" />
+            <path d="M 664 466 C 700 492, 640 500, 600 522" fill="none" stroke="var(--pigment-jade-34)" strokeOpacity="0.5" strokeWidth="1.6" strokeDasharray="6 7" strokeLinecap="round" />
 
             {/* islands */}
             {ATLAS_REGIONS.map((r) => (
@@ -167,7 +167,7 @@ export default function Atlas() {
                   >
                     <title>{t(room.navKey)}</title>
                     <circle className="atlas-dot-halo" cx={room.x} cy={room.y} r="14" fill={r.accent} />
-                    <circle className="atlas-dot-core" cx={room.x} cy={room.y} r="5.6" fill={r.accent} stroke="#050d16" strokeWidth="1.6" />
+                    <circle className="atlas-dot-core" cx={room.x} cy={room.y} r="5.6" fill={r.accent} stroke="var(--pigment-steel-1)" strokeWidth="1.6" />
                   </g>
                 ))}
               </g>
@@ -175,19 +175,19 @@ export default function Atlas() {
 
             {/* compass rose, top-right margin — N engraved inside the dial */}
             <g className="atlas-compass" transform="translate(1102,56)" aria-hidden="true">
-              <circle r="26" fill="#081726" stroke="#d4af37" strokeOpacity="0.8" strokeWidth="1.4" />
-              <circle r="19" fill="none" stroke="#d4af37" strokeOpacity="0.35" strokeWidth="0.7" />
-              <line x1="-13" y1="0" x2="13" y2="0" stroke="#d4af37" strokeOpacity="0.55" strokeWidth="0.9" />
-              <path d="M 0 -17 L 4.6 0 L 0 4.6 L -4.6 0 Z" fill="#d4af37" />
+              <circle r="26" fill="var(--pigment-steel-58)" stroke="var(--archive-brass)" strokeOpacity="0.8" strokeWidth="1.4" />
+              <circle r="19" fill="none" stroke="var(--archive-brass)" strokeOpacity="0.35" strokeWidth="0.7" />
+              <line x1="-13" y1="0" x2="13" y2="0" stroke="var(--archive-brass)" strokeOpacity="0.55" strokeWidth="0.9" />
+              <path d="M 0 -17 L 4.6 0 L 0 4.6 L -4.6 0 Z" fill="var(--archive-brass)" />
               <text y="15.5" textAnchor="middle" className="atlas-compass-n">N</text>
             </g>
 
             {/* scale bar — anchored to the real commit count */}
             <g className="atlas-scale" transform="translate(56,656)" aria-hidden="true">
-              <rect x="0" y="0" width="70" height="4.5" fill="#d4af37" fillOpacity="0.85" />
-              <rect x="70" y="0" width="70" height="4.5" fill="#d4af37" fillOpacity="0.45" />
-              <rect x="140" y="0" width="70" height="4.5" fill="#d4af37" fillOpacity="0.85" />
-              {[0, 70, 140, 210].map((x) => <line key={x} x1={x} y1="-4" x2={x} y2="9" stroke="#d4af37" strokeWidth="1.4" />)}
+              <rect x="0" y="0" width="70" height="4.5" fill="var(--archive-brass)" fillOpacity="0.85" />
+              <rect x="70" y="0" width="70" height="4.5" fill="var(--archive-brass)" fillOpacity="0.45" />
+              <rect x="140" y="0" width="70" height="4.5" fill="var(--archive-brass)" fillOpacity="0.85" />
+              {[0, 70, 140, 210].map((x) => <line key={x} x1={x} y1="-4" x2={x} y2="9" stroke="var(--archive-brass)" strokeWidth="1.4" />)}
               <text x="0" y="16.5" className="atlas-scale-num">0</text>
               <text x="70" y="16.5" textAnchor="middle" className="atlas-scale-num">1,000</text>
               <text x="140" y="16.5" textAnchor="middle" className="atlas-scale-num">2,000</text>
@@ -196,7 +196,7 @@ export default function Atlas() {
             </g>
 
             {/* engraved caption, top-left margin */}
-            <text x="48" y="15" className="atlas-engrave">THE EVIDENCE ARCHIPELAGO · EST. #130 · MMXXVI</text>
+            <text x="48" y="15" className="atlas-engrave">THE EVIDENCE ARCHIPELAGO · EST. Nº 130 · MMXXVI</text>
           </svg>
         </div>
 

@@ -117,7 +117,7 @@
 }
 .usage-chip:hover { border-color: var(--accent-400); color: var(--color-text); transform: translateY(-1px); }
 .usage-chip-active {
-  background: var(--gradient-aurora); border-color: transparent; color: var(--color-on-accent, #fff);
+  background: var(--gradient-aurora); border-color: transparent; color: var(--color-on-accent, var(--zinc-0));
   box-shadow: var(--shadow-accent);
 }
 .usage-generated { margin-left: auto; font-family: var(--font-mono); font-size: var(--text-xs);
@@ -169,7 +169,7 @@
 .chronicles-prologue-mark {
   flex: none; width: 34px; height: 34px; border-radius: var(--radius-2xs);
   background: linear-gradient(160deg, var(--pain-red-dark), var(--pain-red));
-  color: #fef2f2; font-family: "Noto Serif CJK SC", "Songti SC", "SimSun", serif;
+  color: var(--pigment-paper-8); font-family: "Noto Serif CJK SC", "Songti SC", "SimSun", serif;
   font-size: var(--text-2xl); font-weight: 800; display: grid; place-items: center;
   transform: rotate(-4deg); box-shadow: 0 2px 8px var(--danger-tint);
 }
@@ -183,7 +183,7 @@
 }
 .chronicles-spine span {
   width: 46px; height: 46px; border-radius: var(--radius-2xl);
-  background: radial-gradient(circle at 35% 32%, #2c4936, #121714 78%);
+  background: radial-gradient(circle at 35% 32%, var(--pigment-jade-29), var(--pigment-jade-30) 78%);
   border: 1px solid var(--color-border-strong);
   color: var(--accent-text); font-family: "Noto Serif CJK SC", "Songti SC", serif;
   font-size: var(--text-2xl); font-weight: 800; display: grid; place-items: center;
@@ -283,7 +283,7 @@
 .tour-prologue-mark {
   flex: none; width: 34px; height: 34px; border-radius: var(--radius-2xs);
   background: linear-gradient(160deg, var(--pain-red-dark), var(--pain-red));
-  color: #fef2f2; font-family: "Noto Serif CJK SC", "Songti SC", "SimSun", serif;
+  color: var(--pigment-paper-8); font-family: "Noto Serif CJK SC", "Songti SC", "SimSun", serif;
   font-size: var(--text-2xl); font-weight: 800; display: grid; place-items: center;
 }
 .tour-progress { display: grid; gap: var(--sp-2); }
@@ -392,23 +392,23 @@
   display: grid; place-items: center;
   font-family: "Noto Serif CJK SC", "Songti SC", "SimSun", serif;
   font-size: var(--text-hero); font-weight: 800; transform: rotate(-6deg);
-  background: linear-gradient(160deg, #e9e9e9 0%, #c4c4c4 88%);
-  color: #555; box-shadow: inset 0 0 0 3px var(--shadow-highlight), 0 6px 18px var(--shadow-ambient);
-  letter-spacing: 0; border: 1px solid rgba(0,0,0,.15);
+  background: linear-gradient(160deg, var(--pigment-soot-9) 0%, var(--pigment-soot-10) 88%);
+  color: var(--pigment-soot-4); box-shadow: inset 0 0 0 3px var(--shadow-highlight), 0 6px 18px var(--shadow-ambient);
+  letter-spacing: 0; border: 1px solid var(--pigment-shade-1);
 }
 .case-seal-verified {
   background: linear-gradient(160deg, var(--pain-red) 0%, var(--pain-red-dark) 55%, var(--pain-red-deeper) 100%);
-  color: #ffedd5; border-color: transparent;
+  color: var(--pigment-parchment-52); border-color: transparent;
   box-shadow: inset 0 0 0 3px var(--shadow-highlight), 0 6px 22px var(--danger);
 }
 .case-seal-blocked {
   background: linear-gradient(160deg, var(--pain-red) 0%, var(--pain-red-dark) 55%, var(--pain-red-deeper) 100%);
-  color: #ffedd5;
+  color: var(--pigment-parchment-52);
   box-shadow: inset 0 0 0 3px var(--shadow-highlight), 0 6px 22px var(--danger);
 }
 .case-seal-pending {
-  background: linear-gradient(160deg, var(--archive-amber-lantern-accent) 0%, #d97706 100%);
-  color: #fffbeb;
+  background: linear-gradient(160deg, var(--archive-amber-lantern-accent) 0%, var(--pigment-gilt-40) 100%);
+  color: var(--pigment-paper-9);
   box-shadow: inset 0 0 0 3px var(--shadow-highlight), 0 6px 22px var(--warning);
 }
 .case-meta { display: grid; gap: var(--sp-2); flex: 1; }
@@ -433,10 +433,10 @@
   font-family: "Noto Serif CJK SC", "Songti SC", serif; font-size: var(--text-2xl); font-weight: 800;
 }
 .tier-iron .case-evidence-letter { background: linear-gradient(160deg, var(--pain-red), var(--pain-red-deeper)); color: var(--archive-faintest-light); }
-.tier-semi-iron .case-evidence-letter { background: linear-gradient(160deg, #b45309, #92400e); color: var(--archive-faintest-light); }
-.tier-quiet .case-evidence-letter { background: linear-gradient(160deg, #57534e, #292524); color: #e7e5e4; }
-.tier-broken .case-evidence-letter { background: linear-gradient(160deg, #f43f5e, #be123d); color: #fff1f2; }
-.tier-script .case-evidence-letter { background: linear-gradient(160deg, #0891b2, #164e63); color: #ecfeff; }
+.tier-semi-iron .case-evidence-letter { background: linear-gradient(160deg, var(--pigment-gilt-41), var(--pigment-gilt-42)); color: var(--archive-faintest-light); }
+.tier-quiet .case-evidence-letter { background: linear-gradient(160deg, var(--pigment-umber-32), var(--pigment-umber-33)); color: var(--pigment-soot-11); }
+.tier-broken .case-evidence-letter { background: linear-gradient(160deg, var(--pigment-oxide-12), var(--pigment-oxide-13)); color: var(--pigment-paper-10); }
+.tier-script .case-evidence-letter { background: linear-gradient(160deg, var(--pigment-jade-31), var(--pigment-jade-32)); color: var(--pigment-paper-11); }
 .tier-unknown .case-evidence-letter { background: var(--color-surface-3); color: var(--color-text-3); }
 .case-evidence-head { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-1); }
 .case-evidence-contract {

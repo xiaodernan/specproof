@@ -16,7 +16,7 @@
   border: 1px solid color-mix(in srgb, var(--accent-text) 30%, transparent);
   background:
     radial-gradient(120% 140% at 15% 0%, color-mix(in srgb, var(--accent-text) 14%, transparent), transparent 55%),
-    linear-gradient(165deg, var(--color-surface) 0%, var(--color-surface-2, #12161f) 100%);
+    linear-gradient(165deg, var(--color-surface) 0%, var(--color-surface-2, var(--pigment-steel-5)) 100%);
   box-shadow: 0 24px 64px var(--shadow-ambient), inset 0 1px 0 var(--shadow-highlight);
   overflow: hidden;
 }
@@ -30,7 +30,7 @@
 .drill-hint { font: 12px var(--font-mono); color: var(--color-text-3); letter-spacing: .08em; }
 .drill-stats { display: flex; gap: 36px; margin: 24px 0 28px; }
 .drill-stats div { display: flex; flex-direction: column; gap: 2px; }
-.drill-stats strong { font-size: var(--text-display); letter-spacing: -.05em; line-height: 1; background: linear-gradient(120deg, #fff 10%, color-mix(in srgb, var(--accent-text) 70%, #fff) 90%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.drill-stats strong { font-size: var(--text-display); letter-spacing: -.05em; line-height: 1; background: linear-gradient(120deg, var(--zinc-0) 10%, color-mix(in srgb, var(--accent-text) 70%, var(--zinc-0)) 90%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 .drill-stats span { font-size: var(--text-xs); letter-spacing: .14em; text-transform: uppercase; color: var(--color-text-3); }
 .drill-start { align-self: flex-start; font-size: var(--text-lg); padding: 16px 32px; }
 
@@ -54,7 +54,7 @@
   border: 2px solid var(--color-border); color: var(--color-text-3);
 }
 .drill-seal-earned .drill-seal-mark {
-  border-color: var(--amber-lantern); color: #2a1e05; background: radial-gradient(circle at 35% 30%, var(--lantern-glow-matte), var(--amber-lantern) 65%, #b57f2a);
+  border-color: var(--amber-lantern); color: var(--pigment-umber-4); background: radial-gradient(circle at 35% 30%, var(--lantern-glow-matte), var(--amber-lantern) 65%, var(--pigment-gilt-8));
   box-shadow: 0 4px 14px var(--glow-gold), inset 0 -2px 4px var(--shadow-ambient);
   font-family: "STKaiti", "KaiTi", serif;
 }
@@ -71,7 +71,7 @@
 .drill-chip-streak { border-color: color-mix(in srgb, var(--accent-text) 45%, transparent); color: var(--accent-text); }
 .drill-chip-streak[data-active="true"] { background: color-mix(in srgb, var(--accent-text) 16%, transparent); box-shadow: 0 0 12px color-mix(in srgb, var(--accent-text) 35%, transparent); }
 
-.drill-progress { height: 6px; border-radius: var(--radius-2xl); overflow: hidden; background: var(--color-surface-2, #1a1f2b); margin: 16px 0 24px; }
+.drill-progress { height: 6px; border-radius: var(--radius-2xl); overflow: hidden; background: var(--color-surface-2, var(--pigment-steel-6)); margin: 16px 0 24px; }
 .drill-progress > div { height: 100%; background: linear-gradient(90deg, var(--accent-text), var(--amber-lantern)); transition: width .45s cubic-bezier(.22, 1, .36, 1); }
 
 .drill-card {
@@ -84,7 +84,7 @@
 .drill-choice {
   display: flex; align-items: flex-start; gap: 16px; text-align: left;
   padding: 16px 16px; border-radius: var(--radius-lg);
-  border: 1px solid var(--color-border); background: var(--color-surface-2, rgba(255, 255, 255, .02));
+  border: 1px solid var(--color-border); background: var(--color-surface-2, var(--pigment-veil-3));
   color: var(--color-text); font-size: var(--text-md); line-height: 1.6; cursor: pointer;
   transition: transform .18s ease, border-color .18s ease, background .18s ease;
 }
@@ -95,9 +95,9 @@
   font: 700 14px var(--font-mono); border: 1px solid var(--color-border-strong, var(--color-border)); color: var(--color-text-2);
 }
 .drill-choice-right { border-color: color-mix(in srgb, var(--success, var(--success)) 65%, transparent); background: color-mix(in srgb, var(--success, var(--success)) 14%, transparent); }
-.drill-choice-right .drill-choice-key { background: var(--success, var(--success)); border-color: transparent; color: #062d1f; }
+.drill-choice-right .drill-choice-key { background: var(--success, var(--success)); border-color: transparent; color: var(--pigment-jade-8); }
 .drill-choice-wrong { border-color: color-mix(in srgb, var(--danger, var(--pain-red-fire)) 65%, transparent); background: color-mix(in srgb, var(--danger, var(--pain-red-fire)) 12%, transparent); }
-.drill-choice-wrong .drill-choice-key { background: var(--danger, var(--pain-red-fire)); border-color: transparent; color: #3b0a0a; }
+.drill-choice-wrong .drill-choice-key { background: var(--danger, var(--pain-red-fire)); border-color: transparent; color: var(--pigment-oxide-3); }
 .drill-choice-dim { opacity: .55; }
 
 .drill-teach { margin-top: 16px; border-radius: var(--radius-lg); padding: 16px 16px; border: 1px solid var(--color-border); }
@@ -125,7 +125,7 @@
 .drill-done-mark {
   display: grid; place-items: center; width: 120px; height: 120px; margin: 0 auto 16px; border-radius: 50%;
   font-size: var(--text-hero); font-weight: 800; font-family: "STKaiti", "KaiTi", serif;
-  color: #2a1e05; background: radial-gradient(circle at 35% 30%, #ffe9a3, var(--amber-lantern) 60%, #a06a1c);
+  color: var(--pigment-umber-4); background: radial-gradient(circle at 35% 30%, var(--pigment-gilt-9), var(--amber-lantern) 60%, var(--pigment-gilt-10));
   box-shadow: 0 8px 28px var(--glow-gold), inset 0 -3px 6px var(--shadow-ambient);
   animation: drill-seal-pop .6s cubic-bezier(.22, 1.4, .36, 1);
 }
@@ -133,7 +133,7 @@
 .drill-done-score { font-size: var(--text-display); letter-spacing: -.05em; line-height: 1; }
 .drill-done-tier { font-size: var(--text-2xl); letter-spacing: .18em; margin-top: 8px; color: var(--lantern-glow-matte); }
 .drill-done-note { color: var(--color-text-2); margin-top: 8px; line-height: 1.75; }
-.drill-done-best { margin-top: 16px; display: inline-block; font: 12px var(--font-mono); letter-spacing: .16em; color: #062d1f; background: linear-gradient(120deg, var(--lantern-glow-matte), var(--amber-lantern)); border-radius: var(--radius-full); padding: 8px 16px; }
+.drill-done-best { margin-top: 16px; display: inline-block; font: 12px var(--font-mono); letter-spacing: .16em; color: var(--pigment-jade-8); background: linear-gradient(120deg, var(--lantern-glow-matte), var(--amber-lantern)); border-radius: var(--radius-full); padding: 8px 16px; }
 
 .drill-review { display: flex; flex-direction: column; gap: 12px; }
 .drill-review h2 { font-size: var(--text-xl); font-weight: 600; letter-spacing: -.01em; margin: 4px 0 4px; }
