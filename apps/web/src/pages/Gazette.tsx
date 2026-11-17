@@ -137,6 +137,13 @@ export default function Gazette() {
             <li>{zh ? "本周每周一 03:00 UTC · weekly-stress.yml 自动敲门（artifact 存档）" : "every Monday 03:00 UTC · weekly-stress.yml strikes (artifact archive)"}</li>
             <li>{zh ? `审计链 · ${auditChain.verdict}（${auditChain.lane_count || 5} 盏灯）· 幽灵灯不亮` : `audit chain · ${auditChain.verdict} (${auditChain.lane_count || 5} lanes) · the ghost switch stays off`}</li>
           </ul>
+
+          <h4>{zh ? "本周实敲 · 三页可点" : "STRUCK THIS WEEK · THREE TICKETS"}</h4>
+          <ul>
+            <li><code>/dig · #1955-56</code>{zh ? " · 三只只读侦探并行问本仓一句——EVIDENCE-GATHERED（16,370 tokens）" : " · three readonly investigators fan out on one question — EVIDENCE-GATHERED (16,370 tokens)"}</li>
+            <li><code>/runbook · #1959-60 · covenant #1969</code>{zh ? " · 告警一响，模型先读仓库；只能 CONFIRMED / INCONCLUSIVE" : " · the alert rings; the model reads the repo first; it only ever returns CONFIRMED or INCONCLUSIVE"}</li>
+            <li><code>/observe · #1966</code>{zh ? " · 公开·只读·演示：240 人校准群体 + 这一浏览器自己的轨迹——没有别人" : " · public · read-only · demo — a seeded 240-member cohort plus this browser's taps; there is no one else"}</li>
+          </ul>
         </aside>
       </div>
 
