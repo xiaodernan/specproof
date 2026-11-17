@@ -44,6 +44,7 @@ const Graph = lazy(() => import("./pages/Graph"));
 const Census = lazy(() => import("./pages/Census"));
 const Recall = lazy(() => import("./pages/Recall"));
 const Atlas = lazy(() => import("./pages/Atlas"));
+const Library = lazy(() => import("./pages/Library"));
 const WorldBook = lazy(() => import("./pages/WorldBook"));
 const NightWatch = lazy(() => import("./pages/NightWatch"));
 const Gazette = lazy(() => import("./pages/Gazette"));
@@ -99,6 +100,7 @@ export const NAV: NavItem[] = [
   { path: "drill", labelKey: "nav.drill", icon: "verify", groupKey: "group.evidence" },
   { path: "ide", labelKey: "nav.ide", icon: "hammer", groupKey: "group.evidence" },
   { path: "graph", labelKey: "nav.graph", icon: "matrix", groupKey: "group.evidence" },
+  { path: "library", labelKey: "nav.library", icon: "book", groupKey: "group.evidence" },
   { path: "chronicle", labelKey: "nav.chronicle", icon: "scroll", groupKey: "group.evidence" },
   { path: "dossier", labelKey: "nav.dossier", icon: "scroll", groupKey: "group.evidence" },
   { path: "mint", labelKey: "nav.mint", icon: "seal", groupKey: "group.evidence" },
@@ -179,6 +181,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "fabric") return <Fabric />;
   if (seg[0] === "exhibits") return <Exhibits />;
   if (seg[0] === "atlas") return <Atlas />;
+  if (seg[0] === "library") return <Library />;
   if (seg[0] === "worldbook") return <WorldBook />;
   if (seg[0] === "nightwatch") return <NightWatch />;
   if (seg[0] === "gazette") return <Gazette />;

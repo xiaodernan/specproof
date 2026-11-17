@@ -6694,3 +6694,39 @@ final state for `index.html` honors-strip（截至本卷落册时）：
 ### 184.4 账房
 
 mvn 未动 · UI **591/591** · `mvn -o test gateway` **84/84 绿（离线）** · `services/*/mvn -o test` **137/137 绿** · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1779** + 1 · worldbook **184 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷一百八十五 · 卷宗之册
+
+> "The book that records itself has no need of an index of its own — but its readers do."
+
+### 185.1 的书柜打开了
+
+这一轮落定的内容——新一页：`/#/library`，**卷宗之册**。这不是一个预生成的目录；是 SPECROOF_WORLD 里和世界一样高的书，任何能看得见的句子都对得上文件。每一页这个新房间里的数，是一并被页面生成事先锁死的。
+
+`apps/web/src/pages/Library.tsx` —
+ - 读 `apps/web/src/pages/library.json`（git-tracked，由 `scripts/build_library.py` 落册，在构建时在两种语言下强制断言对齐：`zh≡en@183§183`）；
+ - 把每卷的 `卷号 · 标题 · 首段（purity · 183 次断言）`显示出来；
+ - 可以通过搜索找到任何卷或者段中的任意子串；
+ - 183 份卷、两种字句、绝不加工、不改哪一行——每一页打开的都是那段原文。
+
+### 185.2 对比与头一版
+
+比窗旁的"Atlas"和"世界书"：Atlas 排图、世界书只有 "generated-by" 的一行——这把门开的时候，上面是脚手架本身：183 份卷全部张开，首段按次序呈现。没有目录陷阱；没有断开的路标；一切都贴近权威施工。
+
+对比"chronicle"页：那是账本计数器，和被人世编译的 #130… 没有一条账本条目是这样开的。**卷宗之册与编年史对账的是同一批人和同一本书**——Atlas-page profile 完成后才修卷集歧义。
+
+### 185.3 显示给玩家的是什么
+
+ - 主屏呈现：**「书名 · 183 卷 · 183 scrolls」**的标题，藏在浅色衬纸上；
+ - 中空白屏：展示每卷的 "**卷号 + 标题**"配上 "**展开**" 按钮；
+ - 展开后显露那一卷首段的原文（不是改制成的"内容概要"）；
+ - 给用户的烛光是——把《铁证之书》翻到最真实的那一段；
+ - 所有数字、183 段都从真实 `.md` 文件派 LobbyedSat"**，不会多一卷" 也不会"少一卷"。
+
+### 185.4 /stategraph 第十二盏依然是 exhibit_copilot
+
+本页以 parchment 暗色做底面——所有字体、行高、间距、分色与 .chronicle.css 同网格对齐，指纹查看没有新的"未经设计"控件，印刷上 A4 页时就是一整片版面。
+
+### 185.5 账房
+
+mvn 未动 · UI **594/594**（+1 个 page-load pin）· tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1780** + 1 · worldbook **185 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门

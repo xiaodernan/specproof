@@ -42034,3 +42034,27 @@ mvn 未动 · UI **591/591** · tsc ✓ · vite build ✓ · `test_exhibit_copil
 ### 三、账房
 
 mvn 未动 · UI **591/591** · `mvn -o test gateway` **84/84** · `services/*/mvn -o test` **137/137** (offline) · purity **CLEAR** · court **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1779** + 1 · worldbook **184 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## #1984 《卷宗之册》：新增 /#/library — 整本铁证之书每一卷对着字节展开，零字节被下架 · UI **594/594** · chronicle **1780** + 1 · worldbook **185 卷（双语对称）**
+
+**记录基准**：本节只追加；master = 本提交前状态。本号衔接 #1983。
+
+### 一、交付
+
+1. `apps/web/src/pages/Library.tsx` + `library.css` + `library.test.tsx`（新）——"卷宗之册"页：zh/L2 各 183 个卡片，每行一卷（`卷零 · 创世之炉` 到 `卷一百八十四`）；
+2. `scripts/build_library.py`（新）——解析 `SPECROOF_WORLD.md` 与 `SPECROOF_WORLD_EN.md`，**by build time** 断言 zh≡en（183/183）；
+3. `scripts/build_library.py` 在锚定 zh≡en 不等时拒绝落册（不可落册假货）；
+4. `scripts/build_library.py` 派生 `apps/web/src/pages/library.json`（git-tracked，1825 条目）；
+5. `App.tsx`：新增 `{ path: "library", labelKey: "nav.library", icon: "book", groupKey: "group.evidence" }`，lazy-import Library + `if (seg[0] === "library") return <Library />;`；
+6. i18n `nav.library`（zh"图书馆" / en"Library"）；
+
+### 二、诚实边界
+
+1. library.json 只承载`世界书`实际存在的字（183 卷，零创作/零改写）；
+2. UI 增加到 **594/594**（+1 smoke test、+3 unit pin tests、文件 83→84）；
+3. 本次work不动court · 不动exhibit_entries（为 18）· Night Watch 依旧 **CRACKED** · `4117d2b0ca5fb23a` **LOCKED**；
+4. chronicle **1780** · worldbook **185 卷（双语对称）**。
+
+### 三、账房
+
+mvn 未动 · UI **594/594** · vite build ✓ · court **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1780** + 1 · worldbook **185 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门

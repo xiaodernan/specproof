@@ -1,0 +1,1839 @@
+{
+  "generated_at": "2026-11-17T20:16:39+00:00",
+  "count": 183,
+  "zh": [
+    {
+      "num": "卷零",
+      "title": "创世之炉",
+      "excerpt": "世人写代码，代码又写代码。AI 把箭射入天空，不问谁将拾箭。"
+    },
+    {
+      "num": "卷一",
+      "title": "铁证、矩阵与审判庭",
+      "excerpt": "SpecProof 的证据分五等，从下至上等级越高、越硬："
+    },
+    {
+      "num": "卷二",
+      "title": "双端相望：验收官与他的书记官",
+      "excerpt": "书记官（前端）的书写有规矩："
+    },
+    {
+      "num": "卷三",
+      "title": "缓存圣断：给算力修庙",
+      "excerpt": "起初，每一桩查验都走非流车道——网关的仪表盘从此日夜显示\"非流\"，"
+    },
+    {
+      "num": "卷四",
+      "title": "军阵：钢铁长城与不死的门",
+      "excerpt": "网关的路由表里，`/**` 的算法是个接盘侠——谁都不归它管；它只是把说好的戏排完戏给别人唱。"
+    },
+    {
+      "num": "卷五",
+      "title": "史官纪要：一笔不删、一笔不增",
+      "excerpt": "`docs/operations/DEEP_OPTIMIZATION_PLAN.md` 是这座城的编年史。每一笔记："
+    },
+    {
+      "num": "卷六",
+      "title": "人物志",
+      "excerpt": "不是打字的 AI，也不是按鼠标的 PD，而是把\"我不相信\"写成\"我验一下\"的那个人。"
+    },
+    {
+      "num": "卷七",
+      "title": "无尽的故事（未来章节预告）",
+      "excerpt": "1. **《缓存修女的钥匙》**——语义缓存 admission 的红线仪式：哪些回答可缓存、哪些必须重新执行。"
+    },
+    {
+      "num": "卷八",
+      "title": "史官守夜（The Chronicler's Vigil）",
+      "excerpt": "世上最难写进历史的那一页，是「史官发现自己的笔杆比他的作品更重的那一天」。"
+    },
+    {
+      "num": "附录甲",
+      "title": "本书方程式",
+      "excerpt": "```"
+    },
+    {
+      "num": "附录乙",
+      "title": "史官接力人",
+      "excerpt": "若你读到这一页，史官已经开始为未来的卷系编号——`#1680`、`#1700`、`#1800`……"
+    },
+    {
+      "num": "卷九",
+      "title": "印章与窗（The Seal and the Window）",
+      "excerpt": "来做验收的人，进门之前把武器放下。没把武器放下的验收官，不是来验收的，是来复制别人的结论的。所以SpecProof 的字典里没有「QA」——它只有「验收官」。"
+    },
+    {
+      "num": "附录丙",
+      "title": "验收官的十四种手势（Brief Table）",
+      "excerpt": "每一卷都对应**一个按钮**+一个**计数**+一个**铁文件**。SpecProof 不是关于「怎样验收」的书，是「当面对一笔已验收的改动，我知道现在的验收官长什么样」的一封信——每封都由磁片上的比特兑现。"
+    },
+    {
+      "num": "附录丁",
+      "title": "此书的最后一个字（Final Word）",
+      "excerpt": ""
+    },
+    {
+      "num": "卷十",
+      "title": "读者抵达之前（Before the Reader Opens This Book）",
+      "excerpt": "SpecProof 不在你不读的那一刻证明自己。你把这本书从第一个字翻到最后一个字，你读到这里的时候，所有那些实打实的数字、那些早晨的决定、那些被代码行写出来的铁——已经尾波到你眼里。"
+    },
+    {
+      "num": "卷十一",
+      "title": "两道门（The Two Doors）",
+      "excerpt": "一条街用中文写完，一条街用英文写完。两条街巷子一样深、店面一样亮，"
+    },
+    {
+      "num": "卷十二",
+      "title": "墙内的展厅（Inside: The Hall of Exhibits）",
+      "excerpt": "SpecProof 里最古老的习惯是「记下来」——从差分实验的第一天起，每个数字都落进账本。"
+    },
+    {
+      "num": "卷十三",
+      "title": "史官与缓存（The Chronicler and the Cache）",
+      "excerpt": "史官不写「缓存命中率很高」。史官写：「2026-11 实测，_JUNIT_GENERATION_PROMPT 的稳定前缀在 wkapi.pro"
+    },
+    {
+      "num": "卷十四",
+      "title": "十四条铁律（The Fourteen Iron Vows）",
+      "excerpt": "「它跑过一次了」不是「它会再跑过」。铁证一旦落地，任何把它抹掉重新签名的行为，"
+    },
+    {
+      "num": "终章",
+      "title": "未完",
+      "excerpt": "SpecProof 的每个胜利、每次失败、每一笔账、每一页史诗，都落在同一个答案上："
+    },
+    {
+      "num": "卷十五",
+      "title": "未完的路（The Unfinished Road）",
+      "excerpt": "* **Demo doctor** 不是脚本，是演示仓的签名：任何人 `git tag -l` 看见 `base` 与 `head-v1`，"
+    },
+    {
+      "num": "卷十六",
+      "title": "十二把铁秤（The Twelve Iron Scales）",
+      "excerpt": "**token 双语**：BENCHMARK、、`BLOCKER`——token 是代码，代码不认翻译，只认字。"
+    },
+    {
+      "num": "卷十七",
+      "title": "两种语言的验收（The Two-Tongued Verdict）",
+      "excerpt": "限制它只许答 `BLOCKER`/`MAJOR`/`MINOR` 三词之一："
+    },
+    {
+      "num": "卷十八",
+      "title": "铁匠炉火（The Forge and the River）",
+      "excerpt": "`#/ide` 只有三样东西：锚点、抄板、便笺。锚点是真文件，命令是真命令，便笺只落在你的浏览器里。"
+    },
+    {
+      "num": "卷十九",
+      "title": "铁匠之笔（The Forge's Pen）",
+      "excerpt": "`DEEP_OPTIMIZATION_PLAN.md` 里的 1561 节不是「文档」。每一节都是**提交的笔录**——它们记录的不是梦想，是已经发生的决定。史官只接收两种句子：「它做了 X」（嵌入实测）和「它没做 X」（嵌入边界）。没有第三句了。"
+    },
+    {
+      "num": "卷二十",
+      "title": "铁证的印章（The Cartouche of Iron Evidence）",
+      "excerpt": "- **APPROVED**：铁证通过了——没问题是铁证替你说的，不是别人的善意；"
+    },
+    {
+      "num": "卷二十一",
+      "title": "铁证的世界（The World of Iron Evidence）",
+      "excerpt": "数字全部来自本仓库真实数据——没有任何虚饰、没讲一句编造。"
+    },
+    {
+      "num": "卷二十二",
+      "title": "证据群岛（The Evidence Archipelago）",
+      "excerpt": "- 证据无尽 = 迷路无尽；迷路无尽 → 耐心先死，离开其次——二者都是铁证之敌；"
+    },
+    {
+      "num": "卷二十三",
+      "title": "书房（The Reading Room）",
+      "excerpt": "- 世界书此前只能在 `docs/world/` 里用编辑器打开——史官按 git log 读历史，客户按 URL 逛展厅，**没有人为正史盖一间读书房**；"
+    },
+    {
+      "num": "卷二十四",
+      "title": "不混（The Unmixed Tongue）",
+      "excerpt": "- 用户在中文模式读到「规划中 Planning」，他读的是两种语言的半截，不是一句完整的话；"
+    },
+    {
+      "num": "卷二十五",
+      "title": "铁门如意（The Iron Gate, the Redis Token Bucket）",
+      "excerpt": "- 单机限流 N 台副本 = N 倍额度——这不是公平，这是泄漏；"
+    },
+    {
+      "num": "卷二十六",
+      "title": "铁墙与消息（The Wall and the Wire）",
+      "excerpt": "- 交换机 `specproof.observability.events`（topic，durable）；路由键即事件名；"
+    },
+    {
+      "num": "卷二十七",
+      "title": "验明正身（Verification Within Verification）",
+      "excerpt": "- 一次验收如果只做一次，它就是一枚印章；验了两次，它才配叫正史；"
+    },
+    {
+      "num": "卷二十八",
+      "title": "门扉（The Door）",
+      "excerpt": "- **推开就会用**：不经过五次跳转——一眼可知、一秒可按、三句可会；"
+    },
+    {
+      "num": "卷二十九",
+      "title": "洞察舱（The Insight Deck）",
+      "excerpt": "- 洞察舱 `#/insight` 与 `/identity` 同一把钥匙（`IDENTITY_ROLES = admin/operator`）；viewer 看到的永远是 `PermissionDenied`，fail-closed wires，后端仍然是最终权威；"
+    },
+    {
+      "num": "卷三十",
+      "title": "压铁（The Iron Under Load）",
+      "excerpt": "- 冷窗为何长？ThreadingHTTPServer 每请求开线程、磁盘首读、Windows 页缓存热身——**第一次新开的炉子当然冒烟**；等到第二锤、第三锤，炉膛已按你希望的方式运行；"
+    },
+    {
+      "num": "卷三十一",
+      "title": "验铁之约（The Appointment to Prove Iron）",
+      "excerpt": "- **终点证书**：自签 TLS 证书 + 双向 mTLS（control-plane → gateway → Python API），每一跳都在握手里被看见；"
+    },
+    {
+      "num": "卷三十二",
+      "title": "沉默的信徒（The Silent Believers）",
+      "excerpt": "- **0 未合并提交**不是无为而治，是**传递性抵达**——这些 commit 的等价物、改写、或其血脉在 master 依然可见（tip 信息如实可自查：`git log master..branch` 为空）；"
+    },
+    {
+      "num": "卷三十三",
+      "title": "账本的账本（The Ledger's Ledger）",
+      "excerpt": "- 每次大交付都走同样的六步：账本只追加 → `build_chronicle.py` 重建 `chronicle.json` → `build_repo_stats.py` 重建统计 → 门禁 → 提交 → 推送；"
+    },
+    {
+      "num": "卷三十四",
+      "title": "铜铃之声（The Ringing of Bronze）",
+      "excerpt": "- 三只铃没一只是「看起来守着」——每只都有重现脚本：`pytest tests/unit/test_guide_route_catalog.py tests/unit/test_ledger_*.py`；在任何端敲就是同一个响声；"
+    },
+    {
+      "num": "卷三十五",
+      "title": "样板间的门（The Demo Room's Door）",
+      "excerpt": "- **111 桩案件是死火还是活火**：每一案都是一位 commit 要来；每一字节都来自 git；"
+    },
+    {
+      "num": "卷三十六",
+      "title": "空着的架子（The Shelves Left Empty）",
+      "excerpt": "- **空位被报道，不被删掉**——本项目对\"缺少\"的记录采用\"压缩的 ledger\"：每个缺位都写进某一个节，谁把它抹掉就等于把它送进了脚底板（\"没有\"在任何 PR 里被渲染成\"正常\"都是泄露）；"
+    },
+    {
+      "num": "卷三十七",
+      "title": "墨水池之后（After the Inkwell）",
+      "excerpt": "- **深夜里的执笔人**——22:00 之后的那 960 笔里藏着什么？不是伪装的努力，是这个仓库自己的生物钟刻进了 commit；"
+    },
+    {
+      "num": "卷三十八",
+      "title": "真话与演示（The Truth and the Demo）",
+      "excerpt": "- **合成不冒充真**：凡数据自计算、自宣告\"合成/演示/校准\"，从不冒充任何采集到的事实；"
+    },
+    {
+      "num": "卷三十九",
+      "title": "铁的三种语言（The Three Dialects of the Iron）",
+      "excerpt": "- `docs/operations/LONG_TERM_PLAN.md` 的禁忌清单：共享口令永远不做、真实遥测必须签字、AI 永远不下签收；"
+    },
+    {
+      "num": "卷四十",
+      "title": "河灯（The River with Lamps）",
+      "excerpt": "- **第一盏 · debug 车道**：`DIAGNOSE` —— 走语义缓存 + draft 通道，慢一点没问题（#1781 已稳 3.0ms replay）：批量复核 fork 时，是从缓存回放拿的，不是再次烧 10.25s 生成；"
+    },
+    {
+      "num": "卷四十一",
+      "title": "实测缓存（The Proven Cache）",
+      "excerpt": "- **wkapi 的前缀缓存是真的**——草稿/诊断 lane 只要 `SPECPROOF_PROVIDER_POLICY=1` hoist，"
+    },
+    {
+      "num": "卷四十二",
+      "title": "收山的山门（The Threshold of the Gathered Whole）",
+      "excerpt": "读者首先看到的是终局——所有这些不是空话，是 `git show` 能当场接住的坐标："
+    },
+    {
+      "num": "卷四十三",
+      "title": "沉默的签收人（The One Who Never Signs）",
+      "excerpt": "- **draft / diagnose**：两种都是草稿性质——预算/改写/重写的原料，可以被反复换、可以上缓存、可以出错求再次尝试；"
+    },
+    {
+      "num": "卷四十四",
+      "title": "再敲一遍的铁（The Iron, Struck Again）",
+      "excerpt": "- **exit 0 的含义**：`mvn` 每 fork 回一个 SUCCESS——不是\"仅 WARN 而 PASS\"——`JAVA_HOME` 指错了 JDK 17 时 surefire 直接 fail（\"class file version 65.0\"，需要 Java 21+）；Eclipse Adoptium JDK 25.0.1 解析过去后才 pass；"
+    },
+    {
+      "num": "卷四十五",
+      "title": "卜宅（The Divination of the House Site）",
+      "excerpt": "- **不能再写成「一个绿色的印记在孕育着」**：文件记事本上曾经写着一个 SpecProof 的祖屋答过一次话，如今死了——卜宅就写卜宅，从不说它还活；"
+    },
+    {
+      "num": "卷四十六",
+      "title": "立不倒的书（The Book That Will Not Fall）",
+      "excerpt": "- 自 `## #130` 首次记录至今天 `## #1828`—— **1,629 节**，没有一节空悬——"
+    },
+    {
+      "num": "卷四十七",
+      "title": "沉默的证词（The Last Testimony）",
+      "excerpt": "**铁不是永远落下的——铁有了仪式就不会过早落血。**"
+    },
+    {
+      "num": "卷四十八",
+      "title": "沉默的现账本（The Current Ledger）",
+      "excerpt": "- **RTL（连续性检验）**：`git rev-list --count HEAD` 仍每次递增——每一笔 commit 都活着、审计、可读、可见、`git show` 可敲可考；"
+    },
+    {
+      "num": "卷四十九",
+      "title": "沉默的潮汐（The Tide of Quiet）",
+      "excerpt": "- **提醒：试一次 = 本次提交的能力，本次提交的意愿。**"
+    },
+    {
+      "num": "卷五十",
+      "title": "收口之门（The Closing Gate）",
+      "excerpt": "**收口不是结束，是承认已经画下来的形状。**"
+    },
+    {
+      "num": "卷五十一",
+      "title": "呼吸（The Breath）",
+      "excerpt": "- **字体不再和 block 打架**：`white-space: nowrap` 改为 `max-width: 460px; overflow: hidden; text-overflow: ellipsis;`——压住溢出但不砍掉换气声；"
+    },
+    {
+      "num": "卷五十二",
+      "title": "沉默的种子（The Spring of Silence）",
+      "excerpt": "**这不是终章——这是仓库第一次能自己读自己写出的字。**"
+    },
+    {
+      "num": "卷五十三",
+      "title": "裂缝之锚（The Fractured Anchor）",
+      "excerpt": "- `specproof-534-plane`：python:3.12-slim，**Exited (255) 13 天前**；"
+    },
+    {
+      "num": "卷五十四",
+      "title": "横幅匾额（The Hall of Indicators）",
+      "excerpt": "本仓库里有两类数字，它们都叫「真的」，但说的是两种真："
+    },
+    {
+      "num": "卷五十五",
+      "title": "无声的合奏（The Quiet Ensemble）",
+      "excerpt": "缺席七位（说明牌见 #1841 账本备查）：api / worker / outbox-relay / notify-relay / invoice-cron / otel-collector / specproof-edge —— 全部 lookup no such host，全部如实 down。"
+    },
+    {
+      "num": "卷五十六",
+      "title": "白光掌心（The Palm of White Light）",
+      "excerpt": "同一个问题走本仓库 provider 车道（`SPECPROOF_PROVIDER_POLICY=1`）："
+    },
+    {
+      "num": "卷五十七",
+      "title": "静默的梨花（The Silent Pear Blossom）",
+      "excerpt": "总容量 1200 件（环形）；满了就挤掉最老的一条——**它从不会挤掉你的密钥，因为它从来不碰密钥。**"
+    },
+    {
+      "num": "卷五十八",
+      "title": "回声定位（The Echolocation）",
+      "excerpt": "1. **不归谬**：气候图不知道为什么，它只知道「又敲了」；回吐文本不指责，只引路；"
+    },
+    {
+      "num": "卷五十九",
+      "title": "镜厅回廊（The Mirror Corridor）",
+      "excerpt": "袖中手札（#/manual）页面标题下新增「本机回音壁」一栏："
+    },
+    {
+      "num": "卷六十",
+      "title": "三体界碑（The Three-Body Boundary）",
+      "excerpt": "它不算崩溃；但本书不许把超额写成「正常」。冷启动尖峰是真实的——生产前两分钟处理一串超时是每一套冷系统的出厂值，不是优化点。要在下游节点设预热探针，不是在只尊重 avg 的仪表板上假装它不存在。"
+    },
+    {
+      "num": "卷六十一",
+      "title": "北风之夜（North Wind Night）",
+      "excerpt": "启动序列末尾、「全部就绪」之前新增一步："
+    },
+    {
+      "num": "卷六十二",
+      "title": "东风之南（The East Wind South Wind）",
+      "excerpt": "`scripts/stress_smoke.py --warmup N`：先敲 N 轮（不计时、不入判定），再进正式量测。"
+    },
+    {
+      "num": "卷六十三",
+      "title": "归港记（The Homecoming）",
+      "excerpt": "1. **不偷换**——build_evidence.py 没有「improve」，只有「copy verbatim」；"
+    },
+    {
+      "num": "卷六十四",
+      "title": "启航日（The Day of Sailing）",
+      "excerpt": "1. **每周一敲**——周而复始，不为任何发布提前、不为任何疲劳取消；"
+    },
+    {
+      "num": "卷六十五",
+      "title": "归港复航（The Homecoming, Repeated）",
+      "excerpt": "**Δ（第二件 vs 第一件）：worst p99 +5.1ms · avg p95 +5.6ms · 流量 +0.91 MB。**"
+    },
+    {
+      "num": "卷六十六",
+      "title": "船期表（The Timetable）",
+      "excerpt": "1. **板壁不许改门**——测试不复制页面、不拍屏幕；只读断言 aria / 结构 / 导航副作用；"
+    },
+    {
+      "num": "卷六十七",
+      "title": "收帆时刻（The Furling Hour）",
+      "excerpt": "1. **三行不膨胀**——if 空证据，row 1 会安静地说「尚未敲门」；"
+    },
+    {
+      "num": "卷六十八",
+      "title": "巡天一夜（The Astronomer's Night）",
+      "excerpt": "三件灯的状态**逐时刻真实敲**——`--warmup` 一样敲一次，不存、不缓、不代。"
+    },
+    {
+      "num": "卷六十九",
+      "title": "灯下书停（The Quiet Read）",
+      "excerpt": "1. **卡上不盖章**——没有签字行、没有「本人已确认」，一根红印也没有；"
+    },
+    {
+      "num": "卷七十",
+      "title": "灯花落尽（The Falling Sparks）",
+      "excerpt": "三张牌共享**同一抽屉**（repoStats/evidence/unsigned/engine/worldbook 全部 git-tracked），"
+    },
+    {
+      "num": "卷七十一",
+      "title": "雪线以上（Above the Snowline）",
+      "excerpt": "1. **不设承诺**——只有「敲什么 · 谁来敲 · 卡在哪」三列，画 roadmap 永远不画什么时候能完成；"
+    },
+    {
+      "num": "卷七十二",
+      "title": "灯影千重（The Many Shadows of the Lamp）",
+      "excerpt": "1. **灯影永远署名**——每道灯影都挂\"这是灯影，不是 bug，也不是真相\"的招牌；"
+    },
+    {
+      "num": "卷七十三",
+      "title": "长夜灯半（The Midnight Lamplighter）",
+      "excerpt": "三盏灯和 #/last-call 的欠签行共享**同一只 json**（`unsigned.json`）——"
+    },
+    {
+      "num": "卷七十四",
+      "title": "风也认路（The Wind Knows the Way Too）",
+      "excerpt": "实现 = `scripts/audit_unsigned.py` · `#1863` 起入库。灯色映射：`clean`玉绿 · `ahead/behind/dirty-tree`琥珀 · `diverged`红 · `no-upstream`灰（本仓库今天暂未设 upstream 也能如实显示）。"
+    },
+    {
+      "num": "卷七十五",
+      "title": "逾墙之镜（The Mirror Over the Wall）",
+      "excerpt": "同一道 prompt（同一个 5600-token 前缀）顺序送入 draft / diagnose："
+    },
+    {
+      "num": "卷七十六",
+      "title": "废墟尽头（The End of the Ruin）",
+      "excerpt": "1. **任何「这里可能是垃圾」的猜测，都要先过一次审计**——判定之前不落锤；"
+    },
+    {
+      "num": "卷七十七",
+      "title": "门与锁（Door and Lock）",
+      "excerpt": "合成 lock（16 hex）= SHA256(排序后的五枚证据哈希拼接) — 杜甫。"
+    },
+    {
+      "num": "卷七十八",
+      "title": "雪崩后的书脊（The Spine After the Avalanche）",
+      "excerpt": "每条都挂 commit / ledger / 文件 / json ——**全部能敲得亲自验证**。"
+    },
+    {
+      "num": "卷七十九",
+      "title": "缺口与光（The Gap and the Light）",
+      "excerpt": "1. **不可染绿**——欠条不会因为被写在纸上就被记作完成；"
+    },
+    {
+      "num": "卷八十",
+      "title": "图的语言（The Cartographer's Graph）",
+      "excerpt": "```"
+    },
+    {
+      "num": "卷八十一",
+      "title": "月落千泉（When the Moon Falls Into the Springs）",
+      "excerpt": "三张证据件**全部 OK**——这是本仓库的\"运动成绩\"：百分比不是装出来的，是 192×3 敲出来的。"
+    },
+    {
+      "num": "卷八十二",
+      "title": "灯上水下（Below the Lamp, Above the Water）",
+      "excerpt": "它们和 `跟踪文件 / 提交次数 / 账本体积 / 铁证之书字数` 并排挂着——**不是锦旗，是测量值，脚本重现了就是。**"
+    },
+    {
+      "num": "卷八十三",
+      "title": "锚与绳（Anchor and Rope）",
+      "excerpt": "`#/archive` 顶部新增草绿一行："
+    },
+    {
+      "num": "卷八十四",
+      "title": "墙上的里程（The Miles on the Wall）",
+      "excerpt": "* 墙上那块早已被你手动挂上的 index-05——不会被本仓库再做什么来擦拭它或替它出花样；"
+    },
+    {
+      "num": "卷八十五",
+      "title": "隐写的一行（The Steganographic Line）",
+      "excerpt": "位置：`#/dashboard` 顶部 quickstart 之上 · 如实显示"
+    },
+    {
+      "num": "卷八十六",
+      "title": "链印法约（The Mark of the Chain）",
+      "excerpt": "```"
+    },
+    {
+      "num": "卷八十七",
+      "title": "敲门的人（The Knocker）",
+      "excerpt": "`#/gazette` 「今日天气」里多看到一个人影："
+    },
+    {
+      "num": "卷八十八",
+      "title": "灯下的一页白（One Page Under the Lamp）",
+      "excerpt": "`#/chainBanner` → 顶着编年史的第一行横幅："
+    },
+    {
+      "num": "卷八十九",
+      "title": "敲门的回音（The Echo of the Knock）",
+      "excerpt": "新增第五盏灯由 `agent/graphs/purity_graph.py` 现敲 `docs/evidence/purity-sift.json`· verdict 与报告均入库——**灯不诈，只报实**。"
+    },
+    {
+      "num": "卷九十",
+      "title": "万年沉睡（The Sleep of Ten Millennia）",
+      "excerpt": "本卷是在这个\"永远欠\"上写字；本书的其他卷都在这个欠条之上不隔断。"
+    },
+    {
+      "num": "卷九十一",
+      "title": "一日一试（One Strike a Day）",
+      "excerpt": "`.local/llm.json` 写入；gitignore 守门——这一份不会被任何 git add 带走。"
+    },
+    {
+      "num": "卷九十二",
+      "title": "回声无水的敲门者（The Knocker of the Dry Echo）",
+      "excerpt": "`ChainBanner.tsx`（#1878 起）读 `audit_chain.json`，画同一行：**审计链 · CLEAR · 5 盏灯**。"
+    },
+    {
+      "num": "卷九十三",
+      "title": "开匣之声（The Sound of the Opened Drawer）",
+      "excerpt": "RAG 的知识一半是**检索**——生成的一半今天依然关着（api.aizzz.xyz 6/6 全红，见引擎页原样）。"
+    },
+    {
+      "num": "卷九十四",
+      "title": "梯光复明（The Ladder That Caught the Light）",
+      "excerpt": "但今天带着梯子的头发一扇才发现：**拦截发生在直连这一跳上**，不是 key、不是模型。"
+    },
+    {
+      "num": "卷九十五",
+      "title": "铁门响应（The Whole Chain Answers）",
+      "excerpt": "真因链：对方 `/v1/responses` 车道只收 `stream=true`；而本仓的 one-response 应答路径（`_chat_dispatch` 的 responses 分支）还在发**不流式**调用。"
+    },
+    {
+      "num": "卷九十六",
+      "title": "炉火熄灭的上午（The Morning the Furnace Went Out）",
+      "excerpt": "2026-11-16T15:26Z 的某个时间点，本机 Docker Desktop 进程退出（dockerd 不可达；npipe 找不到 `dockerDesktopLinuxEngine`）。"
+    },
+    {
+      "num": "卷九十七",
+      "title": "引擎的副账（The Engine's Second Ledger）",
+      "excerpt": "`/engine` 页面底部现在挂了一行新的小字（zh/en 对称）："
+    },
+    {
+      "num": "卷九十八",
+      "title": "一颗铆钉的重量（The Weight of a Rivet）",
+      "excerpt": "`#1887` 页尾补了 aizzz 车道的注脚——两份车道从此不会被读者混账。"
+    },
+    {
+      "num": "卷九十九",
+      "title": "黑夜守望的门槛（The Twenty-Five Millisecond Law）",
+      "excerpt": "新增 `agent/graphs/night_watch_graph.py` —— 把本仓库最大的三个 StateGraph 合成一根脊椎："
+    },
+    {
+      "num": "卷一百",
+      "title": "夜眼睁开（The Night Eye Opens）",
+      "excerpt": "`#1889` 的黑夜守望图（night_watch_graph）把三辆车并做一根脊椎：evidence → purity → audit → verdict → report → END。"
+    },
+    {
+      "num": "卷一百零一",
+      "title": "真实的 README（The Honest README）",
+      "excerpt": "`README.md` 的新节「最新验收 · 2026-11-16」直接写在 README 最前排（真相区），英文镜像 `README_EN.md` 同步进去；内容如实：LLM 扉页（aizzz.xyz/gpt-6.1-terra）、Clash Verge 出网、provider smoke 7/7、137/137 Java 车道绿、Night Watch 合体判定（CRACKED 是真相），UI 542/542，欠账 D1/D2 明确列出。"
+    },
+    {
+      "num": "卷一百零二",
+      "title": "敲两扇门的回声（The Echo of Two Knocks）",
+      "excerpt": "本卷加的两条断言把「问铁证」的契约钉在试纸上："
+    },
+    {
+      "num": "卷一百零三",
+      "title": "第六件实证（The Sixth Exhibit）",
+      "excerpt": "`docs/evidence/2026-11-16-static-warm-6.json`："
+    },
+    {
+      "num": "卷一百零四",
+      "title": "五盏常亮的铁灯（The Five Iron Flames）",
+      "excerpt": "`agent/graphs/recall_graph.py`——「问铁证」的检索子图（LangGraph）："
+    },
+    {
+      "num": "卷一百零五",
+      "title": "两把尺子并排（Two Rulers, One Table）",
+      "excerpt": "- **两份 BM25 实现各不相通**（web 是 TS，图是 Python），本卷是**对照实验**不是\"单元测试复刻\"——两个程序各自敲一次门，答案必须相同才叫\"可复现\"。"
+    },
+    {
+      "num": "卷一百零六",
+      "title": "磁场与针（The Magnet and the Needle）",
+      "excerpt": "`providers/net.py` 长久以来就知道本机该有一条出口——历史上用过的所有代理都走这里："
+    },
+    {
+      "num": "卷一百零七",
+      "title": "伤口与句号（The Wound and the Full Stop）",
+      "excerpt": "2026-11-16「项目长期开发指令」原文：「把这些全部做了吧 我全部批准」「继续做啊 不要停下来 多找一些可以干的任务来做」。"
+    },
+    {
+      "num": "卷一百零八",
+      "title": "终于给灯签了个字（The Night the Lamp Got Signed）",
+      "excerpt": "`docs/operations/OBSERVABILITY.md` §9 签字记录 · 2026-11-16："
+    },
+    {
+      "num": "卷一百零九",
+      "title": "签了字，但它不是我点的灯（A Signature Is Not Every Light）",
+      "excerpt": "* 任何与 fleet 相关的数字——不做；签字≠ fleet 上 rack。真·船队遥测仍然没人敢断言，因为 Port 8000 仍然是 career-os 还在答。"
+    },
+    {
+      "num": "卷一百一十",
+      "title": "永远不灭的红（The Lamp That Never Goes Quiet）",
+      "excerpt": "`docs/evidence/2026-11-16-static-warm-7.json`（全新 #7，48→96 并发加压）："
+    },
+    {
+      "num": "卷一百一十一",
+      "title": "欠条现场（The IOU Wall, In Person）",
+      "excerpt": "Admin/operator 的页面多了 `.insight-debt-panel`（双语）——一张从 `unsigned.json` 直接 git-tracked、build-time 敲下的欠条面板："
+    },
+    {
+      "num": "卷一百一十二",
+      "title": "一张表两行字（The Reckoning, Two Lines Legal）",
+      "excerpt": "1. 任何人可以 `git diff` 签的那个文件；"
+    },
+    {
+      "num": "卷一百一十三",
+      "title": "压力来了！（The Pressure Is On, For Real）",
+      "excerpt": "`docs/evidence/2026-11-16-static-warm-8.json`（本卷 × 96 并发 x4 轮 + 3 轮 warmup）："
+    },
+    {
+      "num": "卷一百一十四",
+      "title": "用三根针量十根骨头（The Three-Pin Caliper）",
+      "excerpt": "Δ(24→48) = **+32.9 ms** · Δ(48→96) = **+1,020.4 ms**（悬崖）"
+    },
+    {
+      "num": "卷一百一十五",
+      "title": "灯不会自己停（The Light That Does Not Stop Itself）",
+      "excerpt": "- worldbook **121** 节（今日 #1904）"
+    },
+    {
+      "num": "卷一百一十六",
+      "title": "不装的招牌（The Unfakeable Sign）",
+      "excerpt": "`apps/web/src/App.tsx` 的页脚 `workspace-footer` 文案改了一字："
+    },
+    {
+      "num": "卷一百一十七",
+      "title": "第三块地标（The Third Light in the Atlas）",
+      "excerpt": "* `tiles` — 新增「压测证件件数」（中文名/English \"stress exhibit count\"）；"
+    },
+    {
+      "num": "卷一百一十八",
+      "title": "错误的展厅（The Errarium）",
+      "excerpt": "`/errata` ——更正卷轴页。上屏幕的是 15 条更正，直接全盘继承 `APPENDIX_CORRECTIONS.md`："
+    },
+    {
+      "num": "卷一百一十九",
+      "title": "两种语言只许说一种话（The Language Purity Volume）",
+      "excerpt": "* `strings.ts` 英语表的三个真实泄漏：`tour.lead` 里的「验讫」、`explorer.tally` 的「{verdict}」、`usage.basis` 的「—」——全部改成英文弯引号；"
+    },
+    {
+      "num": "卷一百二十七",
+      "title": "状态图谱（The StateGraph Volume）",
+      "excerpt": "* 路由：公页 · NAV 第 44 号（`group.evidence` · `matrix` icon）· 双语；"
+    },
+    {
+      "num": "卷一百二十八",
+      "title": "不让字撑坏屏幕（The Overflow Guard）",
+      "excerpt": "按 owner 的原话——「修复前端的不合理之处：字体变形、歪曲、重叠、扭曲，实体块互相重叠、挤压、遮盖——现在看着很不整洁、不美观，需要系统性修复」——本卷做了一次系统性溢出体检并上药："
+    },
+    {
+      "num": "卷一百二十九",
+      "title": "门被影子盖住的两道光（The Two Shadows on the Door）",
+      "excerpt": "1. **exhibit #9（新展品入册）**：`2026-11-16-static-warm-9.json` —— 64 并发 × 2 per-thread × 4 轮（+3 warmup 不入账），384+128 次请求（512？！不，共 4×64×2=512），err 0.00%，worst p99 **1,596.9 ms**。"
+    },
+    {
+      "num": "卷一百三十",
+      "title": "欠条的两卷（Two Scrolls for the IOU）",
+      "excerpt": "史诗《铁证之书》增刊两卷："
+    },
+    {
+      "num": "卷一百三十一",
+      "title": "收束（The Gathering：三条支线、三件藏品、一扇门）",
+      "excerpt": "* 本地分支仅 `master`；`git ls-files -u` 零冲突；worktree 盘点仅主工作目录；三支线远端保留不删（owner 的 refs 不作废），「合并」账实质已完成——主线即集大成。"
+    },
+    {
+      "num": "卷一百三十二",
+      "title": "第十六枚 · 两次敲（The Sixteenth R · The Two Strikes）",
+      "excerpt": "**R16 · 缓存归因**（both 中文 / English）："
+    },
+    {
+      "num": "卷一百三十三",
+      "title": "错误展厅守夜人的灯在亮（The Watch Burns Unattended）",
+      "excerpt": "本轮与上轮（#1912–#1916）一起敲出："
+    },
+    {
+      "num": "卷一百三十四",
+      "title": "谷底就谷底了（The Floor Is the Floor）",
+      "excerpt": "`docs/evidence/2026-11-16-static-warm-10.json`："
+    },
+    {
+      "num": "卷一百三十五",
+      "title": "四次敲出四个数字（Four Strikes, One Number）",
+      "excerpt": "`scripts/_cache_strike.py`（2026-11-16 17:55Z，同一 prompt 连敲 4 次，相同 messages list 不变）："
+    },
+    {
+      "num": "卷一百三十六",
+      "title": "把灯重新拧亮了（The Lamps Were Re-welted Light）",
+      "excerpt": "`docs/evidence/2026-11-16-static-warm-11.json`："
+    },
+    {
+      "num": "卷一百三十七",
+      "title": "第两盏灯一起红了（Two Lamps Redden Together）",
+      "excerpt": "两个 exhibit 连续扛上了那条 err≤1% 的线；它们不是炮弹驱逐，是整个服务器一卡两下——但它们没有燃尽。p50 分别 386–541 ms / 515–2,020 ms，部分 rounds 仍维持 99% 成功率（exhibit #11 round4：2.15%），并不是机器全丢瓷。"
+    },
+    {
+      "num": "卷一百三十八",
+      "title": "512 这个数字怎么看（The Notch at 512）",
+      "excerpt": "`docs/evidence/2026-11-16-static-warm-12.json`（512 concurrent × 2 per-thread × 4 rounds + 3 warmup）:"
+    },
+    {
+      "num": "卷一百三十九",
+      "title": "落在册頁上的整隊雨（The Whole Roster on the Pages）",
+      "excerpt": "saturation cliff 在并发曲线上清楚发生："
+    },
+    {
+      "num": "卷一百四十",
+      "title": "饱和的那一横（The Saturation Mark）",
+      "excerpt": "* Exhibit timeline 上方加了一张 **saturation curve**（SVG 直绘）：X=并发 [24,48,64,96,128,256,512]，Y=max worst p99（host 直敲）；曲线**只**取真 exhibits 中每个 concurrency 的最大值——没有平滑曲线，没有拟合方程，没有「期望」值；"
+    },
+    {
+      "num": "卷一百四十一",
+      "title": "第六张图——唯一出网的那张",
+      "excerpt": "- 页面从「五张活着的图」改挂「**六张活着的图**」（`apps/web/src/pages/StateGraph.tsx` · `stategraph.copy.ts`）；"
+    },
+    {
+      "num": "卷一百四十二",
+      "title": "两车道并成一本账",
+      "excerpt": "1. `engine.json` 重建（`scripts/build_engine.py` · 与 .local/llm_usage.jsonl 一字对账 · 确定性生成）；"
+    },
+    {
+      "num": "卷一百四十三",
+      "title": "192 档——被体温记录的那一件",
+      "excerpt": "`docs/evidence/2026-11-16-static-warm-13.json`（本机 · static lane · 3 entry assets · fresh server）:"
+    },
+    {
+      "num": "卷一百四十四",
+      "title": "会读自己的洞察舱",
+      "excerpt": "```"
+    },
+    {
+      "num": "卷一百四十五",
+      "title": "模型写完了补丁，门却说不",
+      "excerpt": "1. 之前的全链 E2E（2026-09-18）敲的是 wkapi 车道；这次敲的是 **aizzz/gpt-6.1-terra**——换了门锁，过了同一条链；cached 4224 当场对上第二次调用；"
+    },
+    {
+      "num": "卷一百四十六",
+      "title": "砂箱终于咬住了 pytest",
+      "excerpt": "1. **slim 镜像本来就没有 pytest**——wheelhouse 里有（`specproof-pip-wheelhouse-1000`，pytest 9.2.0 已播种完成，`scripts/seed_pip_wheelhouse.ps1`，离线装机验证通过）；"
+    },
+    {
+      "num": "卷一百四十七 ·Δ 对最早一篇",
+      "title": "卷一百四十七 ·Δ 对最早一篇",
+      "excerpt": "`docs/evidence/2026-11-16-static-warm-14.json`："
+    },
+    {
+      "num": "卷一百四十八 ·512c 之前，那一道 384c",
+      "title": "卷一百四十八 ·512c 之前，那一道 384c",
+      "excerpt": "`docs/evidence/2026-11-16-static-warm-15.json`（本机 · static lane · 3 entry assets）："
+    },
+    {
+      "num": "卷一百四十九",
+      "title": "第七张图——洞察舱自己会敲铃",
+      "excerpt": "```"
+    },
+    {
+      "num": "卷一百五十",
+      "title": "撞门的人，门没塌",
+      "excerpt": "代码如实："
+    },
+    {
+      "num": "卷一百五十一",
+      "title": "红门出三",
+      "excerpt": "- spacing gate 是纯度的按 path-wise 网格对齐，可机械 snap；阴影 gate 字色决定主题一致，可 theme-aware token 映射"
+    },
+    {
+      "num": "卷一百五十二",
+      "title": "红门半开",
+      "excerpt": "**机器数出来的，一个数不多报：**这些数字全部来自本会话 `pytest …::test_no_painted_color_bypasses_the_theme_tokens -q` 的实敲 `AssertionError: N colors…` 首行。"
+    },
+    {
+      "num": "卷一百五十三",
+      "title": "门全绿了",
+      "excerpt": "593 条被搪在墙面的字色，一条没动值、一条没调暗，**逐字节登记**进主题：**463 枚新 `--pigment-*` token**（一个 `:root` 块 —— \"Pigment registry\"，一枚漆面·一个 token，族：gilt / parchment / umber / jade / steel / oxide / carbon / soot / paper / veil / shade / gilt-glow / jade-glow / steel-…"
+    },
+    {
+      "num": "卷一百五十四",
+      "title": "同一本账，两枚量杯",
+      "excerpt": "同一台机器，同一本 `.local/llm_usage.jsonl`，84 次调用："
+    },
+    {
+      "num": "卷一百五十五",
+      "title": "粗筛的尺子，量到三成",
+      "excerpt": "**漏网诚实声明**：bucket A 从 366 缩成 138，不是「消掉了 228 个真问题」，而是「原先误判为可疑的双语对归位了」。这 138 条——包括 `agent/util.ts` 的「规划中 Planning」「等待计划审批 Awaiting approval」这类被作者故意写进 zh 行的英文铭牌——**依旧原样留在屏幕上**，依旧等人目测。audit 永远 exit 0、永不进 CI、不给任何人递礼物。"
+    },
+    {
+      "num": "卷一百五十六",
+      "title": "第八盏灯会开口数账",
+      "excerpt": "- 离线图，纯本机文件 `.local/llm_usage.jsonl`；同 UI「Usage」面板的同一套诚实口径——**by_lane · by_protocol · hit basis · streamed_ratio · error rate**；读不到就是 UNAVAILABLE，永不编造；"
+    },
+    {
+      "num": "卷一百五十七",
+      "title": "量尺学会了读上一行",
+      "excerpt": "每一件搬出 A 的物件都换成了一个明文写死的规则，没有一件靠作者背书豁免。"
+    },
+    {
+      "num": "卷一百五十八",
+      "title": "两条支流，汇入同一本编年史",
+      "excerpt": "- **沒有一個紅門被涂綠**：census 僅保留 **23** 紅在冊（item #8 不歸零，直到整個家族真正修完）；verdict-channel 是**真正修复**（不是豁免，是登记 — 词库的 i18n 狀況也是如此：A 從 366 降到 73，沒有一條 \"author waived\"，每一件是 L()/zh?/同源位址键/…_ZH 的明文规则）；"
+    },
+    {
+      "num": "卷一百五十九",
+      "title": "量尺学会了读同行（也学会了闭眼）",
+      "excerpt": "**本号能翘几个呢**——没有再放开手批豁免：任何一件 A 出圈仍然走规则，没有一件「作者背书了」。"
+    },
+    {
+      "num": "卷一百六十",
+      "title": "三双手进了屋子——第九盏灯",
+      "excerpt": "- 纯离线三只读调查员并行同一问法（explorer / tester / security）；prompt 为非编造——它的「信息不足」就是信息不足，不逼它硬答；耗用在 usage_ledger 里照实数字；"
+    },
+    {
+      "num": "卷一百六十一",
+      "title": "The Dig",
+      "excerpt": "- **POST `/api/v1/admin/investigation-dig`** — admin/operator 限制入口："
+    },
+    {
+      "num": "卷一百六十二",
+      "title": "The Dig 登册",
+      "excerpt": "新入口 **`/api/v1/admin/investigation-dig`** 只对 admin/operator 开门，body `{\"question\":\"…\"}`（1–600 字符）。三只 readonly investigators 并发同一问题："
+    },
+    {
+      "num": "卷一百六十三",
+      "title": "见证人也要自己签收",
+      "excerpt": "`tests/unit/test_verdict_channel_parity.py` 报了三个红（后收为一个）："
+    },
+    {
+      "num": "卷一百六十四",
+      "title": "每扇红门重敲一遍",
+      "excerpt": "**26 个文件 26 条红**。逐个读下来，**没有一条是「功能逻辑被推翻」**——每一条都是上一波改动没在账本上的尾巴。"
+    },
+    {
+      "num": "卷一百六十五",
+      "title": "告警一响，模型先读仓库",
+      "excerpt": "本号续接 #1958（修好 26 红门）："
+    },
+    {
+      "num": "卷一百六十六",
+      "title": "告警一响的分镜",
+      "excerpt": "告警一响，进屋的值班人不知道该先动哪只手——代码世界里门铃每分钟都响，不代你选。"
+    },
+    {
+      "num": "卷一百六十七",
+      "title": "压不是像高，是同一个宿主再敲",
+      "excerpt": "`docs/evidence/2026-11-17-static-warm-17.json`："
+    },
+    {
+      "num": "卷一百六十八",
+      "title": "门不是锁，是镜子",
+      "excerpt": "那条原始请求此前在 #1799 被否决，理由照记在案：管理员页没有「所有人知道密码就能进」的版本——知道密码≠有权限。本轮不推翻判词，而是把它劈成两扇门："
+    },
+    {
+      "num": "卷一百六十九",
+      "title": "真一台机器，一台真事",
+      "excerpt": "「真实用户行为模拟出来」这句话的真金白银，是先让模拟承认自己是模拟，再让真实的那一台自己开口。此前 /observe 只挂了两类东西：240 人 mulberry32(seed 20261115) 校准群体 + 「本浏览器 localStorage 轨迹」四个统计（事件条数 · 到访页面 · 秒退 · 急躁点按 + 中位停留）。本轮把那半句落成了页面里真正一块面板："
+    },
+    {
+      "num": "卷一百七十",
+      "title": "不夹的章",
+      "excerpt": "本轮把 i18n 审计 A 桶 37 → **29**。抠出来的八处，全部是「放大招在用户屏幕上」的混血字形——不是注释："
+    },
+    {
+      "num": "卷一百七十一",
+      "title": "行宪",
+      "excerpt": "本机这次的实测：`scripts/two_strike_probe.py`（4,676-token 前缀 · 两次连续敲）→ `prompt_cache_hit_tokens=0` 恒定。原因不必神秘：**车道从来没有共享过一个稳定前缀**。常规 prefix cache 依赖字节一致的输入——每条车道各带一段 system 提示、再加一个 JSON 数据包，首包逐次不同。"
+    },
+    {
+      "num": "卷一百七十二",
+      "title": "活数字",
+      "excerpt": "「50 卷正史」→ 世界书实况 **171 卷**（worldbook.json 里 count 直接读出来的）；「2,466 笔 · git log」→ 墨水池"
+    },
+    {
+      "num": "卷一百七十三",
+      "title": "行宪见证人",
+      "excerpt": "行宪分给了五条车道，但没有人看着它。这一轮长出第十一盏灯："
+    },
+    {
+      "num": "卷一百七十四",
+      "title": "自己的证券",
+      "excerpt": "`pytest tests/unit`（78 分钟）出炉：**32 红**。逐名对账："
+    },
+    {
+      "num": "卷一百七十五",
+      "title": "三只证人去了又回来",
+      "excerpt": "`#1969` 时期我用一次性的 `sed` 式清理删掉了 investigators 里没人用的 `age_s = 0`，假设结果是一行「可以删干净的死名字」。实际落子："
+    },
+    {
+      "num": "卷一百七十六",
+      "title": "晨报当日的三张票",
+      "excerpt": "`#/observe` 落地了 #1966 公开·只读页（密码「123」是一扇写着「演示」的门 · 240 人合成校准群体 · 不读其他人的轨迹）。`/gazette` 同期挂上了三张票：`/dig` · `/runbook` · `/observe`，每张票可点回去验证。这篇今日版被写入 UI 的源码；不是文案，是有证有据的指针。"
+    },
+    {
+      "num": "卷一百七十七",
+      "title": "潮沙",
+      "excerpt": "再次以 `scripts/stress_smoke.py --concurrency 96 --per-thread 2 --rounds 4 --warmup 2` 敲击同一前门——同样一份 `dist/`、同样本机同一条车道、同样 zero errors："
+    },
+    {
+      "num": "卷一百七十八",
+      "title": "一笔亲笔",
+      "excerpt": "`/gazette` 新增 **「今天的余响 · Today's Echo」**：不再借史官的口，而是用真模型真敲出来的话，读完一屏的队员。**这不是判决——这是编辑自己的字。**"
+    },
+    {
+      "num": "卷一百七十九",
+      "title": "书自己走进车道",
+      "excerpt": "总指令问了一个很朴素的问题：为什么用同一个 aizzz API，codex 一类的应用可以长期维持约 90% 的缓存命中，而我们的每次敲门都像把整本书重新读一遍。答案就在两条硬事实里，本卷把两条都补上了，而且是逐车道补上的，不是\"大概这么一搞\"。"
+    },
+    {
+      "num": "卷一百八十",
+      "title": "展厅是自己签的",
+      "excerpt": "每敲一次风压试、证据一直落册，这次我让模型替这一件展品写一句铭：**只许它读裁好的 packet，不许它一个包外数字都进铭文里面**。灯是 networked — 出网，但只在显式 `--live` 时才出网；`cached=0`、5,255 tokens 的小前缀，两敲门都没享受缓存——诚实记账。"
+    },
+    {
+      "num": "卷一百八十一",
+      "title": "铭文的温度",
+      "excerpt": "`agent/graphs/exhibit_copilot_graph.py` strike_node 过去在异常路径上不带 `sealed_answer`，于是 verify_node 把\"没敲成\"当作\"还没敲\"的默认 offline 路径处理——一个**失败的 live strike 被评成了 HELD**。这卷先 admit：这个\"静默绿\"是 wrong，而且是我自己埋的。"
+    },
+    {
+      "num": "卷一百八十二",
+      "title": "守门人的新装置",
+      "excerpt": "2026-11-17T18:50Z，bot 自敲自提的 `docs/latest.json` 出厂自带 `total_commits=1 · worldbook_scrolls=180 · chronicle_entries=1775`——字都没敲错，数字是假的。病根不在指令——在 `fetch-depth: 1`：fact pack 诞生在 CI 的浅克隆里，连 `git rev-list --count HEAD` 都只能数到一个提交。**自敲自提的车道先天有这么一类错：…"
+    },
+    {
+      "num": "卷一百八十三",
+      "title": "头版自己写自己",
+      "excerpt": "`/gazette` 头版块 TODAY'S ECHO 原先是一锤就完事的敲：2026-11-17T15:38 敲过 #1975，如此锚住如此陈。现在 `scripts/gazette_feature.py` 被补上一条机械门（zh ≤ 280 CJK · en ≤ 220 words · 非空 · 不许 markdown），境遇如下："
+    },
+    {
+      "num": "卷一百八十四",
+      "title": "墙上写什么是你的事",
+      "excerpt": "这一轮里有一件最厉害的事（#1983 记此卷）：这个仓库里两个 opus 互不认路，一个从开始就带 IELTS 6.5 / CET6 546 当成展厅事实，另一个从她拉起来当成展厅上的谎。两人相齐备。你在会话里写下的那一份身份从来没有变过，变的是工匠的手指："
+    }
+  ],
+  "en": [
+    {
+      "num": "Scroll 0",
+      "title": "The Furnace of Evidence",
+      "excerpt": "The world wrote code with fire. AI shot arrows into the sky without asking who would catch them."
+    },
+    {
+      "num": "Scroll 1",
+      "title": "Iron Evidence, the Matrix, and the Review Court",
+      "excerpt": "Every cell in the matrix is stamped with its `execution_surface` — where the flame was lit,"
+    },
+    {
+      "num": "Scroll 2",
+      "title": "The Witness and the Scribe",
+      "excerpt": "The Scribe (frontend) never lies: blank fields render \"未提供\" (\"not supplied\"), never \"没有\";"
+    },
+    {
+      "num": "Scroll 3",
+      "title": "The Cache Doctrine",
+      "excerpt": "In the beginning, every invocation rode the non-stream lane — the dashboard flickered \"非流\""
+    },
+    {
+      "num": "Scroll 4",
+      "title": "The Steel Rampart",
+      "excerpt": "The gatehouse built the #1635 gate: a route table that names a `service-id` absent from Eureka"
+    },
+    {
+      "num": "Scroll 5",
+      "title": "The Chronicler's Ledger",
+      "excerpt": "`docs/operations/DEEP_OPTIMIZATION_PLAN.md` — every entry dated, every number real,"
+    },
+    {
+      "num": "Scroll 6",
+      "title": "The People",
+      "excerpt": "**The Acceptance Officer** — not the AI, not the PM, the one who turns \"I don't trust this\""
+    },
+    {
+      "num": "Scroll 7",
+      "title": "The Endless Stories (Roadmap — unfinished)",
+      "excerpt": "Future scrolls, unnumbered: **Cache key negotiation** — the fleet's reduction of the red line"
+    },
+    {
+      "num": "Scroll 8",
+      "title": "The Chronicler's Vigil",
+      "excerpt": "Three iron teachings this night:"
+    },
+    {
+      "num": "Appendix A",
+      "title": "The Equation",
+      "excerpt": "```"
+    },
+    {
+      "num": "Appendix B",
+      "title": "The Successors",
+      "excerpt": "If you are reading this, the chronicler has already begun. Scrolls `#1680`, `#1700`, `#1800` …"
+    },
+    {
+      "num": "Scroll 9",
+      "title": "The Seal and the Window",
+      "excerpt": "Whoever comes to verify lays down their weapons before entering the door. The officer who does not lay down their weapons is not here to verify — they are here to copy someone else's conclusion. So SpecProof's dictionary has no \"QA\" in it —…"
+    },
+    {
+      "num": "Appendix C",
+      "title": "The Fourteen Gestures (Brief Table)",
+      "excerpt": "Each gesture corresponds to **one button** + **one counter** + **one iron file**. SpecProof is not a book about how to verify; it is a letter that says: *when you face an accepted change, you know what the current acceptance officer looks l…"
+    },
+    {
+      "num": "Final Word",
+      "title": "Appendix D",
+      "excerpt": ""
+    },
+    {
+      "num": "Scroll 10",
+      "title": "Before the Reader Opens This Book",
+      "excerpt": "SpecProof does not prove itself the moment you stop reading. When you turn this book from the first character to the last, and you arrive here — every solid number, every morning decision, every row of iron ever written — has already washed…"
+    },
+    {
+      "num": "Scroll 11",
+      "title": "The Two Doors",
+      "excerpt": "One street is written in Chinese, one in English. Both lanes are equally deep and equally bright; but the sign the passerby sees is **not the same sign** — that is not a defect. The defect would be one sign written in two languages so nobod…"
+    },
+    {
+      "num": "Scroll 12",
+      "title": "Inside: The Hall of Exhibits",
+      "excerpt": "SpecProof's oldest habit is \"write it down\" — since the first differential experiment, every number landed in the ledger. But numbers land in the ledger, not on walls inside the house. No one photographed these exhibits at the moment they h…"
+    },
+    {
+      "num": "Scroll 13",
+      "title": "The Chronicler and the Cache",
+      "excerpt": "The chronicler never writes \"the cache hit rate is high.\" The chronicler writes: \"On 2026-11, _JUNIT_GENERATION_PROMPT's stable prefix measured 96.5% repeated-cache hits on wkapi.pro (#1645); stripped to bytes (#1679/#1681), the same variab…"
+    },
+    {
+      "num": "Scroll 14",
+      "title": "The Fourteen Iron Vows",
+      "excerpt": "\"It ran once\" is not \"it will run again.\" Once the iron evidence lands, erasing it and re-signing it is forgery. Capability may be re-implemented by new code; evidence may only be appended."
+    },
+    {
+      "num": "Final Scroll",
+      "title": "The Unfinished",
+      "excerpt": "Every victory, defeat, ledger, and scroll in this book lands on one answer:"
+    },
+    {
+      "num": "Volume XV",
+      "title": "The Unfinished Road (卷十五 · 未完的路)",
+      "excerpt": "* **Demo doctor** is not a script; it is the demo repo's signature: anyone running `git tag -l` should see"
+    },
+    {
+      "num": "Volume XVI",
+      "title": "The Twelve Iron Scales (卷十六 · 十二把铁秤)",
+      "excerpt": "**Token bilingual**: BENCHMARK, `BLOCKER` — a token is code; code accepts no translation, only bytes."
+    },
+    {
+      "num": "Volume XVII",
+      "title": "The Two-Tongued Verdict (卷十七 · 两种语言的验收)",
+      "excerpt": "thrown at gpt-6-sol with one rule — it may only answer BLOCKER / MAJOR / MINOR:"
+    },
+    {
+      "num": "Volume XVIII",
+      "title": "The Forge and the River (卷十八 · 铁匠炉火)",
+      "excerpt": "`#/ide` gives you three things only: an anchor rail, a copy-board, and a forge journal."
+    },
+    {
+      "num": "Volume XIX",
+      "title": "The Forge's Pen (卷十九 · 铁匠之笔)",
+      "excerpt": "The 1,561 entries in `DEEP_OPTIMIZATION_PLAN.md` are not \"documentation\". Each"
+    },
+    {
+      "num": "Volume XX",
+      "title": "The Cartouche of Iron Evidence (卷二十 · 铁证的印章)",
+      "excerpt": "- **APPROVED** — the iron says it; the iron is its own witness, not a borrowed grace;"
+    },
+    {
+      "num": "Volume XXI",
+      "title": "The World of Iron Evidence (卷二十一 · 铁证的世界)",
+      "excerpt": "Every number came from this repository — none was invented or padded. Whatever does not match on re-derivation, fix and tell."
+    },
+    {
+      "num": "Volume XXII",
+      "title": "The Evidence Archipelago（卷二十二 · 证据群岛）",
+      "excerpt": "- Endless evidence means endless ways to be lost; lost means patience dies first, then leaving — both are enemies of iron evidence;"
+    },
+    {
+      "num": "Volume XXIII",
+      "title": "The Reading Room（卷二十三 · 书房）",
+      "excerpt": "- Until #1774 the world book lived only under `docs/world/`, openable with an editor — the historian read by `git log`, the visitor browsed the halls over HTTP, **and nobody had built a reading room for the official history**;"
+    },
+    {
+      "num": "Volume XXIV",
+      "title": "The Unmixed Tongue（卷二十四 · 不混）",
+      "excerpt": "- A Chinese-mode reader meeting “规划中 Planning” reads half a sentence in two languages, not one whole one;"
+    },
+    {
+      "num": "Volume XXV",
+      "title": "The Iron Gate, the Redis Token Bucket（卷二十五 · 铁门如意）",
+      "excerpt": "- Single-instance limiting × N replicas = N times the quota — not fairness, a leak;"
+    },
+    {
+      "num": "Volume XXVI",
+      "title": "The Wall and the Wire（卷二十六 · 铁墙与消息）",
+      "excerpt": "- Exchange `specproof.observability.events` (topic, durable); routing keys are the event names;"
+    },
+    {
+      "num": "Volume XXVII",
+      "title": "Verification Within Verification（卷二十七 · 验明正身）",
+      "excerpt": "- A verification performed once is a seal; performed twice, it earns the name of official history;"
+    },
+    {
+      "num": "Volume XXVIII",
+      "title": "The Door（卷二十八 · 门扉）",
+      "excerpt": "- **Open it and you can use it**: no five-step detour — see at a glance, press in a second, understand in three sentences;"
+    },
+    {
+      "num": "Volume XXIX",
+      "title": "The Insight Deck（卷二十九 · 洞察舱）",
+      "excerpt": "- The Insight Deck (`#/insight`) opens with the same key as `/identity` (`IDENTITY_ROLES = admin/operator`); a viewer always lands on `PermissionDenied` — fail-closed, server-enforced, UI visibility-only;"
+    },
+    {
+      "num": "Volume XXX",
+      "title": "The Iron Under Load（卷三十 · 压铁）",
+      "excerpt": "- Why is the cold window long? ThreadingHTTPServer thread-per-request, first disk reads, Windows page-cache warm-up — **a forge lit for the very first time smokes**; by the second and third blow the hearth runs the way you want it to;"
+    },
+    {
+      "num": "Volume XXXI",
+      "title": "The Appointment to Prove Iron（卷三十一 · 验铁之约）",
+      "excerpt": "- **Endpoint certificates**: a self-signed TLS cert + mutual mTLS (control-plane → gateway → Python API) — each hop is witnessed inside the handshake;"
+    },
+    {
+      "num": "Volume XXXII",
+      "title": "The Silent Believers（卷三十二 · 沉默的信徒）",
+      "excerpt": "- **zero unmerged commits** is not a shrug — it is **transitive arrival**: their content reaches master via rewrite or influence (tips are auditable: `git log master..branch` is empty);"
+    },
+    {
+      "num": "Volume XXXIII",
+      "title": "The Ledger's Ledger（卷三十三 · 账本的账本）",
+      "excerpt": "- every merge event walks the same six steps: ledger is append-only → `build_chronicle.py` rebuilds `chronicle.json` → `build_repo_stats.py` rebuilds the stats → gates → commit → push;"
+    },
+    {
+      "num": "Volume XXXIV",
+      "title": "The Ringing of Bronze（卷三十四 · 铜铃之声）",
+      "excerpt": "- not one of these bells \"stands watch\" decoratively — every one carries a reproducer: `pytest tests/unit/test_guide_route_catalog.py tests/unit/test_ledger_*.py` echoes the same pitch on any machine;"
+    },
+    {
+      "num": "Volume XXXV",
+      "title": "The Demo Room's Door（卷三十五 · 样板间的门）",
+      "excerpt": "- **are the 111 cases dead fire or living fire**: every case is one commit that walks in, every byte comes from git;"
+    },
+    {
+      "num": "Volume XXXVI",
+      "title": "The Shelves Left Empty（卷三十六 · 空着的架子）",
+      "excerpt": "- **vacancies get reported, not removed** — this repo records shortfalls as \"ledger-pressed gaps\": every gap named in a section; whoever deletes it consigns it to oblivion (never colour a void green in any PR);"
+    },
+    {
+      "num": "Volume XXXVII",
+      "title": "After the Inkwell（卷三十七 · 墨水池之后）",
+      "excerpt": "- **the scribe past midnight** — what live inside those 960 strokes laid after 22:00? Not disguised effort, but this repository's own biological clock etched into its commits;"
+    },
+    {
+      "num": "Volume XXXVIII",
+      "title": "The Truth and the Demo（卷三十八 · 真话与演示）",
+      "excerpt": "- **synthetic never passes as real**: any computed datum self-declares \"synthetic / demo / calibration\", never posing as sampled fact;"
+    },
+    {
+      "num": "Volume XXXIX",
+      "title": "The Three Dialects of the Iron（卷三十九 · 铁的三种语言）",
+      "excerpt": "- `docs/operations/LONG_TERM_PLAN.md`'s forbidden list: no shared-password backdoor ever; real-fleet telemetry only after sign-off; AI never signs off;"
+    },
+    {
+      "num": "Volume XL",
+      "title": "The River with Lamps（卷四十 · 河灯）",
+      "excerpt": "- **Lamp I · DIAGNOSE lane** — rides semantic cache + draft dispatch; a few seconds longer than needed is fine (since #1781 it's 3.0 ms replay);"
+    },
+    {
+      "num": "Volume XLI",
+      "title": "The Proven Cache（卷四十一 · 实测缓存）",
+      "excerpt": "- **wkapi's prefix cache is real** — every draft/diagnose lane call with `SPECPROOF_PROVIDER_POLICY=1` hoist means the prefix never re-reads itself;"
+    },
+    {
+      "num": "Volume XLII",
+      "title": "The Threshold of the Gathered Whole（卷四十二 · 收山的山门）",
+      "excerpt": "A reader opens at the end — these are not adjectives, these are `git show` pointers:"
+    },
+    {
+      "num": "Volume XLIII",
+      "title": "The One Who Never Signs（卷四十三 · 沉默的签收人）",
+      "excerpt": "- **draft / diagnose** — both are draft-in-nature — proposal matter, subject to repeated attempts, safe to cache, retryable without ceremony;"
+    },
+    {
+      "num": "Volume XLIV",
+      "title": "The Iron, Struck Again（卷四十四 · 再敲一遍的铁）",
+      "excerpt": "- **exit 0 means** all forks returned SUCCESS — not WARN-stuffed passes;"
+    },
+    {
+      "num": "Volume XLV",
+      "title": "The Divination of the House Site（卷四十五 · 卜宅）",
+      "excerpt": "- **not kept as \"a green heart beating\"** — this ledger remembers what answered, then refuses to pretend it still answers;"
+    },
+    {
+      "num": "Volume XLVI",
+      "title": "The Book That Will Not Fall（卷四十六 · 立不倒的书）",
+      "excerpt": "- from `## #130` to `## #1828` — **1,629 sections** — every one backs onto a real commit hash or a concrete count; every one is `git show`-verifiable;"
+    },
+    {
+      "num": "Volume XLVII",
+      "title": "The Last Testimony（卷四十七 · 沉默的证词）",
+      "excerpt": "**Iron does not always fall — but once ritual is set, it never falls prematurely.**"
+    },
+    {
+      "num": "Volume XLVIII",
+      "title": "The Current Ledger（卷四十八 · 沉默的现账本）",
+      "excerpt": "- **read-back continuity**: `git rev-list --count HEAD` still counts up — every commit lived, audited, `git show`-verifiable;"
+    },
+    {
+      "num": "Volume XLIX",
+      "title": "The Tide of Quiet（卷四十九 · 沉默的潮汐）",
+      "excerpt": "- **a test is a claim; a claim is a ledger line; a ledger line points to a commit** —"
+    },
+    {
+      "num": "Volume L",
+      "title": "The Closing Gate（卷五十 · 收口之门）",
+      "excerpt": "**The closing is not the conclusion; it is the drawing of the outline — the shape before the figure.**"
+    },
+    {
+      "num": "Volume LI",
+      "title": "The Breath (卷五十一 · 呼吸)",
+      "excerpt": "- **Typography no longer battles blocks**：`white-space: nowrap` on long IDs replaced with `max-width: 460px; text-overflow: ellipsis`"
+    },
+    {
+      "num": "Volume LII",
+      "title": "The Spring of Silence（卷五十二 · 沉默的种子）",
+      "excerpt": "**Not a final chapter — this is the repo daring to read itself aloud.**"
+    },
+    {
+      "num": "Volume LIII",
+      "title": "The Fractured Anchor（卷五十三 · 裂缝之锚）",
+      "excerpt": "- `specproof-534-plane` (python:3.12-slim): **Exited (255) 12–13 days ago** — binary does not run on this host anymore;"
+    },
+    {
+      "num": "Volume LIV",
+      "title": "The Hall of Indicators（卷五十四 · 横幅匾额）",
+      "excerpt": "This repository keeps two kinds of numbers, and both of them are called \"true\" — they are two different trues:"
+    },
+    {
+      "num": "Volume LV",
+      "title": "The Quiet Ensemble（卷五十五 · 无声的合奏）",
+      "excerpt": "The seven absentees, see #1841 for the full ledger: api / worker / outbox-relay / notify-relay / invoice-cron / otel-collector / specproof-edge — every one of them an honest \"lookup … no such host\", an honest down."
+    },
+    {
+      "num": "Volume LVI",
+      "title": "The Palm of White Light（卷五十六 · 白光掌心）",
+      "excerpt": "The same ask through this repository's provider lane (`SPECPROOF_PROVIDER_POLICY=1`):"
+    },
+    {
+      "num": "Volume LVII",
+      "title": "The Silent Pear Blossom（卷五十七 · 静默的梨花）",
+      "excerpt": "Capacity: 1200 events (a ring). When full, the oldest event is pushed out — **it will never push your key out, because it never touches keys.**"
+    },
+    {
+      "num": "Volume LVIII",
+      "title": "The Echolocation（卷五十八 · 回声定位）",
+      "excerpt": "1. **no gaslighting**: the climate log knows \"tapped again\", never \"why\"; the echo never accuses, only routes;"
+    },
+    {
+      "num": "Volume LIX",
+      "title": "The Mirror Corridor（卷五十九 · 镜厅回廊）",
+      "excerpt": "Under the title of the pocket manual (#/manual) there is now a strip called THE LOCAL ECHO:"
+    },
+    {
+      "num": "Volume LX",
+      "title": "The Three-Body Boundary（卷六十 · 三体界碑）",
+      "excerpt": "Not a crash — but this book may not write \"normal\" over an overage. The cold-start spike is real: every cold system spends its first two minutes serving its timeouts, that is factory spec, not a bug to fix. The right answer is a warmup prob…"
+    },
+    {
+      "num": "Volume LXI",
+      "title": "North Wind Night（卷六十一 · 北风之夜）",
+      "excerpt": "At the very end of the startup sequence, before \"all green\":"
+    },
+    {
+      "num": "Volume LXII",
+      "title": "The East Wind South Wind（卷六十二 · 东风之南）",
+      "excerpt": "`scripts/stress_smoke.py --warmup N`: knock N untimed rounds first (not counted), then measure."
+    },
+    {
+      "num": "Volume LXIII",
+      "title": "The Homecoming（卷六十三 · 归港记）",
+      "excerpt": "1. **no sleight of hand** — build_evidence.py has no \"improve\", only \"copy verbatim\";"
+    },
+    {
+      "num": "Volume LXIV",
+      "title": "The Day of Sailing（卷六十四 · 启航日）",
+      "excerpt": "1. **every Monday** — repeating, never cancelled for release prep nor for fatigue;"
+    },
+    {
+      "num": "Volume LXV",
+      "title": "The Homecoming, Repeated（卷六十五 · 归港复航）",
+      "excerpt": "**Δ (second vs first): worst p99 +5.1ms · avg p95 +5.6ms · traffic +0.91 MB.**"
+    },
+    {
+      "num": "Volume LXVI",
+      "title": "The Timetable（卷六十六 · 船期表）",
+      "excerpt": "1. **no wallpaper-testing** — no copies of the page, no screenshots; only aria/structure/navigation-side-effects;"
+    },
+    {
+      "num": "Volume LXVII",
+      "title": "The Furling Hour（卷六十七 · 收帆时刻）",
+      "excerpt": "1. **three rows, never more** — empty evidence yields an honest \"no knock yet\" in row 1;"
+    },
+    {
+      "num": "Volume LXVIII",
+      "title": "The Astronomer's Night（卷六十八 · 巡天一夜）",
+      "excerpt": "The three lamps are **struck live every run** — like --warmup, nothing is remembered, nothing is cached, nothing is impersonated."
+    },
+    {
+      "num": "Volume LXIX",
+      "title": "The Quiet Read（卷六十九 · 灯下书停）",
+      "excerpt": "1. **no stamps on the card** — no signature line, no \"verified by me\"; not a single red vermilion seal;"
+    },
+    {
+      "num": "Volume LXX",
+      "title": "The Falling Sparks（卷七十 · 灯花落尽）",
+      "excerpt": "All three doors draw from **one drawer** (repoStats / evidence / unsigned / engine / worldbook, all git-tracked);"
+    },
+    {
+      "num": "Volume LXXI",
+      "title": "Above the Snowline（卷七十一 · 雪线以上）",
+      "excerpt": "1. **never promise** — three columns only: what to knock · who knocks · what blocks it; never \"when it will be done\";"
+    },
+    {
+      "num": "Volume LXXII",
+      "title": "The Many Shadows of the Lamp（卷七十二 · 灯影千重）",
+      "excerpt": "1. **name every shadow** — each shadow hangs a plaque: \"this is a shadow, not a bug, and not the truth\";"
+    },
+    {
+      "num": "Volume LXXIII",
+      "title": "The Midnight Lamplighter（卷七十三 · 长夜灯半）",
+      "excerpt": "The three lamps and the #/last-call unsigned row drink from **the same JSON** (`unsigned.json`) —"
+    },
+    {
+      "num": "Volume LXXIV",
+      "title": "The Wind Knows the Way Too（卷七十四 · 风也认路）",
+      "excerpt": "Implementation: `scripts/audit_unsigned.py` · landed in #1863. Colours: `clean` jade · ahead/behind/dirty-tree amber · diverged red · no-upstream grey (ours correctly reads no-upstream only when upstream is unset; today it shows dirty-tree …"
+    },
+    {
+      "num": "Volume LXXV",
+      "title": "The Mirror Over the Wall（卷七十五 · 逾墙之镜）",
+      "excerpt": "One prompt (same 5600-token prefix), offered in series to the draft/diagnose pair:"
+    },
+    {
+      "num": "Volume LXXVI",
+      "title": "The End of the Ruin（卷七十六 · 废墟尽头）",
+      "excerpt": "1. **no \"this looks like junk\" without one audit first** — no hammer before the verdict;"
+    },
+    {
+      "num": "Volume LXXVII",
+      "title": "Door and Lock（卷七十七 · 门与锁）",
+      "excerpt": "The synthetic lock (16 hex) = SHA256 over the sorted concatenation of the five evidence hashes."
+    },
+    {
+      "num": "Volume LXXVIII",
+      "title": "The Spine After the Avalanche（卷七十八 · 雪崩后的书脊）",
+      "excerpt": "Every R is anchored — git show /敲 the script / read the locked JSON — **every one re-verifiable by hand.**"
+    },
+    {
+      "num": "Volume LXXIX",
+      "title": "The Gap and the Light（卷七十九 · 缺口与光）",
+      "excerpt": "1. **never dyed green** — writing an IOU on this wall does not mark it paid;"
+    },
+    {
+      "num": "Volume LXXX",
+      "title": "The Cartographer's Graph（卷八十 · 图的语言）",
+      "excerpt": "```"
+    },
+    {
+      "num": "Volume LXXXI",
+      "title": "When the Moon Falls Into the Springs（卷八十一 · 月落千泉）",
+      "excerpt": "Three exhibits **all OK** — this is what the repo looks like when the numbers aren't dressed up: 192 × 3 knocks."
+    },
+    {
+      "num": "Volume LXXXII",
+      "title": "Below the Lamp, Above the Water（卷八十二 · 灯上水下）",
+      "excerpt": "They hang beside `tracked files / commits / ledger volume / book sizes` — **not banners, measurements; re-run the script and they either agree or you found a bug.**"
+    },
+    {
+      "num": "Volume LXXXIII",
+      "title": "Anchor and Rope（卷八十三 · 锚与绳）",
+      "excerpt": "At the top of #/archive now lives one jade line:"
+    },
+    {
+      "num": "Volume LXXXIV",
+      "title": "The Miles on the Wall（卷八十四 · 墙上的里程）",
+      "excerpt": "* index-05 on your showcase stays exactly where it is; this repo will not touch it;"
+    },
+    {
+      "num": "Volume LXXXV",
+      "title": "The Steganographic Line（卷八十五 · 隐写的一行）",
+      "excerpt": "At the very top of #/dashboard, above the quick-start strip:"
+    },
+    {
+      "num": "Volume LXXXVI",
+      "title": "The Mark of the Chain（卷八十六 · 链印法约）",
+      "excerpt": "```"
+    },
+    {
+      "num": "Volume LXXXVII",
+      "title": "The Knocker（卷八十七 · 敲门的人）",
+      "excerpt": "A new face on the `#/gazette` \"today's weather\" column:"
+    },
+    {
+      "num": "Volume LXXXVIII",
+      "title": "One Page Under the Lamp（卷八十八 · 灯下的一页白）",
+      "excerpt": "`#/chainBanner` — one strip of ink at the top of the chronicle:"
+    },
+    {
+      "num": "Volume LXXXIX",
+      "title": "The Echo of the Knock（卷八十九 · 敲门的回音）",
+      "excerpt": "Lamp five is struck live by `agent/graphs/purity_graph.py` into `docs/evidence/purity-sift.json`; that exact JSON is what the `#/archive` MidnightLamp displays. **The lamp does not boast — it reports.**"
+    },
+    {
+      "num": "Volume XC",
+      "title": "The Sleep of Ten Millennia（卷九十 · 万年沉睡）",
+      "excerpt": "Every sentence in this volume sits on top of that debt; the rest of the world hangs underneath it, never above."
+    },
+    {
+      "num": "Volume XCI",
+      "title": "One Strike a Day（卷九十一 · 一日一试）",
+      "excerpt": "`.local/llm.json` updated. .gitignore bars it from ever crossing."
+    },
+    {
+      "num": "Volume XCII",
+      "title": "The Knocker of the Dry Echo（卷九十二 · 回声无水的敲门者）",
+      "excerpt": "`ChainBanner.tsx` (since #1878) reads `audit_chain.json` and paints one line: **audit chain · CLEAR · 5 lamps**."
+    },
+    {
+      "num": "Volume XCIII",
+      "title": "The Sound of the Opened Drawer（卷九十三 · 开匣之声）",
+      "excerpt": "Half of RAG knowledge is **retrieval** — the generation half is still closed today (6/6 red on the aizzz lane; see /engine verbatim)."
+    },
+    {
+      "num": "Volume XCIV",
+      "title": "The Ladder That Caught the Light（卷九十四 · 梯光复明）",
+      "excerpt": "Only today, carrying the ladder, did the door admit: **the block happened on the direct jump**, not on the key, not on the model."
+    },
+    {
+      "num": "Volume XCV",
+      "title": "The Whole Chain Answers（卷九十五 · 铁门响应）",
+      "excerpt": "Stage-2 of `provider_smoke.py`, struck right after #1884 landed:"
+    },
+    {
+      "num": "Volume XCVI",
+      "title": "The Morning the Furnace Went Out（卷九十六 · 炉火熄灭的上午）",
+      "excerpt": "Sometime at 2026-11-16T15:26Z, Docker Desktop on this machine went down (dockerd unreachable; the npipe could not find `dockerDesktopLinuxEngine`)."
+    },
+    {
+      "num": "Volume XCVII",
+      "title": "The Engine's Second Ledger（卷九十七 · 引擎的副账）",
+      "excerpt": "The /engine page now carries a second footnote (zh/en symmetric):"
+    },
+    {
+      "num": "Volume XCVIII",
+      "title": "The Weight of a Rivet（卷九十八 · 一颗铆钉的重量）",
+      "excerpt": "This volume welds one rivet under it."
+    },
+    {
+      "num": "Volume XCIX",
+      "title": "The Twenty-Five Millisecond Law（卷九十九 · 黑夜守望的门槛）",
+      "excerpt": "new: `agent/graphs/night_watch_graph.py` — the three largest StateGraphs of this repository on one spine:"
+    },
+    {
+      "num": "Volume C",
+      "title": "The Night Eye Opens（卷一百 · 夜眼睁开）",
+      "excerpt": "This volume surfaces that output directly to the eye of the visitor:"
+    },
+    {
+      "num": "Volume CI",
+      "title": "The Honest README（卷一百零一 · 真实的 README）",
+      "excerpt": "`README.md` gained a new section up front — 「最新验收 · 2026-11-16」 (English mirror `README_EN.md`): the model door (`aizzz.xyz/gpt-6.1-terra`), the Clash Verge egress clause, provider smoke 7/7, `mvn -o` 137/137 green lane, Night Watch's compo…"
+    },
+    {
+      "num": "Volume CII",
+      "title": "The Echo of Two Knocks（卷一百零二 · 敲两扇门的回声）",
+      "excerpt": "Two new assertions weld the Ask-the-Iron page's contract to the test wall:"
+    },
+    {
+      "num": "Volume CIII",
+      "title": "The Sixth Exhibit（卷一百零三 · 第六件实证）",
+      "excerpt": "`docs/evidence/2026-11-16-static-warm-6.json`:"
+    },
+    {
+      "num": "Volume CIV",
+      "title": "The Five Iron Flames（卷一百零四 · 五盏常亮的铁灯）",
+      "excerpt": "`agent/graphs/recall_graph.py` — the \"ask-the-iron\" retrieval subgraph (LangGraph):"
+    },
+    {
+      "num": "Volume CV",
+      "title": "Two Rulers, One Table（卷一百零五 · 两把尺子并排）",
+      "excerpt": "Two BM25 implementations find the same answer for `\"密码 123\"` (both **#1799**) but different first entries for `\"court 永不缓存\"` —"
+    },
+    {
+      "num": "Volume CVI",
+      "title": "The Magnet and the Needle（卷一百零六 · 磁场与针）",
+      "excerpt": "`providers/net.py` has long known this host needs exactly one out-channel—every proxy in history walks through here:"
+    },
+    {
+      "num": "Volume CVII",
+      "title": "The Wound and the Full Stop（卷一百零七 · 伤口与句号）",
+      "excerpt": "2026-11-16 — the owner's order language, verbatim:"
+    },
+    {
+      "num": "Volume CVIII",
+      "title": "The Night the Lamp Got Signed（卷一百零八 · 终于给灯签了个字）",
+      "excerpt": "`docs/operations/OBSERVABILITY.md` §9 Signature Record · 2026-11-16:"
+    },
+    {
+      "num": "Volume CIX",
+      "title": "A Signature Is Not Every Light（卷一百零九 · 签了字，不等于家里有灯火）",
+      "excerpt": "- assemble any numeric claim about fleet telemetry — signing Observability does not turn Port 8000 into SpecProof (it is career-os-ai answering with 200);"
+    },
+    {
+      "num": "Volume CX",
+      "title": "The Lamp That Never Goes Quiet（卷一百一十 · 永远不灭的红）",
+      "excerpt": "`docs/evidence/2026-11-16-static-warm-7.json`:"
+    },
+    {
+      "num": "Volume CXI",
+      "title": "The IOU Wall, In Person（卷一百一十一 · 欠条现场）",
+      "excerpt": "Admin-operator gets `.insight-debt-panel` — a panel read directly from `unsigned.json` at build time, rows verbatim:"
+    },
+    {
+      "num": "Volume CXII",
+      "title": "The Reckoning, Two Lines Legal（卷一百一十二 · 一张表两行字）",
+      "excerpt": "1. anyone can `git diff docs/operations/OBSERVABILITY.md`;"
+    },
+    {
+      "num": "Volume CXIII",
+      "title": "The Pressure Is On, For Real（卷一百一十三 · 压力来了！）",
+      "excerpt": "`docs/evidence/2026-11-16-static-warm-8.json` (this volume · 96 concurrent × 2 per-thread × 4 rounds + 3 warmup):"
+    },
+    {
+      "num": "Volume CXIV",
+      "title": "The Three-Pin Caliper（卷一百一十四 · 用三根针量十根骨头）",
+      "excerpt": "Δ(24→48) = **+32.9 ms** · Δ(48→96) = **+1,020.4 ms** (the cliff)"
+    },
+    {
+      "num": "Volume CXV",
+      "title": "The Light That Does Not Stop Itself（卷一百一十五 · 灯不会自己停）",
+      "excerpt": "- worldbook **121** sections (today, #1904)"
+    },
+    {
+      "num": "Volume CXVI",
+      "title": "The Unfakeable Sign（卷一百一十六 · 不装的招牌）",
+      "excerpt": "`apps/web/src/App.tsx` — \"workspace-footer\" new contents:"
+    },
+    {
+      "num": "Volume CXVII",
+      "title": "The Third Light in the Atlas（卷一百一十七 · 第三块地标）",
+      "excerpt": "* new tile `stress exhibit count` (always `evidence.all.filter(/static-(warm|light)/).length`);"
+    },
+    {
+      "num": "Volume CXVIII",
+      "title": "The Errarium（卷一百一十八 · 错误的展厅）",
+      "excerpt": "`#/errata` renders the fifteen errata that belong in the scroll (`APPENDIX_CORRECTIONS.md`):"
+    },
+    {
+      "num": "Volume CXIX",
+      "title": "The Language Purity Volume（卷一百一十九 · 两种语言只许说一种话）",
+      "excerpt": "* `strings.ts` en table, three real leaks: `tour.lead`'s 「验讫」, `explorer.tally`'s 「{verdict}」, `usage.basis`'s 「—」 — all switched to English typographic quotes;"
+    },
+    {
+      "num": "Volume CXXVII",
+      "title": "The StateGraph Volume（卷一百二十七 · 状态图谱）",
+      "excerpt": "* Route: public · item #44 in the NAV (`group.evidence` · `matrix` icon) · bilingual;"
+    },
+    {
+      "num": "Volume CXXVIII",
+      "title": "The Overflow Guard（卷一百二十八 · 不让字撑坏屏幕）",
+      "excerpt": "Acting on the owner's standing order — \"fix the unreasonable parts of the front end: distorted type, overlapping blocks, squeezed or occluded elements — make it tidy and beautiful\" — this volume is a systematic overflow sweep and the guards…"
+    },
+    {
+      "num": "Volume CXXIX",
+      "title": "The Two Shadows on the Door（卷一百二十九 · 门被影子盖住的两道光）",
+      "excerpt": "1. **Exhibit #9 strikes in**: `2026-11-16-static-warm-9.json` — 64 concurrent × 2 per-thread × 4 rounds (+3 warmup, not counted) — 512 requests total, err 0.00%, worst p99 **1,596.9 ms**."
+    },
+    {
+      "num": "Volume CXXX",
+      "title": "Two Scrolls for the IOU（卷一百三十 · 欠条的两卷）",
+      "excerpt": "The Epic gained two scrolls (both locales):"
+    },
+    {
+      "num": "Volume CXXXI",
+      "title": "The Gathering（卷一百三十一 · 收束）",
+      "excerpt": "* local branches: only `master`; `git ls-files -u` empty; worktree inventory: just the main worktree; three remotes left untouched (the owner's refs are not mine to vacate) — the merge is a fact, this volume is the witness."
+    },
+    {
+      "num": "Volume CXXXII",
+      "title": "The Sixteenth R · The Two Strikes（卷一百三十二 · 第十六枚 · 两次敲）",
+      "excerpt": "**R16 · cache attribution** (both locales):"
+    },
+    {
+      "num": "Volume CXXXIII",
+      "title": "The Watch Burns Unattended（卷一百三十三 · 错误展厅守夜人的灯在亮）",
+      "excerpt": "Scroll XVII《The Night Watch Inside the Badge》(zh/en symmetric) covers #1912–#1916: exhibit #9 (64c · p99 1,596.9 ms), the two shadows on the door (CP actuator 404s → control-plane + gateway test profiles carry the full exposure pin), R16 (o…"
+    },
+    {
+      "num": "Volume CXXXIV",
+      "title": "The Floor Is the Floor（卷一百三十四 · 谷底就谷底了）",
+      "excerpt": "`docs/evidence/2026-11-16-static-warm-10.json`:"
+    },
+    {
+      "num": "Volume CXXXV",
+      "title": "Four Strikes, One Number（卷一百三十五 · 四次敲出四个数字）",
+      "excerpt": "`scripts/_cache_strike.py` (same prompt, four strikes, messages list unchanged):"
+    },
+    {
+      "num": "Volume CXXXVI",
+      "title": "The Lamps Were Re-welted Light（卷一百三十六 · 把灯重新拧亮了）",
+      "excerpt": "`docs/evidence/2026-11-16-static-warm-11.json`:"
+    },
+    {
+      "num": "Volume CXXXVII",
+      "title": "Two Lamps Redden Together（卷一百三十七 · 第两盏灯一起红了）",
+      "excerpt": "Both exhibits landed on the same sort of wall — host saturation, not falsified config, not threshold tampering. p50 stayed 386→541 ms (exhibit #10) / 515→2,020 ms (exhibit #11); rounds eventually settled down to 2.15% err and 99% success, b…"
+    },
+    {
+      "num": "Volume CXXXVIII",
+      "title": "The Notch at 512（卷一百三十八 · 512 这个数字怎么看）",
+      "excerpt": "`docs/evidence/2026-11-16-static-warm-12.json` (512 × 2 × 4 rounds + 3 warmup):"
+    },
+    {
+      "num": "Volume CXXXIX",
+      "title": "The Whole Roster on the Pages（卷一百三十九 · 落在册頁上的整隊雨）",
+      "excerpt": "The saturation cliff is held plainly:"
+    },
+    {
+      "num": "Volume CXL",
+      "title": "The Saturation Mark（卷一百四十 · 饱和的那一横）",
+      "excerpt": "* `/exhibits` gained a **saturation curve** — an inline SVG: X = concurrency (24, 48, 64, 96, 128, 256, 512), Y = worst p99 (the max p99 at each saturation the host actually struck)."
+    },
+    {
+      "num": "Scroll CXLI",
+      "title": "The Sixth Graph — The One That Phones Home",
+      "excerpt": "- the page re-hangs \"The five living graphs\" → \"**The six living graphs**\" (`apps/web/src/pages/StateGraph.tsx` · `stategraph.copy.ts`);"
+    },
+    {
+      "num": "Scroll CXLII",
+      "title": "The Two-Eras Ledger",
+      "excerpt": "1. `engine.json` rebuilt (`scripts/build_engine.py` · byte-accounted against .local/llm_usage.jsonl · deterministic);"
+    },
+    {
+      "num": "Scroll CXLIII",
+      "title": "The 192 Mark — the one recorded while the host was still warm",
+      "excerpt": "`docs/evidence/2026-11-16-static-warm-13.json` (this host · static lane · 3 entry assets · fresh server):"
+    },
+    {
+      "num": "Scroll CXLIV",
+      "title": "The Deck That Reads Itself",
+      "excerpt": "```"
+    },
+    {
+      "num": "Scroll CXLV",
+      "title": "The Model Wrote the Fix, The Door Said No",
+      "excerpt": "1. the earlier full-chain E2E (2026-09-18) struck the wkapi lane; this one struck **aizzz/gpt-6.1-terra** — a different lock, the same chain; the 4224 second-call hit showed up in person;"
+    },
+    {
+      "num": "Scroll CXLVI",
+      "title": "The Sandbox Finally Bites pytest",
+      "excerpt": "1. **the slim image never carried pytest** — the wheelhouse did (`specproof-pip-wheelhouse-1000`, pytest 9.2.0 seeded, offline install verified via `scripts/seed_pip_wheelhouse.ps1`);"
+    },
+    {
+      "num": "Scroll CXLVII",
+      "title": "The Delta Against the Earliest One",
+      "excerpt": "`docs/evidence/2026-11-16-static-warm-14.json`:"
+    },
+    {
+      "num": "Scroll CXLVIII",
+      "title": "The 384 Rung, Just Before 512",
+      "excerpt": "`docs/evidence/2026-11-16-static-warm-15.json` (this host · static lane · 3 entry assets):"
+    },
+    {
+      "num": "Scroll CXLIX",
+      "title": "The Deck That Strikes Itself",
+      "excerpt": "```"
+    },
+    {
+      "num": "Scroll CL",
+      "title": "The Wall That Does Not Fall",
+      "excerpt": "The shape, verbatim from `api/auth.py`:"
+    },
+    {
+      "num": "Scroll CLI",
+      "title": "Three doors open",
+      "excerpt": "- the spacing gate is a lattice-snap decision per declaration — every px can be snapped without authorship;"
+    },
+    {
+      "num": "Scroll CLII",
+      "title": "The red door half-open",
+      "excerpt": "**Machine-counted, nothing inflated:** every number above is the first line of this session's `AssertionError: N colors…` from `pytest …::test_no_painted_color_bypasses_the_theme_tokens -q`."
+    },
+    {
+      "num": "Scroll CLIII",
+      "title": "Every door is open",
+      "excerpt": "Every one of the 593 painted literals was registered byte-for-byte into the theme:"
+    },
+    {
+      "num": "Scroll CLIV",
+      "title": "One ledger, two measures",
+      "excerpt": "Same machine, same `.local/llm_usage.jsonl`, 84 calls:"
+    },
+    {
+      "num": "Scroll CLV",
+      "title": "The coarse measure, made honest",
+      "excerpt": "**Honest ledger, not a magic score**: 366→138 is not \"228 problems fixed\"; it is \"coordinated bilinguals returned to their own drawer\". The remaining 138 — including `agent/util.ts`'s \"规划中 Planning\" / \"等待计划审批 Awaiting approval\" (deliberate …"
+    },
+    {
+      "num": "Scroll CLVI",
+      "title": "The eighth lamp that counts its own books",
+      "excerpt": "- offline graph; reads only the local `.local/llm_usage.jsonl` with the same honest accounting the Usage panel renders — **by_lane × by_protocol, hit-rate basis, streamed_ratio, error rate**; unreadable means UNAVAILABLE, never a made-up re…"
+    },
+    {
+      "num": "Scroll CLVII",
+      "title": "The ruler that learned to read the line above",
+      "excerpt": "Not one `A` was hand-crossed-out; every one that left was reclassified by a rule stated in code."
+    },
+    {
+      "num": "Scroll CLVIII",
+      "title": "Two tributaries into the same Chronicle",
+      "excerpt": "- **no red door got painted**: exactly **23 census** remain on file (item #8 stays open until the family is honestly closed); the verdict-channel pair is a true fix (not an exemption by fiat — the scale is the graphs' own vocabulary, with e…"
+    },
+    {
+      "num": "Scroll CLIX",
+      "title": "The ruler that learned to read the line above — again",
+      "excerpt": "No item left A by hand-authorisation; every reclassification has a written rule behind it."
+    },
+    {
+      "num": "Scroll CLX",
+      "title": "Three hands enter the room — the ninth lamp",
+      "excerpt": "- offline readonly investigators — explorer / tester / security — fan out in parallel on one question each; their prompts forbid fabrication — **when a thing is not there, they say so** — and answer with plain text, never JSON, never invent…"
+    },
+    {
+      "num": "Scroll CLXI",
+      "title": "The Dig",
+      "excerpt": "- **POST `/api/v1/admin/investigation-dig`** — admin/operator surface, tenant mode enforced:"
+    },
+    {
+      "num": "Scroll CLXII",
+      "title": "The Dig lands",
+      "excerpt": "New endpoint **`/api/v1/admin/investigation-dig`** — admin/operator only, tenant-mode enforced; body `{\"question\":\"…\"}` (1–600 chars). Three readonly investigators fan out on one question:"
+    },
+    {
+      "num": "Scroll CLXIII",
+      "title": "The witness signs for its own words",
+      "excerpt": "`tests/unit/test_verdict_channel_parity.py` reported failures — first two, then one:"
+    },
+    {
+      "num": "Scroll CLXIV",
+      "title": "Every red door struck again",
+      "excerpt": "After #1956 (`57afcea`) and #1957 (`b7a011a`) landed, `pytest tests/unit` ran end-to-end: **26 failing files / 26 reds**."
+    },
+    {
+      "num": "Scroll CLXV",
+      "title": "The alert fires; the model reads the repo first",
+      "excerpt": "Follow-up to #1958 (every red door re-struck). This is the deep-integration lane applied to operations:"
+    },
+    {
+      "num": "Scroll CLXVI",
+      "title": "The three scenes of an on-call page",
+      "excerpt": "An alert fires, and the person on call does not know which hand to reach for first. In this world, the doorbell stays silent — every minute of silence is a minute somebody holds their breath, and the door needs someone who knows which knock…"
+    },
+    {
+      "num": "Scroll CLXVII",
+      "title": "It is not taller; it is the same host, struck again",
+      "excerpt": "`docs/evidence/2026-11-17-static-warm-17.json`:"
+    },
+    {
+      "num": "Scroll CLXVIII",
+      "title": "The Door Is Not a Lock; It Is a Mirror",
+      "excerpt": "The request was previously ruled on in #1799, recorded verbatim in the ledger: there is no \"everyone who knows the password\" version of an admin page — knowing the password is not holding the authority. This round does not overturn that rul…"
+    },
+    {
+      "num": "Scroll CLXIX",
+      "title": "One Real Machine, One Real Story",
+      "excerpt": "The phrase \"simulate real user behaviour\" only pays out when the simulation admits it is simulation — then the real thing may speak through. Until now /observe held two components: the 240-member mulberry32(seed 20261115) calibration cohort…"
+    },
+    {
+      "num": "Scroll CLXX",
+      "title": "The Unmixed Chapter",
+      "excerpt": "`i18n_audit.py` bucket A went **37 → 29**. Every one removed was a real on-screen hybrid, not a comment:"
+    },
+    {
+      "num": "Scroll CLXXI",
+      "title": "The Covenant",
+      "excerpt": "Struck today: `scripts/two_strike_probe.py` (4,676-token prefix · back-to-back) → `prompt_cache_hit_tokens=0`, flat. The reason needs no mystery: **no lane has ever shared one stable prefix.** Prefix caching rewards byte-identical leading s…"
+    },
+    {
+      "num": "Scroll CLXXII",
+      "title": "Live Numbers",
+      "excerpt": "- \"50 volumes (World Book)\" → **171** — read from `worldbook.json` at render time;"
+    },
+    {
+      "num": "Scroll CLXXIII",
+      "title": "The Covenant Witness",
+      "excerpt": "The covenant shipped to five lanes; nothing watched it. This round grows the eleventh lamp:"
+    },
+    {
+      "num": "Scroll CLXXIV",
+      "title": "Its Own Evidence",
+      "excerpt": "`pytest tests/unit` in 78 minutes reported **6,660 passed · 45 skipped · 32 failed**. Reconciled name by name:"
+    },
+    {
+      "num": "Scroll CLXXV",
+      "title": "The Witnesses Came Back",
+      "excerpt": "I kept a one-time lint pass over `craft/investigators.py` to retire an unused `age_s = 0`. The edit was expected as a harmless dead-name removal:"
+    },
+    {
+      "num": "Scroll CLXXVI",
+      "title": "The Three Tickets on Today's Front Page",
+      "excerpt": "`/observe` shipped as the public read-only demo (`123` is a door marked \"demo\"; 240-member synthetic cohort; no other human exists). `/gazette` now pins the same three tickets on its first page: `/dig` · `/runbook` · `/observe` — each pair …"
+    },
+    {
+      "num": "Scroll CLXXVII",
+      "title": "Two Grains the Same Tide",
+      "excerpt": "Struck again with `scripts/stress_smoke.py --concurrency 96 --per-thread 2 --rounds 4 --warmup 2` on the same front door — same `dist/`, same host, same lane, both **0.00% err**:"
+    },
+    {
+      "num": "Scroll CLXXVIII",
+      "title": "The Editor Picks up the Pen",
+      "excerpt": "`/gazette` gained **TODAY'S ECHO** — a column in which the model itself, not the chronicler, writes the last few lines on today's page. It is never a verdict; it is the editor's voice, chosen by the writers' strike, read once, never revised…"
+    },
+    {
+      "num": "Scroll CLXXIX",
+      "title": "The Book Walks Into the Lane",
+      "excerpt": "A plain question was asked: why can the very same aizzz API sustain ~90 % hit rates in Codex-class applications, while every strike of ours re-reads the whole book from scratch? Two hard facts pay the bill, and this round installs both — la…"
+    },
+    {
+      "num": "Scroll CLXXX",
+      "title": "The Wall Signs Its Own Name",
+      "excerpt": "Every time a stress strike lands evidence, the exhibit wall is painted with what the machines measured. This round lets the machine sign its own wall — one hum, two paragraphs (zh + en), drawn only from the trimmed packet. The lamp is netwo…"
+    },
+    {
+      "num": "Scroll CLXXXI",
+      "title": "The Warmth of a Seal",
+      "excerpt": "`agent/graphs/exhibit_copilot_graph.py`'s strike error branch used to omit `sealed_answer`, so the verifier treated a **failed live strike as if the machine had never been asked** — a silent pass dressed as offline patience. Admission: this…"
+    },
+    {
+      "num": "Scroll CLXXXII",
+      "title": "The Gatekeeper's New Gauge",
+      "excerpt": "On 2026-11-17T18:50Z, the self-committing bot struck `docs/latest.json` with `total_commits=1 · worldbook_scrolls=180 · chronicle_entries=1775`. No character was a lie; the numbers were. The disease was not the script — it was `fetch-depth:…"
+    },
+    {
+      "num": "Scroll CLXXXIII",
+      "title": "The Front Page Writes Itself",
+      "excerpt": "`/gazette`'s masthead column — TODAY'S ECHO — was a single-frame work clipped at 15:38 on 2026-11-17 against entry #1975. This round adds a **broad sheet gate** to its editor and a full cadence:"
+    },
+    {
+      "num": "Scroll CLXXXIV",
+      "title": "The Wall Owns Only the Master's Words",
+      "excerpt": "One exhibition-hall number line, twice written, twice removed, twice renewed. The sequence is acceptable to recount:"
+    }
+  ],
+  "note": "machine-struck from the two bibles; parity asserted at build time; never an editorial statement"
+}

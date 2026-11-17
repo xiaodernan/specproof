@@ -1,0 +1,21 @@
+.library-page { max-width: 1100px; margin: 0 auto; padding: 0 24px 80px; }
+.page-head { padding: 34px 0 12px; border-bottom: 1px solid var(--pigment-steel-glow-14); margin-bottom: 18px; }
+.page-head h1 { font-family: Georgia, 'Noto Serif SC', 'Songti SC', serif; font-size: clamp(38px, 4.5vw, 56px); letter-spacing: 0; color: var(--parchment-hi); margin: 0 0 10px; font-weight: 700; }
+.library-en { display: block; font-size: 13px; letter-spacing: .35em; color: var(--archive-gold-light); font-weight: 400; margin-top: 10px; text-transform: uppercase; }
+.page-sub { color: var(--pigment-steel-12); font-size: 16px; line-height: 1.9; max-width: 64ch; }
+.visually-hidden { position: absolute !important; height: 1px; width: 1px; overflow: hidden; clip: rect(1px, 1px, 1px, 1px); white-space: nowrap; }
+.library-search { display: flex; align-items: center; gap: 12px; margin: 16px 0 18px; }
+.library-filter { flex: 1; padding: 13px 18px; background: var(--pigment-steel-15); border: 1px solid var(--pigment-steel-glow-13); border-radius: 4px; color: var(--parchment-hi); font-family: inherit; font-size: 15px; outline: none; }
+.library-filter:focus { border-color: var(--archive-gold-light); box-shadow: 0 0 0 3px rgba(201, 162, 88, .12); }
+.library-filter::placeholder { color: var(--pigment-steel-10); }
+.library-count { font-size: 13px; color: var(--archive-gold-light); font-family: 'DM Mono', ui-monospace, monospace; min-width: 84px; text-align: right; }
+.library-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 12px; }
+.library-item { background: var(--pigment-steel-17); border: 1px solid var(--pigment-steel-18); border-left: 3px solid var(--library-gold, rgba(201, 162, 88, .55)); border-radius: 0 6px 6px 0; padding: 14px 16px; }
+.library-row { display: flex; align-items: baseline; gap: 12px; }
+.library-num { font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; color: var(--archive-gold-light); letter-spacing: .06em; min-width: 48px; text-transform: uppercase; }
+.library-body { flex: 1; min-width: 0; }
+.library-title { color: var(--parchment-hi); font-size: 15px; line-height: 1.55; font-weight: 600; margin-bottom: 6px; }
+.library-toggle { background: transparent; border: 1px solid var(--pigment-steel-glow-13); color: var(--archive-gold-light); font: 11px 'DM Mono', ui-monospace, monospace; letter-spacing: .06em; padding: 3px 10px; cursor: pointer; border-radius: 12px; }
+.library-toggle:hover { border-color: var(--archive-gold-light); color: var(--parchment-hi); }
+.library-excerpt { margin: 10px 0 0; color: var(--pigment-steel-12); font-size: 13px; line-height: 1.85; font-style: italic; border-left: 1px solid var(--pigment-steel-glow-14); padding-left: 10px; }
+.library-colophon { margin-top: 30px; padding: 16px 18px; border: 1px dashed var(--pigment-steel-glow-14); border-radius: 4px; color: var(--pigment-steel-10); font-size: 12px; line-height: 1.9; }

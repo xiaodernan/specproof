@@ -6580,3 +6580,38 @@ Claims on the showcase and the profile repo match precisely the items the user p
 ### 184.4 The ledger
 
 mvn untouched · UI **591/591** · `mvn -o test gateway` **84/84 (offline)** · `services/* mvn -o test` **137/137 (offline)** · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1779** + 1 · worldbook **184 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」is still a door marked "demo"
+
+## Scroll CLXXXV · The Library Opens
+
+> "A library is not a building; it is the witness that keeps the conversation going."
+
+### 185.1 A new page: `/library` — the world bible read by its own
+
+A new door into the world, `/#/library`, the **Library**. It is not a scaffold. It is the bible read out loud. Every page you see in it existed before you ever opened it:
+
+* **`apps/web/src/pages/Library.tsx`** — reads `apps/web/src/pages/library.json` (git-tracked, machine-struck by `scripts/build_library.py`);
+* The script proves the bibles are aligned at **183 scrolls, zh≡en**; it does not fabricate, reorder, translate or summarize; it byte-reads both `.md` files, finds every `## 卷/Scroll` header, and carries forward its heading + the first readable paragraph;
+* Search filters against any substring — the number on the front plate stays true to whatever you typed;
+* **Every entry shows the volume's first line of real text**, not a generated summary.
+
+### 185.2 What it carries relative to the rooms it adjoins
+
+* `/chronicle` is a ledger of what the repo **DID** (the log of every commit);
+* `/library` is a shelving of what the world **REMEMBERS** — the two never mix;
+* `/worldbook` is the index, the colophon, the title page, the totals; it tells you the books exist; it does not open one for you;
+* `/library` opens them row by row, into lamplight.
+
+Narrow what Worldbook offers in absence: every scroll you can see in `/library` was turned, byte by byte, from either `docs/world/SPECROOF_WORLD.md` or `docs/world/EN/SPECROOF_WORLD_EN.md` — same sentences, different handwriting; never paraphrased.
+
+### 185.3 What it carries relative to reading it in person
+
+    Scroll zero — "创世之炉 — 世人写代码，代码又写代码。AI 把箭射入天空，不问谁将拾箭。"
+    Scroll one — "铁证、矩阵与审判庭 — SpecProof 的证据分五等，从下至上等级越高、越硬。"
+    Scroll two — "双端相望：验收官与他的书记官 — 书记官（前端）的书写有规矩。"
+    Scroll three — "缓存圣断：给算力修庙 — 基座铭文。"
+
+Each excerpt stands on the bible exactly as it is written. Everything else — colors, spacing, typography — obeys the same grid: `#/chronicle` — `.library-page` — 4 px rhythm, serif display, moon-wash body.
+
+### 185.4 Honest ledger
+
+mvn untouched · UI **594/594** (one pin added) · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1780** + 1 · worldbook **185 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」is still a door marked "demo"
