@@ -6426,3 +6426,23 @@ UI **590/590** · vitest run ✓ · vite build ✓ · mvn 未动 · court `4117d
 ### 175.3 账房
 
 mvn 未动 · UI 未动（**590/590**）· vite build ✓ · vitest run ✓ · `/dig`/`/runbook` **live re-struck**：**CONFIRMED** `14,599 tokens · 16/16 unit** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1770** + 1 · worldbook **175 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷一百七十六 · 晨报当日的三张票
+
+> 一张报纸不必许愿，只须在第一面印着今天它敲过什么。这一卷不写虚名，只写实敲。
+
+### 176.1 本日白席三事
+
+| # | 触发 | 现状 |
+|---|---|---|
+| exhibit #17（2026-11-17 · 2026-11-17-static-warm-17.json） | 前门静态车道 · 96c × 2 × 4 + warmup 2 · **0.00% err** · worst p99 **1,534.5 ms** · verdict **OK** | 入册，/exhibits 钉住 |
+| investigators（#1973） | `craft/investigators.py` `tokens = int(` 缩进去一个 4 格，自然捕获；`/dig`/`/runbook` 复活 | **CONFIRMED · 14,599 tokens** |
+| covenant_witness（#1971） | `intake → verify → verdict → report`：HELD · pinned=true（sha256 完整性逐字对比 #1969 落册） | 入证据 · 第十一盏灯定案 |
+
+### 176.2 公开的一页
+
+`#/observe` 落地了 #1966 公开·只读页（密码「123」是一扇写着「演示」的门 · 240 人合成校准群体 · 不读其他人的轨迹）。`/gazette` 同期挂上了三张票：`/dig` · `/runbook` · `/observe`，每张票可点回去验证。这篇今日版被写入 UI 的源码；不是文案，是有证有据的指针。
+
+### 176.3 账房
+
+mvn 未动 · UI 未改（**590/590**）· vite build ✓ · vitest run ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1772** + 1 · worldbook **176 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门

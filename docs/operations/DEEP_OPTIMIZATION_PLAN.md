@@ -41776,3 +41776,28 @@ verdict=CONFIRMED
 ### 四、账房
 
 mvn 未动 · UI **590/590** · vite build ✓ · vitest run ✓ · `/dig`/`/runbook` 2026-11-17 实敲：`CONFIRMED` 14,599 tokens / 95,941 ms · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1770** + 1 · worldbook **175 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## #1974 《晨报第一面的三张票》：铁证晨报封面现在常设三条公开可续验的路径——exhibit #17（2026-11-17 · worst p99 1,534.5 ms · 0.00% err · verdict OK）、investigators 缩进事故（#1973 · **CONFIRMED** 14,599 tokens，研判钉住）、covenant_witness HELD（#1971 · sha256 pinned）；同期：「本周实敲」入册（/dig·/runbook·/observe 三页）、worldbook 175 → **176 卷** · chronicle **1772** · UI **590/590**
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1973 / #1972。
+
+### 一、做了什么
+
+1. `/gazette` 的 NOTICES 栏附录 #17 证物数字；新增 **「本周实敲 · 三页可点 / STRUCK THIS WEEK · THREE TICKETS」** 板块——/dig#1955-56（三 readonly investigators · 16,370 tokens · EVIDENCE-GATHERED）、/runbook#1959-60 + covenant #1969（只 CONFIRMED / INCONCLUSIVE）、/observe#1966（240 人 synthetic · 公共·只读）——三张按钮回跳；
+2. README 首屏 2026-11-17 段收口 #1967–#1973；**README_EN** 同步对等段落；#175 / #176 登记；
+3. zhanghe 全库 UTF-8 未动；worldbook 重建 176（本轮 + 卷 CLXXVI 双语对称）；`scroll166` 至 `scroll176` 全在册；chronicle build 1772 entries；
+4. 这一节仅记已交付事项——未开发、未声明、未虚填；**never demoed as deployed**。
+
+### 二、为什么这三样放一页
+
+它们分别落在三个层面上：
+
+- **stress lane**（Exhibit #17）：回答"它压得住吗"；前门静态车道 · 768 请求 · 192×4 轮 · p99 1,534.5 ms · 0 err；
+- **LIVE model lane**（#1973）：回答"模型真的在读仓吗"；invert/import 的不可见回归恢复后、该栏实际返回 CONFIRMED；
+- **evidence plane**（#1971）：回答"证物/见证"是否按字节每行都真的；sha256 钉契约所钉、参差即 DRIFTED。
+
+三栏同页是想说：这个产品有压测、有真模型、有真实的自我对照；缺哪一面都是半张脸。
+
+### 三、账房
+
+mvn 未动 · UI **590/590** · vite build ✓ · vitest run ✓ · scrolls **176**（中英对称）· court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1772** + 1 · worldbook **176 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门

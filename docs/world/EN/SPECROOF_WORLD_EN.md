@@ -6317,3 +6317,23 @@ The tokens line went with it — into a dead branch after `except`, unreachable 
 ### 175.3 The ledger
 
 mvn untouched · UI **590/590** · vite build ✓ · vitest run ✓ · `/dig`/`/runbook` live **CONFIRMED** · **16/16 pins green** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **17** · chronicle **1770** + 1 · worldbook **175 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is still a door marked "demo"
+
+## Scroll CLXXVI · The Three Tickets on Today's Front Page
+
+> A newspaper does not make promises; it prints what it struck that day. This scroll invents no names — only true strikes.
+
+### 176.1 Three facts on the white sheet, today
+
+| # | strike | verdict |
+|---|---|---|
+| exhibit #17 (2026-11-17 · `2026-11-17-static-warm-17.json`) | front-door static lane · 96c × 2 × 4 + 2 warmups · **0.00% err** · worst p99 **1,534.5 ms** · **OK** | on file, `/exhibits` pinned |
+| investigators (#1973) | `craft/investigators.py` `tokens = int(` had its column drop by 4 — silently, in plain sight; `/dig` and `/runbook` came back online | **CONFIRMED · 14,599 tokens** |
+| covenant_witness (#1971) | `intake → verify → verdict → report`: **HELD** · **pinned=true** (sha256 compared byte-for-byte against the #1969 strike day) | the eleventh lamp settles |
+
+### 176.2 The one public page
+
+`/observe` shipped as the public read-only demo (`123` is a door marked "demo"; 240-member synthetic cohort; no other human exists). `/gazette` now pins the same three tickets on its first page: `/dig` · `/runbook` · `/observe` — each pair links back to git code and to the demo page. This edition is written into the UI itself — not a note, a pointer.
+
+### 176.3 The ledger
+
+mvn untouched · UI **590/590** · vite build ✓ · vitest run ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **17** · chronicle **1772** + 1 · worldbook **176 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is still a door marked "demo"
