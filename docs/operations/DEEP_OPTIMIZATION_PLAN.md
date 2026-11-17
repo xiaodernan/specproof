@@ -41744,3 +41744,35 @@ UI **590/590** · vitest run ✓ · vite build ✓ · mvn 未动 · court `4117d
 ### 三、账房
 
 mvn 未动 · UI **590/590** · hook 误报处置登记 · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1770**（附记入册）· worldbook **174 卷（附记不出新卷）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## #1973 《三只证人去了又回来》：investigators.py 一个误制 indent 让整条只读车道死在 UnboundLocalError 上——两轮（#1969、#1971）/dig 与 /runbook 以 INSUFFICIENT/INCONCLUSIVE 的名义装出了诚实，实则一条 tokens 也没花过；当场性研究复敲 catch 出 → 缩进复原 → 实敲 runbook 得 CONFIRMED（14,599 tokens）→ tests/unit/test_investigators_accounting.py 钉住（16/16）· chronicle 1770 + 1 · worldbook 175 卷（双语）
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1972（pwfffffff）、#1971。
+
+### 一、起因与路径
+
+`#1969`（《行宪》）时期里一次 lint pass 中，`craft/investigators.py` 里只服务于 `tokens` 赋值、却在 `#1767` 之后能用 LINT 判死的 `age_s = 0` 被一并删掉。`tokens = int(...)` 却没删掉，只是缩进错位（从 8 格落到 except-block 的 12 格），进了"never reached"的死分支——并不是合法的 early-return 之外，而是真正的 `except Exception` 下面，两者形成"表面恰好编译、实际人人死、但除了以 empty outcome 复现不出来"的形状。
+
+`.scratch/dig_probe.py`（一份短命调试件）在这次提交里发现：`agent_crash` 真实原因是 `UnboundLocalError: cannot access local variable 'tokens'`——证人无一例外 `outcome=error, tokens=0`。实测 `runbook_triage` 也一并 INCONCLUSIVE（zero tokens · 0 毫秒报告未出）。任何一个表面活蹦乱跳的变更都继承同一状况。
+
+### 二、修复 · 一行 indent
+
+`craft/investigators.py` 的 `tokens = int(...)` 缩进复位至 8 格（与 except/try 对齐）；验证命令照预期出 `outcome=ok` 或诚实 `outcome=error`：
+
+```
+$ `python -X utf8 agent/graphs/runbook_triage_graph.py`
+verdict=CONFIRMED
+```
+
+`docs/evidence/runbook-triage.{json,md}` 以 14,599 tokens · 95,941 ms · explorer `timed_out`(90s) 同步更新——这是这一例首次以一行 indent 订正钓出整类故障，并以「动一行缩进就知道车道死活」钉住。
+
+### 三、新门钉
+
+`tests/unit/test_investigators_accounting.py`（2 例 · 16/16 并集）：
+
+1. `ok` 路径 executor 读取 `resp.usage.prompt_tokens + completion_tokens` 写入 `result.tokens`（15/15）；
+2. provider 异常路径 executor 返回 `{"outcome": "error", "tokens": 0, "findings": [{..."RuntimeError": ...}]}` 而非 `UnboundLocalError`。
+
+### 四、账房
+
+mvn 未动 · UI **590/590** · vite build ✓ · vitest run ✓ · `/dig`/`/runbook` 2026-11-17 实敲：`CONFIRMED` 14,599 tokens / 95,941 ms · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1770** + 1 · worldbook **175 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门

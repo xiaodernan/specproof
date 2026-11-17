@@ -6401,3 +6401,28 @@ payload-census 家族（owner-supervised）连续第二天是 22–23 个固定�
 ### 174.3 账房
 
 UI **590/590** · vitest run ✓ · vite build ✓ · mvn 未动 · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1769** + 1 · worldbook **174 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## 卷一百七十五 · 三只证人去了又回来
+
+> 一个误删一位的 `age_s = 0`，让三位只读调查员从来没用过一条 tokens——两年来「ok」都是假象。
+
+### 175.1 坏的时刻与坏的样子
+
+`#1969` 时期我用一次性的 `sed` 式清理删掉了 investigators 里没人用的 `age_s = 0`，假设结果是一行「可以删干净的死名字」。实际落子：
+
+```patch
+-        age_s = 0
+-        tokens = int((getattr(resp, "usage", None) or {}).get("prompt_tokens") or 0) + int(
+```
+
+被删掉的不只是 `age_s`——`tokens` 也被带到了一个永远不可达的 except/orphan 分支里，于是每一次成功调用都抛 `UnboundLocalError`，parallel 车道全部落 `error outcome × 0 tokens`。`/dig` 与 `/runbook` 各自继续以 INSUFFICIENT / INCONCLUSIVE 之名**表演诚实**——而它们所说的「不够」其实是它们根本没活过。
+
+### 175.2 发现 · 修复 · 再钉住
+
+`.scratch/dig_probe.py` 依次起三车道探针，直到看见 `agent_crash / UnboundLocalError` 一字不差；`runbook_triage` 这次返回 **CONFIRMED**（explorer `timed_out` 1 次，tester/security 各 6,799 / 7,799 tokens 入册），`docs/evidence/runbook-triage.{json,md}` 以 14,599 tokens · 95,941 ms 同步更新。
+
+新的钉子：`tests/unit/test_investigators_accounting.py`（**16/16**，含 ok 路径 ledger tokens 不从包里折被读出；provider 爆了只诚实 error 不算 UnboundLocalError）。
+
+### 175.3 账房
+
+mvn 未动 · UI 未动（**590/590**）· vite build ✓ · vitest run ✓ · `/dig`/`/runbook` **live re-struck**：**CONFIRMED** `14,599 tokens · 16/16 unit** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1770** + 1 · worldbook **175 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门

@@ -6294,3 +6294,26 @@ The payload-census family stays at 22–23 pinned red across rounds; never paint
 ### 174.3 The ledger
 
 UI **590/590** · vitest run ✓ · vite build ✓ · mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **17** · chronicle **1769** + 1 · worldbook **174 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is still a door marked "demo"
+
+## Scroll CLXXV · The Witnesses Came Back
+
+> One mis-composed `age_s = 0` deletion orphaned `tokens` in the investigator lane; for two rounds /dig and /runbook answered "INSUFFICIENT" while they had in fact never answered at all.
+
+### 175.1 The defect, what it looked like
+
+I kept a one-time lint pass over `craft/investigators.py` to retire an unused `age_s = 0`. The edit was expected as a harmless dead-name removal:
+
+```patch
+-        age_s = 0
+-        tokens = int((getattr(resp, "usage", None) or {}).get("prompt_tokens") or 0) + int(
+```
+
+The tokens line went with it — into a dead branch after `except`, unreachable from the success path. Every `ok` collapsed into `agent_crash` → outcome error → 0 tokens, so `/dig` and `/runbook` were performing honesty (INSUFFICIENT / INCONCLUSIVE) while never having spent a token.
+
+### 175.2 Found → fixed → pinned
+
+`.scratch/dig_probe.py` gave the real pinpoint: `UnboundLocalError: cannot access local variable 'tokens'`. Reconstruction done; the /dig lane and /runbook lane are **live-re-struck after repair** — `runbook_triage` logs **CONFIRMED** (explorer `timed_out` once, tester/security 6,799 / 7,799 tokens, file refreshed). A new pin keeps this lane from regressing the same way: `test_investigators_accounting.py` (16/16 incl. existing dig+route tests).
+
+### 175.3 The ledger
+
+mvn untouched · UI **590/590** · vite build ✓ · vitest run ✓ · `/dig`/`/runbook` live **CONFIRMED** · **16/16 pins green** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **17** · chronicle **1770** + 1 · worldbook **175 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is still a door marked "demo"

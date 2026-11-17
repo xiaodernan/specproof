@@ -172,7 +172,7 @@ async def _llm_execute_factory(
                 findings=[{"role": spec.role, "claim": f"{type(exc).__name__}: {exc}", "confidence": 0.0}],
                 duration_ms=0,
             )
-            tokens = int((getattr(resp, "usage", None) or {}).get("prompt_tokens") or 0) + int(
+        tokens = int((getattr(resp, "usage", None) or {}).get("prompt_tokens") or 0) + int(
             (getattr(resp, "usage", None) or {}).get("completion_tokens") or 0
         )
         text = str(resp.content or "").strip()
