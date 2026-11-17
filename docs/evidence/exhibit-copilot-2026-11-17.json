@@ -1,12 +1,12 @@
 {
-  "generated_utc": "2026-11-17T18:58:42+00:00",
+  "generated_utc": "2026-11-17T21:07:43+00:00",
   "lane": "exhibit_copilot",
   "pinned_sha256": "a0b46d1c38ceeb4b51e2709fd497596ada85b4b225a8c547be5940fc0ef3368e",
   "pinned": true,
   "packet_ok": true,
   "verdict": "HELD",
-  "notes": "live strike landed",
-  "reasoning_tokens": 811,
-  "cached_tokens": 5120,
-  "prompt_tokens": 5255
+  "notes": "live strike skipped (set SPECPROOF_EXHIBIT_COPILOT_LIVE=1 to spend the tokens)",
+  "reasoning_tokens": null,
+  "cached_tokens": null,
+  "prompt_tokens": null
 }

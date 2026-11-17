@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-17T20:52:17+00:00",
-  "count": 185,
+  "generated_at": "2026-11-17T21:08:53+00:00",
+  "count": 186,
   "zh": [
     {
       "num": "卷零",
@@ -926,6 +926,11 @@
       "num": "卷一百八十六",
       "title": "缓存守住了",
       "excerpt": "五条可缓存车道今天留在案卷里的数字（实测，非归纳）："
+    },
+    {
+      "num": "卷一百八十七",
+      "title": "灯的见证",
+      "excerpt": "今晚九盏灯齐亮：`night_watch` · `purity_graph` · `covenant_witness` · `cache_witness` · `exhibit_copilot` · `insight_advice_witness` · `usage_ledger_witness` · `investigation_dig` · `runbook_triage` —— 每一只都以只读身份统计仓库自身：`"
     }
   ],
   "en": [
@@ -1853,6 +1858,11 @@
       "num": "Scroll CLXXXVI",
       "title": "The Cache Held",
       "excerpt": "Every cacheable lane on this machine witnessed an attested ~95% `prompt_cache_hit_tokens` rate after the second identical strike. The court never carries a cache; the codex prefixes stay byte-identical."
+    },
+    {
+      "num": "Scroll CLXXXVII",
+      "title": "When Lamps Testify",
+      "excerpt": "The repo's principle: get the world to speak its own state by striking itself — *not* by writing essays about its purity. The cycle costs one LLM round at most on the two caching lamps; everything else is pure AST or hash-compare."
     }
   ],
   "note": "machine-struck from the two bibles; parity asserted at build time; never an editorial statement"

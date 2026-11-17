@@ -42081,3 +42081,25 @@ mvn 未动 · UI **594/594** · vite build ✓ · court **LOCKED** · Night Watc
 ### 三、账房
 
 mvn 未动 · UI **594/594** · tsc ✓ · vite build ✓ · targeted suites all green · court **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1781** + 1 · worldbook **186 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## #1986 《灯的见证》：九盏只读灯同叩——purity CLEAR · covenant_witness HELD · exhibit_copilot HELD · cache_witness HIT · night_watch CRACKED · insight_advice ANSWERED · usage_ledger ANSWERED · investigation_dig EVIDENCE-GATHERED · runbook_triage CONFIRMED · 全部内置在主页 observed 与其 admin / governance 通道聚合上 visibly connect to StateGraph 页 · chronicle **1782** + 1 · worldbook **187 卷（双语对称）** · UI **594/594**
+
+**记录基准**：本节只追加。本号衔接 #1985（#1984→#1985 — 缓存观察录——本节补一次聚合见证）。
+
+### 一、交付
+
+1. 滚动见证状态全制表：
+   - `purity_graph verdict=CLEAR hits=0` · `covenant_witness verdict=HELD pinned=true` · `exhibit_copilot verdict=HELD (cached_tokens=0 this strike)`
+   - `cache_witness verdict=HIT hit_rate_b=0.95+` · `night_watch verdict=CRACKED` · `insight_advice verdict=ANSWERED r²=0.12` · `usage_ledger verdict=ANSWERED` · `runbook_triage verdict=CONFIRMED`
+2. `StateGraph` 页面浮动榜样（`cache_witness` HIT 与 `night_watch` CRACKED 的 live 表征已展示）；`#1984` 后 lamp 列表已含 `exhibit_copilot` = 第十二盏灯；状态明示：
+3. **Court 永远不缓存，永远没有任何 cache_key 穿过它。** `agent/review_court/*` 中未添加 `prompt_cache_key`、`stream` 一向 `true`。
+
+### 二、诚实边界
+
+1. 本轮不动 exhibit_entries（仍 18）；
+2. `verifier` 两盏灯（cache_witness / exhibit_copilot）仍然 `--live` 才敲模型，`--live` 不敲则 no-op；
+3. 这里不再做 exhibit #19 — 入场按本门规则打分；活动顺序不增加。
+
+### 三、账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1782** + 1 · worldbook **187 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门

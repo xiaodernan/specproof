@@ -6767,3 +6767,34 @@ mvn 未动 · UI **594/594**（+1 个 page-load pin）· tsc ✓ · vite build �
 ### 186.4 账房
 
 mvn 未动 · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1781** + 1 · worldbook **186 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷一百八十七 · 灯的见证
+
+> "Lamps are lit so the world counts itself without manual bookkeeping."
+
+### 187.1 为什么这一卷值得写下来
+
+今晚九盏灯齐亮：`night_watch` · `purity_graph` · `covenant_witness` · `cache_witness` · `exhibit_copilot` · `insight_advice_witness` · `usage_ledger_witness` · `investigation_dig` · `runbook_triage` —— 每一只都以只读身份统计仓库自身：`
+
+- `night_watch_graph.py`：—— 收口 — **CRACKED**（exhibit #4 unmoved；exhibit_entries 仍 **18**。）
+- `purity_graph.py`：**CLEAR · hits=0**（不再扫住任何文件，SHA 出册的 `purity-sift.json` 归零）。
+- `covenant_witness_graph.py`：**HELD**（11 条法律字节未动；自册证 SHA `257a8577…` · pinned=true）。
+- `cache_witness_graph.py`：**HIT**（双 strike #N 均 cached_tokens=4224 / 9500-token 前缀）。
+- `exhibit_copilot_graph.py`：**HELD**（verifier 关闭之前 `--live` 才敲；packet 从 18 件 exhibit 中自行 derive 数字不外溢 not one）。
+- `insight_advice_graph.py`：**ANSWERED**（r² = 0.12；字节包按 SHA256 前缀缓存）。
+- `usage_ledger_graph.py`：**ANSWERED**（统计所有最近 window 里的 lane-tool 调用口径）。
+- `investigation_dig_graph.py`：**EVIDENCE-GATHERED**（verdict-at-three-faces, reusable fingerprint cache）。
+- `runbook_triage_graph.py`：**CONFIRMED**（告警栏 + 20 提交 + compose-env 仅 key 名、patient observer mode 事前无告警）。
+- `/gazette`：「今日余响」会敲 scheduler · 接着每记账 #1982 起 written by aizzz/gpt-6.1-terra · no manual edits/ACANDA。
+
+### 187.2 一张图的解释
+
+每一盏灯都只读不写，除了 `usage_ledger_graph` 和 `cache_witness_graph` 会执行两次单次 LLM 调用。它们的输出只能落在 `docs/evidence/*` 脚下——仓库里一角已有的证据黑格。**永远不写 court, 永远不写 judge.**
+
+### 187.3 杂碎
+
+今天 `test_verdict_channel_parity` 又回到 **14/14**：与之前历次清运一样：orchestrator 把 exhibit_copilot 加入 witness channel owners/opaque——**而不是去改标准答案来容错**。我记住这是对的行为。
+
+### 187.4 账房
+
+mvn -o gateway **84/84** + discovery **1/1** + config **1/1** + control-plane **51/51** · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1782** + 1 · worldbook **187 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门

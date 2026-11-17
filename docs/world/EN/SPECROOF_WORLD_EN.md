@@ -6652,3 +6652,35 @@ Today's `.local/llm.json` at `https://api.aizzz.xyz/v1` / `gpt-6.1-terra` with r
 ### 186.4 The ledger
 
 mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1781** + 1 · worldbook **186 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」is still a door marked "demo"
+
+## Scroll CLXXXVII · When Lamps Testify
+
+> "Lamps are lit so the world counts itself without manual bookkeeping."
+
+### 187.1 Tonight, a full chorus of read-only witnesses
+
+The repo's principle: get the world to speak its own state by striking itself — *not* by writing essays about its purity. The cycle costs one LLM round at most on the two caching lamps; everything else is pure AST or hash-compare.
+
+| lamp | state | output |
+|---|---|---|
+| `night_watch_graph.py` | **CRACKED** | exhibit #4 unmoved · Night Watch stays cracked |
+| `purity_graph.py` | **CLEAR · hits=0** | no secret fits · no redaction gap |
+| `covenant_witness_graph.py` | **HELD** | 1450 B covenant bytes untouched · pinned=true |
+| `cache_witness_graph.py` | **HIT** | double-strike confirms cached_tokens > 0 |
+| `exhibit_copilot_graph.py` | **HELD** | caps · no invented numerics · gate catches |
+| `insight_advice_graph.py` | **ANSWERED** | r² = 0.12 · fingerprinted |
+| `usage_ledger_graph.py` | **ANSWERED** | per-lane accounting |
+| `investigation_dig_graph.py` | **EVIDENCE-GATHERED** | llm answers under `--live` |
+| `runbook_triage_graph.py` | **CONFIRMED** | alert-hint + 20 commits + redacted compose env |
+
+### 187.2 What the curtain will never show
+
+Each lamp is read-only by design: no lamp can write a judgment, no lamp can rewrite court, no lamp can paint a gate green. They only **read what's there and spell the result** — that is the discipline you sign when you trade with us.
+
+### 187.3 One small thing to notice
+
+When `exhibit_copilot` flagged the author's own `1969` in the test fixture this morning, the gate was right and the author was wrong. The repo keeps both receipts: the correction, and the confession. The world keeps its own scorecard.
+
+### 187.4 The ledger
+
+mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1782** + 1 · worldbook **187 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」is still a door marked "demo"
