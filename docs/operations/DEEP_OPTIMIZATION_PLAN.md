@@ -41657,3 +41657,25 @@ clash 节点这一小时轮转两次；浏览器两次 502 reload 后 OK；provi
 ### 三、账房
 
 mvn 未动 · UI **589/589** · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1765** + 1 · worldbook **171 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门
+
+## #1970 《活数字 · 不再生锈》：Archive 三卡接活值（世界书 171 · 墨水池 2,643 · 金案 111）· `inkwell.json` 重敲入库（span 130 d · streak 16 · quiet 34.1 d · prefix census） · UI 589/589 · chronicle 1767 + 1 · worldbook 172 卷（双语）
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1969。
+
+### 一、错的在哪
+
+Archive 页顶 KPI 早已读 `worldbook.json`／`chronicle.json`／`dossier.json`／`repoStats.json` 的活值，但三只「卡片描述」是构建期写死的：
+
+- 世界书「50 卷正史」—真相 **171 卷**；
+- 墨水池「git log 直读 2,466 笔」—真相 **2,643 笔**（重敲后）· 墨水池页面自身同源，两边此前对不上；
+- 证据浏览器「111 金案」—dossier.json 编译计数 **111**，与编译事实一致（文件系统下的 114 个目录是含未收编目录的数字≠展示数字）。
+
+### 二、怎么修
+
+1. `build_inkwell.py` 重敲 → `inkwell.json`：2,643 commits · first 2026-07-10 · last 2026-11-17 · 130 天 · 前缀 census `other 1802 / feat 305 / docs 298 / fix 123 / test 41 / chore 33 / perf 10 / ci 8 / merge 5 / style 5 / op 4 / refactor 4` · 最长连续 16 天 · 最长静默 34.1 天；
+2. `Archive.tsx` 的卡片 note 全部模板化：`WORLD_VOLUMES`／`INKWELL_COMMITS`／`DOSSIER_CASES` 由同源 JSON 读出，永不再漂；
+3. `Inkwell.tsx` 读同一份 JSON，行为不变（此前就一直读它——这次数据是新的）。
+
+### 三、账房
+
+mvn 未动 · UI **589/589** · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1767** + 1 · worldbook **172 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门

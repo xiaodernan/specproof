@@ -6338,3 +6338,19 @@ UI **589/589** · vite build ✓ · mvn 未动 · court `4117d2b0ca5fb23a` **LOC
 ### 171.3 账房
 
 UI **589/589** · vite build ✓ · mvn 未动 · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1765** + 1 · worldbook **171 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷一百七十二 · 活数字
+
+> 数字若不再是在建时塞进去的截图，就叫账。这一卷把陈迹一栏一栏挂上新的。
+
+### 172.1 Archive 三张卡换成活值
+
+「50 卷正史」→ 世界书实况 **171 卷**（worldbook.json 里 count 直接读出来的）；「2,466 笔 · git log」→ 墨水池
+重敲后实况 **2,643 笔**（`build_inkwell.py`：130 天 · 最长连续 **16 天** · 最长沉寂 **34.1 天** · prefix census 在册）；
+「111 金案」→ dossier.json 编译计数 **111**（与编译产物一致，不随目录蔓延漂移）。Archive 顶部 KPI 本就实读 JSON，本轮把三只带文字的卡片也换成同源活值。
+
+`Inkwell.tsx` 与 `Inkwell` 面板现在读到的与卡片一致——数到一半翘尾的数字不会再留在展墙上。
+
+### 172.2 账房
+
+UI **589/589** · vite build ✓ · mvn 未动 · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1767** + 1 · worldbook **172 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门

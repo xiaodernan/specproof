@@ -5,6 +5,7 @@ import repoStats from "./repoStats.json";
 import worldbook from "./worldbook.json";
 import dossier from "./dossier.json";
 import { SCROLLS_ZH } from "./epic.copy";
+import inkwell from "./inkwell.json";
 import MidnightLamp from "./MidnightLamp";
 import courtLock from "./courtLock.json";
 import corrections from "./corrections.json";
@@ -27,14 +28,20 @@ type Card = {
   group: "era" | "palace" | "doors" | "water" | "service" | "admin" | "dev";
 };
 
+/** Live counts for the cards — derived from the same JSON the KPI strip reads. */
+const WORLD_VOLUMES =
+  (worldbook as unknown as { locales: Record<string, { volumes: unknown[] }> }).locales.zh.volumes.length;
+const INKWELL_COMMITS = (inkwell as unknown as { commits: number }).commits;
+const DOSSIER_CASES = (dossier as unknown as { cases: unknown[] }).cases.length;
+
 const CARDS: Card[] = [
   // ── The Annals ───────────────────────────────────────
-  { icon: "book", route: "worldbook", group: "era", title: { zh: "铁证之书", en: "The World Book" }, note: { zh: "50 卷正史 · 中英对称", en: "50 volumes · zh/en parity" } },
+  { icon: "book", route: "worldbook", group: "era", title: { zh: "铁证之书", en: "The World Book" }, note: { zh: `${WORLD_VOLUMES} 卷正史 · 中英对称`, en: `${WORLD_VOLUMES} volumes · zh/en parity` } },
   { icon: "scroll", route: "chronicle", group: "era", title: { zh: "编年史", en: "The Chronicle" }, note: { zh: "每笔交付一节 · hash 锚点", en: "one section per landing · hash-anchored" } },
   { icon: "lantern", route: "epic", group: "era", title: { zh: "史诗 · 创世记", en: "Epic · Genesis" }, note: { zh: "文明之始 · git 真迹", en: "named origins · git truth" } },
   { icon: "gazette", route: "gallery", group: "era", title: { zh: "卷墙", en: "The Gallery" }, note: { zh: "一墙罗列全部卷目", en: "every volume on one wall" } },
   { icon: "gazette", route: "gazette", group: "era", title: { zh: "铁证晨报", en: "The Gazette" }, note: { zh: "头版现推", en: "front page, live" } },
-  { icon: "book", route: "inkwell", group: "era", title: { zh: "墨水池", en: "The Inkwell" }, note: { zh: "git log 直读 2,466 笔 · 时辰墨盘", en: "2,466 commits from git log · 24-hour ink clock" } },
+  { icon: "book", route: "inkwell", group: "era", title: { zh: "墨水池", en: "The Inkwell" }, note: { zh: `git log 直读 ${INKWELL_COMMITS.toLocaleString()} 笔 · 时辰墨盘`, en: `${INKWELL_COMMITS.toLocaleString()} commits from git log · 24-hour ink clock` } },
 
   // ── The Verification Hall ───────────────────────────
   { icon: "verify", route: "jobs/new", group: "palace", title: { zh: "新建验收", en: "New Verification" }, note: { zh: "把代码差分交给差分炉", en: "turn your diff over to the differential" } },
@@ -75,7 +82,7 @@ const CARDS: Card[] = [
   { icon: "team", route: "identity", group: "admin", who: "admin", title: { zh: "团队与权限", en: "Team & Access" }, note: { zh: "admin/operator · RBAC fail-closed", en: "admin/operator · fail-closed RBAC" } },
 
   // ── Engineer's Loft ────────────────────────────────
-  { icon: "contracts", route: "explorer", group: "dev", title: { zh: "证据档案浏览器", en: "Evidence Explorer" }, note: { zh: "搜索证据物 · 111 金案", en: "search evidence · 111 gold cases" } },
+  { icon: "contracts", route: "explorer", group: "dev", title: { zh: "证据档案浏览器", en: "Evidence Explorer" }, note: { zh: `搜索证据物 · ${DOSSIER_CASES} 金案`, en: `search evidence · ${DOSSIER_CASES} gold cases` } },
   { icon: "agent", route: "ide", group: "dev", title: { zh: "开箱 IDE", en: "The IDE" }, note: { zh: "Java/TS · 本地沙箱", en: "Java/TS · local sandbox" } },
   { icon: "invert", route: "graph", group: "dev", title: { zh: "依赖关系图", en: "The Graph" }, note: { zh: "本仓库模块可视化", en: "module topology at a glance" } },
 ];

@@ -6231,3 +6231,19 @@ Same hour: the Clash Verge node showed two instant-refusals (logged `APIConnecti
 ### 171.3 The ledger
 
 UI **589/589** · vite build ✓ · mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **17** · chronicle **1765** + 1 · worldbook **171 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is still a door marked "demo"
+
+## Scroll CLXXII · Live Numbers
+
+> A number frozen at build time is a screenshot. A number re-struck at read time is a ledger. This scroll hangs three new ones.
+
+### 172.1 Archive takes three live cards
+
+- "50 volumes (World Book)" → **171** — read from `worldbook.json` at render time;
+- "2,466 commits (The Inkwell)" → **2,643** — re-struck by `scripts/build_inkwell.py` (130-day span · longest streak **16 days** · longest quiet **34.1 days** · prefix census on file);
+- "111 gold cases" → dossier.json's compiled case count — **111**, compiled at build time, never inferred from directory globs (102+9+3 ≠ 111 because the compiler excludes dirs at build time; the page says what it ships).
+
+Archive's KPI strip already read the same JSONs; the three cards now drink from the same tap — and `Inkwell.tsx` reads the same file, so the wall and the page agree.
+
+### 172.2 The ledger
+
+UI **589/589** · vite build ✓ · mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **17** · chronicle **1767** + 1 · worldbook **172 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is still a door marked "demo"
