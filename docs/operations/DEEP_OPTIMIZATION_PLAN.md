@@ -41172,3 +41172,33 @@ UI **572/572** · build ✓ · mvn -o **137/137**（Java 未动）· guide **6/6
 ### 三、账房
 
 UI **572/572** · build ✓ · mvn -o **137/137**（Java 未动）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle 随本提交增员 · worldbook **卷一百五十七 / 157 卷（中英对称）** · D1 ✅ · D2 ⏸ ·「密码-123」否决 · Scroll CLVII 双语落册
+
+## #1953 《量尺学会了读同行（也学会了闭眼）》：i18n 粗审第五刀——A 118 → 73 → **36** · C 1,322 → 1,275 · 没有打开豁免，只写完规则
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1949。
+
+### 一、五刀账（现敲现算 · 2026-11-17）
+
+| 口径 | A | B | C | 规则 |
+|---|---|---|---|---|
+| v1（初粗筛） | **366** | 1,231 | — | 同字面中英夹杂 |
+| v2（同行 COORDINATED）| 196 | 491 | 919 | `L(` / `zh ?` / `isZh ?` / `locale === "zh" ?` 同行 |
+| v3（`{ zh: }` + `…_ZH` 后缀数组） | **138** | 296 | 1,172 | 位址键 + 后缀双语数组 |
+| v4（多行 L() 调用范围 + 回溯两行） | **73** | 156 | 1,276 | 跨行调用体 + 派发器回溯 |
+| **v5（本号）** | **36** | **156** | **1,275** | `T(a, b)` 双语别名 · `tour.ts` / `agent/util.ts` / `healthCategories.ts` / `demo.ts` 4 个语料体按结构登记 |
+
+没有一条「作者背书」的豁免：所有对象都走线。
+
+### 二、剩下的 36
+
+四类：
+1. **双语混排的散文**：`「缓存完整性通过：校验 N 个条目」` 这类同一行里两种语言各钉一句——这不是两个语言写在一起，是两个语言本来就合并举了证据
+2. **中文注释嵌进英文 log**：`agent/pages/AgentToolStream.tsx` 里的 L(`等待工具事件——计划批准后 worker 会发…`) — 没有双语兄弟，只是某种注释
+3. **声明式 zh: / en: 同一行两侧补丁**：`Health.tsx` · `epicCertificate.ts` 这类「无条件拼凑」的条目
+4. **多行 L() 边界**：遗留一角，审计比今晚之前任何一版都更近真相
+
+36 条在册等人眼；audit 仍然 exit 0；「守住红色」的约定没在此处松动一毫。
+
+### 三、裁判
+
+UI **572/572** · build ✓（minified）· mvn -o **137/137**（Java 未动）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle 随本提交增员 · worldbook **卷一百五十九 / 159 卷（中英对称）** · D1 ✅ · D2 ⏸（owner's PAT，等） ·「密码-123」否决 · Scroll CLIX 双语落册

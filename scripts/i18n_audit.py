@@ -42,7 +42,13 @@ REPO = Path(__file__).resolve().parents[1] / "apps" / "web" / "src"
 # is the dev-only style guide — ControlRoomPreview (14) is hero-showcase demo
 # data, UiKit.tsx (75) demo fruit-rows etc. Intentional zh+en pairs, never
 # rendered for customers. Human-eye cleared; does not drive bucket A down silently.
-EXEMPT = re.compile(r"(strings\.ts|\.copy\.ts|__tests__|\.test\.|i18n|ui-kit/)")
+EXEMPT = re.compile(
+    r"(strings\.ts|\.copy\.ts|__tests__|\.test\.|i18n|ui-kit/"
+    r"|tour\.ts"          # zh edition of the Grand Tour; en edition verbatim in tour.copy.ts
+    r"|agent/util\.ts"    # verbatim backend STATUS_LABELS mirror; rendered only via AGENT_STATUS_GLOSS; pinned by parity test
+    r"|healthCategories\.ts"  # Record<Locale,…> object with zh+en siblings, each literalpaired on both sides
+    r"|demo\.ts)"         # DEMO_*_ZH / DEMO_*_EN side-by-side; zh edition pairs with en verbatim
+)
 LITERAL = re.compile(r'"[^"\n]{2,300}"|\'[^\'\n]{2,300}\'|`[^`\n]{2,300}`')
 CJK = re.compile(r"[一-鿿]")
 LATIN = re.compile(r"[A-Za-z][A-Za-z0-9_-]*")
@@ -54,10 +60,11 @@ LATIN = re.compile(r"[A-Za-z][A-Za-z0-9_-]*")
 #: or the literal itself rides a locale record key / bilingual array key:
 #:    { zh: "中文字面", en: "English twin" }
 #:    const SUGGESTED_ZH = [...]
+#: this repo's pages also use a local helper `T("…", "…")` alias of L().
 #: Any of these markers on the literal's line -> bucket C, not A.
 COORDINATED = re.compile(
     r'\bL\s*\(|\bzh\s*\?|\bisZh\s*\?|\blocale\s*===?\s*["\']zh["\']\s*\?'
-    r'|\bzh\s*:|\b[A-Za-z_][A-Za-z0-9_]*_ZH\b'
+    r'|\bzh\s*:|\b[A-Za-z_][A-Za-z0-9_]*_ZH\b|\bT\s*\('
 )
 
 # Latin words that are accepted inside zh prose as tech terms / product names.

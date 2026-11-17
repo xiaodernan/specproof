@@ -5761,3 +5761,36 @@ UI **571/571** · build ✓ · mvn -o **137/137** (Java untouched) · guide **6/
 UI **572/572** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch still **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle grows with this commit · worldbook **Scroll CLVIII / 158 scrolls (zh+en symmetric)** · D1 ✅ · D2 ⏸ · 「密码-123」vetoed
 
 ---
+
+## Scroll CLIX · The ruler that learned to read the line above — again
+
+> One measure read 366 things as suspicious;
+> the eye sees 36.
+> Not one of those 330 was waved through by a person —
+> each was reclassified by a rule written in the tool.
+
+### 159.1 The fifth pass (struck live 2026-11-17)
+
+| pass | A | B | C | what moved |
+|---|---|---|---|---|
+| v4 (multi-line L() spans + two-line lookahead) | 118 | 257 | 1,276 | multi-line `L("…")` scope + zh? dispatcher on the line above |
+| **v5 (this pass)** | **36** | **156** | **1,275** | `T(a, b)` bilingual alias folded in · 4 paired corpora (`tour.ts` / `agent/util.ts` / `healthCategories.ts` / `demo.ts`) promoted to structure for the same rule that decided `{ zh, en }` and `_ZH` |
+
+No item left A by hand-authorisation; every reclassification has a written rule behind it.
+
+### 159.2 The remaining 36 (nothing waved through)
+
+Four shapes live there:
+
+1. **bilingual prose smeared on one line** — `"生效日 · active"`, `"can I open 团队与权限？"`;
+2. **Chinese annotation inside an English log line** (Untranslated agent tool-stream strings, real in the wild);
+3. **disclaimer-bound bilinguals** on `Health.tsx` and `epicCertificate.ts` (`zh:` / `en:` keys collapsing into one capture);
+4. **multi-line L(() boundaries** where the line fold leaves the literal orphaned — one more knock-on pass can harvest a handful, if you want one; this one didn't need to.
+
+All 36 remain on the roster; the audit stays advisory, exits 0, never enters CI, and hands you a shorter queue — never a green light for un-reviewed strings.
+
+### 159.3 The ledger
+
+UI **572/572** · build ✓ (minified) · mvn -o **137/137** (Java untouched) · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch still **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle grows with this commit · worldbook **Scroll CLIX / 159 scrolls (zh+en symmetric)** · D1 ✅ · D2 ⏸ · 「密码-123」vetoed
+
+---

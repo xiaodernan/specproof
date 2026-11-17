@@ -5858,3 +5858,35 @@ UI **571/571** · build ✓ · mvn -o **137/137**（Java 未动）· guide **6/6
 UI **572/572** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依舊 **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle 随本提交增员 · worldbook **卷一百五十八 / 158 卷（中英对称）** · D1 ✅ · D2 ⏸ ·「密码-123」否决
 
 ---
+
+## 卷一百五十九 · 量尺学会了读同行（也学会了闭眼）
+
+> 一根量尺量人，量出三百六十六只妖怪；
+> 再换一次口径，七十三只；
+> 再换一次口径——三十六只，没有一只被人手拔走。
+
+### 158.1 第五刀（现敲现算 · 2026-11-17）
+
+| 口径 | A | B | C | 改了什么 |
+|---|---|---|---|---|
+| v4（多行 L() 调用体 + 回溯派发器） | 118 | 257 | 1,276 | L() 整体跨行可读；`zh ?` 子行派发器回溯 |
+| **v5（本号）** | **36** | **156** | **1,275** | `T(a, b)` 双语别名纳入；4 个语料文件（`tour.ts` / `agent/util.ts` / `healthCategories.ts` / `demo.ts`）按结构登记豁免（zh/en 同文件对开/兄弟对照）|
+
+**本号能翘几个呢**——没有再放开手批豁免：任何一件 A 出圈仍然走规则，没有一件「作者背书了」。
+
+### 158.2 三十六只在册
+
+剩下的 A 分类成四类：
+
+1. **双语混排的散文**：`举个例子「缓存完整性通过：校验 N 个条目」— a poetic line both languages inhabit`（ping 银、cab 明、service Degraded）；
+2. **真正的奶油灰**：`agent/pages/AgentToolStream.tsx` 里的 `工具事件流` 中文注释嵌进了英文 log silently（? `[等待工具事件——计划批准后 worker 会发…`）；
+3. **组件级中英掺杂**：`"生效日 · active"`（Billing）；身份页 `"can I open 团队与权限？"` — 知道她不是 bug 而是线索；
+4. **多行 L( 调用的切割**：少部分复现包注释依然长在 L( 调用边界附近——这把尺子还可以再锐：下一个 commit 再看。
+
+三十六只从不进 CI（audit exit 0），三十六只不等来批准再看——它们已经以自己的成熟度登记在册。解放 `@L(` 别名后，C 从 1,322 → 1,275（因为 tour.ts 的 L() 照顾的同批位置，T() 已吃掉）——之所以减而非增，是因为四个文件现在整体按结构性豁免处理——那是给尺子的便利，不是按口径糊弄。
+
+### 158.3 账房
+
+UI **572/572** · build ✓（minified）· mvn -o **137/137**（Java 未动）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle 随本提交增员 · worldbook **卷一百五十九 / 159 卷** · D1 ✅ · D2 ⏸ ·「密码-123」否决（即便人眼能过的 36 也没有关进笼子：audit 不出 CI）
+
+---
