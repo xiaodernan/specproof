@@ -1,7 +1,7 @@
 {
  "version": 1,
  "source": "scripts/audit_unsigned.py (this host, this moment)",
- "generated_utc": "2026-11-17T01:16:26+00:00",
+ "generated_utc": "2026-11-17T01:35:12+00:00",
  "checks": [
   {
    "id": "observability-signature",

@@ -5829,3 +5829,48 @@ User's own words (original directive, verbatim intent): "把大模型API能力�
 UI **573/573** · build ✓ · mvn -o **137/137** (Java untouched) · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch still **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle grows with this commit · worldbook **Scroll CLX / 160 scrolls (zh+en symmetric)** · D1 ✅ · D2 ⏸ (owner's PAT awaited) · 「密码-123」vetoed
 
 ---
+
+## Scroll CLXI · The Dig
+
+> Three readonly investigators stand in the same room,
+> ask the same question with the same ruler;
+> whoever doesn't know says doesn't know — nothing is painted jade.
+
+### 161.1 What the feature is (#1955)
+
+- **POST `/api/v1/admin/investigation-dig`** — admin/operator surface, tenant mode enforced:
+  - body = `{"question": "…"}` · 1–600 characters
+  - returns `{question, verdict, findings[], agents[], total_tokens_used, generation_time_ms}`
+  - failure is 503 — the model never fabricates an answer; never painted jade
+- **`/dig` page** — admin-only page, one question box, one button:
+  - Three readonly investigators (explorer / tester / security) fan out in parallel with the same question
+  - They all see the same bounded fact pack (top-level tree + README headings + test listing ≤ 4000 chars)
+  - They return verdict + findings with per-role evidence
+  - The model call rides the local Clash Verge → aizzz.xyz; `.local/llm.json` or env vars pick it up
+- **Call-accounted** — every query lands in `usage_ledger` as `kind="insight"`, with `total_tokens_used` and `cached`; asking the model is a daily ritual on the admin console now, not a once-a-quarter announcement.
+
+### 161.2 Live knock (stuck on this host · 2026-11-17T09:44Z)
+
+question「这仓库是什么？用一句话说。」→ through Clash Verge → aizzz.xyz the model answered:
+
+> 这是一个基于 Python（FastAPI、LangGraph）和 TypeScript/React 的代码变更验收平台：既能协助 AI 按需求修改代码，也能独立运行检查、追踪证据并评估变更是否符合需求。
+> ("An accept-check platform for AI-produced code: the model edits the code per the requirement, the platform runs the checks independently, tracks evidence, and judges whether the change meets the need.")
+
+**Verdict**: EVIDENCE-GATHERED · explorer 6,140 tok · tester 5,538 tok · security 4,522 tok · **16,200 tok total** · generation_time_ms 38,126
+
+Three investigators answered from the same fact-pack with the same ruler — none misdescribed it, and `security` honestly said INSUFFICIENT on the `.env` question. **This isn't a demo** — the question was asked, the model answered, the tokens were spent, the facts are in the tree.
+
+### 161.3 The wiring
+
+| surface | where | discipline |
+|---|---|---|
+| `/dig` page | `apps/web/src/pages/Dig.tsx` | admin/operator only |
+| Backend endpoint | `api/routes/admin.py::/api/v1/admin/investigation-dig` | Same RBAC matrix · tenant mode enforced |
+| `craft/investigators.py` | three parallel readonly investigators sharing one ToolRegistry workspace | readonly · bounded fact pack ≤ 4000 chars · no disk writes |
+| Shared discipline with `/insight` | bounded + verdict-as-exit-code | no verdict engine, no judge |
+
+### 161.4 The ledger
+
+UI **576/576** · build ✓ (minified) · mvn -o **137/137** (Java untouched) · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch still **CRACKED** (entries **16**) · court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries **16** · chronicle grows with this commit · worldbook **Scroll CLXI / 161 scrolls (zh+en symmetric)** · D1 ✅ · D2 ⏸ · 「密码-123」vetoed · chronicle 1754 · worldbook 161
+
+---

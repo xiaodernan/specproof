@@ -5923,3 +5923,51 @@ UI **572/572** · build ✓（minified）· mvn -o **137/137**（Java 未动）�
 UI **573/573** · build ✓ · mvn -o **137/137**（Java 未动）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle 随本提交增员 · worldbook **卷一百六十 / 160 卷（中英对称）** · D1 ✅ · D2 ⏸（owner's PAT，等） ·「密码-123」否决
 
 ---
+
+## 卷一百六十一 · The Dig
+
+> 三只只读侦探并肩站在同一个屋子里，
+> 只问一个问题，同一把尺，
+> 谁不够就说不够——不涂绿。
+
+### 161.1 这个 feature 长什么样（#1955）
+
+- **POST `/api/v1/admin/investigation-dig`** — admin/operator 限制入口：
+  - body = `{"question": "..."}` · 1–600 字符
+  - 返回 `{question, verdict, findings[], agents[], total_tokens_used, generation_time_ms}`
+  - 失败一律 503（模型不可达时不会伪造答案；绝不涂绿）
+- **`/dig` 页面** — admin 限定页面，一个问题框 + 一个 "Send the investigators" 按钮：
+  - 三位只读调查员（explorer / tester / security）并发问同一问
+  - 它们都看同一个 bounded fact pack（顶层 tree + README headings + 测试清单 ≤ 4000 字符）
+  - 返回：verdict, findings，qa=claim, evidence 引用
+  - 三位并发吃同一个模型；网络出去只走 aizzz.xyz（HTTPS_PROXY=127.0.0.1:7897 时生效）
+- **调用即付账** — usage_ledger 记录 kind=`insight`、`total_tokens_used`、`cached`；「把模型问进去」从现在起是**日常仪式**的一部分，不是一次宣告式敲门。
+
+### 161.2 现场敲门（现敲现算 · 本机实敲 · 2026-11-17T09:44Z）
+
+question「这仓库是什么？用一句话说。」→ 模型通过 Clash Verge → aizzz.xyz 回：
+
+> 这是一个基于 Python（FastAPI、LangGraph）和 TypeScript/React 的代码变更验收平台：既能协助 AI 按需求修改代码，也能独立运行检查、追踪证据并评估变更是否符合需求。
+
+Verdict: **EVIDENCE-GATHERED** · explorer 6,140 tok · tester 5,538 tok · security 4,522 tok · **共 16,200 tok** · 模型 latency 38,126 ms
+
+三位调查员在同一个 question 上得到同一把 yardstick —— 没有一个说得不准，`security`按提示老老实实指出 `.env` 文件存在。**这不是一次演示**——这道题真敲过：
+
+- 模型的回答在技术上与 README 对不上号吗？做到了
+- 三位 investigators 对同一问题给出了同一方向的阅读
+- 这不是自动判决；它是一只会老老实实说 INSUFFICIENT 的小鸟
+
+### 161.3 这东西怎么接进来
+
+| 设施 | 位置 | 约束 |
+|---|---|---|
+| `/dig` 页面 | `apps/web/src/pages/Dig.tsx` | admin/operator 限定 · 按钮显式文案 |
+| 后端 endpoint | `api/routes/admin.py::/investigation-dig` | 同 RBAC 矩阵 · tenant mode 强制 |
+| `craft/investigators.py` | readonly ToolRegistry + ParallelRunner | 三只并行 leafs · facts-pack ≤ 4000 字符 |
+| `/insight` 同族 | 同 admin-best 纪律 · 事实包 + verdict 组织 | 不 verdict · 不 judge |
+
+### 161.4 账房
+
+UI **576/576** · build ✓（minified · lightningcss OK）· mvn -o **137/137**（Java 未动）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（entries **16**）· court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **Scroll CLXI / 161 scrolls (zh+en symmetric)** · D1 ✅ · D2 ⏸ ·「密码-123」否决 · cronicle 1754 · worldbook 161
+
+---

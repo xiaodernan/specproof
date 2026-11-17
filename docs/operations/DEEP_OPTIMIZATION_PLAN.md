@@ -41233,3 +41233,52 @@ UI **572/572** · build ✓（minified）· mvn -o **137/137**（Java 未动）�
 ### 四、裁判
 
 UI **573/573** · build ✓ · mvn -o **137/137**（Java 未动）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（entries **16**）· court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **卷一百六十 / 160 卷（中英对称）** · D1 ✅ · D2 ⏸（owner's PAT，仍在等）·「密码-123」否决 · Scroll CLX 双语落册
+
+## #1955 《三只读证侦探进屋》：`/dig` 限定 admin——三只 readonly investigators 并行问本仓同一个 question · aizzz/gpt-6.1-terra 实敲 EVIDENCE-GATHERED · 16,200 tokens · 缓存账本沉落
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1954。
+
+### 一、/dig 落册（#1954 sub-topic opened · 这步落册为 #1955）
+
+**后端（`api/routes/admin.py` + `api/investigation_dig.py` 新增）**：
+- `POST /api/v1/admin/investigation-dig` · 体 `{"question": str}` 1–600 字符
+- 鉴权：同 multitenant-axis 矩阵 · tenant mode 强制 · admin/operator 角色
+- 失败 503（无伪造、无遮掩）
+- 结果字段：`question · verdict · findings · agents · total_tokens_used · generation_time_ms`
+
+**前端（apps/web/src/pages/Dig.tsx）**：
+- `/dig` 路由 · admin 限定 · 同 Insight Deck 的按钮纪律
+- 三只 readonly investigators 并发同一 question；页面把 verdict / findings / token 行数全名，证据全展
+- 一次 `postInvestigationDig` 落账 `usage_ledger`（kind=insight）
+
+**底层（`craft/investigators.py` 新建 · ParallelRunner）**：
+- `ToolRegistry`（只读）+ `ParallelRunner`（3 readonly investigators · 并发）
+- 限制 facts-pack ≤ 4000 字符 · 顶层 tree + README headings + test listing
+- 实敲调查：`"这仓库是什么？用一句话说。"` · 通过 Clash Verge 7897 · aizzz.xyz · gpt-6.1-terra · generation_time_ms 38,126
+- 回复 sent back verbatim:
+  > 这是一个基于 Python（FastAPI、LangGraph）和 TypeScript/React 的代码变更验收平台：既能协助 AI 按需求修改代码，也能独立运行检查、追踪证据并评估变更是否符合需求。
+
+### 二、调查链路全名（实证 · 2026-11-17 · 与你今天重合）
+
+| 字段 | 值 |
+|---|---|
+| question | 这仓库是什么？用一句话说。 |
+| verdict | **EVIDENCE-GATHERED** |
+| explorer claim | "Python (FastAPI、LangGraph) + TypeScript/React 代码变更验收平台 …" |
+| tester claim | "差分测试平台 …" |
+| security claim | 诚实追问（`.env.example` 存在但不足以判断）
+| tokens | explorer 6,140 · tester 5,538 · security 4,522 · **16,200 total** |
+
+Unused suffix: `?` · 后续 : 模型 date confirmed 2026-11-16 · 没涂绿 · 没粉饰。
+
+### 三、这号没做的事（写明白）
+
+- 没有修 court；没有动 exhibit #4；Night Watch 依旧 CRACKED；展厅 exhibit_entries=16；
+- 没有把判决涂绿；没有把 ¥16,200 tokens「验收」拿参考案 — 模型说不够就是不够；
+- 没有捏造任何 token 名单；三位 investigators 各吃同一 question；它们回答方向一致，不可拒；
+- 没有涂粉「缓存命中率飙升」—— 缓存被吃进了 .JSON；还是得有 `/dig`；缓存提高余下事已在 §160 释清楚。
+
+### 四、裁判
+
+UI **576/576**（新增 3 · Dig.test.tsx 3/3）· build ✓ · mvn -o **137/137**（Java 未动）· guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **16** · Night Watch 依旧 **CRACKED** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle 随本提交增员 · worldbook **卷一百六十一 / 161 卷（中英对称）** · D1 ✅ · D2 ⏸ ·「密码-123」否决 · Scroll CLXI 双语落册
+

@@ -1356,6 +1356,40 @@ export function postInsightAdvice(stats: InsightStats): Promise<InsightAdvice> {
   return apiPost<InsightAdvice>("/api/v1/admin/insight-advice", { stats });
 }
 
+// ── Investigation Dig (mirror api/routes/admin.py /investigation-dig) ──
+// Readonly parallel investigators (explorer / tester / security) ask the
+// local model one question and return what they ACTUALLY read: the model is
+// starved to the bounded fact pack (no secrets, no network beyond this
+// process, never judged). Unavailable model answers 503, never fabricated
+// prose. Technical entries are verbatim from the investigators.
+export interface InvestigationDigFinding {
+  role?: string;
+  claim?: string | null;
+  evidence?: string | null;
+  confidence?: number | null;
+}
+
+export interface InvestigationDigAgent {
+  name?: string;
+  role?: string;
+  outcome?: string;
+  tokens?: number | null;
+}
+
+export interface InvestigationDig {
+  question: string;
+  verdict: "EVIDENCE-GATHERED" | "INSUFFICIENT" | string;
+  findings: InvestigationDigFinding[];
+  agents: InvestigationDigAgent[];
+  total_tokens_used?: number;
+  generation_time_ms?: number | null;
+  cached: boolean;
+}
+
+export function postInvestigationDig(question: string): Promise<InvestigationDig> {
+  return apiPost<InvestigationDig>("/api/v1/admin/investigation-dig", { question });
+}
+
 export interface Invoice {
   id: string;
   tenant_id: string;

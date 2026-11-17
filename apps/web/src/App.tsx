@@ -51,6 +51,7 @@ const Calendar = lazy(() => import("./pages/Calendar"));
 const Manual = lazy(() => import("./pages/Manual"));
 const Chronicle = lazy(() => import("./pages/Chronicle"));
 const Insight = lazy(() => import("./pages/Insight"));
+const Dig = lazy(() => import("./pages/Dig"));
 const Dossier = lazy(() => import("./pages/Dossier"));
 const Mint = lazy(() => import("./pages/Mint"));
 const LastCall = lazy(() => import("./pages/LastCall"));
@@ -185,6 +186,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "usage") return <Usage />;
   if (seg[0] === "audit") return <Audit />;
   if (seg[0] === "insight") return <Insight />;
+  if (seg[0] === "dig") return <Dig />;
   return <NotFoundPage />;
 }
 

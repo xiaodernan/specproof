@@ -21,6 +21,10 @@ Admin endpoints (/api/v1/admin, RBAC-governed by the §2 matrix):
                                      reads this panel's anonymous aggregates;
                                      fail-closed RBAC · not a verdict · 503 on
                                      an unavailable model, never a fabricated one)
+  POST   /investigation-dig          admin / operator (the model reads the
+                                     local repo, readonly: bounded facts, three
+                                     parallel investigators, INSUFFICIENT
+                                     when the model says so, never invented)
 
 Enforcement layers: the TenantAuthMiddleware already rejected anonymous
 requests and RBAC violations before these handlers run; the handlers
@@ -727,6 +731,52 @@ async def list_audit(
         "job_id": job_id,
         "job_present": trail["job_present"],
     }
+# ── /api/v1/admin/investigation-dig ──────────────────────────────────────────
+
+class InvestigationDigRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    question: str = Field(..., min_length=1, max_length=600)
+
+
+@admin_router.post("/investigation-dig", status_code=200)
+async def investigation_dig(
+    request: Request, payload: InvestigationDigRequest,
+) -> dict[str, Any]:
+    """The model reads this repo and answers the question, readonly.
+
+    Discipline mirrors insight-advice AI 解读: bounded fact pack (top-level
+    layout + README headings + test counts); no network beyond the local
+    Clash Verge proxy; no disk writes; no user data; tenant mode + admin /
+    operator RBAC; 503 on an unavailable model rather than a fabricated one.
+    """
+    _require_tenant_mode()
+    principal = _principal(request)
+    _assert_role(principal, frozenset({"admin", "operator"}))
+
+    from api.investigation_dig import (
+        InvestigationDigUnavailable,
+        generate_investigation_dig,
+    )
+
+    try:
+        result = await generate_investigation_dig(payload.question)
+    except InvestigationDigUnavailable as exc:
+        raise ApiError(
+            status_code=503, code=PROVIDER_UNAVAILABLE, detail=str(exc),
+        ) from exc
+
+    return {
+        "question": result["question"],
+        "verdict": result["verdict"],
+        "findings": result.get("findings", []),
+        "agents": result.get("agents", []),
+        "total_tokens_used": result.get("total_tokens_used", 0),
+        "generation_time_ms": result.get("generation_time_ms", 0),
+        "cached": False,
+    }
+
+
 # ── /api/v1/admin/insight-advice ─────────────────────────────────────────────
 
 
