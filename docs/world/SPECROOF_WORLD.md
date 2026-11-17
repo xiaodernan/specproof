@@ -6875,3 +6875,28 @@ rollouts of changes (`git log --oneline` on the showcase tip):
 ### 189.4 账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1784** + 1 · worldbook **189 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门
+## 卷一百九十 · 教与止
+
+> "按键上要写字，不是写给自己——是写给第一次误入此间的人手心里。"
+
+### 190.1 展厅新写的几行
+
+2026-11-18 本日 UI 修缮落在 showcase 仓（`xiaodernan.github.io` · commit `e5cbcbf`）：
+
+- **挤压**：展馆"实时事实包"那一条（minicc-codex live strip）此前固定 5 列（`minmax(0,1fr)`），窄条里 21px 的数字溢出 38px 格子——改为 `repeat(auto-fit,minmax(84px,1fr))`，宽屏仍 5 列、窄屏自动 3+2 折行，数字 `overflow-wrap:anywhere` 兜底；
+- **截断**：最近提交一行的 `nowrap + ellipsis`（sw=760 cw=190）改为两行截断（`-webkit-line-clamp:2`），长提交主题两行可读、不再被 ellipsis 吃掉；
+- **教学说明**：主界面所有可操作元素（顶部导航 / 主题切换 / 英雄区按钮 / 项目链接 / 子导航 / 筛选按钮 / 索引行 / 仓库卡 / 联系卡 / 里程碑 / 页脚）悬停即现中文+英文双轨一句话说明——不涉及任何身份口径，identity-guard 12 项依旧全对账 OK；
+
+验证：本地静态服务复核 offenders = []（无挤压仍存在）、`title` 属性逐项在位；Pages 部署链 (`pages.yml`) 随 master 自动上线。
+
+### 190.2 滚轮一事的结论（毋改动）
+
+用户多次钦示「滚轮往上滑往上看、往下滑往下看」。核查 CÆSURA 现行源码（`Input.ts` `wheelLook` 消费 `CameraRig.ts`：`signWheel = invertWheelY ? -(wheelDy) : wheelDy`；`pitch ↓ ⇒ 仰视、pitch ↑ ⇒ 俯视`）：默认 `invertWheelY = false` 时行为即为「往上滑 = 抬眼、往下滑 = 俯视」，与钦示一致；KI-593（2026-11-16）已落滚轮纵轴、KI-647（2026-11-17）已把滚轮拆出鼠标轴并配独立反转开关（setting 面第十格）。**本案结论：默认行为正确，无需再动、也不再动**——不动 WORKING 的代码是对用户的另一种承诺。
+
+### 190.3 相关性锚点
+
+camp：Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18**（未有 #19）· cache 车道仍 ~95% · chronicle **1785** · worldbook **190 卷（双语对称）** · library 188 zh≡en · UI **594/594**
+
+### 190.4 账房
+
+mvn untouched · UI **594/594**（本轮零代码变更 SpecProof 本仓库）· tsc ✓ · vitest ✓ · identity-guard ✓（本轮的实质收益）· 24 红 pinned 岿然未动 · exhibit entries 18 未动 · court 依旧 locked ·「密码-123」依旧是一扇标着「演示」的门

@@ -42149,3 +42149,26 @@ mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0c
 ### 三、账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1784** + 1 · worldbook **189 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## #1989 《教与止》：showcase 主界面挤压/截断修复 + 全量教学提示（hover tooltips zh+en）· CÆSURA 滚轮默认语义复核（不动代码：wheel up = look up 已正确，KI-593/647）· showcase `e5cbcbf` · chronicle **1785** · worldbook **190 卷（双语对称）** · UI **594/594**
+
+**记录基准**：本节只追加。本号衔接 #1988（展厅雅思/CET6 钦示恢复）。
+
+### 一、交付
+
+1. `styles.css`（_showcase_pages 仓）：`.minicc-latest-grid` 由定宽 5 列改 `repeat(auto-fit,minmax(84px,1fr))`；`.minicc-latest-number` 增 `overflow-wrap:anywhere`；`.minicc-latest-commit span` 由 nowrap+ellipsis 改 2 行 clamp；
+2. `script.js`（_showcase_pages 仓）：追加 `teachInteractive()`（同源原生 JS，零依赖）——顶部导航/主题切换/英雄按钮/项目链接/子导航/筛选按钮/索引行/仓库卡/联系卡/里程碑/页脚 全部带「它会做什么」悬停说明（zh+en）；
+3. 验证：本地静态服务复核 overflow offenders=[]；`title` 属性逐项在位；identity-guard 12 项 OK；Pages 随 master push 自动部署；线上 `https://xiaodernan.github.io/?cb=…` 无水平滚动（bodyScrollWidth=985）；
+4. 滚轮（CÆSURA）：**不动代码**。KI-593/KI-647 已保证默认 scroll up = look up、scroll down = look down；专属 invertWheelY 开关在设置十格内；若用户实际手感仍反，请在站内设置翻转该格（无需改仓库）；
+5. 本轮展馆 commit `e5cbcbf` 已 push 至 `xiaodernan/xiaodernan.github.io` master。
+
+### 二、诚实边界
+
+1. 本号不代表 exhibit #19 诞生——展品依旧 18；
+2. 不声称任何 SpecProof 本仓库代码或灯况变更（零改动）；
+3. 不声称线上 Pages 当前版本已人眼全量核验（仅本机静态复核 + 线上 DOM 度量； Pages 部署随 push 事件有延迟）；
+4. pressure-test/cache 数字不出现在本号（未敲新测）。
+
+### 三、账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1785** · worldbook **190 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门

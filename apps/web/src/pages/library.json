@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-17T21:23:19+00:00",
-  "count": 188,
+  "generated_at": "2026-11-17T21:40:01+00:00",
+  "count": 189,
   "zh": [
     {
       "num": "卷零",
@@ -941,6 +941,11 @@
       "num": "卷一百八十九",
       "title": "泥与玉",
       "excerpt": "2026-11-17 至 2026-11-18，同一组身份宣言（赵欣曈 · 南方科大本科 · 港中大硕士 · 计算机科学与技术 · 全国中学生物理竞赛铜牌 · 江西省一等奖 · 江西省二等奖 · 法狗狗 · 隐盾 · 应用工程师）之外，加一项\"以前从未显宣\"的项：**雅思 6.5 · CET6 546**（用户原话：\"雅思6.5 六级 546 即 IELTS6.5 CET6 546 可以的\"）。"
+    },
+    {
+      "num": "卷一百九十",
+      "title": "教与止",
+      "excerpt": "2026-11-18 本日 UI 修缮落在 showcase 仓（`xiaodernan.github.io` · commit `e5cbcbf`）："
     }
   ],
   "en": [
@@ -1883,6 +1888,11 @@
       "num": "Scroll CLXXXIX",
       "title": "Stone After Clay",
       "excerpt": "The exhibition pavilion realised an apparent contradiction over three discrete passes through identity-guard:"
+    },
+    {
+      "num": "Scroll CXC",
+      "title": "Teaching and Stillness",
+      "excerpt": "2026-11-18's UI tune-up landed in the showcase repo (`xiaodernan.github.io` · commit `e5cbcbf`):"
     }
   ],
   "note": "machine-struck from the two bibles; parity asserted at build time; never an editorial statement"

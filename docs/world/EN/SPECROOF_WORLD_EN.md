@@ -6750,3 +6750,28 @@ An exhibition rehearsal is not a jury: the user always decides the verse. The gu
 ### 189.4 The ledger
 
 mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1784** + 1 · worldbook **189 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」is still a door marked "demo"
+## Scroll CXC · Teaching and Stillness
+
+> "Words on a button aren't for the one who made it — they're for the hand that wandered in here first."
+
+### 190.1 What the pavilion gained today
+
+2026-11-18's UI tune-up landed in the showcase repo (`xiaodernan.github.io` · commit `e5cbcbf`):
+
+- **Squeeze**: the "live fact-pack" strip for minicc-codex used a fixed 5-column grid (`minmax(0,1fr)`), so 21 px numerals overflow a 38 px cell — now `repeat(auto-fit,minmax(84px,1fr))`; wide screens keep 5-up, narrow strips fold to 3+2, `overflow-wrap:anywhere` on the numerals is the belt-and-braces;
+- **Truncation**: the recent-commits row ran `nowrap + ellipsis` (scrollWidth 760 vs clientWidth 190) — now a two-line clamp (`-webkit-line-clamp:2`); long commit subjects read in full over two lines;
+- **Teaching hints**: every actionable element on the main page (top nav / theme toggle / hero buttons / project links / sub-nav / filter buttons / index rows / repo cards / contact cards / milestones / footer) now carries a one-line zh+en hover explanation — no identity claims touched, identity-guard's 12 anchors still reconcile OK;
+
+Verified over a local static server: overflow offenders = [], `title` attributes present element-by-element; the Pages pipeline (`pages.yml`) redeploys master on push.
+
+### 190.2 The scroll-wheel question (no code moved)
+
+The user has repeatedly asked for "scroll up → look up, scroll down → look down". Checking current CÆSURA source (`Input.ts` accumulates `wheelLook`; `CameraRig.ts` consumes it: `signWheel = invertWheelY ? -(wheelDy) : wheelDy`; `pitch ↓ ⇒ gaze up, pitch ↑ ⇒ gaze down`): with the default `invertWheelY = false`, behaviour is exactly "scroll up = gaze up, scroll down = gaze down" — matching the standing instruction. KI-593 (2026-11-16) introduced the scroll axis; KI-647 (2026-11-17) split it from the mouse axis and gave it a dedicated invert toggle (setting pad, tenth cell). **Verdict: default behaviour is correct; nothing was changed, nothing will be changed** — not moving working code is its own kind of promise.
+
+### 190.3 The anchors
+
+camp: Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** (no #19) · cache lanes hold ~95% · chronicle **1785** · worldbook **190 scrolls (bilingual mirror)** · library 188 zh≡en · UI **594/594**
+
+### 190.4 The ledger
+
+mvn untouched · UI **594/594** (zero code changes in the SpecProof repo itself) · tsc ✓ · vitest ✓ · identity-guard ✓ (this round's real yield) · 24 pinned reds stand · 18 exhibit entries unchanged · court locked · 「密码-123」is still a door marked "demo"
