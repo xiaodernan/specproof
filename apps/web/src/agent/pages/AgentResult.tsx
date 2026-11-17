@@ -124,12 +124,11 @@ export default function AgentResult({ jobId }: { jobId: string }) {
   const phase = agentRunPhase(job.status);
   const gates = result?.gates?.gates || [];
   const models = [...new Set(result?.llm_usage?.calls_detail?.map(call => call.model).filter(Boolean) || [])];
-  // #145: the sandbox's own statement about the dependency cache it consumed
-  // ("缓存完整性通过…" / "缓存完整性: 未校验 (NOT VERIFIED)…") is written into the
-  // step evidence by craft/loop.py. Until now the only way to read it in the
-  // product was to expand the raw-JSON <details> and know the English key name —
-  // an honest disclosure that no reviewer would find. Lifted out here, in the
-  // reader's language, on the panel that also carries the gates.
+  // #145 — the sandbox's own statement about the dependency cache it consumed
+  // (written into step evidence by craft/loop.py: either a byte-level pass or an
+  // explicit NOT VERIFIED verdict) is what this lift reads — until now the only
+  // way to see it was a raw JSON <details> node. Lifted out, in the reader's
+  // language, on the panel that also carries the gates.
   //
   // Deduplicated because the same note is recorded once per step that ran a
   // command; the page states the fact, not how many steps repeated it.
