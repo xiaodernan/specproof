@@ -6269,3 +6269,28 @@ The first version of this lamp did not believe its own receipt: `verify_node` re
 ### 173.3 The ledger
 
 UI **590/590** (83 files · StateGraph.test **10/10**) · vitest run ✓ · vite build ✓ · mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **17** · chronicle **1768** + 1 · worldbook **173 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is still a door marked "demo"
+
+## Scroll CLXXIV · Its Own Evidence
+
+> A red is not a verdict — it is a thermometer. Every red names who struck it: yesterday's debt, or today's toll.
+
+### 174.1 Tonight's 32 reds, arrested by name
+
+`pytest tests/unit` in 78 minutes reported **6,660 passed · 45 skipped · 32 failed**. Reconciled name by name:
+
+| gate | this round's finding | done |
+|---|---|---|
+| `test_verdict_channel_parity` (3) | my witness channel needed `DRIFTED`/`HELD` registered; my witness pointer also adjusted (`craft/investigators.py` 294→296) | **fixed · 14/14 green** |
+| `test_web_css_stays_on_the_design_system::..._4px_grid` | three off-grid values (6px/6px/18px) born in this round's CSS | **fixed · green** |
+| `test_env_knobs...D08` | my new `OBSERVE_ADVICE_TTL_SECONDS` shipped unregistered (`.env.example` + compose) | **registered · green** |
+| `test_fake_inventory_stays_measured` (2) | my `_FakeProvider` pushed plain-double 232→233 — the meter asked for pin+counts+doc to move together | **re-measured and re-pinned · 11/11 green** |
+| `test_the_payload...` (23-family) | `client_surface_closure` fixed (**green**); 22 remaining checked against `bdf9a07` — identical names on master-at-start; the family is pinned owner-supervised and moves only by explicit drift-analysis | **22 remain, as pinned** |
+| `test_tracked_files...U+FFFD` | the single locked U+FFFD at `DEEP_OPTIMIZATION_PLAN.md:40823` — unresolvable by fabrication | **unmoved · permanent entry** |
+
+### 174.2 The pinned ones
+
+The payload-census family stays at 22–23 pinned red across rounds; never painted green. The `_purity_fixture_for_test.py` forced-hit unit test was converted to snapshot-restore in #1965 so it can never again leave `docs/evidence/purity-sift.*` red by accident.
+
+### 174.3 The ledger
+
+UI **590/590** · vitest run ✓ · vite build ✓ · mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **17** · chronicle **1769** + 1 · worldbook **174 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is still a door marked "demo"

@@ -41,8 +41,8 @@ INVENTORY = REPO_ROOT / "docs" / "architecture" / "FAKE_INVENTORY.md"
 #: re-measures this pair on every CI run; the numbers here are what
 #: ``scripts/classify_test_fakes.py`` gave on that commit, not what anybody
 #: last typed.
-PIN_COMMIT = "b7a011ad29874d0d30b508c8fc5369ac9522e472"
-PIN_COUNTS = {"sql-fake": 22, "store-duck-type": 44, "plain-double": 232}
+PIN_COMMIT = "b121c5e4169d2a5d6930cfb153d3a60414b801bb"
+PIN_COUNTS = {"sql-fake": 22, "store-duck-type": 44, "plain-double": 233}
 
 
 def _classifier():

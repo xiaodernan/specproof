@@ -332,6 +332,7 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "行宪 · #1969", value: "`api/system_covenant.py`——字节恒定中文宪章 1,450 B（11 法 · 钉住仓库真件）· 五车道共享 · 法院车道不带 · 缓存现状如实登记 · UI **589/589**（#1969）" },
       { label: "活数字 · #1970", value: "Archive 三卡接活值：世界书 **171** · 墨水池 **2,643**（span 130 d · streak 16）· 金案 **111** · inkwell.json 重敲入库 · UI **589/589**（#1970）" },
       { label: "行宪见证人 · #1971", value: "/stategraph 第十一盏「行宪见证人」· sha256 pin 住 #1969 行宪日 · 永不敲模型 · parity **14/14** · UI **590/590**（#1971）" },
+      { label: "自己的证券 · #1972", value: "全量 32 红逐名对账 · 5 红门当场修复（parity · 4px grid · D08 knob · fake-inventory pin · closure client 桶登记）· payload-census 钉实证 23→22 · UI **590/590**（#1972）" },
     ],
   },
   {
@@ -654,6 +655,7 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "The Covenant · #1969", value: "`api/system_covenant.py` — byte-identical Chinese charter (11 laws · pinned to repo-truth files) carried by five cacheable lanes; court never carries it; provider cache honoured honestly as-is · UI **589/589** (#1969)" },
       { label: "Live Numbers · #1970", value: "Archive takes live values everywhere: World Book **171** · Inkwell **2,643** (span 130 d · streak 16) · dossier **111** · inkwell.json re-struck · UI **589/589** (#1970)" },
       { label: "The Covenant Witness · #1971", value: "StateGraph lamp #11 — covenant pinned byte-for-byte to its #1969 day · never strikes a model · parity **14/14** · UI **590/590** (#1971)" },
+      { label: "Its Own Evidence · #1972", value: "the full 32-red bench reconciled name by name · five red gates fixed on the spot (parity · 4px grid · D08 knob ledger · fake-inventory pin · client-closure roster) · payload-census pin confirmed at 22 · UI **590/590** (#1972)" },
     ],
   },
   {

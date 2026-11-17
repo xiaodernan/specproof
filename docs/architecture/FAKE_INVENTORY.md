@@ -39,9 +39,9 @@
 |---|---|---|---|
 | **SQL 假** | **22** | 实现了 SQL 面（`cursor` / `fetchall` / `fetchone` / `commit` / `rollback` / `executemany` / `query` / `select` / `insert` / `update`；**`execute` 单独出现不算**，见下面「`execute` 撞名」） | **能**——求值器就是替这一面 |
 | 仓储鸭子类型 | 44 | 实现的是**领域方法**（`save` / `find_by_id` / `incr` / `expire` / `publish` / `delete` …） | **不能**——换成求值器等于把它变成**真 store**，那是另一类改动 |
-| 普通替身 | 232 | 只实现被测代码用到的那几个方法 | 不在讨论范围内 |
+| 普通替身 | 233 | 只实现被测代码用到的那几个方法 | 不在讨论范围内 |
 
-⇒ ⇒ **手写假一共 298 个，而「SQL 假」只有 22 个（约 7.4%）** ⇒ ⇒ 原队列项瞄准的集合比看上去小一个数量级 ⇒ ⇒
+⇒ ⇒ **手写假一共 299 个，而「SQL 假」只有 22 个（约 7.4%）** ⇒ ⇒ 原队列项瞄准的集合比看上去小一个数量级 ⇒ ⇒
 且那 22 个类（SQL 替身 14 处）分布在 **14 个文件**里（其中 8 处是「一个游标 + 一个连接/存储」的分体：`fixture_server.py` `test_audit_action_parity.py` `test_drill_helpers.py` `test_feedback_store_read.py` `test_mcp_server.py` `test_mysql_isolation_contract.py` `test_tenant_auth.py` `test_web_api.py`；`fake_sql_engine.py` 的 `SqlFakeCursor` 是 SQL 求值器本体，按上表入账），——本页各处数字以 `b7a011a` 实测为准（见 `tests/unit/test_fake_inventory_stays_measured.py` 钉脚本；2026-11-13 之前的 289 钉，存于 `027a877`）。
 
 ⇒ ⇒ **结论（这条队列项就此重框）**：
@@ -212,3 +212,12 @@ python scripts/classify_test_fakes.py --explain-drift 422deca   # 数目为什�
 SQL 假占比 7.8% → 7.7%。
 
 **诚实边界。** 同上一节：这是"账本没记上"，不是"代码错了"。
+
+## 再次入册 · 2026-11-17 · `b121c5e`
+
+- `plain-double` 232 → **233**：`tests/unit/test_observe_advice.py:67` 的 `_FakeProvider`（#1966 落的；替的是「向 aizzz/gpt-6.1-terra 的模型服务」这个外部契约，非数据库、非存储、非求值器）；
+- `store-duck-type` **44** · SQL 假 **22**（约 7.4%）· 14 个文件分布不变 · 分体 8 处不变；
+- 总数 298 → **299**；钉脚本 `PIN_COMMIT` 改为 `b121c5e`（完整 sha `b121c5e4169d2a5d6930cfb153d3a60414b801bb`），`PIN_COUNTS = {"sql-fake": 22, "store-duck-type": 44, "plain-double": 233}`；
+- `scripts/classify_test_fakes.py --explain-drift b121c5e4169d2a5d6930cfb153d3a60414b801bb` 实测：`sql-fake 22 -> 22 · store-duck-type 44 -> 44 · plain-double 233 -> 233 · total 299 -> 299 · nothing moved`——字面照录在这一节。
+
+入场的一位替身从属 #1966 的公开车道测试，来源提交（`f55daaa`）可追，没有归属不明的替身；本页只记账不判词。

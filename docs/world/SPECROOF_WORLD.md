@@ -6376,3 +6376,28 @@ UI **589/589** · vite build ✓ · mvn 未动 · court `4117d2b0ca5fb23a` **LOC
 ### 173.3 账房
 
 UI **590/590**（83 文件 · StateGraph.test **10/10**）· vitest run ✓ · vite build ✓ · mvn 未动 · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1768** + 1 · worldbook **173 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷一百七十四 · 自己的证券
+
+> 红不是终部——是凉水的温度。每一处红门都得按本人的身份去敲，才能明白是欠的债、还是自己新造的税。
+
+### 174.1 今晚拆开的红，不是前人欠的就是我自己造的税
+
+`pytest tests/unit`（78 分钟）出炉：**32 红**。逐名对账：
+
+| 门 | 归因 | 处理 |
+|---|---|---|
+| `test_verdict_channel_parity`（3 条） | 我自己的灯让行宪见证人出了 `DRIFTED` 当字面量，witness 的指针也得顺带加一位（`craft/investigators.py` 294→296） | 已修复 · 14/14 绿 |
+| `test_web_css_stays_on_the_design_system::..._4px_grid` | 我亲手引入的三个偏离网格的 6px/18px | 已修复 · 绿 |
+| `test_env_knobs...D08` | 我新加的 `OBSERVE_ADVICE_TTL_SECONDS` 没登记 knob ledger（.env.example / compose 都没有） | 已登记 · 绿 |
+| `test_fake_inventory_stays_measured`（2 条） | 我多了一位 `_FakeProvider` → plain-double 232→233，门要求跟进 `PIN_COMMIT`/`PIN_COUNTS`/`FAKE_INVENTORY.md` 一起走 | 已重敲 · 11/11 绿 |
+| `test_the_payload...`（23 条家族） | 除去 `client_surface_closure` 1 条（已修复绿），22 条逐一对照 `bdf9a07`（本会话前）实录：**23 红 → 22 红**——整个家族全是 owner-supervised 的 23 红钉；我的一行也没跑偏值 | 注册册记在册（上加一轮登记） |
+| `test_tracked_files...U+FFFD` | 证 `DEEP_OPTIMIZATION_PLAN.md:40823` 的 U+FFFD（#1953 时期锁的 · 不可伪造） | 未动 · 永久册登记项 |
+
+### 174.2 钉住的那些
+
+payload-census 家族（owner-supervised）连续第二天是 22–23 个固定红，永不涂绿；`_purity_fixture_for_test.py` forced-hit 已在 `#1965` 改为 snapshot-restore，不再污染证据件。
+
+### 174.3 账房
+
+UI **590/590** · vitest run ✓ · vite build ✓ · mvn 未动 · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1769** + 1 · worldbook **174 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门

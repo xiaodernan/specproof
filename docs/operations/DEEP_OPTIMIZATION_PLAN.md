@@ -41700,3 +41700,26 @@ mvn 未动 · UI **589/589** · vite build ✓ · court `4117d2b0ca5fb23a` **LOC
 ### 三、账房
 
 mvn 未动 · UI **590/590**（83 文件 · StateGraph.test **10/10**）· vitest run ✓ · vite build ✓ · OpenAPI 未动 · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1768** + 1 · worldbook **173 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## #1972 《自己的证券》：78 分钟全量实敲——32 红逐名对账 · 5 红门当场修复（parity 14/14 · 4px grid · D08 knob ledger · fake-inventory pin+counts+doc · 注册册 client 桶领取）· payload-census 钉核实 23→22 · UI 590/590 · chronicle 1769 + 1 · worldbook 174 卷（双语） · UI 590/590 · chronicle 1769 + 1 · worldbook 174 卷（双语）
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1971。
+
+### 一、全量红的对账（不在任何一卷里涂色）
+
+`pytest tests/unit`（78 分 20 秒 · 6,660 绿 · 45 跳过 · 32 红）：
+
+1. `test_verdict_channel_parity`（3 条）— 行宪见证人的 `HELD`/`DRIFTED` 是 witness 通道待领字面量（列在 `witness.scale` 里即可），`craft/investigators.py:294 → :296` 的 witness 指针随 #1969 的一行 import 推位 — **修复 · 14/14**；
+2. `test_web_css_stays_on_the_design_system::test_the_web_ui_stays_on_the_4px_grid` — 本轮 CSS 带入的 6px×2、18px×1 — **修复 · 绿**（6px→8px · 18px→16px）；
+3. `test_env_knobs_reach_the_process_that_reads_them.py::test_D08_...` — `OBSERVE_ADVICE_TTL_SECONDS` 出生没登记 knob 账（`_NO_ROW_LEDGER` 不允许开小灶）→ `.env.example` + `compose.production.yml` 与其 insight-advice/ai-summary 兄弟同表登记 — **绿**；
+4. `test_fake_inventory_stays_measured`（2 条）— 我新增的 `_FakeProvider` 进入 `plain-double 232→233`；门要求 PIN_COMMIT/PIN_COUNTS/FAKE_INVENTORY.md 同步位移 → 钉位移到 `b121c5e`（漂移检出：sql22/duck44/等 233/299，零额外） — **绿**；
+5. `test_payload_the_frontend_declares...`：登记本轮 client 桶与 reach 桶（7 项 #1967 至今的 helper：`getLlmUsageSummary · postInsightAdvice · postInvestigationDig · postObserveAdvice · postRunbookTriage · requestAiSummary · streamAiSummary`；`CLIENT_ISSUER_ROSTER` + `DEPTH_BANDS 1:21` + `UNBOUND_PAYLOADS` 追加 4 条（`/api/v1/llm/usage/summary` — `ledger_summary()` 的数据驱动聚合字典，与 model/config 同族；`/api/v1/jobs/{job_id}/ai-summary` — `cached = dict(cached)` 读出动态键；`/api/v1/admin/insight-advice` — 同上形状；`/observe/advice` — 同上形状）→ **绿**；同一文件的另外 22 条经 `bdf9a07`（本会话起点）钉顶实测 **23→22**——payload-census 家族为 owner-supervised 钉，逐字不动；
+6. `test_tracked_files_survive_their_encoding::...U+FFFD` — 证 `DEEP_OPTIMIZATION_PLAN.md:40823` 的 U+FFFD（#1953 锁册 · 不可伪）— 未动，永远红。
+
+### 二、为什么说一连串登记都值钱
+
+登记一批字段没有任何一个"代码赢"和"门赢了"——全是把新加的端点 / 新加的 client / 新加的 knob / 新加的替身如实计数入册。放着不登记，下次它们就成了新的红又压着别人的门。**登记不是 clutter，是「新增一件事先承认存在」这条铁律的账。**
+
+### 三、账房
+
+UI **590/590** · vitest run ✓ · vite build ✓ · mvn 未动 · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1769** + 1 · worldbook **174 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门

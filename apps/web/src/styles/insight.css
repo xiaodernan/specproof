@@ -306,7 +306,7 @@
 
 /* ── Observatory page ────────────────────────────────────────── */
 /* Public, read-only, demo — never observes any visitor. */
-.observe-page { display: grid; gap: 18px; }
+.observe-page { display: grid; gap: 16px; }
 
 .observe-funnel { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .observe-funnel-row {
@@ -338,7 +338,7 @@
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
-  margin: 6px 0 2px;
+  margin: 8px 0 0;
 }
 .observe-gate-field {
   background: var(--surface-2);
@@ -350,7 +350,7 @@
   font-size: var(--text-md);
   font-family: inherit;
 }
-.observe-gate-error { color: var(--danger-text); margin: 6px 0 0; font-size: var(--text-sm); }
+.observe-gate-error { color: var(--danger-text); margin: 8px 0 0; font-size: var(--text-sm); }
 .observe-gate-note {
   color: var(--steel-graphite-2);
   font-size: var(--text-xs);

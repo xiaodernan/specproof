@@ -327,6 +327,27 @@ UNBOUND_PAYLOADS: dict[Key, str] = {
         "`return public_model_config()` -- the same data-decided key set as the GET "
         "route, so neither half of the model panel can be folded from here"
     ),
+    ("get", "/api/v1/llm/usage/summary"): (
+        "api/routes/llm_usage.py:40 returns `ledger_summary(window_hours=...)`, "
+        "whose return dict is built in providers/usage_ledger.py from the JSONL "
+        "ledger with data-decided aggregates -- the same shape as model/config, "
+        "unreadable to the fold"
+    ),
+    ("post", "/api/v1/jobs/{job_id}/ai-summary"): (
+        "api/routes/web.py:996 — the cache path returns `cached = dict(cached)` "
+        "with one dynamic `cached=True` key over an unreadable redis readback; "
+        "the fold cannot enumerate keys of a dynamic dict return"
+    ),
+    ("post", "/api/v1/admin/insight-advice"): (
+        "api/routes/admin.py:891 returns `cached = dict(cached); cached['cached'] = True` "
+        "from a redis readback -- same shape as ai-summary: a dynamic dict over a "
+        "byte-identical evidence path, unreadable to the fold"
+    ),
+    ("post", "/observe/advice"): (
+        "api/routes/observe.py:69 returns a redis readback through the same "
+        "`cached = dict(cached); cached['cached'] = True` shape used by ai-summary and "
+        "insight-advice -- public twin of the same cache-miss lane, same reason"
+    ),
 }
 
 #: Pairs whose fold merged a mutation that runs only on some control paths. This is
@@ -908,28 +929,35 @@ CONSUMER_BINDING_UNREAD_BLOCKS: frozenset[tuple[str, int]] = frozenset(
 #: stream wrappers are in it because of what they *call*, and nothing in the reading was told
 #: those names. ``via`` is what tells a stream from a helper -- the word in the name says nothing.
 CLIENT_ISSUER_ROSTER: dict[str, tuple[int, int, bool, tuple[str, ...]]] = {
-    "doFetch": (194, 0, False, ()),
-    "openEventStream": (274, 0, False, ()),
-    "apiDelete": (947, 1, True, ("doFetch",)),
-    "apiGet": (203, 1, True, ("doFetch",)),
-    "apiPost": (952, 1, True, ("doFetch",)),
-    "createFindingFeedback": (593, 1, True, ("apiPost",)),
-    "downloadCapsule": (363, 1, True, ("doFetch",)),
-    "getAgentDiff": (1060, 1, True, ("apiGet",)),
-    "getAuthConfig": (1109, 1, True, ("apiGet",)),
-    "getInvoiceByPeriod": (1227, 1, True, ("apiGet",)),
-    "getJobFeedback": (589, 1, True, ("apiGet",)),
-    "logout": (149, 1, True, ("doFetch",)),
-    "openAgentEventStream": (969, 1, True, ("openEventStream",)),
-    "openProgressStream": (259, 1, True, ("openEventStream",)),
-    "prepareDemoRepo": (471, 1, True, ("apiPost",)),
-    "transitionInvoiceStatus": (1236, 1, True, ("apiPost",)),
+    "doFetch": (196, 0, False, ()),
+    "openEventStream": (276, 0, False, ()),
+    "apiDelete": (1081, 1, True, ("doFetch",)),
+    "apiGet": (205, 1, True, ("doFetch",)),
+    "apiPost": (1086, 1, True, ("doFetch",)),
+    "createFindingFeedback": (663, 1, True, ("apiPost",)),
+    "downloadCapsule": (433, 1, True, ("doFetch",)),
+    "getAgentDiff": (1194, 1, True, ("apiGet",)),
+    "getAuthConfig": (1243, 1, True, ("apiGet",)),
+    "getInvoiceByPeriod": (1463, 1, True, ("apiGet",)),
+    "getJobFeedback": (659, 1, True, ("apiGet",)),
+    "getLlmUsageSummary": (890, 1, True, ("apiGet",)),
+    "logout": (150, 1, True, ("doFetch",)),
+    "openAgentEventStream": (1103, 1, True, ("openEventStream",)),
+    "openProgressStream": (261, 1, True, ("openEventStream",)),
+    "postInsightAdvice": (1355, 1, True, ("apiPost",)),
+    "postObserveAdvice": (1373, 1, True, ("apiPost",)),
+    "postInvestigationDig": (1407, 1, True, ("apiPost",)),
+    "postRunbookTriage": (1439, 1, True, ("apiPost",)),
+    "prepareDemoRepo": (541, 1, True, ("apiPost",)),
+    "requestAiSummary": (390, 1, True, ("apiPost",)),
+    "streamAiSummary": (403, 1, True, ("openEventStream",)),
+    "transitionInvoiceStatus": (1472, 1, True, ("apiPost",)),
 }
 
 #: How many issuers sit at each graph distance from a transport. The absence of a ``2`` is the
 #: tier-3 zero: this client module has no helper-of-a-helper, so the closure converges in the
 #: round that seeds depth 1 and the round after it adds nothing.
-CLIENT_ISSUER_DEPTH_BANDS: dict[int, int] = {0: 2, 1: 14}
+CLIENT_ISSUER_DEPTH_BANDS: dict[int, int] = {0: 2, 1: 21}
 
 #: Per *declared* client verb: rows in the closure that define it, call-shaped mentions in
 #: product files, page rows that bind it. Two of the five declarations are written nowhere at
