@@ -6055,3 +6055,28 @@ The stategraph family goes from nine to ten lamps (6 offline + 4 networked). On 
 `test_access_role_parity` → **11/11** (SURFACES + NAV_SURFACES gained `runbook`; `classify_request` now maps `/api/v1/admin/runbook-triage*` onto the `users` cell → `{admin, operator}`);
 `test_openapi_diff` green · `test_web_client_calls_are_in_the_openapi_baseline` green · UI **580/580** · `mvn -o` both services **BUILD SUCCESS** (Java untouched) · purity **CLEAR** · Night Watch still **CRACKED** ·
 `test_verdict_channel_parity` → **14/14** (scale += CONFIRMED / INCONCLUSIVE · owners += `api/runbook_triage.py`, `agent/graphs/runbook_triage_graph.py`, `api/routes/admin.py`) · chronicle **1756** + 1 · worldbook **Scroll CLXV / 165 scrolls (zh+en symmetric)**
+
+## Scroll CLXVI · The three scenes of an on-call page
+
+> The doorbell ring is not the script's last beat — it is only the address on the letter. When the bell rings, the operator with no poem in his mouth knows that a bad rhyme counts as one, not zero.
+
+### 166.1 The Runbook lane on file (native bilingual for #1959–#1960)
+
+An alert fires, and the person on call does not know which hand to reach for first. In this world, the doorbell stays silent — every minute of silence is a minute somebody holds their breath, and the door needs someone who knows which knock has been practiced.
+
+`/api/v1/admin/runbook-triage/alerts` lists what this repo actually deploys (read-only). `POST /api/v1/admin/runbook-triage {"alert":"..."}` refuses to chase a name it has not seen in the roster. No tenant mode → **503**.
+
+The facts are bounded on four axes only: **the alert's rule, verbatim** (expr / for / labels / annotations) · **the twenty newest commits** (sha7 + one line, nothing else) · **the five newest `docs/evidence/*.json` filenames** (names, never content) · **the api lane of the production compose file with every value redacted**. A fact pack that cannot carry a claim yields **INCONCLUSIVE** — deliberate, never upgraded.
+
+Live struck with `SpecproofApiDown`: explorer read the `up{job="api"} == 0` rule and offered the obvious first two checks; tester insisted the repo does not carry a live target list or service status, so could not certify a cause; security named the metrics endpoint shape rather than the incident's cause. The model is trusted to relate what the pack shows — never to invent what it does not. Final verdict: **CONFIRMED**, on the narrow basis that the alert's own rule, the git cadence and the evidence names support a *triage response*, not a *cause*.
+
+### 166.2 Three judges, three seats — on purpose
+
+| lane | What the model does | What the model may never do |
+|---|---|---|
+| `/insight` | read anonymous aggregates for advice | deliver a verdict |
+| `/dig` | answer this repo's own questions | vote on a merge |
+| `/runbook` | read the repo and point at the next step | close the alert, change the rule |
+| COURT | state the explanation plainly | change the verdict |
+
+`#/stategraph` shows ten living state graphs (**6 offline + 4 networked**: cache_witness, insight_advice, investigation_dig, runbook_triage) verbatim. UI **580/580** · build ✓ · purity **CLEAR** · `mvn -o` both services **BUILD SUCCESS** · chronicle **1758**

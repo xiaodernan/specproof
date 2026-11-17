@@ -41458,3 +41458,26 @@ mvn -o 双 service **BUILD SUCCESS**（Java 未动，car-rying #1958 结果）·
 ### 二、判词
 
 mvn -o 双 service **BUILD SUCCESS** · UI **580/580** · tsc ✓ · build ✓ · purity **CLEAR** · Night Watch 依旧 **CRACKED**（exhibit #4 不动 · entries 16）· court `4117d2b0ca5fb23a` **LOCKED** · chronicle **1757** + 1 · worldbook **卷一百六十五（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」否决
+
+## #1961 《告警一响的分镜》：Scroll CLXVI 中英双语落册 · Runbook 车道的 narrative 深入 · chronicle **1758** + 1 · worldbook **165 → 166 卷（双语对称）**
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1960。
+
+### 一、卷一百六十六《告警一响的分镜》
+
+#1959 与 #1960 把 /runbook 车道吃进了本仓；单独恩赐一卷当正史，好让一等门铃**不只属于工程日志**。
+
+Scroll CLXVI 含：
+
+- **Runbook 本体**：`GET /api/v1/admin/runbook-triage/alerts` + `POST /api/v1/admin/runbook-triage`；RBAC=admin/operator；未上 tenant mode → 503；告警名不在 roster → **422 UNKNOWN-ALERT**；
+- **事实包四件套**：告警规则本体 · 最近 20 提交 · 最新 5 evidence 文件名 · compose api env（**值脱敏**）；
+- **判词位置**：CONFIRMED / INCONCLUSIVE · **永不涂绿**；court 不改判
+- **court 独立**：§1 法院席位三档（/insight · /dig · /runbook）+ COURT 位置table 摆明，不共享；
+- **卷编末行**：`/stategraph 十盏` verbatim（6 离线 + 4 出网）
+
+### 二、账房（本机 2026-11-17 实敲)
+
+- chronicle **1759** · worldbook **卷一百六十六（中英对称）** · chronicle entry = 本提交
+- `audit_evidence` → CONSISTENT · purity **CLEAR** · Night Watch 依旧 **CRACKED**（exhibit #4 不挪 · entries 16）· court `4117d2b0ca5fb23a` **LOCKED**
+- D1 ✅ · D2 ⏸ ·「密码-123」否决
+- UI 未再敲 · chronicle 1759 · UI基线=580

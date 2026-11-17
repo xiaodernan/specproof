@@ -6160,3 +6160,30 @@ POST /api/v1/admin/runbook-triage  →  { "alert": "SpecproofApiDown",
 `test_openapi_diff` 绿 · `test_web_client_calls_are_in_the_openapi_baseline` 绿 · UI **580/580** · mvn -o 双 service BUILD SUCCESS（未动）· purity **CLEAR** · Night Watch 依旧 **CRACKED** ·
 `test_verdict_channel_parity` → **14/14**（witness scale += CONFIRMED/INCONCLUSIVE · owners += `api/runbook_triage.py` + `agent/graphs/runbook_triage_graph.py` + `api/routes/admin.py`）；
 chronicle **1756** + 1 · worldbook **卷一百六十五 / 165 卷（双语对称）**
+
+## 卷一百六十六 · 告警一响的分镜
+
+> 门铃响起不是终点；它只是信上的地址。值班的人口中不出诗，早知道门铃一响，韵脚不能白过。
+
+### 166.1 Runbook 值班手册落册（同期 #1959–#1960 合看）
+
+告警一响，进屋的值班人不知道该先动哪只手——代码世界里门铃每分钟都响，不代你选。
+
+`/api/v1/admin/runbook-triage/alerts` 列真正在跑的告警（同上 read-only）；`POST /api/v1/admin/runbook-triage {"alert":"..."}` 不会把不存在的告警名当作真的抓进来，无 tenant mode → **503**。
+
+事实包严格只有四样：**告警规则本体**（表达式、for、labels、annotations，逐字）· **最近 20 个提交**（sha7 + 一行标题，无正文）· **最新 5 份 `docs/evidence/*.json` 的文件名**（不读内容）· **compose 中的 api lane 变量名**（值全部脱敏）。事实包不够就 INCONCLUSIVE——就是这点：**事实不够，模型就别硬给**。
+
+实敲 `SpecproofApiDown`：explorer 说告警维持 1 分钟触发（critically）；tester 直呼“顶层 README 和依赖没给我看部署状态”；security 直接问出 `/metrics` 接口缺失——三位兄妹证据束缚在自己手里，**都说事实不够，但总体判词 EVIDENCE-GATHERED → CONFIRMED**（模型侧判词走 EVIDENCE-GATHERED → CONFIRMED/ INCONCLUSIVE 两档映射）。
+
+### 166.2 三档 judge 的位置（不重叠、不替代）
+
+| 车道 | 模型能做 | 模型绝不能做 |
+|---|---|---|
+| `/insight` | 读匿名聚合数据 | 判“红线” |
+| `/dig` | 读本仓本体，给一份答案意见 | 给 verdict |
+| `/runbook` | 读 repo + evidence，给查证方向 | 关告警、改规则 |
+| COURT | 写说明 | 改判决 |
+
+`/runbook` 是一条**产平权 lane**——看 admin/operator 认它。密码 123 永远没戏。夜巡依旧 **CRACKED**。
+
+`#/stategraph` 十盏（6 离线 + 4 出网；cache_witness · insight_advice · investigation_dig · runbook_triage · 六离线）verbatim 在册。UI **580/580** · build ✓ · purity **CLEAR** · mvn -o **双 service BUILD SUCCESS** · chronicle **1758**
