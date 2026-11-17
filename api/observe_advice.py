@@ -37,6 +37,7 @@ from typing import Any
 
 from api.synthetic_cohort import cohort
 from api.system_covenant import covenant_prefix
+from api.system_codex import codex_first
 from providers.base import LLMMessage, LLMResponse
 from providers.openai_compatible import OpenAICompatibleProvider
 
@@ -44,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 #: The packet is ~700 bytes; it should not grow into a "document analysis".
 MAX_PACKET_CHARS = 2_000
-LLM_TIMEOUT_SECONDS = 45.0
+LLM_TIMEOUT_SECONDS = 150.0  # codex era: byte-identical ~100K-token prefix; 45s predates the bible
 
 
 class ObserveAdviceUnavailable(Exception):
@@ -126,13 +127,13 @@ _PROMPT_EN = (
 def _prompt(locale: str, packet: str) -> list[LLMMessage]:
     lang = "zh" if locale != "en" else "en"
     system = _PROMPT_ZH if lang == "zh" else _PROMPT_EN
-    return covenant_prefix([
+    return codex_first(covenant_prefix([
         LLMMessage(role="system", content=system),
         LLMMessage(
             role="user",
             content=("数据包（JSON）：\n" if lang == "zh" else "Packet (JSON):\n") + packet,
         ),
-    ])
+    ]), lang)
 
 
 async def generate_observe_advice(
@@ -154,7 +155,11 @@ async def generate_observe_advice(
         # opens after a connect-level failure with zero tokens spent.
         provider = provider_factory(timeout=LLM_TIMEOUT_SECONDS, max_retries=1)
         response: LLMResponse = await asyncio.wait_for(
-            provider.chat(_prompt(locale, packet), timeout=LLM_TIMEOUT_SECONDS),
+            provider.chat(
+                _prompt(locale, packet),
+                timeout=LLM_TIMEOUT_SECONDS,
+                opts={"prompt_cache_key": "specproof-observe-advice"},
+            ),
             timeout=LLM_TIMEOUT_SECONDS + 5,
         )
     except Exception as exc:  # noqa: BLE001 - any provider failure becomes one honest error

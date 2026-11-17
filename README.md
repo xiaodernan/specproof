@@ -117,6 +117,11 @@ Craft（AI 开发）的**独立验收摘要**现在也显示在执行结果页�
 - **“没跑验收”与“读不出验收”是两种话术**：任务尚未进入终态时说清还不会运行；已进入终态但没有摘要时给出补做命令 `specproof craft accept --job <任务号>`；已落库却解析不出来时明说“读不出来 ≠ 没有验收”。
 - **Craft 通道的 `BLOCKED` 有两种含义，页面按投影里的 `gates.overall` 区分**：内部门禁 FAIL 时按失败显示；门禁摘要都过了、但完整闭包（SpecProof 验证 + 证书 + 签名）需要 git base/head 与签名密钥而留给 accept CLI 时，按“尚未签发合并证书”的警示显示，而不是失败。投影里连门禁摘要都没有时，页面明说**无法区分原因**，不替用户猜。
 
+## 最新验收 · 2026-11-18
+
+- **书自己走进车道（#1977）**：整本中文世界书（**413,655 字节** · sha256 `fe2aee36…`）与英文版对应（**424,582 字节** · sha256 `9fc608a7…`）冻成一条字节恒定的系统消息（codex → covenant → role，顺序恒定）；五个可缓存车道各带粘性 `prompt_cache_key`（`specproof-observe-advice` / `specproof-insight-advice` / `specproof-ai-summary` / `specproof-dig` / `specproof-runbook`）；实测**首敲 miss（写槽），次敲全部稳定 ~95% 命中**（observe `136,514 → 129,495` · insight `136,144 → 129,129` · ai-summary `136,132 → 129,130` · dig 224,705 → **338,027** · runbook 从 0 到 **342,517** · 全程输出零涂绿）；`ParallelRunner` 修到不再丢 `usage`（`/dig` 响应 `agents[].usage.prompt_cache_hit_tokens` 可见）；三中文车道 LLM 超时 **45 s → 150 s**（45 s 是几千 token 前缀时代的数）；court `agent/review_court/` **未动一丝**——没有 codex、没有 key、没有缓存，`4117d2b0ca5fb23a` 原封未动；`tests/unit/test_system_codex.py` 新钉。
+- **顺带清账（#1977 同车）**：`gazette.css` 的 10px 违 4px 基准 → **12px** · `verdict_channels.py` 的 `EVIDENCE-GATHERED` 证人位 → `craft/investigators.py:299` · fake-inventory 再入册（`3ebfc5f`，plain-double **233 → 236**，三位 `_Fake*` 从属 #1973 证人族）· ledger 附记 `## #1972` 重复节号 → **`## #1972-1`** · unit 全红中逐名复核完：`data-dictionary` 本树绿 · 22 条 payload-census 仍按 #8 钉住（owner-supervised，不涂绿）· `DEEP_OPTIMIZATION_PLAN.md:40823` 的 U+FFFD 仍 pinned
+
 ## 最新验收 · 2026-11-17
 
 - **收尾清账（#1967–#1971）**：/observe 添「本机这一台」真实气候面板（#1967）· i18n A 桶 37→29·「行宪」字节恒定前缀落册（#1968–#1969）· Archive 三卡接活值、inkwell 2,643 实敲重入库（#1970）· /stategraph 第十一盏「行宪见证人」pinned（#1971 · verdict 通道 parity 14/14）。UI 自 #1966 的 587/587 走至 **590/590**；chronicle **1768** · worldbook **173 卷（双语对称）**。

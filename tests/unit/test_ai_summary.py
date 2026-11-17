@@ -103,7 +103,7 @@ class _FakeProvider:
         self._usage = usage or {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}
         self.chat_calls = 0
 
-    async def chat(self, messages, timeout=None):  # noqa: ANN001
+    async def chat(self, messages, timeout=None, opts=None):  # noqa: ANN001
         self.chat_calls += 1
         class _Resp:
             def __init__(self, content, usage):  # noqa: ANN001
@@ -129,7 +129,7 @@ async def test_generate_returns_model_text_and_usage(monkeypatch: pytest.MonkeyP
 @pytest.mark.anyio
 async def test_generate_provider_raise_maps_to_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
     class _Boom:
-        async def chat(self, messages, timeout=None):  # noqa: ANN001
+        async def chat(self, messages, timeout=None, opts=None):  # noqa: ANN001
             raise RuntimeError("provider down")
 
         async def close(self) -> None:
@@ -265,7 +265,7 @@ def test_ai_summary_happy_path_then_cached(monkeypatch: pytest.MonkeyPatch, fake
 @pytest.mark.integration
 def test_ai_summary_model_down_yields_503(monkeypatch: pytest.MonkeyPatch, fake_backend) -> None:  # noqa: ANN001
     class _Boom:
-        async def chat(self, messages, timeout=None):  # noqa: ANN001
+        async def chat(self, messages, timeout=None, opts=None):  # noqa: ANN001
             raise RuntimeError("provider down")
 
         async def close(self) -> None:

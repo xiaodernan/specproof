@@ -128,6 +128,7 @@ class AgentRunResult:
     findings: list[dict[str, Any]] = field(default_factory=list)
     tokens: int = 0
     duration_ms: int = 0
+    usage: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -136,6 +137,7 @@ class AgentRunResult:
             "findings": [dict(finding) for finding in self.findings],
             "tokens": self.tokens,
             "duration_ms": self.duration_ms,
+            "usage": dict(self.usage),
         }
 
 
@@ -285,7 +287,8 @@ class ParallelRunner:
                 duration_ms=_elapsed_ms(started),
             )
         return AgentRunResult(
-            spec.name, result.outcome, list(result.findings), result.tokens, _elapsed_ms(started)
+            spec.name, result.outcome, list(result.findings), result.tokens, _elapsed_ms(started),
+            usage=dict(getattr(result, "usage", None) or {}),
         )
 
 

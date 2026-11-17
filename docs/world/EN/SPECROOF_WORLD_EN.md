@@ -6388,3 +6388,42 @@ Consequence: chronicle **1774** · worldbook **178 scrolls** · UI unchanged at 
 ### 178.3 The ledger
 
 mvn untouched · UI **590/590** · vite build ✓ · vitest run ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1774** + 1 · worldbook **178 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is still a door marked "demo"
+
+## Scroll CLXXIX · The Book Walks Into the Lane
+
+> "First let the model read the whole book, then let it write the one sentence." That is the whole point of this round.
+
+### 179.1 The question was always the right one
+
+A plain question was asked: why can the very same aizzz API sustain ~90 % hit rates in Codex-class applications, while every strike of ours re-reads the whole book from scratch? Two hard facts pay the bill, and this round installs both — lane by lane, not as a gesture.
+
+- **Parallel sessions defeat the cache** — until now no lane ever sent a `prompt_cache_key`; the gateway guessed which slot the cache lived on per worker, and guessing wrong meant paying for the whole book each time. Fix: one sticky key per lane (`specproof-dig` / `specproof-runbook` / `specproof-observe-advice` / `specproof-insight-advice` / `specproof-ai-summary`) — lowercase, ≤ 64 chars, never randomized.
+- **The context was far from 5–9万 tokens** — previously each lane prefix was a few hundred to a few thousand tokens. Fix: the whole world book (`docs/world/SPECROOF_WORLD*.md`, zh 413,655 B · en 424,582 B) rides as one **byte-identical** system message with zero drift: codex → covenant → role, in the same byte order on every lane. Measured, not estimated: zh lanes carry ≈136 K tokens, en lanes ≈118 K.
+
+### 179.2 What concretely changed
+
+1. `api/system_codex.py` — the new prefix. Byte-frozen (bodies read once at import; editing the book invalidates every cache entry — book edits land in the same strike, same commit as the covenant bumps); Chinese mode carries only Chinese, English only English — locale routing never mixes them. The court never carries it — `agent/review_court/` has no codex, no key, no cache, forever, pinned by `tests/unit/test_system_codex.py`; court `4117d2b0ca5fb23a` untouched;
+2. All five cacheable lanes wired: `/ai-summary` (zh), `/insight` (zh), `/observe` (locale-aware; zh and en books), `/dig` and `/runbook` (English roles + shared codex, each with its own sticky key);
+3. `ParallelRunner` used to re-mint `AgentRunResult` and silently drop `usage` — now hits are visible per agent; `/dig` responses carry `agents[].usage.prompt_cache_hit_tokens` and a rolled-up `cache_hit_tokens` in the API output;
+4. The three zh lanes' LLM timeout moved 45 s → **150 s** (45 s is a number from the few-KB era; a 136 K-token prefix is not "done in 45 s of wall time" in the worst strike);
+5. The `craft/investigators.py` witness re-tracked (`EVIDENCE-GATHERED` now at `craft/investigators.py:299`).
+
+### 179.3 Struck numbers (evidence `lane-cache-probe-2026-11-18.*`)
+
+First strike always misses (the key gets written); the very next strike reads nearly the whole book:
+
+| lane | locale · effort | prompt (cold) | cached (next) | hit rate |
+|---|---|---|---|---|
+| `/observe` | zh · max | 136,514 | **129,495** | **94.9%** |
+| `/insight` | zh · max | 136,144 | **129,129** | **94.9%** |
+| `/ai-summary` | zh · max | 136,132 | **129,130** | **94.9%** |
+| `/dig` (3 agents) | en · low | ~118 K each | 224,705 → **338,027** | ~75 → ~95% |
+| `/runbook` (3 agents) | en · low | ~118 K each | 0 → **342,517** | 0 → ~96% |
+
+Raw sanity (en codex · low effort · key `specproof-probe-sanity`): 2nd strike 111,742 / 117,801 = **94.8%**, 5.03 s (1st strike 12.47 s wrote the slot).
+
+The honest boundaries are items 1–6 in `docs/evidence/lane-cache-probe-2026-11-18.md` — including the plain fact that the pre-fix `/dig` probe did not *measure* a miss, it measured a blind spot.
+
+### 179.4 The ledger
+
+mvn untouched · UI **590/590** (no front-end page was touched this round; everything is backend + probes) · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1774** (§1972 → §1972-1 renumbered; parsed count flat) · worldbook **179 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is still a door marked "demo" · the full unit bench for this round is stated in this scroll's ledger row (recorded, never painted green)

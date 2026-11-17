@@ -135,7 +135,7 @@ async def generate_triage(alert: str) -> dict[str, Any]:
     )
 
     result = await investigate(
-        ROOT, question, timeout=LLM_TIMEOUT_SECONDS,
+        ROOT, question, timeout=LLM_TIMEOUT_SECONDS, cache_key="specproof-runbook",
     )
 
     if result.get("verdict") == "EVIDENCE-GATHERED":

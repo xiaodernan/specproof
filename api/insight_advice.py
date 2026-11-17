@@ -32,6 +32,7 @@ from collections.abc import Callable
 from typing import Any
 
 from api.system_covenant import covenant_prefix
+from api.system_codex import codex_first
 from providers.base import LLMMessage, LLMResponse
 from providers.openai_compatible import OpenAICompatibleProvider
 
@@ -40,7 +41,7 @@ logger = logging.getLogger(__name__)
 #: Packet budget — longer than this stops being "a 90-second admin read".
 MAX_PACKET_CHARS = 4_000
 #: Same spirit as the ai-summary lane: advice should not take a coffee.
-LLM_TIMEOUT_SECONDS = 45.0
+LLM_TIMEOUT_SECONDS = 150.0  # codex era: byte-identical ~100K-token prefix; 45s predates the bible
 
 #: Allowlist of scalar keys the panel may send. Anything else is dropped —
 #: deliberately, not by accident — so a future frontend hack cannot grow the
@@ -148,10 +149,10 @@ _PROMPT = (
 
 
 def _prompt(packet: str) -> list[LLMMessage]:
-    return covenant_prefix([
+    return codex_first(covenant_prefix([
         LLMMessage(role="system", content=_PROMPT),
         LLMMessage(role="user", content="数据包（JSON）：\n" + packet),
-    ])
+    ]), "zh")
 
 
 async def generate_insight_advice(
@@ -168,7 +169,11 @@ async def generate_insight_advice(
     try:
         provider = provider_factory(timeout=LLM_TIMEOUT_SECONDS, max_retries=0)
         response: LLMResponse = await asyncio.wait_for(
-            provider.chat(_prompt(packet), timeout=LLM_TIMEOUT_SECONDS),
+            provider.chat(
+                _prompt(packet),
+                timeout=LLM_TIMEOUT_SECONDS,
+                opts={"prompt_cache_key": "specproof-insight-advice"},
+            ),
             timeout=LLM_TIMEOUT_SECONDS + 5,
         )
     except Exception as exc:  # noqa: BLE001 - any provider failure becomes one honest error

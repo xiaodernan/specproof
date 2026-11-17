@@ -1,0 +1,290 @@
+{
+  "generated_utc": "2026-11-17T16:25:33+00:00",
+  "model": "gpt-6.1-terra",
+  "protocol": "responses",
+  "prompt_cache_key_per_lane": {
+    "observe": "specproof-observe-advice",
+    "insight": "specproof-insight-advice",
+    "ai_summary": "specproof-ai-summary",
+    "dig": "specproof-dig",
+    "runbook": "specproof-runbook"
+  },
+  "note": "live probes; the two strikes per lane are byte-identical on the prefix; no verdicts minted; numbers recorded as returned",
+  "results": [
+    {
+      "lane": "ai_summary",
+      "strike": 1,
+      "outcome": "ok",
+      "elapsed_s": 27.07,
+      "verdict": null,
+      "usage": {
+        "prompt_tokens": 136132,
+        "completion_tokens": 1110,
+        "total_tokens": 137242,
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 136132,
+        "reasoning_tokens": 979
+      }
+    },
+    {
+      "lane": "ai_summary",
+      "strike": 2,
+      "outcome": "ok",
+      "elapsed_s": 17.24,
+      "verdict": null,
+      "usage": {
+        "prompt_tokens": 136132,
+        "completion_tokens": 603,
+        "total_tokens": 136735,
+        "prompt_cache_hit_tokens": 129130,
+        "prompt_cache_miss_tokens": 7002,
+        "reasoning_tokens": 486
+      }
+    },
+    {
+      "lane": "dig",
+      "strike": 1,
+      "outcome": "ok",
+      "elapsed_s": 135.25,
+      "verdict": "EVIDENCE-GATHERED",
+      "agents": [
+        {
+          "name": "investigate_explorer",
+          "outcome": "timed_out",
+          "tokens": 0,
+          "usage": {}
+        },
+        {
+          "name": "investigate_tester",
+          "outcome": "ok",
+          "tokens": 118956,
+          "usage": {
+            "prompt_tokens": 118900,
+            "completion_tokens": 56,
+            "total_tokens": 118956,
+            "prompt_cache_hit_tokens": 112839,
+            "prompt_cache_miss_tokens": 6061,
+            "reasoning_tokens": 0
+          }
+        },
+        {
+          "name": "investigate_security",
+          "outcome": "ok",
+          "tokens": 117924,
+          "usage": {
+            "prompt_tokens": 117888,
+            "completion_tokens": 36,
+            "total_tokens": 117924,
+            "prompt_cache_hit_tokens": 111866,
+            "prompt_cache_miss_tokens": 6022,
+            "reasoning_tokens": 0
+          }
+        }
+      ]
+    },
+    {
+      "lane": "dig",
+      "strike": 2,
+      "outcome": "ok",
+      "elapsed_s": 38.28,
+      "verdict": "EVIDENCE-GATHERED",
+      "agents": [
+        {
+          "name": "investigate_explorer",
+          "outcome": "ok",
+          "tokens": 119521,
+          "usage": {
+            "prompt_tokens": 119485,
+            "completion_tokens": 36,
+            "total_tokens": 119521,
+            "prompt_cache_hit_tokens": 113322,
+            "prompt_cache_miss_tokens": 6163,
+            "reasoning_tokens": 0
+          }
+        },
+        {
+          "name": "investigate_tester",
+          "outcome": "ok",
+          "tokens": 118951,
+          "usage": {
+            "prompt_tokens": 118900,
+            "completion_tokens": 51,
+            "total_tokens": 118951,
+            "prompt_cache_hit_tokens": 112839,
+            "prompt_cache_miss_tokens": 6061,
+            "reasoning_tokens": 0
+          }
+        },
+        {
+          "name": "investigate_security",
+          "outcome": "ok",
+          "tokens": 117923,
+          "usage": {
+            "prompt_tokens": 117888,
+            "completion_tokens": 35,
+            "total_tokens": 117923,
+            "prompt_cache_hit_tokens": 111866,
+            "prompt_cache_miss_tokens": 6022,
+            "reasoning_tokens": 0
+          }
+        }
+      ]
+    },
+    {
+      "lane": "insight",
+      "strike": 1,
+      "outcome": "ok",
+      "elapsed_s": 14.51,
+      "verdict": null,
+      "usage": {
+        "prompt_tokens": 136144,
+        "completion_tokens": 384,
+        "total_tokens": 136528,
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 136144,
+        "reasoning_tokens": 304
+      }
+    },
+    {
+      "lane": "insight",
+      "strike": 2,
+      "outcome": "ok",
+      "elapsed_s": 17.43,
+      "verdict": null,
+      "usage": {
+        "prompt_tokens": 136144,
+        "completion_tokens": 642,
+        "total_tokens": 136786,
+        "prompt_cache_hit_tokens": 129129,
+        "prompt_cache_miss_tokens": 7015,
+        "reasoning_tokens": 516
+      }
+    },
+    {
+      "lane": "observe",
+      "strike": 1,
+      "outcome": "ok",
+      "elapsed_s": 13.79,
+      "verdict": null,
+      "usage": {
+        "prompt_tokens": 136514,
+        "completion_tokens": 411,
+        "total_tokens": 136925,
+        "prompt_cache_hit_tokens": 129495,
+        "prompt_cache_miss_tokens": 7019,
+        "reasoning_tokens": 248
+      }
+    },
+    {
+      "lane": "observe",
+      "strike": 2,
+      "outcome": "ok",
+      "elapsed_s": 11.51,
+      "verdict": null,
+      "usage": {
+        "prompt_tokens": 136514,
+        "completion_tokens": 433,
+        "total_tokens": 136947,
+        "prompt_cache_hit_tokens": 129495,
+        "prompt_cache_miss_tokens": 7019,
+        "reasoning_tokens": 285
+      }
+    },
+    {
+      "lane": "runbook",
+      "strike": 1,
+      "outcome": "ok",
+      "elapsed_s": 53.19,
+      "verdict": "CONFIRMED",
+      "agents": [
+        {
+          "name": "investigate_explorer",
+          "outcome": "ok",
+          "tokens": 121405,
+          "usage": {
+            "prompt_tokens": 121129,
+            "completion_tokens": 276,
+            "total_tokens": 121405,
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 121129,
+            "reasoning_tokens": 0
+          }
+        },
+        {
+          "name": "investigate_tester",
+          "outcome": "ok",
+          "tokens": 120854,
+          "usage": {
+            "prompt_tokens": 120544,
+            "completion_tokens": 310,
+            "total_tokens": 120854,
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 120544,
+            "reasoning_tokens": 0
+          }
+        },
+        {
+          "name": "investigate_security",
+          "outcome": "ok",
+          "tokens": 119812,
+          "usage": {
+            "prompt_tokens": 119532,
+            "completion_tokens": 280,
+            "total_tokens": 119812,
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 119532,
+            "reasoning_tokens": 0
+          }
+        }
+      ]
+    },
+    {
+      "lane": "runbook",
+      "strike": 2,
+      "outcome": "ok",
+      "elapsed_s": 42.76,
+      "verdict": "CONFIRMED",
+      "agents": [
+        {
+          "name": "investigate_explorer",
+          "outcome": "ok",
+          "tokens": 121346,
+          "usage": {
+            "prompt_tokens": 121129,
+            "completion_tokens": 217,
+            "total_tokens": 121346,
+            "prompt_cache_hit_tokens": 114904,
+            "prompt_cache_miss_tokens": 6225,
+            "reasoning_tokens": 0
+          }
+        },
+        {
+          "name": "investigate_tester",
+          "outcome": "ok",
+          "tokens": 120820,
+          "usage": {
+            "prompt_tokens": 120544,
+            "completion_tokens": 276,
+            "total_tokens": 120820,
+            "prompt_cache_hit_tokens": 114293,
+            "prompt_cache_miss_tokens": 6251,
+            "reasoning_tokens": 0
+          }
+        },
+        {
+          "name": "investigate_security",
+          "outcome": "ok",
+          "tokens": 119824,
+          "usage": {
+            "prompt_tokens": 119532,
+            "completion_tokens": 292,
+            "total_tokens": 119824,
+            "prompt_cache_hit_tokens": 113320,
+            "prompt_cache_miss_tokens": 6212,
+            "reasoning_tokens": 0
+          }
+        }
+      ]
+    }
+  ]
+}

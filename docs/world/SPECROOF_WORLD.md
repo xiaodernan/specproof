@@ -6495,3 +6495,42 @@ mvn 未动 · UI **590/590** · court `4117d2b0ca5fb23a` **LOCKED** · Night Wat
 ### 178.3 账房
 
 mvn 未动 · UI 未动（**590/590**）· vite build ✓ · vitest run ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1774** + 1 · worldbook **178 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷一百七十九 · 书自己走进车道
+
+> 「先让模型读完整本书，再让它敲那句一句话。」——这是本轮的全部。
+
+### 179.1 问题早就是对的
+
+总指令问了一个很朴素的问题：为什么用同一个 aizzz API，codex 一类的应用可以长期维持约 90% 的缓存命中，而我们的每次敲门都像把整本书重新读一遍。答案就在两条硬事实里，本卷把两条都补上了，而且是逐车道补上的，不是"大概这么一搞"。
+
+- **并行会话用乱缓存** —— 各车道之前从不传 `prompt_cache_key`；网关每敲一次就得猜缓存坐在哪个工位上，猜不到就是 miss。修法：每车道一个 sticky key（`specproof-dig` / `specproof-runbook` / `specproof-observe-advice` / `specproof-insight-advice` / `specproof-ai-summary`），几十次推敲（≤ 64 字符、绝不随机）。
+- **输入上下文远少于 5–9 万** —— 之前每车道的前缀约几百到几千 token。修法：把整本世界书（`docs/world/SPECROOF_WORLD*.md`，zh 413,655 字节 · en 424,582 字节）做成一条**字节恒定**的系统消息，codex → covenant → role 在每车道里字节顺序一致。敲门探针实说大话：中车道前缀约 136 K token，英车道约 118 K token。
+
+### 179.2 修了什么
+
+1. `api/system_codex.py`——新前缀。字节冻结（body 在 import 时只读一次；改书即失效所有缓存，改书必须与 covenant 同撞同提交）；中文模式只带中文，英文模式只带英文，语言路由不掺夏·。court 永不携带——`agent/review_court/` 里没有 codex、没有 key、没有缓存，永远，`tests/unit/test_system_codex.py` 钉死，court `4117d2b0ca5fb23a` 原封未动；
+2. 五车道全部接上：`/ai-summary`（中文）、`/insight`（中文）、`/observe`（按 locale，zh/en 两本书）、`/dig` 与 `/runbook`（英文角色系统+ covenant；两条车道共享 codex 但各有 sticky key）；
+3. `ParallelRunner` 之前会把 `AgentRunResult` 重新铸造、丢掉 `usage`——修复后缓存命中数逐 agent 可见；`/dig` 车道的 `agents[].usage` 里直接露出 `prompt_cache_hit_tokens`，聚合进 `cache_hit_tokens` 进了 API 输出；
+4. 三条中文车道的 LLM 超时 45 s → **150 s**（45 是"几千 token 前缀"时代的数；136 K 前缀的世界里它是一件来不及做完的事）；
+5. `craft/investigators.py` 的 witness 再沿文件走一次（`EVIDENCE-GATHERED` 现落 `craft/investigators.py:299`）。
+
+### 179.3 实敲数字（证据文件 `lane-cache-probe-2026-11-18.*`）
+
+首敲必定 miss（写缓存）；隔一敲门全部稳定：
+
+| 车道 | locale · effort | prompt(首敲) | cached(次敲) | 命中率 |
+|---|---|---|---|---|
+| `/observe` | zh·max | 136,514 | **129,495** | **94.9 %** |
+| `/insight` | zh·max | 136,144 | **129,129** | **94.9 %** |
+| `/ai-summary` | zh·max | 136,132 | **129,130** | **94.9 %** |
+| `/dig`（3 证人） | en·low | ~118 K/人 | 224,705 → **338,027** | ~75 → ~95 % |
+| `/runbook`（3 证人） | en·low | ~118 K/人 | 0 → **342,517** | 0 → ~96 % |
+
+Raw sanity（EN codex + low effort + key `specproof-probe-sanity`）：第 2 敲 111,742 / 117,801 = **94.8 %**，5.03 s（第 1 敲 12.47 s 写缓存）。
+
+诚实边界全写在 `docs/evidence/lane-cache-probe-2026-11-18.md` 第 1–6 条里——包括"修 ParallelRunner 前那次 miss 未必真 miss"这件事。
+
+### 179.4 账房
+
+mvn 未动 · UI **590/590**（未改前端页；本轮全是后端与探针）· tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1774**（§1972 → §1972-1 顺延，解析数平盘）· worldbook **179 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门 · 全量 unit 基准本轮状态见该条账本记录（顺延收账不涂绿）

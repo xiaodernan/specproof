@@ -38,15 +38,37 @@ def test_covenant_prefix_prepends_one_system_message() -> None:
     assert msgs[1].content == "lane-specific"
 
 
-def test_lanes_carry_covenant_first() -> None:
+def test_lanes_carry_codex_then_covenant_exactly_once() -> None:
+    """#1977: the byte-frozen codex rides first, the covenant rides behind it —
+    always this order, never duplicated. Before #1977 the covenant stood alone
+    at the head; the prefix sandwich changed deliberately and this pin moved
+    with it (see `api/system_codex.py`)."""
+    from api.system_codex import codex_for
     from api.ai_summary import _prompt as ai_prompt
     from api.insight_advice import _prompt as insight_prompt
     from api.observe_advice import _prompt as observe_prompt
 
-    assert ai_prompt("{}")[0].content == SPECROOF_COVENANT
-    assert insight_prompt("{}")[0].content == SPECROOF_COVENANT
-    assert observe_prompt("zh", "{}")[0].content == SPECROOF_COVENANT
-    assert observe_prompt("en", "{}")[0].content == SPECROOF_COVENANT
+    codex_zh = codex_for("zh")
+    codex_en = codex_for("en")
+
+    for prompt in (
+        ai_prompt("{}"),
+        insight_prompt("{}"),
+        observe_prompt("zh", "{}"),
+    ):
+        assert prompt[0].content == codex_zh
+        assert prompt[1].content == SPECROOF_COVENANT
+    assert observe_prompt("en", "{}")[0].content == codex_en
+    assert observe_prompt("en", "{}")[1].content == SPECROOF_COVENANT
+    # never duplicated — exactly one codex, exactly one covenant per lane
+    for prompt in (
+        ai_prompt("{}"), insight_prompt("{}"),
+        observe_prompt("zh", "{}"), observe_prompt("en", "{}"),
+    ):
+        codex_hits = sum(1 for m in prompt if m.content and codex_for("zh") in m.content or codex_for("en") in m.content)
+        covenant_hits = sum(1 for m in prompt if m.content == SPECROOF_COVENANT)
+        assert codex_hits == 1
+        assert covenant_hits == 1
 
 
 def test_covenant_witness_holds_on_this_repo() -> None:

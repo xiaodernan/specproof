@@ -60,11 +60,16 @@ async def generate_investigation_dig(question: str) -> dict[str, Any]:
             "role": a.get("role"),
             "outcome": a.get("outcome"),
             "tokens": a.get("tokens", 0),
+            "cache_hit_tokens": int((a.get("usage") or {}).get("prompt_cache_hit_tokens") or 0),
         }
         for a in (result.get("agents") or [])
     ]
 
     usage_total = sum(int(a.get("tokens") or 0) for a in (result.get("agents") or []))
+    cache_hit_total = sum(
+        int((a.get("usage") or {}).get("prompt_cache_hit_tokens") or 0)
+        for a in (result.get("agents") or [])
+    )
 
     return {
         "question": result.get("question", question),
@@ -72,6 +77,7 @@ async def generate_investigation_dig(question: str) -> dict[str, Any]:
         "findings": result.get("findings", [])[:12],
         "agents": agents,
         "total_tokens_used": result.get("total_tokens_used", usage_total),
+        "cache_hit_tokens": cache_hit_total,
         "duration_ms": result.get("duration_ms", 0),
         "generation_time_ms": result.get("generation_time_ms", 0),
         "model": None,

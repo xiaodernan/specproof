@@ -41724,7 +41724,7 @@ mvn 未动 · UI **590/590**（83 文件 · StateGraph.test **10/10**）· vites
 
 UI **590/590** · vitest run ✓ · vite build ✓ · mvn 未动 · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1769** + 1 · worldbook **174 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
 
-## #1972 记账附记《钩子的误报》：本轮 `.env.example` 被全局 pre-commit 按文件名 `.env.*` 拦截——内容仅含 `replace_me` / 空 / 公开 URL 占位符 / 86400（已扫描零密钥命中）；沿用本仓库登记的先例（#1648 → 0c7a5e9；#1958 → b6fc5f5）以钩子自带的 `SKIP_HOOKS=1` 通道单独提交 `f7d0ec6` 并附记
+## #1972-1 记账附记《钩子的误报》：本轮 `.env.example` 被全局 pre-commit 按文件名 `.env.*` 拦截——内容仅含 `replace_me` / 空 / 公开 URL 占位符 / 86400（已扫描零密钥命中）；沿用本仓库登记的先例（#1648 → 0c7a5e9；#1958 → b6fc5f5）以钩子自带的 `SKIP_HOOKS=1` 通道单独提交 `f7d0ec6` 并附记
 
 **记录基准**：本节只追加；master = 本提交。隶属 #1972 同一轮对账的附记。
 
@@ -41849,3 +41849,40 @@ mvn 未动 · UI **590/590** · court `4117d2b0ca5fb23a` **LOCKED** · Night Wat
 ### 三、账房
 
 mvn 未动 · UI **590/590**（build ✓ · vitest ✓ · tsc ✓ · lint 通过） · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1774** + 1 · worldbook **178 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## #1977 《书自己走进车道》：系统 codex 真上车 — zh 413,655 B / en 424,582 B 字节恒定前缀 + 五车道 sticky `prompt_cache_key` + `ParallelRunner` 保 `usage` — 实测稳定 ~95 % 命中（`/observe` 136,514 → **129,495** cached；`/dig` 338,027；`/runbook` 342,517）· court ❌ 永不携带 · 三中文车道超时 45 s → **150 s** · chronicle **1774**（§1972 → §1972-1，解析数不增）· worldbook **179 卷（双语对称）** · exhibit_entries **18** · UI **590/590**
+
+**记录基准**：本节只追加；master = 本提交前状态。本号衔接 #1976，并收纳本轮未落册清账。
+
+### 一、交付
+
+1. `api/system_codex.py`（新）——整本世界书字节冻结成一条系统消息；zh/en 按车道语言路由；codex 顺序恒为 **codex → covenant → role**；中文模式不夹英文、英文模式不夹中文；
+2. 五车道接上：`/ai-summary`（zh · max · 45 s → 150 s）、`/insight`（zh · max · 45 s → 150 s）、`/observe`（按 locale · max · 45 s → 150 s）、`/dig`（en · low · `specproof-dig`）、`/runbook`（en · low · `specproof-runbook`，经 `investigate(..., cache_key=...)`）；
+3. `ParallelRunner` 改铸造：`AgentRunResult` 现携带 `usage` 字典，`/dig` 响应的 `agents[]` 中直接可见 `prompt_cache_hit_tokens`，并聚合出 `cache_hit_tokens`（进 API 输出，前端加性兼容）；
+4. `tests/unit/test_system_codex.py`（新）——codex 字节实测大小 >200 KB · 双语路由 · prepend 语义 · 五车道 sticky key + codex 布线钉住 · **court 无 codex / 无 key / 无 codex_first** 三条钉死；
+5. `scripts/codex_cache_sanity.py` + `scripts/lane_cache_probe.py`（新）——两次敲门实测车道实绩（真实车道代码路径；/ai-summary /observe /insight 跑真实生成面，/dig 跑三只只读证人），产物 `docs/evidence/lane-cache-probe-2026-11-18.{json,md}`；
+6. 顺带清账：`.gazette.css` 的 10px 违 4px 基准（**12 px**）· `verdict_channels.py` 的 `EVIDENCE-GATHERED` 证人位 `craft/investigators.py:293 → 299` · fake-inventory 再入册（#1973 证人族带入三位 plain-double：`tests/unit/test_investigators_accounting.py` 15/23/31）· ledger 附记 §1972 → **§1972-1**（重复节号禁扩）· 三中文车道 45 s → 150 s。
+
+### 二、实测（证据 `lane-cache-probe-2026-11-18.md`）
+
+首敲必定 miss（写槽），隔一敲门即全部稳定在 ~95 %：
+
+- raw sanity（EN codex · low · 117,801 prompt）：第 2 敲 111,742 cached（**94.8 %**）· 5.03 s；
+- `/observe`：136,514 → **129,495**（94.9 %）· `/insight`：136,144 → **129,129**（94.9 %）· `/ai-summary`：136,132 → **129,130**（94.9 %）；
+- `/dig`（3 证人）：224,705 → **338,027**（~75 % → ~95 %）· `/runbook`（3 证人）：0（首敲写槽）→ **342,517**（~96 %）；
+- 三次全程 `reasoning_tokens` 正常计费，输出从不缓存——缓存的是前缀，不是答案。
+
+### 三、诚实边界
+
+1. 首敲全部 miss（每 key 每时窗写一次）；后敲门隐约预热后才能达到上表；无涂绿，无二值化处理；
+2. `/dig` 首次探针将 `usage` 丢在 `ParallelRunner` 重铸处——修复前数字是"看不见"，不是"命中 0"；修复后的 ≥ 224k 读数是新测量，不是复述；
+3. 本探针标的是合成 tenant（`PROBE_SUMMARY` / `PROBE_QUESTION`），不是任何产品判词，也没有把任何"PASS"发给用户；
+4. court（`agent/review_court/`）未动一丝——没有 codex、没有 key、没有缓存；`4117d2b0ca5fb23a` 原封未动；
+5. 本轮顺延的几个 30 红中，22 条 payload-census 仍按 #8 钉住（owner-supervised remediation only，不涂绿）· `DEEP_OPTIMIZATION_PLAN.md:40823` 的 U+FFFD 仍 pinned · 其余 7 条（parity / 4px grid / fake-inventory×2 / ledger-dup / data-dictionary spec / plane_a_scan）逐名复核 —— 已修 4（parity、grid、ledger、inventory），data-dictionary 在隔离复跑下绿（bench 内受 tree-movement 影响）、plane_a_scan 本树绿；
+6. Phase B 所言"全量 unit 基准"——本轮提交基准状态由下节"atelier run"给出（顺延记录不涂绿，跑完原文记账）：BENCH-PENDING
+
+### 四、账房
+
+mvn 未动 · UI **590/590** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1774**（§1972 → §1972-1，解析数不增）· worldbook **179 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+**atelier run（提交前的定稿基准）**：BENCH-PENDING

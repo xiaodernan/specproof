@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from api.system_covenant import covenant_prefix
+from api.system_codex import codex_first
 from providers.base import LLMMessage
 from providers.config import load_model_config
 from providers.openai_compatible import OpenAICompatibleProvider
@@ -149,7 +150,7 @@ def _role_payload(workspace: Path, role: str) -> str:
 
 
 async def _llm_execute_factory(
-    llm_client: Any, workspace: Path
+    llm_client: Any, workspace: Path, cache_key: str = "specproof-dig"
 ) -> Callable[[SubAgentSpec, Any], Awaitable[AgentRunResult]]:
     async def executor(spec: SubAgentSpec, context: Any) -> AgentRunResult:
         system = _ROLE_SYSTEMS[spec.role]
@@ -157,10 +158,10 @@ async def _llm_execute_factory(
         prompt = f"TASK\n{spec.task}\n\nWORKSPACE FACT PACK\n{facts}"
         try:
             resp = await llm_client.chat(
-                covenant_prefix([
+                codex_first(covenant_prefix([
                     LLMMessage(role="system", content=system),
                     LLMMessage(role="user", content=prompt),
-                ]),
+                ]), "en"),
                 label="crafted_investigator",
                 kind="draft",
                 timeout=spec.timeout,
@@ -175,6 +176,7 @@ async def _llm_execute_factory(
         tokens = int((getattr(resp, "usage", None) or {}).get("prompt_tokens") or 0) + int(
             (getattr(resp, "usage", None) or {}).get("completion_tokens") or 0
         )
+        usage_raw = dict(getattr(resp, "usage", None) or {})
         text = str(resp.content or "").strip()
         if not _is_substantive_claim(text):
             return AgentRunResult(
@@ -183,6 +185,7 @@ async def _llm_execute_factory(
                 findings=[{"role": spec.role, "claim": text or "INSUFFICIENT", "evidence": "facts-pack", "confidence": 0.0}],
                 tokens=tokens,
                 duration_ms=0,
+                usage=usage_raw,
             )
         return AgentRunResult(
             spec.name,
@@ -190,6 +193,7 @@ async def _llm_execute_factory(
             findings=[{"role": spec.role, "claim": text, "evidence": "facts-pack", "confidence": 0.6}],
             tokens=tokens,
             duration_ms=0,
+            usage=usage_raw,
         )
 
     return executor
@@ -202,6 +206,7 @@ async def investigate(
     llm_client: Any | None = None,
     llm_provider: Any | None = None,
     timeout: float = 90.0,
+    cache_key: str = "specproof-dig",
 ) -> dict[str, Any]:
     """Run the three readonly investigators in parallel. Failures degrade to
     INSUFFICIENT; never raise."""
@@ -232,7 +237,7 @@ async def investigate(
                 return await provider.chat(
                     messages, timeout=timeout or 60.0, kind=kind, thinking=thinking,
                     response_format=response_format,
-                    opts={"reasoning_effort": "low"},
+                    opts={"reasoning_effort": "low", "prompt_cache_key": cache_key},
                 )
 
         llm_client = _InlineLLM()
@@ -269,7 +274,7 @@ async def investigate(
         ),
     ]
 
-    executor = await _llm_execute_factory(llm_client, workspace)
+    executor = await _llm_execute_factory(llm_client, workspace, cache_key)
     runner = ParallelRunner(registry=registry, executor=executor)
     realized = await runner.run(specs)
 
@@ -281,6 +286,7 @@ async def investigate(
             "findings": r.findings,
             "tokens": r.tokens,
             "duration_ms": r.duration_ms,
+            "usage": dict(getattr(r, "usage", None) or {}),
         }
         for r in realized.agents
     ]

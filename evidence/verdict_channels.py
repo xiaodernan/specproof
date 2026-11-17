@@ -506,8 +506,10 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             # a conditional expression the write-shape scanner cannot fold;
             # the word is written verbatim on this line, which is what a
             # witness must point at (a witness cannot park a word nobody
-            # writes). Shifted +2 by #1969's covenant_prefix import.
-            "EVIDENCE-GATHERED": "craft/investigators.py:296",
+            # writes). Tracks the file as it grows: +2 (#1969 covenant
+            # import), −3 (#1973 indent fix), +6 (#1977 codex import +
+            # cache_key plumbing + usage passthrough).
+            "EVIDENCE-GATHERED": "craft/investigators.py:299",
             # The eleventh lamp speaks HELD / DRIFTED from an IfExp too —
             # the scanner reads assignment/dict-write shapes, so IfExp needs
             # a witness line pointing at the exact line that writes the word.

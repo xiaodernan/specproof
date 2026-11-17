@@ -68,7 +68,7 @@ class _FakeProvider:
     def __init__(self, **_: object) -> None:
         pass
 
-    async def chat(self, _messages, timeout: float | None = None):  # noqa: ANN001
+    async def chat(self, _messages, timeout: float | None = None, opts: dict | None = None):  # noqa: ANN001
         return LLMResponse(
             content="LIVE-READING: flat, mildly cooling, r² = 0.12 — not a verdict.",
             usage={"prompt_tokens": 720, "completion_tokens": 61},
@@ -102,7 +102,7 @@ async def test_provider_failure_is_one_honest_error() -> None:
 @pytest.mark.asyncio
 async def test_empty_answer_is_one_honest_error() -> None:
     class _EmptyProvider(_FakeProvider):
-        async def chat(self, _messages, timeout: float | None = None):  # noqa: ANN001
+        async def chat(self, _messages, timeout: float | None = None, opts: dict | None = None):  # noqa: ANN001
             return LLMResponse(content="   ", model="gpt-6.1-terra")
 
     with pytest.raises(ObserveAdviceUnavailable):

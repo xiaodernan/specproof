@@ -94,7 +94,7 @@
 
 /* echo — the model's front-page column */
 .gazette-echo {
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   padding: 16px 20px 16px;
   border-left: 3px solid var(--archive-gold-strong);
   background: var(--pigment-steel-17);
