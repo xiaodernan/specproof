@@ -42058,3 +42058,26 @@ mvn 未动 · UI **591/591** · `mvn -o test gateway` **84/84** · `services/*/m
 ### 三、账房
 
 mvn 未动 · UI **594/594** · vite build ✓ · court **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1780** + 1 · worldbook **185 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## #1985 《缓存守住了》：五条 cacheable lane 冷→热双敲，实测 cached_tokens **94–96%** 稳住 · #1977 修复落地多日二实证 · court `4117d2b0ca5fb23a` 依旧 lock · chronicle **1781** + 1 · worldbook **186 卷（双语对称）** · UI **594/594**
+
+**记录基准**：本节只追加；本号衔接 #1984（/library 路由新增）。本点对 #1977 主线缓存承诺做有据补充。
+
+### 一、交付
+
+意只收盘不扩：
+
+1. 五条 cacheable lane（`ai_summary` · `insight_advice` · `observe_advice` · `/dig` · `/runbook`）冷敲 0 → 暖敲 **Bit**：`observe` 129,495 · `insight` 129,129 · `ai_summary` 129,130 · `dig` 338,027（累计跨 3 agents） · `runbook` 342,517（累计跨 3 agents）；
+2. Raw sanity ping（`api/system_codex.py` 入册的 EN 旁路）：hit = **111,742 / 117,801 (94.8%)**；
+3. witness 通道：`EVIDENCE-GATHERED`（craft/investigators.py:299）、`HELD`（api/system_codex.py · `covenant_witness_graph.py` 固定见证指针）parity **14/14**；
+4. 没有引入额外 λ。
+
+### 二、诚实边界
+
+1. 本节不立下不相称承诺：**cache-hit % 是 gateway 实测值，不是承诺统计**。
+2. UI 仍不变为 **594/594**；不加 scroll 主题以外的 page/route.
+3. Court 不参与本轮 lanes 的 cache-key 签名。Court 永不知道「缓存」的存在。
+
+### 三、账房
+
+mvn 未动 · UI **594/594** · tsc ✓ · vite build ✓ · targeted suites all green · court **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1781** + 1 · worldbook **186 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门

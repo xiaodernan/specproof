@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-17T20:16:39+00:00",
-  "count": 183,
+  "generated_at": "2026-11-17T20:52:17+00:00",
+  "count": 185,
   "zh": [
     {
       "num": "卷零",
@@ -916,6 +916,16 @@
       "num": "卷一百八十四",
       "title": "墙上写什么是你的事",
       "excerpt": "这一轮里有一件最厉害的事（#1983 记此卷）：这个仓库里两个 opus 互不认路，一个从开始就带 IELTS 6.5 / CET6 546 当成展厅事实，另一个从她拉起来当成展厅上的谎。两人相齐备。你在会话里写下的那一份身份从来没有变过，变的是工匠的手指："
+    },
+    {
+      "num": "卷一百八十五",
+      "title": "卷宗之册",
+      "excerpt": "这一轮落定的内容——新一页：`/#/library`，**卷宗之册**。这不是一个预生成的目录；是 SPECROOF_WORLD 里和世界一样高的书，任何能看得见的句子都对得上文件。每一页这个新房间里的数，是一并被页面生成事先锁死的。"
+    },
+    {
+      "num": "卷一百八十六",
+      "title": "缓存守住了",
+      "excerpt": "五条可缓存车道今天留在案卷里的数字（实测，非归纳）："
     }
   ],
   "en": [
@@ -1833,6 +1843,16 @@
       "num": "Scroll CLXXXIV",
       "title": "The Wall Owns Only the Master's Words",
       "excerpt": "One exhibition-hall number line, twice written, twice removed, twice renewed. The sequence is acceptable to recount:"
+    },
+    {
+      "num": "Scroll CLXXXV",
+      "title": "The Library Opens",
+      "excerpt": "A new door into the world, `/#/library`, the **Library**. It is not a scaffold. It is the bible read out loud. Every page you see in it existed before you ever opened it:"
+    },
+    {
+      "num": "Scroll CLXXXVI",
+      "title": "The Cache Held",
+      "excerpt": "Every cacheable lane on this machine witnessed an attested ~95% `prompt_cache_hit_tokens` rate after the second identical strike. The court never carries a cache; the codex prefixes stay byte-identical."
     }
   ],
   "note": "machine-struck from the two bibles; parity asserted at build time; never an editorial statement"

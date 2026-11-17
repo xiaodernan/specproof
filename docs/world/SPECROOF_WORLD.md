@@ -6730,3 +6730,40 @@ mvn 未动 · UI **591/591** · `mvn -o test gateway` **84/84 绿（离线）** 
 ### 185.5 账房
 
 mvn 未动 · UI **594/594**（+1 个 page-load pin）· tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1780** + 1 · worldbook **185 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷一百八十六 · 缓存守住了
+
+> "命中了之后，反而没有什么好说的。该说的全在冷敲掉的那次。"
+
+### 186.1 这一日——实测 95% cached_tokens
+
+五条可缓存车道今天留在案卷里的数字（实测，非归纳）：
+
+| 车道 | 模型次/总量 | cached | 命中的瞬间 |
+|---|---|---|---|
+| `/observe` advice | #1 Miss | — | 16.34 s · prompt 136,514 tok |
+| | #2 | **129,495** | **94.9%** · 14.27 s |
+| `/insight` advice | #1 Miss | — | 14.51 s · prompt 136,144 tok |
+| | #2 | **129,129** | **94.9%** · 17.43 s |
+| `/ai-summary` | #1 Miss | — | 27.07 s · prompt 136,132 tok |
+| | #2 | **129,130** | **94.9%** · 17.24 s |
+| `/dig` 群落 | #1 | 224,705 | all agents warm slot |
+| | #2 | **338,027** | ~**95%** |
+| `/runbook` | #1 cold | 0 | — |
+| | #2 | **342,517** | **~96%** |
+| raw sanity ping | #1 write | 0 |
+| | #2 | **111,742 / 117,801 (94.8%)** | 5.03 s |
+
+**Court lane (4117d2b0ca5fb23a) — 依然没有 `prompt_cache_key`**、没有 codex、没有「~」、没有撞名。这一天依旧锁着。
+
+### 186.2 为什么一条 lanes 冷敲必须 Miss
+
+任何 sticky key 的第一个敲门必然写槽而 miss，这是缓存协议写着的硬底线，没有任何 entry 可以绕过去。`api/system_codex.py` 字节冻结，今天不动了一次也不行——`tests/unit/test_system_codex.py` 钉死着。任何不守住的代码都是"食其肉"的 ego 行为。
+
+### 186.3 这件事与题外话无涉
+
+这类放行只属于观测，不属于 stress test——我今天没改一行代码，全局 mvn 工作区全空，**账本为 0 行**。价值落在「公开证据页」（`/gazette`）——可追溯到 git SHA。
+
+### 186.4 账房
+
+mvn 未动 · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1781** + 1 · worldbook **186 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门

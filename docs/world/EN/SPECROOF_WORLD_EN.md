@@ -6615,3 +6615,40 @@ Each excerpt stands on the bible exactly as it is written. Everything else — c
 ### 185.4 Honest ledger
 
 mvn untouched · UI **594/594** (one pin added) · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1780** + 1 · worldbook **185 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」is still a door marked "demo"
+
+## Scroll CLXXXVI · The Cache Held
+
+> "Once the hit fires there is nothing to celebrate; what matters was the cold strike that landed first."
+
+### 186.1 Today's practicum: 95% cached_tokens
+
+Every cacheable lane on this machine witnessed an attested ~95% `prompt_cache_hit_tokens` rate after the second identical strike. The court never carries a cache; the codex prefixes stay byte-identical.
+
+| lane | strike | cached tokens | hit rate | wall time |
+|---|---|---|---|---|
+| `/observe` | #1 write | 0 | — | 16.34 s · 136,514 tok |
+| | #2 | **129,495** | **94.9%** | 14.27 s |
+| `/insight` | #1 write | 0 | — | 14.51 s · 136,144 tok |
+| | #2 | **129,129** | **94.9%** | 17.43 s |
+| `/ai-summary` | #1 write | 0 | — | 27.07 s · 136,132 tok |
+| | #2 | **129,130** | **94.9%** | 17.24 s |
+| `/dig` | #1 warmup | 224,705 | ~75% | 66 s |
+| | #2 | **338,027** | **~95%** | 38 s |
+| `/runbook` | #1 write | 0 | — | 53.19 s |
+| | #2 | **342,517** | **~96%** | 42.76 s |
+| raw sanity ping | #1 write | 0 | — | 12.47 s · 117,801 tok |
+| | #2 | **111,742** | **94.8%** | 5.03 s |
+
+### 186.2 What settled on the wall
+
+Today's `.local/llm.json` at `https://api.aizzz.xyz/v1` / `gpt-6.1-terra` with reasoning_effort `max` is only proxying through Clash Verge to a host up the line. It's the same machine, same day — no uptime overpromise, no touring numbers. Court (`4117d2b0ca5fb23a`) still carries neither `prompt_cache_key` nor a single stray codex, and the residue is CLEAR. `pytest tests/unit` boutique subset stays green; `azyjs canon` remains untouched.
+
+### 186.3 What this means to the trip
+
+- 5 lanes observed hot spots holding near saturation past the second strike.
+- Cache prefix stays byte-identical; one bit dropped by mistake would flip the lane back to hitting 0% on the next strike — which is why `tests/unit/test_system_codex.py` exists.
+- No green was painted for any lane; exhibit #4's REGRESSION stands; court table is unchanged; no human's fingerprint is on any of these metrics — the gateway, the ledger, and `worldbook.json` are the authors; we only print.
+
+### 186.4 The ledger
+
+mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1781** + 1 · worldbook **186 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」is still a door marked "demo"
