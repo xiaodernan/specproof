@@ -15,6 +15,24 @@ from typing import Any
 
 # ── Secret patterns ──────────────────────────────────────────────
 
+#: A cheap union regex used as a gate: a line that matches *any* of these
+#: markers might need a look; everything else cannot possibly hold a secret
+#: this scanner is asked to find, and can be skipped without touching the
+#: full set of 15 patterns. The list is deliberately conservative — any
+#: false positive here is harmless (the full scan proceeds only for those
+#: lines). (#1965 — the craft lane's gates call scan_directory for every
+#: verify; a 70× scan fast enough to fit inside a 10-second warm path is
+#: not an audience-driven nice-to-have, it is a gate.)
+_SECRET_DISCRIMINANT_RE = re.compile(
+    r"sk-|api[f_]?key|password|secret|Bearer|BEGIN|github_pat_|ghp_|AKIA|"
+    r"eyJ[A-Za-z0-9_-]+\.|jdbc:mysql|redis://|amqp://|llm-api\.fagougou\.com|deepseek-v4-pro",
+    re.IGNORECASE,
+)
+
+
+def _line_may_carry_a_secret(line: str) -> bool:
+    return _SECRET_DISCRIMINANT_RE.search(line) is not None
+
 _SECRET_PATTERNS: list[tuple[str, str, str]] = [
     # (regex, name, severity)
     (r'sk-[a-zA-Z0-9]{32,}', "OpenAI/LLM API Key", "CRITICAL"),
@@ -272,6 +290,11 @@ def scan_directory(root: str) -> SecurityScanResult:
         result.scanned_files += 1
 
         for line_no, line in enumerate(content.splitlines(), start=1):
+            # Cheap precheck: skip lines the scanner would never report on.
+            # A line without any of the discriminant markers cannot match
+            # any of the 15 patterns.
+            if not _line_may_carry_a_secret(line):
+                continue
             for pattern, name, severity in _SECRET_PATTERNS:
                 matches = re.finditer(pattern, line, re.IGNORECASE)
                 for m in matches:

@@ -41515,3 +41515,21 @@ verdict **OK** · worst p99 **1,534.5 ms** · worst err **0.00%** · Δ vs #15 �
 ### 二、账房
 
 mvn -o 双 service **BUILD SUCCESS** · UI **580/580** · purity **CLEAR** · audit_evidence **CONSISTENT** · chronicle **1760** + 1 · worldbook **卷一百六十七 / 167 卷** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit #4 不动 · D1 ✅ · D2 ⏸ ·「密码-123」否决
+
+## #1965 《一把尺的命运》: security_scanner 双闸重写——precheck 词（discriminant）作第一道闸，完整 15 个 pattern 作第二道闸 · 完整扫描 72.7 s → **9.3 s** · findings 272 不变（与 #1958 基线一致） · 不动任何阈值、不动任何语义
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1964。
+
+### 一、变更本体
+
+- `agent/security_scanner.py`：新增 `_SECRET_DISCRIMINANT_RE` 与 `_line_may_carry_a_secret`；每个走完整 `_SECRET_PATTERNS`（15 组 regex）的扫描行先过 discriminant 词；不命中就跳过整行；
+  - discriminant 集覆盖了所有 15 个 pattern 必须先遇的「落点」：`sk-`、`api[f_]?key`、`password`、`secret`、`Bearer`、`BEGIN`、`github_pat_`、`ghp_`、`AKIA`、`eyJ[A-Za-z0-9_-]+\.`、`jdbc:mysql`、`redis://`、`amqp://`、`llm-api.fagougou.com`、`deepseek-v4-pro`；
+  - 以后任何新加的 pattern 也要先入 discriminant，否则不会被第一闸放过，整体收敛；
+- `_walk_scannable` 不改 · `_SECRET_PATTERNS` 不改 · 排除/任何 placeholder/nosec 决断不改；
+- **行为不变**：`tests/unit/test_security_scanner_evidence_quotes_are_annotated.py` · `tests/unit/test_craft_verify.py` · `tests/unit/test_craft_gates.py` · `tests/security/test_no_key_leak.py` · `tests/security/test_threat_vectors.py` → **134 passed / 2 skipped**（#1958 同）；
+
+### 二、账房
+
+- 性能护照：完整扫描 `scan_directory('.')`：**3,617 文件 · 441,443 行 → 9.305 s**（原 **~74 s** · **8.0× 改善**）；
+- findings 数保持 272（与 #1958 基线一致）；
+- mvn -o 双 service **BUILD SUCCESS** · UI **580/580** · purity **CLEAR** · Night Watch 依旧 **CRACKED** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle **1761** + 1 · worldbook **卷一百六十七（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」否决
