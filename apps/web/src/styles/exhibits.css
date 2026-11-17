@@ -42,3 +42,32 @@
 .exhibits-sat-note { line-height: 1.8; margin-top: 8px; font-size: var(--text-sm); }
 
 .exhibits-print-cta { display: flex; justify-content: flex-end; margin: 0 0 var(--sp-2); }
+/* the machine hums — the exhibit signs its own wall */
+.exhibits-copilot {
+  margin: 20px 0 0;
+  padding: 20px 24px 20px;
+  border-left: 4px solid var(--archive-gold-strong);
+  background: var(--pigment-steel-17);
+  border-radius: 0 var(--radius-2xs) var(--radius-2xs) 0;
+}
+.exhibits-copilot h3 {
+  margin: 0 0 12px;
+  font-size: var(--text-2xs);
+  letter-spacing: .32em;
+  color: var(--archive-gold-bright);
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.exhibits-copilot-body {
+  margin: 0 0 12px;
+  color: var(--steel-moonwash);
+  font-size: var(--text-md);
+  line-height: 2.0;
+}
+.exhibits-copilot-stamp {
+  margin: 0;
+  color: var(--steel-graphite-2);
+  font-size: var(--text-2xs);
+  letter-spacing: .04em;
+  font-style: italic;
+}

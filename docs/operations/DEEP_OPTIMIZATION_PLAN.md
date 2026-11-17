@@ -41886,3 +41886,33 @@ mvn 未动 · UI **590/590**（build ✓ · vitest ✓ · tsc ✓ · lint 通过
 mvn 未动 · UI **590/590** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1774**（§1972 → §1972-1，解析数不增）· worldbook **179 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
 
 **atelier run（提交前的定稿基准）**：BENCH-PENDING
+
+## #1978 《展厅是自己签的》：第十二盏 StateGraph — exhibit_copilot（packet→铭文门 · zh200/en150 · 包外数字即漂移）· 真 aizzz 双敲（17:08:11 + 17:11:31；cached=0 ×2 · prompt 5,255 tokens · reasoning 675 · verdict **HELD** pinned=true）· `/exhibits` 新增「机器自述 · 展厅铭」· 铭文 verbatim 入册 · chronicle **1775** + 1 · worldbook **180 卷（双语对称）** · UI **591/591**
+
+**记录基准**：本节只追加；master = 本提交前状态。本号衔接 #1977（#1977 的 atelier run 收尾按同一程序记账，不重复）。
+
+### 一、交付
+
+1. `api/exhibit_copilot.py`（新）—— `EXHIBIT_COPILOT_SYSTEM` 字节钉（`PIN_SHA256`）；`build_packet()` 只从 `apps/web/src/pages/evidence.json` 派生：exhibits_count / latest_file / concurrency / worst p99 / avg p95 / delta + note；`validate_copilot()` 纯数字机械门：zh ≤ 200 CJK 字 · en ≤ 150 词 · 不许 markdown 标记（# / ``` / - / ** / ##）· 恰好两段 `\n\n` · 包外数字即漂移 · 判词词表（通过/合格/全绿/必胜/FAIL/PASS/verdict）封禁；
+2. `agent/graphs/exhibit_copilot_graph.py`（新）—— lamp #12「展厅副驾驶」：`intake`（验 prompt 字节 + packet 读得动）→ `strike`（只有 `SPECPROOF_EXHIBIT_COPILOT_LIVE=1` 才敲；否则只验 pin）→ `verify` → `verdict`（走 `agent/graphs/_witness.py::verdict_node`，词表 HELD/DRIFTED，和 court 无重叠）→ `report`；
+3. `apps/web/src/pages/Exhibits.tsx`——页尾新增「机器自述 · 展厅铭」一整条（bilingual），只读 `exhibit_copilot.json`；页面不改模型的字；
+4. `apps/web/src/pages/StateGraph.tsx` + `.copy.ts`——`/stategraph` 第十二盏灯（文件 `agent/graphs/exhibit_copilot_graph.py` · validator 语义入 role）；zh「十二张活着的图」+ en「The twelve living graphs」；`__tests__/StateGraph.test.tsx` 新钉一则（pinned=true · HELD · file · chain）；
+5. `apps/web/src/styles/exhibits.css`——新增 `.exhibits-copilot(.h3/.-body/.-stamp)`（左竖线 4px 金 · steel-17 底 · 金字 + 斜体灰刻印）。
+
+### 二、实敲（verbatim · 两次）
+
+* 首敲 2026-11-17T17:08:11Z：**verdict HELD** · pinned=true · packet_ok=true · reasoning 920 · cached 0（prompt_tokens 未持久化这次）；
+* 二敲 2026-11-17T17:11:31Z：**verdict HELD** · pinned=true · reasoning 675 · cached 0 · prompt 5,255 —— 铭文原文落册于 `docs/evidence/exhibit-copilot-2026-11-17.md`，未经人手改写；
+* 铭文核心："本次风压试为 0 错误、96 并发、768 次请求；#18 比 #17 慢 492.6 毫秒，因为完整 pytest 同时在跑，不是退化；下一位游客先看 `2026-11-17-static-warm-18.json`。"
+
+### 三、诚实边界
+
+1. **cached_tokens=0 ×2**：5,255-token 前缀连敲两下都没命中缓存——本 gateway 的 floor 与本车道的异类在测量上不可区分；不涂绿；
+2. 铭文只作展厅铭用；不参与任何判决、合并、或阈值；`agent/review_court/` 不受污染；
+3. 本灯永不在 pytest / CI / 发布闸里出网；只有显式 `--live` 敲一次；
+4. **测试作者先被自己挡住**：`test_exhibit_copilot.py` 首敲里，我往 GOOD_ZH 里随手写了个年份 "1969" —— validator 当场 DRIFTED；这个门不保护任何人不红、只保护数字不进墙；
+5. chronicle **1775**（本节新增一条 `## #\d+` 解析）；worldbook **180 卷（双语对称）**——计数口径与 `build_chronicle.py` 一致（178 个 `## ` 章 + 序章 = 179 + 本卷 = 180）。
+
+### 四、账房
+
+mvn 未动 · UI **591/591**（+1 pin）· tsc ✓ · vite build ✓ · `tests/unit/test_exhibit_copilot.py` **10/10** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1775** + 1 · worldbook **180 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门

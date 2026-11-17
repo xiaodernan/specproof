@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useI18n } from "../i18n";
 import evidence from "./evidence.json";
+import exhibitCopilot from "./exhibit_copilot.json";
 import ChainBanner from "./ChainBanner";
 import { ProductIcon } from "../ui/ProductIcon";
 import "../styles/exhibits.css";
@@ -198,6 +199,16 @@ export default function Exhibits(): JSX.Element {
       <div className="exhibits-footnote">
         <ProductIcon name="hammer" size={12} /> <code>{evidence.files_count ?? 0} files · {exhibits.length} static exhibits struck (exhibit_entries={exhibits.length})</code>
       </div>
+
+      <section className="exhibits-copilot" aria-label={zh ? "机器自述" : "the machine signs its own wall"}>
+        <h3>{zh ? "机器自述 · 展厅铭" : "THE MACHINE HUMS · THE EXHIBIT OWNS ITS NUMBERS"}</h3>
+        <p className="exhibits-copilot-body">{zh ? exhibitCopilot.answer_zh : exhibitCopilot.answer_en}</p>
+        <p className="exhibits-copilot-stamp">
+          {zh
+            ? `— aizzz/gpt-6.1-terra · ${(exhibitCopilot.generated_utc ?? "").slice(0, 10)} · 只引 evidence.json 里的数字 · 从不判词 · 缓存命中 ${exhibitCopilot.cached_tokens} / ${exhibitCopilot.prompt_tokens ?? ""} tokens`
+            : `— aizzz/gpt-6.1-terra · ${(exhibitCopilot.generated_utc ?? "").slice(0, 10)} · prints only numbers present in evidence.json · never a verdict · cached_tokens=${exhibitCopilot.cached_tokens}`}
+        </p>
+      </section>
     </div>
   );
 }

@@ -338,6 +338,7 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "两粒潮沙 · #1975", value: "exhibit #18 落册 · 192×4 · 0.00% err · worst p99 2,027.1 ms（full pytest 并行，真实Δ +492.6 ms vs #17）· exhibit_entries **18** · UI **590/590**（#1975）" },
       { label: "一笔亲笔 · #1976", value: "/gazette 新增「今日余响」——aiszz/gpt-6.1-terra 敲两段 epigraph（中 114 字 + 英 101 词）· `scripts/gazette_feature.py` 入库 · 不是判词 · UI **590/590**（#1976）" },
       { label: "书自己走进车道 · #1977", value: "zh 整本世界书（413,655 B）冻进系统前缀 + 五车道 sticky `prompt_cache_key`（specproof-dig / specproof-runbook / specproof-observe-advice / specproof-insight-advice / specproof-ai-summary）· 实测稳定 **~95%** 命中（`/observe` 136,514 → **129,495**；`/dig` 338,027）· court ❌ 永不携带 · chronicle **1774**（#1977）" },
+      { label: "展厅是自己签的 · #1978", value: "第十二盏 StateGraph lamp：`exhibit_copilot`（packet→铭文机械门 · zh200/en150 · 包外数字即漂移）· 真 aizzz 双敲（cached=0 ×2 · prompt 5,255 tokens · reasoning 675 · verdict **HELD** pinned=true）· `/exhibits` 新增「机器自述 · 展厅铭」· chronicle **1775**（#1978）" },
     ],
   },
   {
@@ -666,6 +667,7 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "Two Grains · #1975", value: "exhibit #18 struck — identical 96c × 2 × 4 recipe · 0.00% err · worst p99 2,027.1 ms · Δ +492.6 ms vs #17 (full pytest running in parallel) · exhibit_entries **18** · UI **590/590** (#1975)" },
       { label: "The Editor Takes the Pen · #1976", value: "/gazette gains TODAY'S ECHO — aizzz/gpt-6.1-terra writes 114 zh-chars + 101 en-words epigraph from the ledger entry #1975 verbatim · `scripts/gazette_feature.py` committed · never a verdict · UI **590/590** (#1976)" },
       { label: "The Book Walks Into the Lane · #1977", value: "the full world book (zh 413,655 B · en 424,582 B, byte-frozen) rides the cacheable lanes as one system message + a sticky per-lane `prompt_cache_key` · measured stable **~95%** hit (`/observe` 136,514 → **129,495** · `/dig` 338,027) · court ❌ never carries it · chronicle **1774** (#1977)" },
+      { label: "The Wall Signs Its Own Name · #1978", value: "StateGraph's twelfth lamp — `exhibit_copilot` (packet→hum mechanical gate · zh≤200 CJK / en≤150w · any out-of-packet number = DRIFTED) · two live aizzz strikes (cached=0 ×2 · prompt 5,255 · reasoning 675 · **HELD** pinned=true) · `/exhibits` gains the machine's own line · chronicle **1775** (#1978)" },
     ],
   },
   {

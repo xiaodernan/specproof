@@ -6,6 +6,7 @@ import usageLedger from "./usage_ledger_witness.json";
 import investigationDig from "./investigation_dig.json";
 import runbookTriage from "./runbook_triage.json";
 import covenantWitness from "./covenant_witness.json";
+import exhibitCopilot from "./exhibit_copilot.json";
 
 /**
  * 状态图谱 · The State Graphs — everything this page says is either
@@ -187,6 +188,19 @@ const liveCovenantWitness = {
   en: `covenant ${CV.bytes ?? "?"} B · sha256 ${(CV.sha256 ?? "").slice(0, 12)}… · ${CV.laws ?? "?"}/11 laws · pinned=${CV.pinned} → ${CV.verdict ?? "?"}`,
 };
 
+const EC = exhibitCopilot as unknown as {
+  verdict?: string;
+  pinned?: boolean;
+  packet_ok?: boolean;
+  reasoning_tokens?: number;
+  cached_tokens?: number;
+  prompt_tokens?: number;
+};
+const liveExhibitCopilot = {
+  zh: `展厅铭 · prompt ${EC.prompt_tokens ?? "?"} tok · cached ${EC.cached_tokens ?? "?"} · 推理 ${EC.reasoning_tokens ?? "?"} · pinned=${EC.pinned} → ${EC.verdict ?? "?"}`,
+  en: `exhibit wall · prompt ${EC.prompt_tokens ?? "?"} tok · cached ${EC.cached_tokens ?? "?"} · reasoning ${EC.reasoning_tokens ?? "?"} · pinned=${EC.pinned} → ${EC.verdict ?? "?"}`,
+};
+
 export const GRAPHS: GraphCard[] = [
   {
     id: "recall",
@@ -317,6 +331,19 @@ export const GRAPHS: GraphCard[] = [
     },
     fields: ["alert", "agents", "findings", "total_tokens_used", "generation_time_ms", "verdict"],
     live: liveRunbookTriage,
+  },
+  {
+    id: "exhibit_copilot",
+    file: "agent/graphs/exhibit_copilot_graph.py",
+    stateName: "ExhibitCopilotState(TypedDict, total=False)",
+    chain: ["intake", "strike", "verify", "verdict", "report", "END"],
+    verdicts: { zh: "HELD / DRIFTED", en: "HELD / DRIFTED" },
+    role: {
+      zh: "展厅副驾驶——展的那一侧的灯。每敲一次风压试、证据一落册，模型（只在显式 --live 下）读取那份裁好的 packet：只能引用包内数字、只能用包内形状和差值，不许一个包外数字、不许超过中文 200 字 / 英文 150 词、不许 markdown 标记——越界即 DRIFTED。从不敲 court、从不下判词、从不碰任何合并决定。",
+      en: "The exhibit co-pilot — the lamp on the exhibit's own side of the door. Once the stress gauntlet lands its evidence, the model (only under an explicit --live) reads the trimmed packet: numbers must come from the packet, shapes must come from it, deltas must come from it — one out-of-packet digit, one over-ceiling line, one stray markdown marker and the mechanical gate stamps DRIFTED. Never touches court, never writes a verdict, never votes on a merge.",
+    },
+    fields: ["packet_ok", "pinned", "verdict", "sealed_answer", "sealed_failures", "cached_tokens", "reasoning_tokens", "prompt_tokens"],
+    live: liveExhibitCopilot,
   },
   {
     id: "covenant_witness",

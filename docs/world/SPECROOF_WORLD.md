@@ -6534,3 +6534,39 @@ Raw sanity（EN codex + low effort + key `specproof-probe-sanity`）：第 2 敲
 ### 179.4 账房
 
 mvn 未动 · UI **590/590**（未改前端页；本轮全是后端与探针）· tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1774**（§1972 → §1972-1 顺延，解析数平盘）· worldbook **179 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门 · 全量 unit 基准本轮状态见该条账本记录（顺延收账不涂绿）
+
+## 卷一百八十 · 展厅是自己签的
+
+> 「展厅里的字，不因别人替它说的，而成为它的。」 ——本卷落册
+
+### 180.1 第十二盏灯：exhibit copilot
+
+每敲一次风压试、证据一直落册，这次我让模型替这一件展品写一句铭：**只许它读裁好的 packet，不许它一个包外数字都进铭文里面**。灯是 networked — 出网，但只在显式 `--live` 时才出网；`cached=0`、5,255 tokens 的小前缀，两敲门都没享受缓存——诚实记账。
+
+### 180.2 机器门（mechanical gate）
+
+铭文落地之前先过一道纯数字门——任何 model 写的数字都必须在 packet 里找到：
+
+- 中文 ≤ 200 字 / 英文 ≤ 150 词；
+- 不许一个包外数字、不许 markdown 标记、不许结尾性的判词（全绿/通过/OK/verdict 等词被 ban 掉——这些字机器不许碰）；
+- 正则只从 packet 文本里出数字，数就得出现；抄一条「未来编年六方」—— `test_exhibit_copilot.py::test_one_invented_digit_seals_drifted` 钉死。
+
+有趣的一笔：我自己写测试用例时顺手往铭里写了个年份 "1969"——护栏当场抓出来，测试红。不是检查别人，是先把作者自己挡住。
+
+### 180.3 实敲（真 aizzz `gpt-6.1-terra` · verbatim，未经改写）
+
+**verdict=HELD · pinned=true · packet_ok=true · 2026-11-17T17:11:31Z · prompt 5,255 tokens · cached 0 · reasoning 675**
+
+> 这波风压试为0错误、96并发、768次请求，最慢p99为2027.103毫秒。差异备注将#18比#17慢492.6毫秒归因于完整pytest同时运行，而非退化。下一位游客先看2026-11-17-static-warm-18.json。
+>
+> This load test had 0 errors, 96 concurrent requests, 768 requests total, and a slowest p99 of 2027.103 ms. The note attributes #18 being 492.6 ms slower than #17 to the full pytest suite running at the same time, not to regression. The next visitor should first look at 2026-11-17-static-warm-18.json.
+
+展厅页 `/exhibits` 收到「机器自述 · 展厅铭」一整条；宪章原文逐字存见 `docs/evidence/exhibit-copilot-2026-11-17.{json,md}`。这不是判词；它不拿 acute 结论，只替机器的这一天记账。
+
+### 180.4 /stategraph 十二盏
+
+灯排 12：`exhibit_copilot`——networked · 只在 `--live` 敲一下 · 越界即 DRIFTED · 永不碰 court · UI **591/591** · `__tests__/StateGraph.test.tsx` 里新钉一则（pinned + HELD + file + chain）。
+
+### 180.5 账房
+
+mvn 未动 · UI **591/591** · tsc ✓ · vite build ✓ · `tests/unit/test_exhibit_copilot.py` **10/10** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1775** + 1 · worldbook **180 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门

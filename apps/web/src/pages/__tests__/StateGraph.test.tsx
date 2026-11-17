@@ -6,11 +6,11 @@ import StateGraph from "../StateGraph";
 
 /**
  * The State Graphs page teaches LangGraph's StateGraph by pointing at the
- * eleven graphs this repository actually runs. Every claim it makes is either
+ * twelve graphs this repository actually runs. Every claim it makes is either
  * a concept note about LangGraph as used here, or a byte visible in the same
  * repo (file names, state fields, verdict lexicon).
  *
- * Four of the eleven go out on purpose: cache_witness strikes this host's
+ * Five of the twelve go out on purpose: cache_witness strikes this host's
  * model lane to count the prefix cache, insight_advice strikes the /insight
  * Advice lane to witness it answering at all, investigation_dig strikes the
  * model on purpose as a readonly workspace digger, and runbook_triage
@@ -21,7 +21,7 @@ import StateGraph from "../StateGraph";
  * witness's name.
  */
 describe("StateGraph — LangGraph as wired in this repository", () => {
-  it("renders both locales with all eight concept terms and eleven graphs", () => {
+  it("renders both locales with all eight concept terms and twelve graphs", () => {
     for (const locale of ["zh", "en"] as const) {
       window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
       const { container } = render(
@@ -173,6 +173,25 @@ describe("StateGraph — LangGraph as wired in this repository", () => {
     }
   });
 
+  it("quotes the exhibit-copilot verbatim from exhibit_copilot.json (HELD · pinned)", () => {
+    for (const locale of ["zh", "en"] as const) {
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+      const { container } = render(
+        <I18nProvider>
+          <StateGraph />
+        </I18nProvider>,
+      );
+      const copilot = GRAPHS.find((g) => g.id === "exhibit_copilot");
+      expect(copilot?.live).toBeTruthy();
+      expect(copilot?.file).toBe("agent/graphs/exhibit_copilot_graph.py");
+      expect(copilot?.chain).toEqual(["intake", "strike", "verify", "verdict", "report", "END"]);
+      expect(container.textContent).toContain("exhibit_copilot_graph.py");
+      expect(container.textContent).toContain("HELD");
+      expect(container.textContent).toContain("pinned=true");
+      cleanup();
+    }
+  });
+
   it("does not let the four networked graphs wear an offline colophon — names them", () => {
     for (const locale of ["zh", "en"] as const) {
       window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
@@ -186,6 +205,7 @@ describe("StateGraph — LangGraph as wired in this repository", () => {
       expect(container.textContent).toContain("investigation_dig");
       expect(container.textContent).toContain("runbook_triage");
       expect(container.textContent).toContain("covenant_witness");
+      expect(container.textContent).toContain("exhibit_copilot");
       expect(container.textContent).not.toContain("all seven run offline");
       expect(container.textContent).not.toContain("all eight run offline");
       expect(container.textContent).not.toContain("all nine run offline");

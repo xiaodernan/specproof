@@ -6427,3 +6427,40 @@ The honest boundaries are items 1–6 in `docs/evidence/lane-cache-probe-2026-11
 ### 179.4 The ledger
 
 mvn untouched · UI **590/590** (no front-end page was touched this round; everything is backend + probes) · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1774** (§1972 → §1972-1 renumbered; parsed count flat) · worldbook **179 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is still a door marked "demo" · the full unit bench for this round is stated in this scroll's ledger row (recorded, never painted green)
+
+## Scroll CLXXX · The Wall Signs Its Own Name
+
+> "An exhibit earns no words for which it is excused — only the ones it sealed itself." — this scroll
+
+### 180.1 The twelfth lamp: exhibit_copilot
+
+Every time a stress strike lands evidence, the exhibit wall is painted with what the machines measured. This round lets the machine sign its own wall — one hum, two paragraphs (zh + en), drawn only from the trimmed packet. The lamp is networked but **strikes only on an explicit `--live`**; its lane is small — 5,255 prompt tokens, two live strikes, both `cached_tokens=0`, recorded as such.
+
+### 180.2 The mechanical gate
+
+Before the hum is allowed on the wall, every number in it must exist verbatim in the packet text; the length ceilings are contracts, not wishes:
+
+- zh ≤ 200 CJK chars · en ≤ 150 words;
+- one out-of-packet digit → DRIFTED (pinned by `test_one_invented_digit_seals_drifted`);
+- no markdown headings, no bullet rosters, no code fences;
+- the verdict vocabulary (any variant of "passed/failed/OK/comparison/verdict") is banned from the prose — the machine may hum, never rule.
+
+An honest little story from this build: while writing the fixture I casually typed "1969" into the hum — the gate caught its own test-author. The gate did not let anyone off; it caught me first.
+
+### 180.3 The strike (verbatim, two live calls, same packet)
+
+**verdict=HELD · pinned=true · packet_ok=true · 2026-11-17T17:11:31Z · prompt 5,255 tokens · cached 0 · reasoning 675**
+
+> 这波风压试为0错误、96并发、768次请求，最慢p99为2027.103毫秒。差异备注将#18比#17慢492.6毫秒归因于完整pytest同时运行，而非退化。下一位游客先看2026-11-17-static-warm-18.json。
+>
+> This load test had 0 errors, 96 concurrent requests, 768 requests total, and a slowest p99 of 2027.103 ms. The note attributes #18 being 492.6 ms slower than #17 to the full pytest suite running at the same time, not to regression. The next visitor should first look at 2026-11-17-static-warm-18.json.
+
+`/exhibits` gains a quiet block: "机器自述 · 展厅铭 / THE MACHINE HUMS" — the pinned prompt bytes live in `api/exhibit_copilot.py`, the verbatim hum is committed at `docs/evidence/exhibit-copilot-2026-11-17.{json,md}`, and no human retouched it.
+
+### 180.4 /stategraph's twelfth lamp
+
+The lamp roster is now twelve: `exhibit_copilot` — networked · strikes only on demand · in-packet numbers or DRIFTED · never touches court · UI **591/591** · `__tests__/StateGraph.test.tsx` gains the verbatim-quote pin (pinned=true · HELD · file · chain).
+
+### 180.5 The ledger
+
+mvn untouched · UI **591/591** · tsc ✓ · vite build ✓ · `tests/unit/test_exhibit_copilot.py` **10/10** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1775** + 1 · worldbook **180 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is still a door marked "demo"
