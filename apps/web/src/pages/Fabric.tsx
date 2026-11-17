@@ -66,6 +66,7 @@ const NODES: FabricNode[] = [
   { id: "billing",   x: 920, y: 470, titleKey: "Usage & Billing",   group: "service",route: "billing"},
   // 6 · admin
   { id: "insight",   x: 1040,y: 250, titleKey: "Insight Deck",      group: "admin",  route: "insight"},
+  { id: "dig",       x: 1150,y: 250, titleKey: "The Dig",          group: "admin",  route: "dig"},
   { id: "identity",  x: 1040,y: 360, titleKey: "Team & Access",     group: "admin",  route: "identity"},
   // 7 · engineer's loft
   { id: "explorer",  x: 1040,y: 500, titleKey: "Evidence Explorer", group: "dev",    route: "explorer"},

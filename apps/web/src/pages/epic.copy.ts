@@ -320,6 +320,8 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "同一本账 · #1948", value: "LLM 缓存账按车道×协议双轴拆开（by_lane direct 0.5418 / policy 0.0 · R16 有机器数据背书）· Usage 面板新增双表面板 · +3 honesty 测试（#1948）" },
       { label: "粗筛的尺子 · #1949", value: "i18n 全量审计升级：bucket A 366→196→**138** · 新增 bucket C（L()/zh?/{ zh: }/…_ZH 同行成对双语 1,172 条归位）· 只降噪不放行 · audit 永远 exit 0 不进 CI（#1949）" },
       { label: "第八张图 · #1950", value: "usage_ledger_graph.py 落册：intake → strike → verdict → report → END——离线读本机 token 级用量账本，同一套 Usage 面板的口径；现场判词 ANSWERED · window 24h · 38 次调用 · 6 次错误 · hit_rate 0.430（basis 32）· 八张活着的图（6 离线 + 2 出网）/stategraph 挂牌 · 判词 ANSWERED/UNAVAILABLE 沿用 witness 词表（#1950）" },
+      { label: "第九张图 · #1954", value: "investigation_dig_graph.py 落册：explorer/tester/security 三只只读 investigators 并行敲模型一个 question——实敲 aizzz/gpt-6.1-terra · 判词 EVIDENCE-GATHERED · /stategraph 九盏活图挂牌 · StateGraph.test 8/8（#1954）" },
+      { label: "The Dig · #1955", value: "/api/v1/admin/investigation-dig + /dig 页面：同一套只读 investigators 并行敲本仓（bounded fact pack ≤4 KB）——现敲 aizzz/gpt-6.1-terra (经 Clash Verge) · verdict EVIDENCE-GATHERED · 16,200 tok · UI 576/576（#1955）" },
     ],
   },
   {
@@ -630,6 +632,8 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "One ledger, two measures · #1948", value: "the cache account split along lane × protocol (by_lane: direct **0.5418** / policy **0.0** with machine backing for R16) · Usage panel gains the twin tables · +3 honesty tests (20/20) (#1948)" },
       { label: "The coarse measure, made honest · #1949", value: "i18n audit upgraded: bucket A **366→196→138** · bucket C added (`L()`/`zh ?`/`{ zh: }`/`…_ZH` same-line coordinated bilinguals — 1,172 reclassified) · noise down, nothing blessed, audit stays exit 0 forever (#1949)" },
       { label: "The eighth graph · #1950", value: "usage_ledger_graph.py lands: intake → strike → verdict → report → END — read the local token ledger with the Usage panel's own accounting; live strike: ANSWERED · window 24h · 38 calls · 6 errors · hit_rate 0.430 (basis 32) · the eight living graphs (6 offline + 2 networked) on /stategraph · ANSWERED/UNAVAILABLE reuse the witness lexicon (#1950)" },
+      { label: "The ninth graph · #1954", value: "investigation_dig_graph.py lands: explorer / tester / security fan out in parallel on one question — struck live against aizzz/gpt-6.1-terra · verdict EVIDENCE-GATHERED · /stategraph now hangs nine living graphs (six offline + three networked) · StateGraph.test.tsx 8/8 (#1954)" },
+      { label: "The Dig · #1955", value: "/api/v1/admin/investigation-dig + /dig page — the same three readonly investigators ask this repo a question (fact pack bounded ≤4 KB); struck live against aizzz/gpt-6.1-terra · verdict EVIDENCE-GATHERED · 16,200 tokens accounted in the ledger · UI 576/576 (#1955)" },
     ],
   },
   {
