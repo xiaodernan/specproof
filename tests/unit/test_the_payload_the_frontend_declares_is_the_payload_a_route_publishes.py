@@ -255,6 +255,12 @@ def _pair_key(pair: Pair) -> Key:
 #: E6) and `GET /api/v1/jobs/{id}/matrix` (the same, through an argument that is a
 #: conditional, E7). Neither route changed; only the ruler's eye did, which is the whole
 #: argument for rostering both readings instead of trusting them.
+#: …and this one goes through the same door: `GET /api/v1/jobs/{}/ai-summary/stream`
+#: is consumed only through `streamAiSummary` → `openEventStream` (api.ts), the
+#: depth-0 SSE transport no declared typed verb ever reaches — the same reason
+#: `/auth/logout` and `/api/v1/jobs/{}/capsule` sit here (typed endpoints reached
+#: through untyped transports). The page that reads it is JobDetail.tsx (the
+#: streamed reading); the register records "no typed call site", not "no reader".
 UNPAIRED_ENDPOINTS: frozenset[Key] = frozenset(
     {
         ("get", "/agent/jobs/{}/event-history"),
@@ -262,6 +268,7 @@ UNPAIRED_ENDPOINTS: frozenset[Key] = frozenset(
         ("get", "/api/v1/admin/certificates/revocations"),
         ("get", "/api/v1/billing/jobs/{}"),
         ("get", "/api/v1/billing/subscriptions"),
+        ("get", "/api/v1/jobs/{}/ai-summary/stream"),
         ("get", "/api/v1/jobs/{}/capsule"),
         ("get", "/auth/oidc/callback"),
         ("get", "/auth/oidc/login"),
