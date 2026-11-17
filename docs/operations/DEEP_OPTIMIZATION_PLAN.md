@@ -41444,3 +41444,17 @@ POST /api/v1/admin/runbook-triage {"alert": "SpecproofApiDown"}
 
 mvn -o 双 service **BUILD SUCCESS**（Java 未动，car-rying #1958 结果）· UI **580/580**（Runbook.test.tsx 3/3 · StateGraph.test.tsx 增判第十张）· `tsc --noEmit` ✓ · build ✓ · purity **CLEAR** ·
 **Night Watch 依旧 CRACKED**（exhibit #4 不动 · exhibit_entries **16**）· court `4117d2b0ca5fb23a` **LOCKED** · Scroll CLXV 双语落册 · chronicle **1757** · worldbook **卷一百六十五 / 165 卷（中英对称）** · D1 ✅ · D2 ⏸ ·「密码-123」否决
+
+## #1960 《术语自己会收口》：glossary 长出三个 Runbook 词条（dig／runbook／inconclusive）· Runbook 页面直接悬浮术语 · UI **580/580** · chronicle **1757** + 1 · worldbook **165 卷（双语对称）**
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1959。
+
+### 一、补丁（零改行为，纯接线）
+
+- `apps/web/src/ui/glossary.ts`：`GLOSSARY` 追加三条：dig（深挖现场）· runbook（值班手册）· inconclusive（"证据不足" 作为模型诚实留白）——中文在 `label`、原名在 `en`、一句话释义在 `definition`；**不臆造任何别词**；
+- `apps/web/src/pages/Runbook.tsx`：页内 `值班手册` 与两段 `INCONCLUSIVE` 直接改为 `<Term id="runbook">` / `<Term id="inconclusive">` 悬浮展开；英文模式同物；
+- `apps/web/src/pages/epic.copy.ts`：双语 milestone #1960 对齐；
+
+### 二、判词
+
+mvn -o 双 service **BUILD SUCCESS** · UI **580/580** · tsc ✓ · build ✓ · purity **CLEAR** · Night Watch 依旧 **CRACKED**（exhibit #4 不动 · entries 16）· court `4117d2b0ca5fb23a` **LOCKED** · chronicle **1757** + 1 · worldbook **卷一百六十五（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」否决

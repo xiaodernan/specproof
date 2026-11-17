@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { PermissionDenied } from "../identity/PermissionDenied";
 import { useIdentityAccess } from "../identity/useIdentityAccess";
 import { useI18n } from "../i18n";
-import { Panel, Spinner, ErrorBox, Button, StatCard, Empty } from "../ui";
+import { Panel, Spinner, ErrorBox, Button, StatCard, Empty, Term } from "../ui";
 import { ProductIcon } from "../ui/ProductIcon";
 import {
   fetchRunbookAlerts,
@@ -78,10 +78,13 @@ export default function Runbook(): JSX.Element {
           <p className="page-kicker">{L("值班手册 · 单机版", "RUNBOOK · SINGLE-HOST EDITION")}</p>
           <h1>{L("告警一响，模型先读自己仓库", "The alert fires; the model reads this repo first")}</h1>
           <p className="page-sub">
-            {L(
-              "三只只读证据兄妹并发回答：这条告警是什么、先看什么、仓库里的事实是否支持。永远不涂绿，INCONCLUSIVE 是答案。",
-              "Three readonly investigators answer: what this alert means, what to check first, and whether the repo's facts support the reading. Never painted green — INCONCLUSIVE is an answer.",
-            )}
+            {zh
+              ? <>
+                <Term id="runbook">值班手册</Term>——三只只读证据兄妹并发回答：这条告警是什么、先看什么、仓库里的事实是否支持。永远不涂绿，<Term id="inconclusive">INCONCLUSIVE</Term> 是答案。
+              </>
+              : <>
+                The <Term id="runbook">runbook</Term> — three readonly investigators answer: what this alert means, what to check first, and whether the repo's facts support the reading. Never painted green — <Term id="inconclusive">INCONCLUSIVE</Term> is an answer.
+              </>}
           </p>
         </div>
       </header>

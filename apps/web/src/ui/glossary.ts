@@ -86,6 +86,27 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
     definition:
       "支撑某条结论的可复核材料，例如测试输出、改动前后的行为差异、接口响应。只有结论没有证据时，状态会显示为「证据不足」。",
   },
+  {
+    id: "dig",
+    label: "深挖现场",
+    en: "The Dig",
+    definition:
+      "admin/operator 专属的只读并行提问：三只调查员（explorer/tester/security）并发读本仓回答同一个问题，不够就说不够——不编造、不涂绿、不下判决。",
+  },
+  {
+    id: "runbook",
+    label: "值班手册",
+    en: "Runbook",
+    definition:
+      "admin/operator 专属的告警一响：模型先读仓库（规则本体+最近提交+最新证据），只回 CONFIRMED 或 INCONCLUSIVE；判词不是法官席上的投票。",
+  },
+  {
+    id: "inconclusive",
+    label: "证据不足",
+    en: "INCONCLUSIVE",
+    definition:
+      "模型能力边界诚实回答：仓库里的事实不足以支持任何一个判别，模型就说不够——这是一种合法答案，永远不会被涂绿成有把握的样子。",
+  },
 ];
 
 const BY_ID: Record<string, GlossaryEntry> = Object.fromEntries(
