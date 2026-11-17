@@ -5706,3 +5706,31 @@ Five ports, one accounting, **never one number smoothed** — including `(unrepo
 UI **572/572** · build ✓ (minified) · mvn -o **137/137** (Java untouched) · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch still **CRACKED** (entries **16**) · court `4117d2b0ca5fb23a` **LOCKED** · chronicle grows with this commit · worldbook **Scroll CLVI / 156 scrolls (zh+en symmetric)** · D1 ✅ · D2 ⏸ (owner's PAT awaited) · 「密码-123」vetoed
 
 ---
+
+## Scroll CLVII · The ruler that learned to read the line above
+
+> A measure said 366 things were suspicious;
+> the eye sees 73. Nobody moved the truth —
+> the ruler just learned to read the line above the number.
+
+### 157.1 Four passes, one measure (struck live 2026-11-17)
+
+| pass | bucket A | bucket B | bucket C | what changed |
+|---|---|---|---|---|
+| v1 (original coarse filter) | **366** | 1,231 | — | literal with both CJK + latin ≥3 chars |
+| v2 (COORDINATED same-line) | 196 | 491 | 919 | same-line `L(` / `zh ?` / `isZh ?` / `locale === "zh" ?` |
+| v3 (`{ zh: }` + `…_ZH` arrays) | **138** | 296 | 1,172 | locale record keys + suffixed bilingual arrays |
+| v4 (this ticket) | **73** | 257 | 1,276 | multi-line `L("…")` spans + two-line lookahead for zh?/dispatchers |
+
+Not one `A` was hand-crossed-out; every one that left was reclassified by a rule stated in code.
+
+### 157.2 What the measure still can't see (and won't pretend to)
+
+- a Chinese string with Latin terms inside a **proven bilingual pair** — `Record<Locale, …>` / `L(en, zh)` / `zh ? … : …` — still reads clean as C;
+- the **remaining 73 are the human's** — the audit is advisory, exits 0, never enters CI.
+
+### 157.3 The ledger
+
+UI **571/571** · build ✓ · mvn -o **137/137** (Java untouched) · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch still **CRACKED** (entries **16**) · court `4117d2b0ca5fb23a` **LOCKED** · chronicle grows with this commit · worldbook **Scroll CLVII / 157 scrolls (zh+en symmetric)** · D1 ✅ · D2 ⏸ · 「密码-123」vetoed
+
+---
