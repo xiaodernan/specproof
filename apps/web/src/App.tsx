@@ -49,6 +49,7 @@ const NightWatch = lazy(() => import("./pages/NightWatch"));
 const Gazette = lazy(() => import("./pages/Gazette"));
 const Calendar = lazy(() => import("./pages/Calendar"));
 const Manual = lazy(() => import("./pages/Manual"));
+const Observe = lazy(() => import("./pages/Observe"));
 const Chronicle = lazy(() => import("./pages/Chronicle"));
 const Insight = lazy(() => import("./pages/Insight"));
 const Dig = lazy(() => import("./pages/Dig"));
@@ -113,6 +114,7 @@ export const NAV: NavItem[] = [
   { path: "census", labelKey: "nav.census", icon: "verify", groupKey: "group.evidence" },
   { path: "recall", labelKey: "nav.recall", icon: "echo", groupKey: "group.evidence" },
   { path: "manual", labelKey: "nav.manual", icon: "guide", groupKey: "group.evidence" },
+  { path: "observe", labelKey: "nav.observe", icon: "chart", groupKey: "group.evidence" },
   { path: "identity", labelKey: "nav.identity", icon: "team", groupKey: "group.admin", roles: IDENTITY_ROLES },
   { path: "insight", labelKey: "nav.insight", icon: "chart", groupKey: "group.admin", roles: IDENTITY_ROLES },
   { path: "dig", labelKey: "nav.dig", icon: "hammer", groupKey: "group.admin", roles: IDENTITY_ROLES },
@@ -184,6 +186,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "census") return <Census />;
   if (seg[0] === "recall") return <Recall />;
   if (seg[0] === "manual") return <Manual />;
+  if (seg[0] === "observe") return <Observe />;
   if (seg[0] === "health") return <Health />;
   if (seg[0] === "billing") return <Billing />;
   if (seg[0] === "usage") return <Usage />;
@@ -242,7 +245,7 @@ function Workspace() {
   }, []);
 
   if (active === "ui-kit") return <Suspense fallback={<Spinner />}><UiKit /></Suspense>;
-  if (!hasKey && active !== "guide") return <Login onConnected={() => setHasKey(true)} />;
+  if (!hasKey && active !== "guide" && active !== "observe") return <Login onConnected={() => setHasKey(true)} />;
   // A gated item is hidden unless the principal holds one of its roles, so the
   // sidebar cannot advertise a page the server would refuse. The sets come from
   // ui/accessRoles.ts — tests/unit/test_access_role_parity.py re-derives each

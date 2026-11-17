@@ -303,6 +303,60 @@
 .insight-heat-stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px; background: var(--shadow-highlight); margin-top: 16px; border: 1px solid var(--shadow-highlight); border-radius: var(--radius-2xs); overflow: hidden; }
 .insight-heat-stats > div { background: var(--pigment-steel-28); padding: 12px 8px 12px; text-align: center; }
 .insight-heat-stats p { font-size: var(--text-2xl); font-weight: 700; color: var(--parchment-mid-pp); margin: 0; font-variant-numeric: tabular-nums; }
+
+/* ── Observatory page ────────────────────────────────────────── */
+/* Public, read-only, demo — never observes any visitor. */
+.observe-page { display: grid; gap: 18px; }
+
+.observe-funnel { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.observe-funnel-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 12px;
+  align-items: center;
+  font-size: var(--text-sm);
+}
+.observe-funnel-stage { color: var(--steel-graphite); }
+.observe-funnel-bar {
+  display: block;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: var(--surface-3);
+  overflow: hidden;
+  min-width: 80px;
+}
+.observe-funnel-bar > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--lamp-jade), var(--lamp-lantern));
+  transition: width .45s ease;
+}
+.observe-funnel-count { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--parchment-mid-pp); }
+
+.observe-gate {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 6px 0 2px;
+}
+.observe-gate-field {
+  background: var(--surface-2);
+  border: 1px solid var(--shadow-highlight);
+  color: var(--parchment-mid-pp);
+  border-radius: var(--radius-2xs);
+  padding: 8px 12px;
+  min-width: 160px;
+  font-size: var(--text-md);
+  font-family: inherit;
+}
+.observe-gate-error { color: var(--danger-text); margin: 6px 0 0; font-size: var(--text-sm); }
+.observe-gate-note {
+  color: var(--steel-graphite-2);
+  font-size: var(--text-xs);
+  line-height: 1.85;
+  margin: 8px 0 0;
+}
 .insight-heat-stats span { font-size: var(--text-2xs); letter-spacing: .18em; text-transform: uppercase; color: var(--steel-slate); display: block; margin-top: 4px; }
 .insight-heat-cols { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 16px; margin-top: 16px; }
 .insight-heat-cols h3 { font-size: var(--text-2xs); letter-spacing: .3em; text-transform: uppercase; color: var(--pigment-gilt-glow-40); margin: 0 0 8px; }

@@ -6105,3 +6105,52 @@ Exhibit #4's REGRESSION stands. Exhibit #15 (384c · BUDGET-BLOWN) remains on fi
 ### 167.3 The ledger
 
 mvn -o both services **BUILD SUCCESS** · UI **580/580** · purity **CLEAR** · audit_evidence **CONSISTENT** · exhibit_entries **17** · chronicle **1760** + 1 · worldbook **Scroll CLXVII / 167 scrolls** · D1 ✅ · D2 ⏸ ·「密码-123」vetoed
+
+## Scroll CLXVIII · The Door Is Not a Lock; It Is a Mirror
+
+> The original request was "password 123 opens the admin page". The door ended up split in two: one side stays admin/operator-only (RBAC, fail-closed); the other is not locked at all — it stands on the street and holds up a mirror.
+
+### 168.1 Where /observe came from — "123" as a doorway, not a veto
+
+The request was previously ruled on in #1799, recorded verbatim in the ledger: there is no "everyone who knows the password" version of an admin page — knowing the password is not holding the authority. This round does not overturn that ruling; it splits the request into two doors:
+
+- **The real admin lane** — /insight stays admin/operator; verdicts still belong to the court; /dig and /runbook likewise;
+- **The public read-only hall** — /observe, open to anyone, labelled "PUBLIC · READONLY · DEMO" right on the page. The "Open" button takes `123` — everyone knows it, it was never an access control, and now it is explicitly a demo threshold.
+
+The page presents exactly two things: a seeded 240-member synthetic calibration cohort (mulberry32 seed 20261115) plus this browser's own tap trail (localStorage — unreadable is empty, never a fabricated zero). **The page collects, uploads and shows nothing about anyone else — there is no one else in here.**
+
+### 168.2 The honest fix: it wasn't public
+
+While previewing the build, a factual lie surfaced: `if (!hasKey && active !== "guide") return <Login … />` in `App.tsx` turned /observe into the login gate — the tab title said "观察舱 · SpecProof" while the body rendered the connect-workspace screen. A page labelled public that nobody can enter is a lie. The fix is one word: `active !== "observe"`.
+
+Three routerSmoke assertions pin the door: `#/observe` renders with no credential · `#/guide` reads without one · `#/dashboard` still lands on the login door. Archive's "The Doors In" group gained an /observe card; Fabric gained a node (37 → 38 rooms); both USER_GUIDE languages carry the new row; `manual.copy.ts` and `epic.copy.ts` record the feature in both locales.
+
+### 168.3 The model goes to work: from demo card to live backend lane
+
+Alongside lands the backend lane `POST /observe/advice` (no credential · `enforce_rate_limit` anonymous bucket · tenant-mode middleware lists `/observe/` among open prefixes, same tier as `/health`):
+
+- the server computes the identical deterministic trajectory itself (`api/synthetic_cohort.py`, the Python twin of `buildInsight()`); the browser cannot negotiate the numbers;
+- fingerprint cache — SHA-256(packet × locale) · Redis · 86,400 s TTL · fail-open. Every visitor sharing the locale shares one model call;
+- bilingual prompt — the answer is native to the interface language, with hard rules: open with the shape (flat, weak fit r²≈0.12, never a growth story) · quote in-packet numbers verbatim · state plainly this is synthetic calibration data, not anyone · say so when the packet is thin · plain text · **never a verdict**;
+- the model may read this one packet and nothing else — no identities, no PII, no chats; it never invents.
+
+**Struck live (2026-11-17, via Clash Verge → api.aizzz.xyz · gpt-6.1-terra · responses lane, stream+include_usage):**
+
+| strike | outcome |
+|---|---|
+| #1 12:26:48Z | 503 · `APIConnectionError` (mihomo transiently refused before the token budget was charged) |
+| #2 12:29:24Z | 503 · refused in 1s |
+| #3 12:32:05Z | **200** · 17.4 s |
+| #4 12:34:18Z | **200** · 18.3 s (after reload · retry=1 in place) |
+| #5 leave & re-enter | **cache hit** (same fingerprint · byte-identical · served instantly) |
+
+Two honest footnotes: the provider lane showed a short window of instant-refusal jitter this hour; and the browser layer showed the same pattern (two 502s before reload held). **No recovery was painted green. `max_retries=1` covers only the connection class, and it is on the books.**
+
+### 168.4 Two numbers, without hesitation
+
+- UI **587/587** (83 test files · +1 Observe error-path case this round);
+- python full `tests/unit` **re-struck** — the prior full run was interrupted at 33% because the tree had changed beneath it; the seal for this round rests on the targeted gates (test_observe_advice 7/7 · the five-family batch 43/43: openapi_diff · web_client_in_baseline · guide_catalog · access_role_parity · verdict_channel · plus purity 2 as snapshot-restore) + vitest **587/587** + mvn untouched; the full-suite verdict is filed in the #1966 closing note.
+
+### 168.5 The ledger
+
+mvn -o untouched · UI **587/587** · vite build ✓ · purity **CLEAR** (forced-fixture pollution fixed this round: the test now snapshot-restores the evidence artefact) · OpenAPI baseline gains `POST /observe/advice` (add-only) · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **17** · chronicle **1762** + 1 · worldbook **Scroll CLXVIII / 168 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is vetoed no more — it is a door marked "demo"

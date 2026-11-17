@@ -326,6 +326,7 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "每扇红门重敲一遍 · #1958", value: "全量巡检：26 红 → 24 红（23 条 payload-census 家族按 #8 照册不动 · 1 条 U+FFFD @ ledger:40823——那个字节恢复不了也不许我写假字）· mypy 289/289 · mvn -o 两 service BUILD SUCCESS · 5 触发面齐同步（guides/RBAC/scrape 直连 lane SpecproofLocalHostApiDown 探针 · FAKE_INVENTORY pin → b7a011a · demo-marker ×2 改判 copy pack）（#1958）" },
       { label: "值班手册 · #1959", value: "runbook_triage_graph.py / /api/v1/admin/runbook-triage + Runbook 页面：探针一响模型先读仓库（alert rule × 最近 20 提交 × 最新 5 份 evidence × compose 的脱敏 api env）· 判词 CONFIRMED / INCONCLUSIVE · /stategraph 挂第十张（十张活图）· UI 580/580（#1959）" },
       { label: "术语自己会收口 · #1960", value: "glossary 长出三个 Runbook 词条：dig（深挖现场）· runbook（值班手册）· inconclusive（证据不足）· Runbook 页面的两处术语原生悬浮解释 · UI 580/580（#1960）" },
+      { label: "观察舱 · #1966", value: "/observe 公开·只读·演示公开页：240 人合成校准群体 + 本机真实轨迹 · r²/斜率/漏斗双语 · 密码「123」放开模型现场解读（live 后端车道 · 指纹缓存）· 永不含真实人数据 · UI **587/587**（#1966）" },
     ],
   },
   {
@@ -642,6 +643,7 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "Every red door struck again · #1958", value: "the full door audit: 26 reds → 24 (23 payload-census stay in item #8, one U+FFFD at the ledger stays on file — the byte is unrecoverable and no fake was written in) · mypy 289/289 · mvn -o both services BUILD SUCCESS · every surface kept in step (guides · RBAC · the direct-LAN target got its SpecproofLocalHostApiDown probe · FAKE_INVENTORY pin → b7a011a · the two demo-marker gates follow the copy pack) (#1958)" },
       { label: "The runbook answers · #1959", value: "runbook_triage_graph.py / /api/v1/admin/runbook-triage + /runbook page — the alert fires, the model reads the repo (one alerts-slo rule × last 20 commits × five newest evidence files × the redacted api env) · verdict CONFIRMED / INCONCLUSIVE · /stategraph hangs its tenth living graph · UI 580/580 (#1959)" },
       { label: "The terms explain themselves · #1960", value: "glossary gains three Runbook entries — `dig` (深挖现场), `runbook` (值班手册), `inconclusive` (证据不足) — wrapping <Term id=…> directly on the page, single source of truth, never copied definitions · UI 580/580 (#1960)" },
+      { label: "The Observatory · #1966", value: "/observe is a public, read-only, demo-only page: the 240-member synthetic calibration cohort + this browser's real taps · r² / slope / funnel bilingual · password \"123\" opens a live model read (server-side lane · fingerprint-cached) — never any real person's data · UI **587/587** (#1966)" },
     ],
   },
   {

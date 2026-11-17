@@ -1356,6 +1356,24 @@ export function postInsightAdvice(stats: InsightStats): Promise<InsightAdvice> {
   return apiPost<InsightAdvice>("/api/v1/admin/insight-advice", { stats });
 }
 
+// ── The Observatory (public · readonly · demo) ─────────────────────────────
+// The public counterpart of the Insight advice lane. Everyone may ask; the
+// server computes the synthetic cohort itself (identically for every
+// visitor), the fingerprint cache keeps the model to one call per locale per
+// TTL; an unavailable model answers 503, never a fabricated paragraph.
+export interface ObserveAdvice {
+  advice: string;
+  model: string | null;
+  model_latency_ms: number | null;
+  evidence_packet_chars: number;
+  usage: Record<string, unknown> | null;
+  cached: boolean;
+}
+
+export function postObserveAdvice(locale: "zh" | "en"): Promise<ObserveAdvice> {
+  return apiPost<ObserveAdvice>("/observe/advice", { locale });
+}
+
 // ── Investigation Dig (mirror api/routes/admin.py /investigation-dig) ──
 // Readonly parallel investigators (explorer / tester / security) ask the
 // local model one question and return what they ACTUALLY read: the model is

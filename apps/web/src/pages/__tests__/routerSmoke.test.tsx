@@ -72,3 +72,62 @@ describe("Router smoke — every NAV destination mounts both locales", () => {
     });
   });
 });
+
+/**
+ * The public surfaces — the doors a visitor walks through with no key.
+ * #/guide has always been open; #/observe joins it by the owner's own rule:
+ * the door password is `123`, a demo gate, not an access control.
+ * Everything else still lands on <Login /> with no credential.
+ */
+describe("Router — public surfaces open without a credential", () => {
+  beforeAll(() => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    vi.stubGlobal(
+      "EventSource",
+      class {
+        onmessage: ((ev: unknown) => void) | null = null;
+        readyState = 0;
+        close() { this.readyState = 2; }
+        addEventListener() {}
+        removeEventListener() {}
+      },
+    );
+  });
+
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    vi.resetModules();
+  });
+
+  it("/observe renders the Observatory without any key", async () => {
+    window.localStorage.setItem("specproof_locale", "zh");
+    window.location.hash = "#/observe";
+    const { container } = render(<App />);
+    await waitFor(() => {
+      expect(container.textContent).toContain("观察舱");
+    }, { timeout: 5000 });
+    expect(container.textContent).toContain("240");
+  });
+
+  it("/guide renders something public without any key", async () => {
+    window.localStorage.setItem("specproof_locale", "en");
+    window.location.hash = "#/guide";
+    const { container } = render(<App />);
+    await waitFor(() => {
+      expect(container.textContent?.length ?? 0).toBeGreaterThan(0);
+    }, { timeout: 5000 });
+  });
+
+  it("/dashboard still lands on the login door with no credential", async () => {
+    window.localStorage.setItem("specproof_locale", "en");
+    window.location.hash = "#/dashboard";
+    const { container } = render(<App />);
+    await waitFor(() => {
+      expect(container.textContent ?? "").not.toBe("");
+    }, { timeout: 5000 });
+    expect(container.querySelector("form")).not.toBeNull();
+  });
+});

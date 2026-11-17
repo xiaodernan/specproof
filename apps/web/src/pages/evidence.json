@@ -849,7 +849,7 @@
    "total": 0,
    "total_ok": 0,
    "bytes_read": 0,
-   "verdict": "DRIFT"
+   "verdict": "CONSISTENT"
   },
   {
    "file": "audit-links.json",

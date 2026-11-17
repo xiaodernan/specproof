@@ -60,6 +60,10 @@ _TENANT_OPEN_PREFIXES = (
     "/assets",
     "/auth/oidc/",
     "/auth/config",
+    # The public Observatory: read-only, anonymous aggregates only (a seeded
+    # synthetic cohort + this browser's own localStorage), fingerprint-cached
+    # so the model is spent once per locale per TTL window, never per visitor.
+    "/observe/",
 )
 #: Paths under which a bearer credential is REQUIRED in tenant mode.
 _TENANT_PROTECTED_PREFIXES = ("/jobs", "/agent", "/api/", "/auth/")

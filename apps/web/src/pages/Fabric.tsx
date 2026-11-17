@@ -50,6 +50,7 @@ const NODES: FabricNode[] = [
   { id: "calendar",  x: 385, y: 330, titleKey: "The Calendar",      group: "doors", route: "calendar"},
   { id: "census",    x: 490, y: 360, titleKey: "Iron Census",       group: "doors", route: "census"  },
   { id: "drill",     x: 595, y: 330, titleKey: "Verify Drill",      group: "doors", route: "drill"   },
+  { id: "observe",   x: 700, y: 360, titleKey: "Observatory",      group: "doors", route: "observe" },
   // 4 · Still water
   { id: "mint",      x: 80,  y: 510, titleKey: "The Mint",          group: "water", route: "mint"    },
   { id: "lastcall",  x: 185, y: 530, titleKey: "The Last Call",     group: "water", route: "last-call"},
@@ -111,8 +112,8 @@ export default function Fabric(): JSX.Element {
         <h1>{L("织物", "Fabric")} <span className="fabric-en">{L("THE FABRIC · 一个织物，一张图", "THE FABRIC · ONE LOOM, ONE MAP")}</span></h1>
         <p className="fabric-lead">
           {L(
-            "把 SpecProof 的每一个房间摊开来看——37 个节点，7 条经线，每一条都通向真实的页面。没有一个不是入口。没有一个是 placeholder。这是孤灯照不见的图景；这是大机房里面那个没有标注的房间。",
-            "Every room of SpecProof on one cloth — 37 nodes on 7 warps. Every single one leads somewhere real. None of them is a placeholder. This is what the lighthouse does not see, the map the whole workshop holds inside one room.",
+            "把 SpecProof 的每一个房间摊开来看——38 个节点，7 条经线，每一条都通向真实的页面。没有一个不是入口。没有一个是 placeholder。这是孤灯照不见的图景；这是大机房里面那个没有标注的房间。",
+            "Every room of SpecProof on one cloth — 38 nodes on 7 warps. Every single one leads somewhere real. None of them is a placeholder. This is what the lighthouse does not see, the map the whole workshop holds inside one room.",
           )}
         </p>
         <div className="fabric-legend">

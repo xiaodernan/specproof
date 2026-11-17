@@ -6212,3 +6212,52 @@ verdict **OK** · worst p99 **1,534.5 ms** · worst err **0.00%** · Δ vs #15 (
 ### 167.3 账房
 
 mvn -o 双 service **BUILD SUCCESS** · UI **580/580** · purity **CLEAR** · audit_evidence **CONSISTENT** · exhibit_entries **17** · chronicle **1760** + 1 · worldbook **167 卷** · D1 ✅ · D2 ⏸ ·「密码-123」否决
+
+## 卷一百六十八 · 门不是锁，是镜子
+
+> 用户要的是「密码 123 就能进管理员页」。这扇门最终劈成了两扇：一扇仍旧只有管理员能进（RBAC，fail-closed）；一扇索性不锁，摆在街边，让每个进去的人都照见自己。
+
+### 168.1 /observe 落地——「123」从一句否决，变一扇标着「演示」的门
+
+那条原始请求此前在 #1799 被否决，理由照记在案：管理员页没有「所有人知道密码就能进」的版本——知道密码≠有权限。本轮不推翻判词，而是把它劈成两扇门：
+
+- **真管理员车道**——/insight 依旧 admin/operator；判词依旧只属于法院；/dig、/runbook 亦然；
+- **公共只读大厅**——/observe，任何人打开，页面顶上明写「公开 · 只读 · 演示」；「进门」按钮吃「123」——人人皆知，本来就不是门禁，而是演示门槛。
+
+本页只呈现两类东西：240 人 mulberry32(20261115) 确定性合成校准群体 + 这一浏览器自己的点按轨迹（localStorage，读不出就是空，不补零）。**本页不收集、不上传、不展示任何其他人的数据——压根没有别人。**
+
+### 168.2 这一轮真修的那个「其实没公开」
+
+UI 预览时发现一个事实性谎言：`App.tsx` 的 `if (!hasKey && active !== "guide") return <Login … />` 把 /observe 拦成登录门——地址栏写「观察舱 · SpecProof」，body 却是「连接工作区」。写着公开进不去，就是谎。修法一个词：`active !== "observe"`。
+
+三条 routerSmoke 断言把这扇门钉死：`#/observe` 无凭据渲染「观察舱 · 240」· `#/guide` 无凭据仍可读 · `#/dashboard` 无凭据仍落登录门。Archive「入口」宫格新增 /observe 卡；织物图新增观察舱节点（37 → 38 间房）；双语 USER_GUIDE 各补一条；epic.copy 与 manual.copy 双语各记一笔。
+
+### 168.3 模型上岗：这一页从「演示文案」换成「live 后端车道」
+
+同期落地后端车道 `POST /observe/advice`（无凭据 · `enforce_rate_limit` anon 桶 · 租户中间件 `/observe/` 开门与 /health 同档）：
+
+- 服务端用 Python 金标准 twin（`api/synthetic_cohort.py`）**现场重算同一条轨迹**——浏览器不参与、不可协商；
+- 指纹缓存（SHA-256(packet·locale) · Redis · 86,400 s · fail-open）：同语言所有人敲多少次都只花一次模型调用；
+- 双语 prompt，回答在界面语言答复；硬规则：第一句定性形状（平线、拟合弱 r²≈0.12，不许讲成增长故事）· 原样引用包内数字 · 明示合成校准数据、不是真人 · 证据不够直说 · 纯文本 · **永不是判词**；
+- 模型永远只能读这一份判据——PII、聊天、真实人行为，一概不读；读不出就是没读，不造。
+
+**实敲留痕（2026-11-17，Clash Verge → api.aizzz.xyz · gpt-6.1-terra · responses lane）**：
+
+| 敲门 | 结果 |
+|---|---|
+| #1 12:26:48Z | 503 · `APIConnectionError`（34s 后被 mihomo 瞬态拒绝）|
+| #2 12:29:24Z | 503 · 1s 内被瞬态拒绝 |
+| #3 12:32:05Z | **200** · 17.4s（openai responses stream+include_usage）|
+| #4 12:34:18Z | **200** · 18.3s（reload 一次后 · retry=1 落地）|
+| #5 离开后再进 | **缓存命中**（键同 · 字节全同 · ms 级呈现）|
+
+诚实记下两点：其一，provider 在这一小时出现一轮「connect 瞬态硬拒绝」抖动；其二，浏览器层也有同类抖动（reload 两次 502 后 OK）。**没有任何一次恢复是涂绿的；`max_retries=1` 只救连接层，照实记入账房。**
+
+### 168.4 两个数字，永不迟疑
+
+- UI **587/587**（83 文件 · 本轮 +1 观察舱错误路径用例）；
+- python 全量 tests/unit **重敲在飞**——上一笔 33% 处因树已变被其中止；本轮封版以靶向 gate 绿（test_observe_advice 7/7 · 五门组合 43/43（openapi_diff · web_client_in_baseline · guide_catalog · access_role_parity · verdict_channel）· purity 两条 forced-hit 已改为快照-还原）+ vitest **587/587** + mvn 未动为基准；全量 verdict 落笔见 #1966 条目收尾段。
+
+### 168.5 账房
+
+mvn -o 未动 · UI **587/587** · vite build ✓ · purity **CLEAR**（本轮修掉 forced-fixture 污染：测试现在快照-还原证据件） · OpenAPI baseline 补入 `POST /observe/advice`（add-only） · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1762** + 1 · worldbook **168 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」不再是否决——它是一扇标着「演示」的门

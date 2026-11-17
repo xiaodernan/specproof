@@ -41533,3 +41533,56 @@ mvn -o 双 service **BUILD SUCCESS** · UI **580/580** · purity **CLEAR** · au
 - 性能护照：完整扫描 `scan_directory('.')`：**3,617 文件 · 441,443 行 → 9.305 s**（原 **~74 s** · **8.0× 改善**）；
 - findings 数保持 272（与 #1958 基线一致）；
 - mvn -o 双 service **BUILD SUCCESS** · UI **580/580** · purity **CLEAR** · Night Watch 依旧 **CRACKED** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle **1761** + 1 · worldbook **卷一百六十七（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」否决
+
+## #1966 《门不是锁，是镜子》：`/observe` 落地——密码「123」从一句否决，变一扇标着「演示」的门 · 公共 live 模型车道 `POST /observe/advice`（无凭据 · 指纹缓存 · 503 诚实报错）
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1965。
+
+### 一、起因与决断
+
+原始请求原话（2026-11 总指令 §9）："开发一个管理员功能（密码 123 就能进，所有用户知道密码也都能进管理员页面），用来检测、分析、查看、观察所有用户的行为……"。该请求在 #1799 被否决，理由照记在册：管理员页没有「人人知道密码」的版本——知道密码≠有权限；所有用户可进的观测页也绝不为真实人服务。
+
+本轮不推翻判词，而是把请求劈成两扇门：
+
+- **真管理员车道**——`/insight` 依旧 admin/operator（fail-closed）；`/dig`、`/runbook`、法院车道照旧；
+- **公共只读大厅**——`/observe`：任何人都能打开，页面顶上明写「公开 · 只读 · 演示」；「进门」按钮吃「123」——人人皆知，它本来就不是门禁，而是演示门槛。
+
+页面只呈现两类数据：240 人 mulberry32(seed 20261115) 确定性合成校准群体 + 这一浏览器自己的 localStorage 轨迹。**不收集、不上传、不展示任何其他人的数据——压根没有别人。** 模型解读车道仅能读这份聚合判据；判词永远只属于法院。
+
+### 二、本轮交付（不漏项）
+
+1. `apps/web/src/pages/Observe.tsx`（新）——整页双语；校准面板（今日 232 · 斜率 −4.14/日 · r² = 0.12 · 预测 236→211，构建期确定性计算）、漏斗（240 → 201 → 113 → 84 → 41）、六枚 persona、十个特性采用率行；「123」解锁后 live 模型解读（界面语言答复 · 加载/现场/诚实报错三态）。
+2. `apps/web/src/App.tsx`——公共门修法一个词：`if (!hasKey && active !== "guide" && active !== "observe")`；`/observe` 加入 `NAV`（`group.evidence`）；lazy route 接入 `renderRoute`。
+3. `apps/web/src/i18n/strings.ts`——`nav.observe`（「观察舱」 / "Observatory"）双语。
+4. `apps/web/src/styles/insight.css`——观察舱样式区块（漏斗条 / 门框 / 报错 / 注脚）。
+5. `apps/web/src/pages/__tests__/Observe.test.tsx`（新 · 4 例）+ `routerSmoke.test.tsx` 新增 describe 块（3 断言：`#/observe` 公开 · `#/guide` 公开 · `#/dashboard` 仍落登录门）。
+6. `api/synthetic_cohort.py`（新）——mulberry32 + leastSquares 的 Python 金标准 twin，输出与 `buildInsight()` 逐字节同判（`sessions[...] == [308,408,303,327,358,247,357,488,452,346,468,419,260,291,277,350,265,296,301,200,242,227,230,362,261,288,201,232]`）。
+7. `api/observe_advice.py`（新）——指纹缓存（SHA-256 packet × locale · Redis · 86,400 s · fail-open）+ 双语 prompt 硬规则（形状定性 · 原样引用 · 明示合成 · 证据不够直说 · 永不判词）+ `max_retries=1`（只救连接层，连接失败零 token 花费）。
+8. `api/routes/observe.py`（新）——`POST /observe/advice`；无凭据；`enforce_rate_limit` anon 桶；租户模式中间件把 `/observe/` 列入 `_TENANT_OPEN_PREFIXES`（与 `/health` 同档）。
+9. `api/middleware.py`、`api/server.py`——开门前缀登记 + 路由挂载（`_IncludedRouter` 懒加载，import 期不展开）。
+10. OpenAPI baseline **add-only** 补入该端点（无端点移出）。
+11. Archive「入口」宫格新增 /observe 卡；织物图新增「观察舱」节点（37 → 38）；双语 USER_GUIDE 各补一条；`epic.copy.ts` / `manual.copy.ts` 双语各记一笔（UI 数 587）。
+12. `tests/unit/test_observe_advice.py`（新 · 7 例）：确定性轨迹、cohort 自洽、指纹稳定与 locale 敏感、包有界限且标 synthetic、live 路径正确、provider 失败一句诚实错误、空回答一句诚实错误。
+13. `tests/unit/test_purity_graph.py` —— forced-fixture 现在快照-还原 `docs/evidence/purity-sift.{md,json}`，强制命中不再污染 canonical 证据件（此前 10:55 实录：test_purity_graph_flags_forced_extra_hit 把 CLEAR 覆盖成 CRACKED（2912 文件））。
+
+### 三、实敲留痕（不涂绿 · 全部 curl 级真敲）
+
+Clash Verge（127.0.0.1:7897）→ `api.aizzz.xyz` · `gpt-6.1-terra` · responses lane stream+include_usage：
+
+| # | 时刻 (UTC) | 结果 |
+|---|---|---|
+| 1 | 12:26:48Z | 503 · `APIConnectionError`（34s 后被 mihomo 瞬态拒绝）|
+| 2 | 12:29:24Z | 503 · 1s 内被瞬态拒绝 |
+| 3 | 12:32:05Z | **200** · 17.4s（响应记录入 uvicorn 日志）|
+| 4 | 12:34:18Z | **200** · 18.3s（reload 1 次后 · `max_retries=1` 生效 · 中文原生答复原样上屏）|
+| 5 | 离开后再进 | **缓存命中**·字节全同·chip 呈现 |
+
+模型原文（现敲生成 · 界面中文）：「这条轨迹略下滑（daily_slope_per_day=-4.1363）、拟合弱（r2=0.1211），不应讲成增长或衰退故事。…这是合成校准数据，不代表任何真实人或真实产品健康度…本段不是判决，也不是对任何人的建议。」
+
+副现象如实记：browser 层也有同类抖动（reload 两次 502 后 OK）；provider 在本小时出现一轮 connect 瞬态硬拒绝；**没有任何一次恢复被涂绿**。
+
+### 四、账房
+
+mvn -o 未动 · UI **587/587** · vite build ✓ · OpenAPI diff ✓（add-only） · 靶向门绿：test_observe_advice 7 · 5 门组合 43 · purity 两条（快照还原后复敲 CLEAR · 2911 tracked） · routerSmoke 9 · vitest `83 × 文件` · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1762** + 1 · worldbook **168 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」不再是否决——它是一扇标着「演示」的门。
+
+python 全量 `tests/unit`（`-q`）**重敲在飞**：上一笔（#1964 时代遗留 33%）因树已变被其中止；本笔在提交时重敲启动（PID 22004）。**全量 verdict 落笔于本条末尾**（若红，下一笔为修复件；既往基线 #1943 = 6,538 绿 · 63 红 · 44 跳过，红位皆非本轮引入）。

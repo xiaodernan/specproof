@@ -225,6 +225,10 @@
       "202",
       "422"
     ],
+    "POST /observe/advice": [
+      "200",
+      "422"
+    ],
     "POST /webhooks/github": [
       "202"
     ]

@@ -52,6 +52,7 @@ const CARDS: Card[] = [
   { icon: "seal", route: "gestures", group: "doors", title: { zh: "十四式", en: "Fourteen Gestures" }, note: { zh: "十四式手印 · 可打卡", en: "collectible · gamified" } },
   { icon: "calendar", route: "calendar", group: "doors", title: { zh: "铁证日历", en: "The Calendar" }, note: { zh: "365 格 · git 现实", en: "365 cells from git, live" } },
   { icon: "invert", route: "census", group: "doors", title: { zh: "铁样寨地", en: "Iron Census" }, note: { zh: "语言分级 · 文件 · LOC", en: "languages · files · LOC" } },
+  { icon: "chart", route: "observe", group: "doors", title: { zh: "观察舱", en: "Observatory" }, note: { zh: "公开·只读·演示 · 密码 123 只是一扇标了门槛的门，不含任何真实人", en: "public · readonly · demo · password 123 gates nothing real" } },
 
   // ── Still Water ─────────────────────────────────────
   { icon: "seal", route: "mint", group: "water", title: { zh: "印记阁", en: "The Mint" }, note: { zh: "本机足迹 · 不上报 · 可打印", en: "this browser only · printable" } },
