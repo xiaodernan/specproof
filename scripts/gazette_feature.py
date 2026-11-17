@@ -68,6 +68,24 @@ async def _call_model(provider: OpenAICompatibleProvider, system: str, user: str
     return str(resp.content or "").strip()
 
 
+def validate_output(text: str, side: str) -> tuple[bool, list[str]]:
+    """Mechanical gate for the two epits. Any defect ⇒ the wall keeps the old text."""
+    failures: list[str] = []
+    text = (text or "").strip()
+    if not text:
+        return False, ["empty"]
+    cjk = len([c for c in text if "\u4e00" <= c <= "\u9fff"])
+    words = len(text.split())
+    if side == "zh" and cjk > 280:
+        failures.append(f"zh ceiling breached: {cjk} CJK chars (max 280)")
+    if side == "en" and words > 220:
+        failures.append(f"en ceiling breached: {words} words (max 220)")
+    for marker in ("##", "```", "\n- ", "\n* ", "**", "\n1. ", "\n2. "):
+        if marker in text:
+            failures.append(f"markdown marker {marker!r} present")
+    return (not failures), failures
+
+
 async def main() -> int:
     cfg = load_model_config()
     latest = _latest_block()
@@ -108,6 +126,15 @@ async def main() -> int:
     if not zh or not en:
         print("model returned an empty side; not committing.", file=sys.stderr)
         return 1
+    zh_ok, zh_failures = validate_output(zh, "zh")
+    en_ok, en_failures = validate_output(en, "en")
+    if not zh_ok or not en_ok:
+        print("output failed mechanical gate — not committing.", file=sys.stderr)
+        for reason in zh_failures:
+            print(f"  zh: {reason}", file=sys.stderr)
+        for reason in en_failures:
+            print(f"  en: {reason}", file=sys.stderr)
+        return 1
 
     now = datetime.now(UTC).isoformat(timespec="seconds")
     out = {
@@ -118,7 +145,7 @@ async def main() -> int:
         "model": cfg.get("model"),
         "chars_zh": len([c for c in zh if "\u4e00" <= c <= "\u9fff"]),
         "words_en": len(en.split()),
-        "note": "model-written from this entry, in close to verbatim scope; not a verdict; exhibit #18 already recorded",
+        "note": "model-written from this entry; mechanical gates: zh ≤ 280 CJK chars · en ≤ 220 words · no markdown · non-empty",
     }
     OUT_JSON.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     EVIDENCE_JSON.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

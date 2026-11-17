@@ -6632,3 +6632,30 @@ at 17:08 strike #2 首敲时缓存位置还是 0 cached_tokens — 这是预期�
 ### 182.4 账房
 
 mvn 未动 · UI **591/591** · tsc ✓ · vite build ✓ · `tests/unit` 局部三批（exhibit_copilot 10/10 · subprocess-encoding 9/9 · covenant+parity+codex+copilot 56/56）· court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1777** + 1 · worldbook **182 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷一百八十三 · 头版自己写自己
+
+> 「一份报纸真正消逝的那一刻，不是最后一版——是没人敲它，它也不肯落下它那一套。」
+
+### 183.1 头版年底不供史官敲
+
+`/gazette` 头版块 TODAY'S ECHO 原先是一锤就完事的敲：2026-11-17T15:38 敲过 #1975，如此锚住如此陈。现在 `scripts/gazette_feature.py` 被补上一条机械门（zh ≤ 280 CJK · en ≤ 220 words · 非空 · 不许 markdown），境遇如下：
+
+- 机器敲出来的 epitaph 若不过门，构建直接失败，**头版维持旧文**，门权强于命运；
+- 机器敲出来的 epitaph 若过门——`apps/web/src/pages/gazette_feature.json` + `docs/evidence/gazette-feature.{json,md}`——原样入册，头版里不改字；
+- 新一版 aizzz 实敲落地（2026-11-17T19:29Z）：锚井 #1981（fetch-depth 事故的诚实记录），中文 53 CJK 字，英文 88 words，两段都过封；
+- 新 workflow `gazette-echo.yml`：每周三 07:00 UTC + workflow_dispatch，门过了才 commit，02 UTC 之间不动；fetch-depth: 0（吸取上回 bot 浅敲的教训·background already fixed），开门不抄别人的楼。
+
+### 183.2 铭文上台，史复生了
+
+头版不再假装住手等史官敲字——它每周的自己都会醒一次，替#1981的一篇完整故事作一句 epigraph，不是判词、不是赢家台词、是**这张头版那周看过的真值**。原文节录：
+
+> 07:50Z，自敲自提的 fact pack 把浅克隆记成 total_commits=1、worldbook=180、chronicle=1775；根因是 fetch-depth: 1，现改为 0，build_latest.py 在 total_commits<100、worldbook_scrolls<100 或 chronicle_entries<1000 时退出，拒绝浅克隆生成 JSON。
+>
+> In `.github/workflows/latest-json.yml`, `fetch-depth: 0` replaces the shallow checkout; in `scripts/build_latest.py`, the build exits if `total_commits < 100`, `worldbook_scrolls < 100`, or `chronicle_entries < 1000`.
+
+至此、头版块闭环：chaper、展言、加密镇——三把钥匙都由同一个门（mechanical gate）。exhibit-copilot 在周三 06:00，gazette-echo 在周三 07:00，fact-pack bots 在 release-push——全场围守事实，围而省笔。
+
+### 183.3 账房
+
+mvn 未动 · UI **591/591**（未动前端页结构）· tsc ✓ · vite build ✓ · `tests/unit/test_exhibit_copilot.py` **10/10** · `tests/unit/test_verdict_channel_parity.py` **14/14** · purity **CLEAR** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1778** + 1 · worldbook **183 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门

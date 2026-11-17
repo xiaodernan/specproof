@@ -1,0 +1,66 @@
+name: gazette-echo
+
+# The front page's own epitaph, re-sealed by the machine — every Wednesday
+# 07:00 UTC (after the exhibit seal at 06:00), and on demand.
+#
+# Rules:
+#   * if the latest ledger entry did not move, the script writes the same
+#     bytes and the commit step is a no-op — no noise;
+#   * commit only if both sides sealed through the mechanical gate
+#     (zh ≤ 280 CJK chars · en ≤ 220 words · no markdown · non-empty);
+#   * no secrets — the provider lane is reached directly or via the optional
+#     SPECPROOF_EXHIBIT_COPILOT_PROXY secret (shared lane);
+#   * if aizzz returns 404 (pool-account churn) the job quietly skips the
+#     week; the wall keeps the last good text.
+
+on:
+  schedule:
+    - cron: "0 7 * * 3"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gazette-echo
+  cancel-in-progress: true
+
+jobs:
+  re-seal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      HTTPS_PROXY: ${{ secrets.SPECPROOF_EXHIBIT_COPILOT_PROXY || '' }}
+      HTTP_PROXY: ${{ secrets.SPECPROOF_EXHIBIT_COPILOT_PROXY || '' }}
+    steps:
+      - name: Check out specproof (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Strike the editor (live aizzz)
+        id: hum
+        run: |
+          set +e
+          python scripts/gazette_feature.py 2>&1 | tee /tmp/gazette-echo.log
+          echo "seal=$?" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Commit the re-sealed epitaph
+        if: steps.hum.outputs.seal == '0'
+        run: |
+          set -euo pipefail
+          git config user.name "specproof-bot"
+          git config user.email "specproof-bot@users.noreply.github.com"
+          git add apps/web/src/pages/gazette_feature.json docs/evidence/gazette-feature.json docs/evidence/gazette-feature.md
+          if git diff --cached --quiet; then
+            echo "epitaph unchanged — nothing to commit"
+            exit 0
+          fi
+          git commit -m "chore(gazette): the machine re-seals the front page"
+          git push origin HEAD

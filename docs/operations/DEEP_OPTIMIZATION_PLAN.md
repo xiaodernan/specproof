@@ -41987,3 +41987,27 @@ mvn 未动 · UI **591/591** · tsc ✓ · vite build ✓ · `test_exhibit_copil
 ### 三、账房
 
 mvn 未动 · UI **591/591**（无 UI 变更）· tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1777** + 1 · worldbook **182 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## #1982 《头版自己敲自己》：TODAY'S ECHO 不再锚定在 #1975——机械门（zh ≤ 280 CJK · en ≤ 220 words · 非空 · 不许 markdown）`gazette_feature.py` 落册 aizzz/gpt-6.1-terra 再敲一笔 anchor #1981（19:29:15Z · zh 53 CJK · en 88 words · 两段均过）· `.github/workflows/gazette-echo.yml` 入仓（每周三 07:00 UTC · dispatch · commit 仅在 seal==0 时发生 · fetch-depth: 0 · 无密钥）· chronicle **1778** + 1 · worldbook **183 卷（双语对称）** · UI **591/591**
+
+**记录基准**：本节只追加；本号衔接 #1981（#1981 的 CI fact-pack 自毁条款已入）。
+
+### 一、交付
+
+1. `scripts/gazette_feature.py`——新增 `validate_output()`：机械门（zh ≤ 280 CJK · en ≤ 220 words · 非空 · 不许 markdown）· 不通过不 commit，头版保留旧 text；
+2. 真 aizzz `gpt-6.1-terra` 敲入 anchor **#1981** 的诚实铭文：锚点是「浅克隆事实包假账的勘误」——中文 53 CJK 字，英文 88 词；
+3. `apps/web/src/pages/gazette_feature.json` 按最新铭文原样重写（chars_zh=53 · words_en=88 · anchor `#1981 《守门人的新装置》…`）；
+4. `docs/evidence/gazette-feature.{json,md}` 同步入册；
+5. `.github/workflows/gazette-echo.yml`（新）—— cron `0 7 * * 3`（Wednesday 07:00 UTC）+ `workflow_dispatch`；任何非 sealed commit 一律不敲；`fetch-depth: 0`；接 `SPECPROOF_EXHIBIT_COPILOT_PROXY` 时走相同 egress 节点（optional）；两者都缺不写也过得去——head 张不动则 no-op；
+6. scroll CLXXXIII + ledger #1982 落册 · worldbook rebuilt.
+
+### 二、诚实边界
+
+1. 未把 Exhibit 本身挂上 CI——weekly-stress 设计成只产本机的证据；每一次 strike 不改 exhibit entries；
+2. 此次敲门的产出 chunk 还是话密闭才是院子——无法和 court 共享任何事实（ court 永不沾过机器的任何铅笔）；
+3. `docs/evidence/gazette-feature.md` verbatim 入册；未删 header 掩盖失败时间；
+4. 本号不动 `exhibit_entries`、不涂 Night Watch。
+
+### 三、账房
+
+mvn 未动 · UI **591/591** · tsc ✓ · vite build ✓ · `test_exhibit_copilot` **10/10** · `test_verdict_channel_parity` **14/14** · purity **CLEAR** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1778** + 1 · worldbook **183 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门

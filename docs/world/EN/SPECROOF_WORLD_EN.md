@@ -6526,3 +6526,29 @@ On 17:11:31Z the tiny copilot lane was caught cold — cached_tokens=0 (the writ
 ### 182.4 The ledger
 
 mvn untouched · UI **591/591** · tsc ✓ · vite build ✓ · targeted suites ✓ (`test_exhibit_copilot` **10/10** · `test_subprocess_text_encoding` **9/9** incl. the build_latest codec fix · covenant + parity + codex + copilot **56/56**) · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1777** + 1 · worldbook **182 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」is still a door marked "demo"
+
+## Scroll CLXXXIII · The Front Page Writes Itself
+
+> "The one moment a newspaper dies is not when the lights go out — it is when no editor strikes it and it still will not fall."
+
+### 183.1 The front page no longer waits for the chronicler
+
+`/gazette`'s masthead column — TODAY'S ECHO — was a single-frame work clipped at 15:38 on 2026-11-17 against entry #1975. This round adds a **broad sheet gate** to its editor and a full cadence:
+
+- `scripts/gazette_feature.py` now seals output through a mechanical gate: zh ≤ 280 CJK chars · en ≤ 220 words · no markdown · both sides present — any defect means no JSON write, no page change, the wall keeps the last true text;
+- A new live strike landed 2026-11-17T19:29Z: anchors **#1981** (the shallow-clone degenerate strike), model wrote 53 CJK chars zh and 88 words en, both seal through the gate;
+- New workflow `.github/workflows/gazette-echo.yml`: every Wednesday 07:00 UTC (after the exhibit reseal at 06:00) plus `workflow_dispatch`; commits only when both sides seal; `fetch-depth: 0`; holds zero secrets beyond the repo's own pipeline.
+
+### 183.2 The machine signs the front page once more, exactly as long as it may
+
+The wall quotes its signer's own bytes verbatim — no human retouch, no editorial tidy:
+
+> 07:50Z，自敲自提的 fact pack 把浅克隆记成 total_commits=1、worldbook=180、chronicle=1775。根因是 fetch-depth: 1，现改为 0，build_latest.py 在 total_commits<100、worldbook_scrolls<100 或 chronicle_entries<1000 时退出，拒绝浅克隆生成 JSON。
+>
+> In `.github/workflows/latest-json.yml`, `fetch-depth: 0` replaces the shallow checkout; in `scripts/build_latest.py`, the build exits if `total_commits < 100`, `worldbook_scrolls < 100`, or `chronicle_entries < 1000`.
+
+Three sealers now breathe on one clock: `exhibit-copilot` (Wed 06:00 UTC), `gazette-echo` (Wed 07:00 UTC), and `latest-json` (on every release-shaped push). Each of them is a door the court cannot enter — the machine may notice, may mark, may hum, but never rules.
+
+### 183.3 The ledger
+
+mvn untouched · UI **591/591** (no front-end surface structural change) · tsc ✓ · vite build ✓ · `tests/unit/test_exhibit_copilot.py` **10/10** · `tests/unit/test_verdict_channel_parity.py` **14/14** · purity **CLEAR** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1778** · worldbook **183 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」is still a door marked "demo"
