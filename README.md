@@ -117,6 +117,13 @@ Craft（AI 开发）的**独立验收摘要**现在也显示在执行结果页�
 - **“没跑验收”与“读不出验收”是两种话术**：任务尚未进入终态时说清还不会运行；已进入终态但没有摘要时给出补做命令 `specproof craft accept --job <任务号>`；已落库却解析不出来时明说“读不出来 ≠ 没有验收”。
 - **Craft 通道的 `BLOCKED` 有两种含义，页面按投影里的 `gates.overall` 区分**：内部门禁 FAIL 时按失败显示；门禁摘要都过了、但完整闭包（SpecProof 验证 + 证书 + 签名）需要 git base/head 与签名密钥而留给 accept CLI 时，按“尚未签发合并证书”的警示显示，而不是失败。投影里连门禁摘要都没有时，页面明说**无法区分原因**，不替用户猜。
 
+## 最新验收 · 2026-11-17
+
+- **展品 #17 落册**（#1963）：96c ×2 线程 ×4 轮 +2 预热 · 0.00% err · 最糟 p99 **1,534.5 ms** · verdict **OK** · exhibit_entries **17** · Night Watch 依旧 **CRACKED**（exhibit #4 不动）· worldbook **168 卷（双语）** · chronicle **1762**。
+- **公共大厅 `/observe` 落地 + live 模型车道**（#1966）：总指令原话「管理员页密码 123 人人进」此处被拆成两扇门——/insight 仍是 admin/operator（fail-closed）；/observe 是公开·只读·演示页，密码「123」人人皆知、明示**不是门禁**；页面只有一个 240 人 mulberry32 种子的**合成校准群体** + 本浏览器自己的点按轨迹，**永不含任何真实人数据**；解锁后浏览器直敲 `POST /observe/advice`（无凭据 · anon rate-limit · 指纹缓存），模型原生中文/英文答复、只可读本页四项聚合数、永不是判词；provider 抖动实录在册（503/503/200/200 · reload 502 → OK · 零涂绿 · max_retries=1 只救连接层）· UI **587/587**。
+- **一把尺的命运**（#1965）：`security_scanner` 双闸重写——discriminant 先闸、15-pattern 二闸 · 全仓自扫 **72.7s → 9.3s** · findings 272 不变。
+- **D1 已签落（OBSERVABILITY.md）✅ · D2 仍欠 PORTFOLIO_TOKEN**（你的 PAT · Settings → Secrets）。
+
 ## 最新验收 · 2026-11-16
 
 - **LLM 扉页已切换**：`https://api.aizzz.xyz` · 模型 `gpt-6.1-terra` · Responses API · reasoning effort `max`；`.local/llm.json` 是未跟踪的本机配置（gitignore 守门）；任何密钥都不会进入 git；网关需要流式（`stream_required`，本仓所有应答车道本就是 stream）；直敲 `scripts/live_lane_probe.py` 每次返回 `cached_tokens: 4224`；court 永远 `stream=True + include_usage=True`、**court 永远不缓存** · court 永不缓。
