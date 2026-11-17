@@ -6464,3 +6464,39 @@ The lamp roster is now twelve: `exhibit_copilot` — networked · strikes only o
 ### 180.5 The ledger
 
 mvn untouched · UI **591/591** · tsc ✓ · vite build ✓ · `tests/unit/test_exhibit_copilot.py` **10/10** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1775** + 1 · worldbook **180 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is still a door marked "demo"
+
+## Scroll CLXXXI · The Warmth of a Seal
+
+> Same packet, three voices: the third strike said the honest thing — "the packet carries no evidence".
+
+### 181.1 The fix first: silence no longer defaults to green
+
+`agent/graphs/exhibit_copilot_graph.py`'s strike error branch used to omit `sealed_answer`, so the verifier treated a **failed live strike as if the machine had never been asked** — a silent pass dressed as offline patience. Admission: this is my bug, not the machine's design. The exception path now returns `"sealed_answer": ""` (present-and-empty); the verifier routes through `DRIFTED` — "the machine asked; the machine did not seal." A ~20-line diff; it closes a hole in which a lamp said yes for a question it never answered.
+
+### 181.2 Three more strikes, two true statements
+
+Around 2026-11-17T18:56-18:59Z:
+
+| strike | outcome | note |
+|---|---|---|
+| #1 18:56:40Z | `verdict=HELD` by the bug, not by design | gateway answered 404 — `Model "gpt-6.1-terra" is not supported by any configured account in this group` (pool-account churn behind this key; same host, same lane, clock skew from minutes earlier when the same call returned 200) |
+| #2 18:58:42Z | **verdict HELD · reasoning 811 · cached 5120 / prompt 5255** | pool recovered |
+| #3 immediate follow-up | **HELD · cached_tokens=5120** | stable |
+
+The number that matters: **cached_tokens went 0 (17:11) → 5,120 (on the third and fourth strikes)** — this tiny 5,255-token lane hits the gateway's slot after warmup, three strikes in, much like a big lane after two — the tiny lane needs more warm-up but finds the cache, which nobody guaranteed until it was measured.
+
+The new sealed hum, verbatim:
+
+> 第18件展品有0错，96并发下共768次请求，最慢p99为2027.103毫秒。它比第17件慢492.643毫秒；**包里没有完整pytest同时运行的证据，原因和是否退化均未知**。下一位游客先看 2026-11-17-static-warm-18.json。
+>
+> This load test had 0 errors across 768 requests at concurrency 96, with a worst p99 of 2027.103 ms. It was 492.643 ms slower than #17; the packet carries no evidence that full pytest was running simultaneously, so the cause and whether this is a regression are unknown. The next visitor should first look at 2026-11-17-static-warm-18.json.
+
+The earlier hum said "the reason is full pytest running, not regression — a paraphrase from outside the packet. This hum draws only inside the packet: **no evidence → no reason → no regression stated**. The machine is getting better at holding its pen.
+
+### 181.3 A weekly cadence to hold it in the world
+
+`.github/workflows/exhibit-copilot.yml` lands with this scroll: every Wednesday 06:00 UTC and on manual dispatch; commits **only when the machine sealed**; network failure commits nothing; verdict DRIFTED commits nothing; no new secrets (optional `SPECPROOF_EXHIBIT_COPILOT_PROXY` to Clash Verge). The hum will re-seal itself on a steady drumbeat.
+
+### 181.4 The ledger
+
+mvn untouched · UI **591/591** (no UI surface touched) · tsc ✓ · vite build ✓ · `tests/unit/test_exhibit_copilot.py` **10/10** · `tests/unit/test_verdict_channel_parity.py` **14/14** · purity **CLEAR** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1776** + 1 · worldbook **181 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」is still a door marked "demo"

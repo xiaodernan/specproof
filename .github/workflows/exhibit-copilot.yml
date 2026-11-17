@@ -1,0 +1,59 @@
+name: exhibit-copilot
+
+# The machine re-seals its own wall once a week (and on demand): read the
+# committed evidence packet, hum two honest paragraphs (zh + en), commit the
+# result back to the repository. No secrets required — the provider lane is
+# reached directly or through an optional SPECPROOF_EXHIBIT_COPILOT_PROXY.
+# A failed, refused or unsealed strike commits NOTHING — the wall simply
+# stays sealed against the last honest verbatim.
+
+on:
+  schedule:
+    - cron: "0 6 * * 3"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: exhibit-copilot
+  cancel-in-progress: true
+
+jobs:
+  re-seal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SPECPROOF_EXHIBIT_COPILOT_LIVE: "1"
+      HTTPS_PROXY: ${{ secrets.SPECPROOF_EXHIBIT_COPILOT_PROXY || '' }}
+      HTTP_PROXY: ${{ secrets.SPECPROOF_EXHIBIT_COPILOT_PROXY || '' }}
+    steps:
+      - name: Check out specproof
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Attend the exhibit wall (live strike)
+        id: hum
+        run: |
+          set +e
+          python -m agent.graphs.exhibit_copilot_graph 2>&1 | tee /tmp/exhibit-copilot.log
+          echo "verdict=$(grep -oE 'verdict=(HELD|DRIFTED)' /tmp/exhibit-copilot.log | tail -n1 | cut -d= -f2)" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Commit the re-sealed hum only if the machine sealed
+        if: steps.hum.outputs.verdict == 'HELD'
+        run: |
+          set -euo pipefail
+          git config user.name "specproof-bot"
+          git config user.email "specproof-bot@users.noreply.github.com"
+          git add docs/evidence/exhibit-copilot-*.json docs/evidence/exhibit-copilot-*.md apps/web/src/pages/exhibit_copilot.json
+          if git diff --cached --quiet; then
+            echo "hum unchanged — nothing to commit"
+            exit 0
+          fi
+          git commit -m "chore(exhibits): the machine re-seals its wall"
+          git push origin HEAD

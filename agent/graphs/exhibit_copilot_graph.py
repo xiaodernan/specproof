@@ -82,8 +82,15 @@ def strike_node(state: ExhibitCopilotState) -> ExhibitCopilotState:
     packet = mod.build_packet()
     try:
         result = asyncio.run(mod.generate_exhibit_copilot(packet))
-    except Exception as exc:  # noqa: BLE001 - a refused strike is a recorded DRIFTED-worthy failure, never an exception in the product path
-        return {"notes": f"live strike errored: {type(exc).__name__}: {exc}", "sealed_failures": [f"{type(exc).__name__}: {exc}"]}
+    except Exception as exc:  # noqa: BLE001 - a refused strike is a recorded failure, never an exception in the product path
+        return {
+            # seal_answer present-and-empty forces DRIFTED downstream (the
+            # viewer reads "the machine asked; the machine did not seal") —
+            # never let an offline pass lend a verdict to a failed strike.
+            "sealed_answer": "",
+            "notes": f"live strike errored: {type(exc).__name__}: {exc}",
+            "sealed_failures": [f"{type(exc).__name__}: {exc}"],
+        }
     return {
         "sealed_answer": result.get("answer") or "",
         "sealed_failures": list(result.get("failures") or []),

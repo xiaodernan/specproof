@@ -41925,3 +41925,42 @@ Rolling red balance after this pass: **24 reds** — 23 payload-census (pinned) 
 ### 四、账房
 
 mvn 未动 · UI **591/591**（+1 pin）· tsc ✓ · vite build ✓ · `tests/unit/test_exhibit_copilot.py` **10/10** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1775** + 1 · worldbook **180 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## #1980 《铭文的温度》：`.github/workflows/exhibit-copilot.yml` 入仓 — 每周三 06:00 UTC + dispatch，只有 sealed=HELD 才 commit（网络失败不 commit · DRIFTED 不 commit · 无额外密钥）· 修 #1978 的静化绿坑（失败 live strike 曾被判 HELD · 现 sealed_answer=""）· 真 aizzz 再敲三次（17 11:31 → 18:56:40 404 NotFoundError pool-account evidence · 18:58:42 → **cached_tokens=5,120/5,255** 复现稳定）· 铭文新版只落包内（"包里没有完整pytest同时运行的证据"· en: "the packet carries no evidence that full pytest was running"）· chronicle **1776** + 1 · worldbook **181 卷（双语对称）** · UI **591/591**
+
+**记录基准**：本节只追加；master = 本提交前状态。本号衔接 #1978（#1979 的 atelier run 记账已包含全部对账；本节不复述）。
+
+### 一、交付
+
+1. 修复 `exhibit_copilot_graph.py` strike_node 异常分支：失败 live strike 返 `"sealed_answer": ""`（present-and-empty）→ verify_node 走 DRIFTED；不再有"问过没答却被判 HELD"的静化绿；
+2. `.github/workflows/exhibit-copilot.yml`（新）—— cron `0 6 * * 3`（Wednesday 06:00 UTC）+ `workflow_dispatch`；egress 直连或 `SPECPROOF_EXHIBIT_COPILOT_PROXY` secret；先敲 `agent.graphs.exhibit_copilot_graph`，抓 `verdict=(HELD|DRIFTED)`；**HELD 才 commit**，否则静默跳过（commit message `chore(exhibits): the machine re-seals its wall`）；无额外密钥；不在任何 push-trigger 下触发；不在任何 PR 上运行；
+3. `apps/web/src/pages/exhibit_copilot.json`——按 18:58:42Z 的 live seal 重写（cached 5,120 / prompt 5,255 / reasoning 811 / HELD / pinned · verbatim two paragraphs answer_zh + answer_en）——页面现在展示机器**更近**的一版铭文（它学会拒绝把 estimated-attribution 塞出来）。
+
+### 二、实敲三览（证据 `exhibit-copilot-2026-11-17.{json,md}` · verbatim）
+
+| # | UTC | 结果 | 说明 |
+|---|---|---|---|
+| 1 | 17:08:11Z | HELD · cached=0 | codex lane cold-write；prompt 5,255 · reasoning 920 |
+| 2 | 17:11:31Z | HELD · cached=0 | 第二敲同一 lane；reasoning 675 |
+| 3 | 18:56:40Z | **notes: live strike errored · 404 '`gpt-6.1-terra` is not supported by any configured account in this group'** | pool-account churn；aizzz 非确定性返回；18:58 之后同一 key 恢复可用 |
+| 4 | 18:58:42Z | HELD · **cached_tokens=5,120** · reasoning 811 | 池账号回归；cache 盘第三层对 this lane 开始起效 |
+| 5 | 18:58:42Z（复核） | HELD · cached_tokens=5,120 | **稳定**复现 |
+
+铭文新版原句（第四划交）：
+
+> 第18件展品有0错，96并发下共768次请求，最慢p99为2027.103毫秒。它比第17件慢492.643毫秒；**包里没有完整pytest同时运行的证据，原因和是否退化均未知**。下一位游客先看 2026-11-17-static-warm-18.json。
+> 
+> "The packet carries no evidence that full pytest was running simultaneously, so the cause and whether this is a regression are unknown."
+
+上一版本曾把"原因是完整 pytest 同时运行"当作事实写进铭文——那是对 #1978 前一段人类上下文的借用；新版本把它退回包围断言，正确行为。
+
+### 三、诚实边界
+
+1. **cached_tokens=5,120/5,255（97.4%）从第三次开始**：暖身效应——前两次 miss 是真实的初始页；the gate 判词只关心 sealed bytes；cached=0 记了，cached=5,120 也记了；
+2. 18:56 的 404 现象表明 aizzz 同一 key 池账号瞬间漂移：模型拒见该池——这是**本 gateway 的非确定性**，我们见过 200/503/502/404 四态。本工作流以 sealed=HELD 做门，fail-closed 即只落 sealed 行；
+3. 本节不出新 exhibit，不涂绿 Exhibit #18；
+4. chronicle **1776**、worldbook 181 卷；本节**不动** exhibit_entries。
+
+### 四、账房
+
+mvn 未动 · UI **591/591** · tsc ✓ · vite build ✓ · `test_exhibit_copilot` **10/10** · `test_verdict_channel_parity` **14/14** · purity **CLEAR** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1776** + 1 · worldbook **181 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门

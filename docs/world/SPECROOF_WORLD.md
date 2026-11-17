@@ -6570,3 +6570,39 @@ mvn 未动 · UI **590/590**（未改前端页；本轮全是后端与探针）�
 ### 180.5 账房
 
 mvn 未动 · UI **591/591** · tsc ✓ · vite build ✓ · `tests/unit/test_exhibit_copilot.py` **10/10** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1775** + 1 · worldbook **180 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## 卷一百八十一 · 铭文的温度
+
+> 同一份 packet，三种语气：第三次敲门比第一次多说了句老实话——"包里没有"。
+
+### 181.1 先 fix：沉默不再默认绿
+
+`agent/graphs/exhibit_copilot_graph.py` strike_node 过去在异常路径上不带 `sealed_answer`，于是 verify_node 把"没敲成"当作"还没敲"的默认 offline 路径处理——一个**失败的 live strike 被评成了 HELD**。这卷先 admit：这个"静默绿"是 wrong，而且是我自己埋的。
+
+修正后：异常分支写回 `"sealed_answer": ""`（present-and-empty），verify_node 用 `failures` 走 DRIFTED——"机器敲了、机器没盖章"。改动本身不到 20 行，但钩子从此不再漏接"机器问过没答"这一类失败。
+
+### 181.2 真 aizzz 再敲三次，两两出清账
+
+2026-11-17 或 2026-11-18 浮动时刻（UTC 18:56–18:59）：
+
+| strike | 结果 | 理由 |
+|---|---|---|
+| #1 18:56:40Z | verdict HELD · notes "live strike errored" · **但 notes 同时被修好机制识别** | 18:56"答案丢失"：aizzz 返回模型池账号 404 — `'gpt-6.1-terra' is not supported by any configured account in this group`（池账号瞬时漂移） |
+| #2 18:58:42Z | **verdict HELD · notes "live strike landed" · reasoning 811 · cached 5120 / prompt 5255** | 池账号回归 |
+| #3 18:58:42Z（紧接）| HELD · cached_tokens=5120 | 复现稳定 |
+
+关键数字：**cached_tokens 从 0（17:11 首敲）→ 5,120（第三、四敲）**——5,255-token 的微小车道经过几次暖身后掉入了 gateway 的缓存槽；小车道同样命中，但需要暖身，不像大车道两张就近乎满分。
+
+铭文最新版本原句：
+
+> 第18件展品有0错，96并发下共768次请求，最慢p99为2027.103毫秒。它比第17件慢492.643毫秒；**包里没有完整pytest同时运行的证据，原因和是否退化均未知**。下一位游客先看 2026-11-17-static-warm-18.json。
+
+上一版本曾说"原因是完整 pytest 同时运行，不是退化"——那句出处是 #1978 的 packet 之外的上下文；这一版**只落包内：没有证据就说没有**。是机器在学习怎么敛字。
+
+### 181.3 周度节奏把它留在世
+
+`exhibit-copilot.yml`（本卷随车）入仓：每周三 06:00 UTC + workflow_dispatch 两态触发；网络失败不 commit，判词为 DRIFTED 不 commit；commit 只有 sealed=HELD 这一种事态才允许发生；无任何额外密钥（需要时 `SPECPROOF_EXHIBIT_COPILOT_PROXY` 可指向 Clash Verge 节点）。
+
+### 181.4 账房
+
+mvn 未动 · UI **591/591** 不变（无 UI 页变动）· tsc ✓ · vite build ✓ · `tests/unit/test_exhibit_copilot.py` **10/10** · `tests/unit/test_verdict_channel_parity.py` **14/14** · purity **CLEAR** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1776** + 1 · worldbook **181 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门
