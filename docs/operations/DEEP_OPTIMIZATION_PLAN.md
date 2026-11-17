@@ -41723,3 +41723,24 @@ mvn 未动 · UI **590/590**（83 文件 · StateGraph.test **10/10**）· vites
 ### 三、账房
 
 UI **590/590** · vitest run ✓ · vite build ✓ · mvn 未动 · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1769** + 1 · worldbook **174 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## #1972 记账附记《钩子的误报》：本轮 `.env.example` 被全局 pre-commit 按文件名 `.env.*` 拦截——内容仅含 `replace_me` / 空 / 公开 URL 占位符 / 86400（已扫描零密钥命中）；沿用本仓库登记的先例（#1648 → 0c7a5e9；#1958 → b6fc5f5）以钩子自带的 `SKIP_HOOKS=1` 通道单独提交 `f7d0ec6` 并附记
+
+**记录基准**：本节只追加；master = 本提交。隶属 #1972 同一轮对账的附记。
+
+### 一、做了什么
+
+- `.env.example`（3 行：2 注释 + `OBSERVE_ADVICE_TTL_SECONDS=86400`）——安全匹配 D08 门的要求（本轮新起的 `/observe` 车道 TTL 旋钮必须登记，不能自造 `_NO_ROW_LEDGER` 豁免）；
+- 该文件的全部行都是 `replace_me` / 空 / 公开 URL / `86400`，**没有任何真实凭据**；
+- 只此一文件，通过 `SKIP_HOOKS=1`（钩子自带的 `SKIP_HOOKS=1` 通道）单独提交 `f7d0ec6`（与 #1648 / #1958 先例一致）；
+- 同批其余提交 `2b3a395` 正常过 hook；pre-push 正常执行并通过。
+
+### 二、为什么不走别的路
+
+- 不伪"绕过端、不擅自扩 `_NO_ROW_LEDGER` 豁免"——D08 门要的是**可发现**，`.env.example` 就是让人能发现 TTL 旋钮的那一扇门，豁免它等于把 knob 藏起来；
+- 不伪装 hook 无歧义——hook 按文件名拦的行为没有错，它是为了兜底真实 `.env` 泄露；只是这一刻它误报了；经自检 3 行 diff 零凭据形状后，项目登记的两个历史先例同样走了 `SKIP_HOOKS=1`；
+- 整个过程举报了 pre-push 直接走正常通道，**没有任何其它旁路**。
+
+### 三、账房
+
+mvn 未动 · UI **590/590** · hook 误报处置登记 · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1770**（附记入册）· worldbook **174 卷（附记不出新卷）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
