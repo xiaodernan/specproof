@@ -6606,3 +6606,29 @@ mvn 未动 · UI **591/591** · tsc ✓ · vite build ✓ · `tests/unit/test_ex
 ### 181.4 账房
 
 mvn 未动 · UI **591/591** 不变（无 UI 页变动）· tsc ✓ · vite build ✓ · `tests/unit/test_exhibit_copilot.py` **10/10** · `tests/unit/test_verdict_channel_parity.py` **14/14** · purity **CLEAR** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1776** + 1 · worldbook **181 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷一百八十二 · 守门人的新装置
+
+> 机器敲的章，要盖在机器自己看不见的屋顶上——守门人先得能看见屋顶。
+
+### 182.1 一次浅克隆，和一册看似正常的假账本
+
+2026-11-17T18:50Z，bot 自敲自提的 `docs/latest.json` 出厂自带 `total_commits=1 · worldbook_scrolls=180 · chronicle_entries=1775`——字都没敲错，数字是假的。病根不在指令——在 `fetch-depth: 1`：fact pack 诞生在 CI 的浅克隆里，连 `git rev-list --count HEAD` 都只能数到一个提交。**自敲自提的车道先天有这么一类错：它不看自己开的门有多宽。**
+
+### 182.2 守门不是嘴上说的，是数字上锁的
+
+这件事在 git 的冲突解决里现饭。本地敲出的 latest 是 2661 提交；CI bot 敲出的同一个文件是 1。两个都是「机器敲的」，但真实的屋顶只有一张。处置：
+
+1. `.github/workflows/latest-json.yml` 改用 `fetch-depth: 0`——fact pack 诞生的机器从完整历史长出来，而不是从浅克隆的薄膜上长出来；
+2. `scripts/build_latest.py` 增加**自毁检查**：浅克隆的证据连输出都不允许有。如果 `total_commits < 100`、`scrolls < 100` 或 `chronicle < 1000`，脚本直接以退出码 1 结束——不敲任何 JSON。fact pack 的岗位不在说「我尽力了」，在说「我看见的就是这些」；
+3. 本仓库内保留本地敲的真值（head d183da4 · 2,664 提交 · 181 卷 · 1,776 编年）——git 合并时用 latch-origin 语义同时产生的日志条目一并入册。
+
+这个装置教会世界的只有一件事：**自敲自提的车道必须先教会自己质疑自己。** CI 里的每一个数字产出车道都应当被这样看护。
+
+### 182.3 一个浮动缓存的小例子
+
+at 17:08 strike #2 首敲时缓存位置还是 0 cached_tokens — 这是预期（写槽）。到 18:56:40Z、18:58:42Z 两敲，缓存为 **5120/5255（97.4%）**，抄写无误。剩余这个数字之所以存在，是因为机器并没有 mask 目计算平均。
+
+### 182.4 账房
+
+mvn 未动 · UI **591/591** · tsc ✓ · vite build ✓ · `tests/unit` 局部三批（exhibit_copilot 10/10 · subprocess-encoding 9/9 · covenant+parity+codex+copilot 56/56）· court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1777** + 1 · worldbook **182 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门

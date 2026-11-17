@@ -71,6 +71,21 @@ def main() -> int:
     match = re.search(r"#(\d{4})", subject)
     latest_strike = f"#{match.group(1)}" if match else None
 
+    # Self-check: anything resembling a degenerate strike (shallow clone,
+    # partial history, transient mis-read) must be refused — never emit a
+    # fact pack that contradicts the world the ledger knows. The thresholds
+    # are deliberately conservative (this world struck 2661 commits by now);
+    # a smaller count is a bug, not a fact.
+    if total_commits < 100:
+        print(f"degenerate fact pack: total_commits={total_commits} (<100) — shallow clone or stripped history; refusing to emit", file=sys.stderr)
+        return 1
+    if scrolls_zh < 100:
+        print(f"degenerate fact pack: worldbook_scrolls={scrolls_zh} (<100) — watch guard misfire; refusing to emit", file=sys.stderr)
+        return 1
+    if chronicle_entries < 1000:
+        print(f"degenerate fact pack: chronicle_entries={chronicle_entries} (<1000) — ledger read misfired; refusing to emit", file=sys.stderr)
+        return 1
+
     payload = {
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "head": head,

@@ -41964,3 +41964,26 @@ mvn 未动 · UI **591/591**（+1 pin）· tsc ✓ · vite build ✓ · `tests/u
 ### 四、账房
 
 mvn 未动 · UI **591/591** · tsc ✓ · vite build ✓ · `test_exhibit_copilot` **10/10** · `test_verdict_channel_parity` **14/14** · purity **CLEAR** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1776** + 1 · worldbook **181 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## #1981 《守门人的新装置》：bot 自敲自提的 fact pack 07:50Z 出厂自带假账（`total_commits=1 · worldbook=180 · chronicle=1775`）——根因 **`fetch-depth: 1`**；`.github/workflows/latest-json.yml` 改 `fetch-depth: 0`；`scripts/build_latest.py` 加**自毁检查**（`total_commits<100 || scrolls<100 || chronicle<1000` → exit 1，绝不为浅克隆生成 JSON）· treat-the-files-equals-trust-the-tanks；showcase bakes commit 跟上 #1980 · chronicle **1777** + 1 · worldbook **182 卷（双语对称）** · UI **591/591**
+
+**记录基准**：本节只追加；master = 本提交前状态。本号衔接 #1980（#1979 atelier run 闭环已包含全部对账；本节不复述）。
+
+### 一、交付
+
+1. `scripts/build_latest.py`——**自毁检查**（en mode）：`total_commits < 100` → exit 1；`worldbook_scrolls < 100` → exit 1；`chronicle_entries < 1000` → exit 1；浅克隆的证据连输出都不允许有（自敲自提的车道先天盲——现在有一个 pond gauge 看它走的深是浅）；
+2. `.github/workflows/latest-json.yml`——`fetch-depth: 0`（完整历史；fact pack 诞生时不自我躲藏）；
+3. showcase baked master（`#sp-state` baked 文案至 `MASTER · UI 591/591 · 18 exhibits · 181 scrolls · strike #1980`），release-synced via push 4f8dc5b..8371dc8；
+4. scans 全绿 records：`test_exhibit_copilot` 10/10 · `test_subprocess_text_encoding` 9/9（含 build_latest codec 修复）· 56/56 子集（covenant + parity + codex + copilot 并联）。
+
+### 二、诚实边界
+
+1. cache 小lane 暖阶续订：cached 0 → 0 → **5120/5255**（17:08 → 18:56 → 18:58 ×2，reasoning 675 → 1310 → 811）。数字来自当日 aizzz live log；非 roll-up 平均数；
+2. **本号不出 exhibit**，Night Watch 不动；
+3. bench #1977 结存红 24 条不变：23 payload-census pinned + 1 U+FFFD pinned（`DEEP_OPTIMIZATION_PLAN.md:40823`），零涂绿；
+4. chronicle **1777**（本节新增）；worldbook **182 卷（双语对称）**；
+5. exhibit_entries **18** 不动；D2 ⏸ 仍等 owner 的 `PORTFOLIO_TOKEN`。
+
+### 三、账房
+
+mvn 未动 · UI **591/591**（无 UI 变更）· tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1777** + 1 · worldbook **182 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门

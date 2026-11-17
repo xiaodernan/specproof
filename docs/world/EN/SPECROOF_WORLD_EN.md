@@ -6500,3 +6500,29 @@ The earlier hum said "the reason is full pytest running, not regression — a pa
 ### 181.4 The ledger
 
 mvn untouched · UI **591/591** (no UI surface touched) · tsc ✓ · vite build ✓ · `tests/unit/test_exhibit_copilot.py` **10/10** · `tests/unit/test_verdict_channel_parity.py` **14/14** · purity **CLEAR** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1776** + 1 · worldbook **181 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」is still a door marked "demo"
+
+## Scroll CLXXXII · The Gatekeeper's New Gauge
+
+> The judge reads the ledger before he judges the judge. The machine that mints the ledger must learn to see the roof.
+
+### 182.1 A shallow clone and a politely wrong fact pack
+
+On 2026-11-17T18:50Z, the self-committing bot struck `docs/latest.json` with `total_commits=1 · worldbook_scrolls=180 · chronicle_entries=1775`. No character was a lie; the numbers were. The disease was not the script — it was `fetch-depth: 1`: the fact pack was born in CI's **shallow clone**, where even `git rev-list --count HEAD` can only count to one commit. **The self-minting lane is uniquely blind to id drift; it cannot see the house it lives in.**
+
+### 182.2 Latches, not speeches — the numbers now hold the door
+
+Surfaced not by a test but by a merge conflict: locally-struck `latest.json` (2,661 commits) vs the bot's same-name file (1). Both said "machine-struck"; only one knew how deep the well was. The fix, in three moves:
+
+1. `.github/workflows/latest-json.yml` now checks out with `fetch-depth: 0` — the fact pack is born from full history, not from a hairline of it;
+2. `scripts/build_latest.py` gained **self-destruct checks**: a shallow strike can no longer emit anything — `total_commits < 100`, `worldbook_scrolls < 100`, or `chronicle_entries < 1000` → exit 1, no JSON leaves the station. The job is not to be helpful; the job is to be true;
+3. The tree retains the locally-struck truth (head `d183da4` · 2,664 commits · 181 scrolls · 1,776 chronicle entries), and the merge commit records the same.
+
+The lesson lands cleanly: **a lane that mints must first be taught to mistrust itself.** Every numeric artifact CI ever produces deserves the same gauge.
+
+### 182.3 A small honest cache file
+
+On 17:11:31Z the tiny copilot lane was caught cold — cached_tokens=0 (the write). On 18:58:42Z, two strikes later: **cached_tokens=5,120 / 5,255 (97.4%)** — the small lane saturates after warmup, precisely as the large lanes did after their first strike. No roll-up average was used; the numbers cited are the numbers the lane actually returned.
+
+### 182.4 The ledger
+
+mvn untouched · UI **591/591** · tsc ✓ · vite build ✓ · targeted suites ✓ (`test_exhibit_copilot` **10/10** · `test_subprocess_text_encoding` **9/9** incl. the build_latest codec fix · covenant + parity + codex + copilot **56/56**) · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1777** + 1 · worldbook **182 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」is still a door marked "demo"
