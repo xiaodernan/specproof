@@ -41481,3 +41481,16 @@ Scroll CLXVI 含：
 - `audit_evidence` → CONSISTENT · purity **CLEAR** · Night Watch 依旧 **CRACKED**（exhibit #4 不挪 · entries 16）· court `4117d2b0ca5fb23a` **LOCKED**
 - D1 ✅ · D2 ⏸ ·「密码-123」否决
 - UI 未再敲 · chronicle 1759 · UI基线=580
+
+## #1962 《注脚别掺血》：AgentResult 的 `cache_note` 注释改纯英文 · 没有代码行为改 · worldbook **166 卷（双语对称）· chronicle 1759 + 1**
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1961。
+
+### 一
+
+- `apps/web/src/agent/pages/AgentResult.tsx:127-138`：移除中文 prose 中夹带英文词尾的注释行（`#145` 引用保留）。i18n 的粗审 A 桶收眼底读 `NOT VERIFIED` 这些内联引文只是用来定位的、不是给用户看的文案；评论统一为英文、按项目全站代码英文约定。UI **580/580** · tsc ✓ · build ✓
+- `i18n_audit.py` 仍属 advisory · 无任何门禁 · 审计不参与 CI 立判
+
+### 二、裁判
+
+mvn -o 双 service **BUILD SUCCESS**（Java 未动）· UI **580/580** · purity **CLEAR** · Night Watch 依旧 **CRACKED** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle **1759** + 1 · worldbook **卷一百六十六（双语对称）· D1 ✅ · D2 ⏸ ·「密码-123」否决
