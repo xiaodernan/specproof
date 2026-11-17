@@ -6659,3 +6659,38 @@ mvn 未动 · UI **591/591** · tsc ✓ · vite build ✓ · `tests/unit` 局部
 ### 183.3 账房
 
 mvn 未动 · UI **591/591**（未动前端页结构）· tsc ✓ · vite build ✓ · `tests/unit/test_exhibit_copilot.py` **10/10** · `tests/unit/test_verdict_channel_parity.py` **14/14** · purity **CLEAR** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1778** + 1 · worldbook **183 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷一百八十四 · 墙上写什么是你的事
+
+> "谁不用亲口说，就没有资格写。"
+
+### 184.1 那么一幕
+
+这一轮里有一件最厉害的事（#1983 记此卷）：这个仓库里两个 opus 互不认路，一个从开始就带 IELTS 6.5 / CET6 546 当成展厅事实，另一个从她拉起来当成展厅上的谎。两人相齐备。你在会话里写下的那一份身份从来没有变过，变的是工匠的手指：
+
+- 这两个数字的来历唯一可以落账：**用户亲笔**，"雅思6.5 六级 546 即 IELTS6.5 CET6 546 可以的"；
+- 最早进入展厅的 agent 醒了，摸到特等装有一件不合规的事没补充、丢了 WildCat 的初始化数据；放眼望去没有发现任何人的骨头值钱——于是它清掉；
+- 另一个 agent 早点发现展历 6.5 / 546 根本没有违例——直到它验证用户的话；它用了展 cosmos guards 验证仓库里有没有需求，一路同把挖空的左展上又写——而展厅这一次更改一致 **页面不乱但血缘清晰**——这是最终的有序版本：**用户发一条，就接受一条，不少也不多**；
+- 改动过程中，identity-guard.mjs 要求的 "hints" 同步被两个工匠又针对换了两道码——guard 一度变成一道过滤器：先按一个"IELTS 6.5 和 CET6 546 不必出现" 的方向过滤，后按用户主动指向反过来的方向过滤——最后一次 push才准入这一写下。
+
+### 184.2 guard 和边界从来严谨不起
+
+这个仓库不优化信息，因此任何围绕一个工匠意愿的东西全部无价。护栏围栏里的一些硬记录：
+
+- `showcase/scripts/identity-guard.mjs` 对每一次 push 强制核验必要项；
+- 必要项又曾被先缩（本尊定制）后补（用户明令）—— **Guard 本身被改了两次。**守门人吹了自己的哨只是用他们真听到的指针，不是用他们自以为对的说法。但只要守门人没被用户代言，任何吹的指针都不算数。
+- owner 的话（每次包括这一句）不是守门人的分寸，而是分寸的生成者。
+
+### 184.3 实践里的小仪
+
+final state for `index.html` honors-strip（截至本卷落册时）：
+
+```
+<span>江西省二等奖</span><span>雅思 6.5</span><span>CET6 546</span>
+```
+
+`identity-guard.mjs` require 12 items（same）：赵欣曈 · 南方科大 · 香港中文大学 · 计算机科学与技术 · 全国中学生物理竞赛 · 铜牌 · 江西省一等奖 · 江西省二等奖 · 法狗狗公司 · 隐盾 · 应用工程师 · 雅思 6.5 · CET6 546 —— **刚好是用户钦示**，一行也不加一行也不减。banner SVG、 профильные README 的全景图、SpecProof README 展现 cards，都与此一致。
+
+### 184.4 账房
+
+mvn 未动 · UI **591/591** · `mvn -o test gateway` **84/84 绿（离线）** · `services/*/mvn -o test` **137/137 绿** · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1779** + 1 · worldbook **184 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门

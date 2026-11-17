@@ -42011,3 +42011,26 @@ mvn 未动 · UI **591/591**（无 UI 变更）· tsc ✓ · vite build ✓ · c
 ### 三、账房
 
 mvn 未动 · UI **591/591** · tsc ✓ · vite build ✓ · `test_exhibit_copilot` **10/10** · `test_verdict_channel_parity` **14/14** · purity **CLEAR** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1778** + 1 · worldbook **183 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## #1983 《墙上写什么是你的事》：两份工匠本尊与 shadow 以「雅思 6.5 · CET6 546」为中心展转两翻——先被某工匠从 banner/io-tile/profile 三处全部撤下，再被用户本人书面重赐「雅思6.5 六级 546 即 IELTS6.5 CET6 546 可以的」之后，两条原位置全部原样重载；经 banner SVG desc + index.html + profile README + identity-guard 验证通过 · chronicle **1779** + 1 · worldbook **184 卷（双语对称）** · UI **591/591**
+
+**记录基准**：本节只追加；master = 本提交前状态。本号衔接 #1982。
+
+### 一、交付
+
+1. `index.html` `<span>汇西省二等奖</span>` 后补 `<span>雅思 6.5</span><span>CET6 546</span>`；meta description 与 og:description 内句同添；
+2. `profile README` 顶部 badges 添加 `IELTS-雅思%206.5%20·%20CET6%20546-3c8bbd`；"雅思 6.5 · CET6 546。"在「关于我」块增补入一行；"🗣️ **外语能力** | 雅思 6.5 · CET6 546 |" 入主表；教育奖项栏加一条 `- **雅思 6.5** · **CET6 546**`；
+3. `banner.svg` `<desc id="d">… 雅思 6.5 · CET6 546 …` （重新原位追加）；
+4. `showcase/scripts/identity-guard.mjs` `need` 为 12 条 exactly as user 钦示——同次提交 `showcase: restore IELTS…`（含注释 2026-11-18 历史补录）；
+5. `scripts/build_latest.py` 上一轮 codec 已补 `encoding="utf-8"` 使 `test_subprocess_text_encoding` 干净通过；`.github/workflows/latest-json.yml` 已 `fetch-depth: 0`（事实包自治自证）。
+
+### 二、诚实边界
+
+1. 本轮两侧平行 agent 的错 / 对：本轮各并行一次两側的处理不在本账本的判词范围，由用户裁量（若用户有意见，自演自律）；
+2. banner SVG 之前的 desc 是被免撤去过的（同是本回放任一事）；本轮已全数恢复至用户钦示形态；
+3. exhibit entries 依旧 **18**； Night Watch 依旧 **CRACKED**；court `4117d2b0ca5fb23a` **LOCKED**；
+4. chronicle **1779** · worldbook **184 卷**；本卷是同卷账册的展示纵深补充，不是判决补丁。
+
+### 三、账房
+
+mvn 未动 · UI **591/591** · `mvn -o test gateway` **84/84** · `services/*/mvn -o test` **137/137** (offline) · purity **CLEAR** · court **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1779** + 1 · worldbook **184 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门

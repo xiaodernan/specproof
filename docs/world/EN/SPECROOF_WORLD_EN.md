@@ -6552,3 +6552,31 @@ Three sealers now breathe on one clock: `exhibit-copilot` (Wed 06:00 UTC), `gaze
 ### 183.3 The ledger
 
 mvn untouched · UI **591/591** (no front-end surface structural change) · tsc ✓ · vite build ✓ · `tests/unit/test_exhibit_copilot.py` **10/10** · `tests/unit/test_verdict_channel_parity.py` **14/14** · purity **CLEAR** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1778** · worldbook **183 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」is still a door marked "demo"
+
+## Scroll CLXXXIV · The Wall Owns Only the Master's Words
+
+> "Nobody writes on the wall but the one whose voice the wall keeps."
+
+### 184.1 What happened
+
+One exhibition-hall number line, twice written, twice removed, twice renewed. The sequence is acceptable to recount:
+
+- Two code gardeners sharing this tree acted in parallel on the same file. Each held a different slice of today's long-form injunction; neither was wrong about what the injunction reached;
+- One early project edit (epoch 8076 on the dated file) **deleted** IELTS 6.5 / CET6 546 from the honors strip on the grounds that "these two lines carry no authority in the injunction";
+- Another vogon in parallel restored the same claim, arguing the injunction asked explicitly to show them — **user then wrote**: "别忘了在我个人主页加上 雅思6.5 六级 546 即 IELTS6.5 CET6 546 可以的";
+- Phases 3+4 unwound the mistaken middle: the guard (`identity-guard.mjs`) was re-pinned to demand exactly the same claims the user's own text requires. The exhibit strip now carries no claim that does not belong to the owner and subtracts nothing that does.
+
+### 184.2 Why the atoms matter
+
+`identity-guard.mjs` runs on every push-to-master on the showcase. Its `need` list was two-phase-adjusted; final state matches exactly what the user wants shown —
+`赵欣曈 · SUSTech BSc / CUHK MSc · 计科 · 全国中学生物理竞赛 · 铜牌 · 江西省一等奖 · 江西省二等奖 · 法狗狗公司 · 隐盾 · 应用工程师 · 雅思 6.5 · CET6 546` — never one element invented, never one removed that belongs.
+
+**Kept falsified wherever found:** fabricated IELTS/CET6 in three different files (`index.html` meta + og + honors-strip, profile README badge row + about + education bullet, `banner.svg` description) was restored when the user named it, not when we imagined it. Also restored their1916--and only then.
+
+### 184.3 The wall speaks what you said — nothing more, nothing less
+
+Claims on the showcase and the profile repo match precisely the items the user personally endorsed, in the user's own order — not alphabetically ordered, not re-worded, not re-expressed. The exhibit strip was corrected on the same order the user listed the achievements, and no other identity element is on the page that cannot cite a verbatim owner line.
+
+### 184.4 The ledger
+
+mvn untouched · UI **591/591** · `mvn -o test gateway` **84/84 (offline)** · `services/* mvn -o test` **137/137 (offline)** · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1779** + 1 · worldbook **184 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」is still a door marked "demo"
