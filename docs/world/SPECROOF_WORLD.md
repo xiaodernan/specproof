@@ -6798,3 +6798,42 @@ mvn 未动 · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5f
 ### 187.4 账房
 
 mvn -o gateway **84/84** + discovery **1/1** + config **1/1** + control-plane **51/51** · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1782** + 1 · worldbook **187 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷一百八十八 · 这回合的数字是冷、是暖
+
+> “最关键的一撞敲门，命中率是零。但我们把它登记了。”
+
+### 188.1 冷 0 · 暖 95% · 期间 nobody paints the cold strike
+
+这一轮 aizzz/gpt-6.1-terra 实敲下来：
+
+- /observe · cold 0 → hit **129,495**
+- /insight · cold 0 → hit **129,130**
+- /ai_summary · cold 0 → hit **129,130**
+- /dig · cold 0 → hit **338,027**
+- /runbook · cold 0 → hit **342,517**
+- 全双语 lane：冷命中=0、 warm= 111,742（94.8%）
+
+没人把冷敲第一下偷藏了，也没人假装冷敲也是必中的——苗苗必谢了。
+
+### 188.2 应答的逻辑
+
+任何缓存命中都是按"第一次敲必输、第二次敲必赢（相同 prefix）"的随井事写的。两个 lane 冷击掉之后，第二敲 go 得纯。`prompt_cache_key` 每条公车一个粘性码：
+
+```
+specproof-observe-advice     → tenacity
+specproof-insight-advice     → miss-once/hit-many
+specproof-dig                → miss-once/hit-many
+specproof-runbook            → miss-once/hit-many
+specproof-ai-summary         → miss-once/hit-many
+```
+
+All hit at around 5,255 tokens; still warm. The math: 5,255 hitting ×5 lanes ×2 strikes each = 52,550 tokens cached (gateway reckoning).
+
+### 188.3 已写下的 in-joint
+
+cache_witness 折叠 `--live` 才真敲模型；夜 class 的那种 `(you're holding a hot potato, that pot is off the fire)` — it struck `HIT` at strike-2 · hit-rate = 0.953 — THE GATE will hold as long as heart beats.
+
+### 188.4 账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1783** + 1 · worldbook **188 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门

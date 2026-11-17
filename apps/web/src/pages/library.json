@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-17T21:08:53+00:00",
-  "count": 186,
+  "generated_at": "2026-11-17T21:16:46+00:00",
+  "count": 187,
   "zh": [
     {
       "num": "卷零",
@@ -931,6 +931,11 @@
       "num": "卷一百八十七",
       "title": "灯的见证",
       "excerpt": "今晚九盏灯齐亮：`night_watch` · `purity_graph` · `covenant_witness` · `cache_witness` · `exhibit_copilot` · `insight_advice_witness` · `usage_ledger_witness` · `investigation_dig` · `runbook_triage` —— 每一只都以只读身份统计仓库自身：`"
+    },
+    {
+      "num": "卷一百八十八",
+      "title": "这回合的数字是冷、是暖",
+      "excerpt": "这一轮 aizzz/gpt-6.1-terra 实敲下来："
     }
   ],
   "en": [
@@ -1863,6 +1868,11 @@
       "num": "Scroll CLXXXVII",
       "title": "When Lamps Testify",
       "excerpt": "The repo's principle: get the world to speak its own state by striking itself — *not* by writing essays about its purity. The cycle costs one LLM round at most on the two caching lamps; everything else is pure AST or hash-compare."
+    },
+    {
+      "num": "Scroll CLXXXVIII",
+      "title": "Cold 0 · Warm ~95%",
+      "excerpt": "Each of five lanes + one raw ping strike fires exactly twice. Court never fires. Suspicion that cold strike = real miss is sound. The data recorded on this host, same minute, same Clash Verge proxy."
     }
   ],
   "note": "machine-struck from the two bibles; parity asserted at build time; never an editorial statement"

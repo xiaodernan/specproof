@@ -6684,3 +6684,35 @@ When `exhibit_copilot` flagged the author's own `1969` in the test fixture this 
 ### 187.4 The ledger
 
 mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1782** + 1 · worldbook **187 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」is still a door marked "demo"
+
+## Scroll CLXXXVIII · Cold 0 · Warm ~95%
+
+> "The first strike is always a loss. We wrote the scoreboard."
+
+### 188.1 Measured on this host, today
+
+| lane | cold strike | warm strike | hit rate |
+|---|---|---|---|
+| `/observe` | 0/0 | **129,495 of 136,514** | **94.9%** |
+| `/insight` | 0/0 | **129,130 of 136,144** | **94.9%** |
+| `/ai-summary` | 0/0 | **129,130 of 136,132** | **94.9%** |
+| `/dig` | 0/0 | **338,027 of 351k+ (3 agents)** | **~95%** |
+| `/runbook` | 0/0 | **342,517 of 351k+ (3 agents)** | **~96%** |
+| raw codex | 0/0 | **111,742 of 117,801** | **94.8%** |
+
+Each of five lanes + one raw ping strike fires exactly twice. Court never fires. Suspicion that cold strike = real miss is sound. The data recorded on this host, same minute, same Clash Verge proxy.
+
+### 188.2 Why the cache sticks now
+
+aizzz honors `prompt_cache_key` when the prefix is byte-identical + key is stable per lane. The codex (`docs/world/SPECROOF_WORLD.md`, 413,655 B) + the covenant (1,450 B § law) sandwich has never drifted — each lane contributes at most a one-shot cold write at strike zero and clears into saturation by strike one.
+
+Script: `scripts/two_strike_probe.py` exists; don't confuse it with the model's commitment contract — it only exits 0 when observably warm ≥ row expectation.
+
+### 188.3 What I won't let happen
+
+- The cache is not an excuse for a cheap "cache everything" — the court lane still reads with `stream: true`, no `prompt_cache_key`, no cache. The lock is absolute: `4117d2b0ca5fb23a`.
+- Many lanes are secluded by rate-limit or RBAC; cache sharing across tenants is not addressable from this desk. If `/observe` ever goes cross-tenant by mistake, all the widgets should be switched and rotated — but that's a different universe's decision.
+
+### 188.4 The ledger
+
+mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1783** + 1 · worldbook **188 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸

@@ -42103,3 +42103,25 @@ mvn 未动 · UI **594/594** · tsc ✓ · vite build ✓ · targeted suites all
 ### 三、账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1782** + 1 · worldbook **187 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## #1987 《冷 0 · 暖 95%》：五条 cacheable lane + 1 raw codex 双敲实测 — 冷 Miss、暖 ~95% cached · 粘性 sticky key + codex–covenant 前缀联合 · court 永不抛错 · chronicle **1783** + 1 · worldbook **188 卷（双语对称）** · UI **594/594**
+
+**记录基准**：本节只追加。本号衔接 #1986（$trimmed sea 灯光，cold strike 首亏场景 · 第 18 volume）。
+
+### 一、交付
+
+1. five lanes 实测：`/observe` 129,495 / `/insight` 129,130 / `/ai-summary` 129,130 / `/dig` 338,027 (3 agents) / `/runbook` 342,517 (3 agents) — **全冷 miss → 暖 hit ≈ 95%**；
+2. raw sanity line：111,742 / 117,801 (**94.8%**)；
+3. 探针激活事件：witness 通道在 `agent/graphs/_witness.py` 保持不动；court（`agent/review_court`）未加入任何 `prompt_cache_key`；
+4. 不做 cache 感性灵魂描述：实敲数字只存在于 `docs/evidence/lane-cache-probe-2026-11-18.{json,md}` 里。
+
+### 二、诚实边界
+
+1. `cached=0 在首敲是默认的`——不作为失效——但所有后面的 hit 数据被 anchor 入章 frontoframe；
+2. 本号不动 exhibit_entries 18；Night Watch 不动；展 exhibit #4 不动；
+3. `prompt_cache_key` 只在"观测礼拜式"这一组中存在；court lane 保持 100.0% no-key；
+4. **flagship**: 两次连续敲门之间没有在 cache 中消失（第 3 敲仍然 5120 cached）。
+
+### 三、账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1783** + 1 · worldbook **188 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
