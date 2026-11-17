@@ -1,0 +1,9 @@
+# Gazette Feature — 2026-11-17T15:38:03+00:00
+
+**anchor:** #1975 《两粒同潮》：exhibit #18 落册——同 96c recipe · 192×4 · 0.00% err · worst p99 2,027.1 ms（competition vs #17: +492.6 ms p99 · +523.2 ms avg_p95，在 full pytest（20544）并行 running 时）· exhibit_entries **17 → 18** · chronicle **1773** + 1 · worldbook **177 卷（双语对称）**  ·  **model:** gpt-6.1-terra
+
+## 中文 · 一闪 \n\n同一台机器、同一条前门静态车道、同一份 dist，在 full pytest（20544）并行运行时，96c 配置连续四轮各完成 192 次请求，错误率为 0，最差 p99 为 2,027.1 毫秒；比展品 #17 慢，但这页记录的是不同负载下的对照，不是退化。它落进展品账，条目由 17 增至 18；编年账添一，至 1773；世界书仍为 177 卷、双语对称。这不是勋章，而是一次带着负载条件的住院记录。\n\n## English
+
+Exhibit #18 records 192/192 successes, 0.00% errors, and a worst p99 of 2,027.1 ms on the same machine and 96c recipe, while full pytest (20,544) ran in parallel; it is entered in `exhibit_entries`, from 17 to 18. Against exhibit #17, p99 was +492.6 ms and avg_p95 +523.2 ms; #18 is filed as a load-control sample, not a regression. The chronicle records 1773 plus one, and the worldbook holds 177 volumes in bilingual symmetry. Around these entries, the world is shaped by an unchanged machine and recipe under different load. Its ledger keeps the clean #17 sample distinct from #18’s concurrent-test control.
+
+*model printed from the ledger; not a verdict.*

@@ -41824,3 +41824,28 @@ verdict **OK** · worst p99 **2,027.1 ms** · warmup 1/2 113/192 · warmup 2/2 1
 ### 三、账房
 
 mvn 未动 · UI **590/590** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1773** + 1 · worldbook **177 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## #1976 《一笔亲笔》：`/gazette` 新增「今日余响」一栏——真 live aizzz 敲两次（中 114 字 + 英 101 词）基于账本锚 #1975·epigraph 生成、不判词、additive prompt · aiscript 入库 · UI 不变 **590/590** · chronicle **1774** + 1 · worldbook **178 卷（双语对称）** · exhibit_entries **18**
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1975。
+
+### 一、交付
+
+1. `scripts/gazette_feature.py`（新）——从 LEDGER 读最新一节原文（锚：#1975），aiszz/gpt-6.1-terra 分别敲中文 epigraph（≤280 字）与英文 epigraph（≤220 词）；写入 `apps/web/src/pages/gazette_feature.json`（git-tracked）+ `docs/evidence/gazette-feature.{json,md}`。**不判词，不编造数字**；真话就是那一行原文；
+2. `apps/web/src/pages/Gazette.tsx`——新增「本周实敲 · 三页可点」三页标注块（已由 #1974 补上）；新增「今天的余响 · Today's Echo」一栏：示三个词"证人/实敲/判决"始终不替换史官的语言（余响只署模型署名，不署史官的名字）；
+3. `apps/web/src/styles/gazette.css`——新增 `.gazette-echo`（左竖线 3px 的褐金，奶油暗面底）+ `.gazette-echo-stamp`（灰体，斜向强调）；
+4. `docs/evidence/gazette-feature.json`（git-tracked）+ `gazette-feature.md`——首敲后的"原文张贴"样本入册；ascrowed 记忆与 chronicle 同位对齐：
+   - anchor：`#1975` · model gpt-6.1-terra · zh 114 字 · en 101 词；
+   - generated_at `2026-11-17T15:38:03+00:00`；
+
+### 二、**实敲口径**（必须承认）
+
+本栏是这一轮唯一由 aizzz **落在史的 front page 上**的字体；
+
+- 模型输出为中文 114 字 + 英文 101 词；两段都**直读账本原文**，**不新编数字**，**不做判决**；
+- 章首刊头署 "aizzz gpt-6.1-terra · model-written"；史官的位置依旧是「账」不是「字」；
+- 如果这一栏的输出今天是「空」，它就不会上报纸——按真实抢回来的空口令，不会伪造一个活口；
+
+### 三、账房
+
+mvn 未动 · UI **590/590**（build ✓ · vitest ✓ · tsc ✓ · lint 通过） · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1774** + 1 · worldbook **178 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门

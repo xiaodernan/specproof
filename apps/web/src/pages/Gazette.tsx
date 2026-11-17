@@ -6,6 +6,7 @@ import worldbook from "./worldbook.json";
 import evidence from "./evidence.json";
 import unsigned from "./unsigned.json";
 import auditChain from "./audit_chain.json";
+import gazetteFeature from "./gazette_feature.json";
 import ChainBanner from "./ChainBanner";
 import { ProductIcon } from "../ui/ProductIcon";
 import "../styles/gazette.css";
@@ -144,6 +145,14 @@ export default function Gazette() {
             <li><code>/runbook · #1959-60 · covenant #1969</code>{zh ? " · 告警一响，模型先读仓库；只能 CONFIRMED / INCONCLUSIVE" : " · the alert rings; the model reads the repo first; it only ever returns CONFIRMED or INCONCLUSIVE"}</li>
             <li><code>/observe · #1966</code>{zh ? " · 公开·只读·演示：240 人校准群体 + 这一浏览器自己的轨迹——没有别人" : " · public · read-only · demo — a seeded 240-member cohort plus this browser's taps; there is no one else"}</li>
           </ul>
+
+          <h4>{zh ? "今天的余响 · 由模型写下" : "TODAY'S ECHO · WRITTEN BY THE MODEL"}</h4>
+          <p className="gazette-echo">
+            {zh ? (gazetteFeature as { zh: string }).zh : (gazetteFeature as { en: string }).en}
+          </p>
+          <p className="gazette-echo-stamp">
+            {zh ? `— aizzz/gpt-6.1-terra · ${(gazetteFeature as { generated_at: string; anchor: string }).generated_at.slice(0, 10)} · 见证 #1975 原文 · 不是判词` : "— aizzz/gpt-6.1-terra · this cycle · the ledger verbatim · never a verdict"}
+          </p>
         </aside>
       </div>
 

@@ -6364,3 +6364,27 @@ It is not a medal; it is a public demonstration of variance for identical config
 ### 177.3 The ledger
 
 mvn untouched · UI **590/590** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1773** + 1 · worldbook **177 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is still a door marked "demo"
+
+## Scroll CLXXVIII · The Editor Picks up the Pen
+
+> A newspaper's opinion does not descend from on high; it's written by the hands that struck this edition. Today's words were not read out — they were struck out.
+
+### 178.1 A new column: the model's own hand
+
+`/gazette` gained **TODAY'S ECHO** — a column in which the model itself, not the chronicler, writes the last few lines on today's page. It is never a verdict; it is the editor's voice, chosen by the writers' strike, read once, never revised.
+
+The facts: `scripts/gazette_feature.py` reads the newest ledger entry verbatim (anchor: `#1975 《两粒同潮》`), fires aizzz `gpt-6.1-terra` twice — once in Chinese (`≤280字`) and once in English (`≤220w`) — and lands 114 Chinese characters + 101 English words. The bytes pass through `apps/web/src/pages/gazette_feature.json` into the front page, committed with the rest of the world.
+
+### 178.2 The rule, stated plainly
+
+- Verbatim ledger entry is the only source
+- Chinese ≤280 characters / English ≤220 words — ceiling is hard
+- Both versions shown side by side; no markdown headings; no invented numbers
+- If the model refuses or emits nothing, the line is omitted — we do not fabricate an echo
+- The chronicler never edits; a strike either lands or doesn't
+
+Consequence: chronicle **1774** · worldbook **178 scrolls** · UI unchanged at **590/590**.
+
+### 178.3 The ledger
+
+mvn untouched · UI **590/590** · vite build ✓ · vitest run ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1774** + 1 · worldbook **178 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is still a door marked "demo"

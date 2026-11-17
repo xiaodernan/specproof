@@ -6473,3 +6473,25 @@ verdict **OK** · worst p99 **2,027.1 ms** · warmup 1/2 113/192 · warmup 2/2 1
 ### 177.3 账房
 
 mvn 未动 · UI **590/590** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1773** + 1 · worldbook **177 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## 卷一百七十八 · 一笔亲笔
+
+> 一张报纸想说什么，由那些敲过它的人来说。今天的话不是读——是敲——出来的。
+
+### 178.1 新的一栏：模型亲笔
+
+`/gazette` 新增 **「今天的余响 · Today's Echo」**：不再借史官的口，而是用真模型真敲出来的话，读完一屏的队员。**这不是判决——这是编辑自己的字。**
+
+事实就是：`scripts/gazette_feature.py` 读入最新一笔账本条目（原文锚），用 `ailab`（本机代理 `api.aizzz.xyz · gpt-6.1-terra`）在中文和英文各敲一次，得到 114 字中文 + 101 词英文"余响"。写入 `apps/web/src/pages/gazette_feature.json`，随 git 提交，前端按当天日期展示。
+
+### 178.2 工作流预演
+
+- 读最新一节账本原文（锚：`#1975 《两粒同潮》`）；
+- 中文 280 字上限 / 英文 220 词上限；
+- 两段共存一屏；每一段都必须是「今日的余响」，不当判词；
+- 整段由 `ga` 敲出后按原文入库，**史官不修改模型敲的字**——只入账与不入账两种态。
+- 后果：chronicle **1774**、worldbook **178 卷**、UI **590/590**（不变）。
+
+### 178.3 账房
+
+mvn 未动 · UI 未动（**590/590**）· vite build ✓ · vitest run ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1774** + 1 · worldbook **178 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门

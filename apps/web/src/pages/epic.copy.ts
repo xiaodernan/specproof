@@ -336,6 +336,7 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "三只证人 · #1973", value: "investigators tokens indent 订正（#1969 一步 sed 把 tokens 推入 except 死分支造成 UnboundLocalError）· `/dig`/`/runbook` 复活 · **CONFIRMED** 14,599 tokens · tests/unit/test_investigators_accounting.py 钉住 · UI **590/590**（#1973）" },
       { label: "晨报第一面 · #1974", value: "/gazette 三页可点——/dig·/runbook·/observe 同页可点回验 · exhibit #17 公告入册 · UI **590/590**（#1974）" },
       { label: "两粒潮沙 · #1975", value: "exhibit #18 落册 · 192×4 · 0.00% err · worst p99 2,027.1 ms（full pytest 并行，真实Δ +492.6 ms vs #17）· exhibit_entries **18** · UI **590/590**（#1975）" },
+      { label: "一笔亲笔 · #1976", value: "/gazette 新增「今日余响」——aiszz/gpt-6.1-terra 敲两段 epigraph（中 114 字 + 英 101 词）· `scripts/gazette_feature.py` 入库 · 不是判词 · UI **590/590**（#1976）" },
     ],
   },
   {
@@ -662,6 +663,7 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "The Three Witnesses Return · #1973", value: "one sed mis-indent swept `tokens` out of the lane entirely in #1969 (UnboundLocalError) · /dig and /runbook revisited · **CONFIRMED** 14,599 tokens · test_investigators_accounting pins the class · UI **590/590** (#1973)" },
       { label: "Tomorrow's Ticket · #1974", value: "/gazette gains a three-ticket row — /dig · /runbook · /observe — click-through to the lane; exhibit #17 pinned on the front page · UI **590/590** (#1974)" },
       { label: "Two Grains · #1975", value: "exhibit #18 struck — identical 96c × 2 × 4 recipe · 0.00% err · worst p99 2,027.1 ms · Δ +492.6 ms vs #17 (full pytest running in parallel) · exhibit_entries **18** · UI **590/590** (#1975)" },
+      { label: "The Editor Takes the Pen · #1976", value: "/gazette gains TODAY'S ECHO — aizzz/gpt-6.1-terra writes 114 zh-chars + 101 en-words epigraph from the ledger entry #1975 verbatim · `scripts/gazette_feature.py` committed · never a verdict · UI **590/590** (#1976)" },
     ],
   },
   {
