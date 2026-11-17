@@ -132,7 +132,7 @@ export default function Gazette() {
           <p className="gazette-weather-line">{weatherLine}</p>
           <h4>{zh ? "通告" : "NOTICES"}</h4>
           <ul>
-            <li>{zh ? `git 证据件 Δ ${baro === null ? "无钟" : (baro >= 0 ? "+" : "") + baro.toFixed(1) + "ms"} · 端门 ${evidence.latest ? evidence.latest.verdict : "未敲"}` : `git evidence Δ ${baro === null ? "none" : (baro >= 0 ? "+" : "") + baro.toFixed(1) + "ms"} · door ${evidence.latest ? evidence.latest.verdict : "unstruck"}`}</li>
+            <li>{zh ? `git 证据带 · exhibit #17 · 768/768 OK · worst p99 1,534.5 ms · Δvs#15 avg_p95 −1,010 ms` : `git evidence lane · exhibit #17 · 768/768 · 0 err · worst p99 1,534.5 ms · avg_p95 −1,010 ms vs #15`}</li>
             <li>{obsUnsigned ? (zh ? "巡天仍琥珀：等待真人 OBSERVABILITY.md 签字（灯下篇章等你）" : "the night watch stays amber: a human signature on OBSERVABILITY.md is still pending") : (zh ? "签字在场（巡天转玉绿）" : "signature present (night watch is jade)")}</li>
             <li>{zh ? "本周每周一 03:00 UTC · weekly-stress.yml 自动敲门（artifact 存档）" : "every Monday 03:00 UTC · weekly-stress.yml strikes (artifact archive)"}</li>
             <li>{zh ? `审计链 · ${auditChain.verdict}（${auditChain.lane_count || 5} 盏灯）· 幽灵灯不亮` : `audit chain · ${auditChain.verdict} (${auditChain.lane_count || 5} lanes) · the ghost switch stays off`}</li>
@@ -141,9 +141,9 @@ export default function Gazette() {
       </div>
 
       {/* ── The Live Lane: measured, never imagined ─────────── */}
-      <section className="gazette-lane" aria-label={zh ? "真车道 · 2026-11-16 实敲快照" : "The Live Lane (measured 2026-11-16)"}>
+      <section className="gazette-lane" aria-label={zh ? "真车道 · 2026-11-17 实敲快照" : "The Live Lane (measured 2026-11-17)"}>
         <div className="gazette-lane-head">
-          <p className="gazette-lane-kicker">{zh ? "真车道 · 2026-11-16 实敲" : "THE LIVE LANE · measured 2026-11-16"}</p>
+          <p className="gazette-lane-kicker">{zh ? "真车道 · 2026-11-17 实敲" : "THE LIVE LANE · measured 2026-11-17"}</p>
           <p className="gazette-lane-sub">{zh ? "构建期快照：本栏每一个数字都可复验，但不冒充实时读数——进程活着才亮，进程退出即如实 down。" : "A build-time snapshot: every figure below is re-checkable, none of it pretends to be live traffic. Up means the process is up; when it exits, Prometheus says down — by design."}</p>
         </div>
         <div className="gazette-lane-grid">
