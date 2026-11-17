@@ -62,6 +62,9 @@ SURFACES: dict[str, tuple[str, list[str]]] = {
     # the five sidebar gates must be derived end to end; a one-line
     # sidebar entry with no derived set would hide here too.
     "dig": ("IDENTITY_ROLES", ["pages/Dig.tsx"]),
+    # The Runbook triage (admin/operator): POST
+    # /api/v1/admin/runbook-triage and its companion alerts listing.
+    "runbook": ("IDENTITY_ROLES", ["pages/Runbook.tsx"]),
     # #116: a button, not a page. The governed action is the one FindingDetail
     # casts (POST /api/v1/jobs/{id}/feedback), so the derivation reads the same
     # call the click does.
@@ -72,7 +75,7 @@ SURFACES: dict[str, tuple[str, list[str]]] = {
 # SURFACES because since #116 a governed action can also be a button: the nav
 # count is a claim about the sidebar, and letting it grow to cover a button would
 # let a genuinely missing nav gate pass unnoticed.
-NAV_SURFACES = ("identity", "billing", "audit", "insight", "dig")
+NAV_SURFACES = ("identity", "billing", "audit", "insight", "dig", "runbook")
 
 # Paths every principal may read, so they cannot narrow a surface's role set.
 # /auth/me answers with the caller's own principal; classify_request() returns
@@ -344,7 +347,7 @@ def test_every_gated_nav_item_resolves_to_one_shared_declaration() -> None:
     declared = declared_roles()
     assert len(gated) == len(NAV_SURFACES), (
         f"App.tsx gates {sorted(gated)} but this gate's nav surfaces are "
-        f"{sorted(NAV_SURFACES)}: a fifth gated page appeared (or one was removed) "
+        f"{sorted(NAV_SURFACES)}: a sixth gated page appeared (or one was removed) "
         "and its role set is unchecked either way"
     )
     missing = [name for name in gated if name not in declared]

@@ -1390,6 +1390,38 @@ export function postInvestigationDig(question: string): Promise<InvestigationDig
   return apiPost<InvestigationDig>("/api/v1/admin/investigation-dig", { question });
 }
 
+export interface RunbookFinding {
+  role?: string;
+  claim?: string | null;
+  evidence?: string | null;
+  confidence?: number | null;
+}
+
+export interface RunbookAgent {
+  name?: string;
+  role?: string;
+  outcome?: string;
+  tokens?: number | null;
+}
+
+export interface RunbookTriage {
+  alert: string;
+  verdict: "CONFIRMED" | "INCONCLUSIVE" | string;
+  findings: RunbookFinding[];
+  agents: RunbookAgent[];
+  total_tokens_used?: number;
+  generation_time_ms?: number | null;
+  cached: boolean;
+}
+
+export function fetchRunbookAlerts(): Promise<{ alerts: string[] }> {
+  return apiGet<{ alerts: string[] }>("/api/v1/admin/runbook-triage/alerts");
+}
+
+export function postRunbookTriage(alert: string): Promise<RunbookTriage> {
+  return apiPost<RunbookTriage>("/api/v1/admin/runbook-triage", { alert });
+}
+
 export interface Invoice {
   id: string;
   tenant_id: string;

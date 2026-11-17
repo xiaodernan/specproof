@@ -4,6 +4,7 @@ import cacheWitness from "./cache_witness.json";
 import adviceWitness from "./insight_advice_witness.json";
 import usageLedger from "./usage_ledger_witness.json";
 import investigationDig from "./investigation_dig.json";
+import runbookTriage from "./runbook_triage.json";
 
 /**
  * 状态图谱 · The State Graphs — everything this page says is either
@@ -157,6 +158,17 @@ const liveInvestigationDig = {
   en: `three readonly investigators · ${(ID.agents || []).filter((a) => (a.name || "").includes("explorer") && a.outcome === "ok").length + (ID.agents || []).filter((a) => (a.name || "").includes("tester") && a.outcome === "ok").length + (ID.agents || []).filter((a) => (a.name || "").includes("security") && a.outcome === "ok").length}/3 landed · ${ID.total_tokens_used ?? "?"} tokens total · verdict ${ID.verdict ?? "?"}`,
 };
 
+const RT = runbookTriage as unknown as {
+  verdict?: string;
+  total_tokens_used?: number;
+  generation_time_ms?: number;
+  alert?: string;
+  agents?: { name?: string; outcome?: string; tokens?: number; role?: string }[];
+};
+const liveRunbookTriage = {
+  zh: `告警 ${RT.alert ?? "?"} · ${(RT.agents || []).filter((a) => a.outcome === "ok").length}/3 到位 · 总计 ${RT.total_tokens_used ?? "?"} tokens · verdict ${RT.verdict ?? "?"}（判词从裁判席上没人替它涂绿）`,
+  en: `alert ${RT.alert ?? "?"} · ${(RT.agents || []).filter((a) => a.outcome === "ok").length}/3 landed · ${RT.total_tokens_used ?? "?"} tokens total · verdict ${RT.verdict ?? "?"} (nobody in court painted this jade)`,
+};
 const liveNightWatch = {
   zh: `evidence=${NW.lanes?.evidence ?? "?"} · purity=${NW.lanes?.purity ?? "?"} · audit=${NW.lanes?.audit ?? "?"} → ${NW.verdict ?? "?"}（exhibit #4 仍在册）`,
   en: `evidence=${NW.lanes?.evidence ?? "?"} · purity=${NW.lanes?.purity ?? "?"} · audit=${NW.lanes?.audit ?? "?"} → ${NW.verdict ?? "?"} (exhibit #4 still on file)`,
@@ -279,5 +291,18 @@ export const GRAPHS: GraphCard[] = [
     },
     fields: ["question", "agents", "findings", "total_tokens_used", "generation_time_ms", "verdict"],
     live: liveInvestigationDig,
+  },
+  {
+    id: "runbook_triage",
+    file: "agent/graphs/runbook_triage_graph.py",
+    stateName: "RunbookTriageState(TypedDict, total=False)",
+    chain: ["intake", "strike", "verdict", "report", "END"],
+    verdicts: { zh: "CONFIRMED / INCONCLUSIVE", en: "CONFIRMED / INCONCLUSIVE" },
+    role: {
+      zh: "探针一响，模型先读仓库——alerts-slo 一条规则 × 最近 20 次提交 × 最新五份证据 × compose 的脱敏环境变量，三条并行车道一起敲模型：先看什么、警报在说什么、仓库里哪一行支持——模型停止之前仓库替它画得出来；CONFIRMED 是模型把证据摆得出来，INCONCLUSIVE 是它如实说它不知道。永远不替 READ 涂绿。",
+      en: "The alert fires; the model reads the repo first — one alerts-slo rule × the last twenty commits × the newest five evidence files × the redacted compose api environment, struck as three parallel readonly lanes. CONFIRMED is the model laying the evidence on the table; INCONCLUSIVE is the model saying honestly that it does not know. Never painted jade for a read path.",
+    },
+    fields: ["alert", "agents", "findings", "total_tokens_used", "generation_time_ms", "verdict"],
+    live: liveRunbookTriage,
   },
 ];

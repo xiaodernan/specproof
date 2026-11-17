@@ -6,19 +6,21 @@ import StateGraph from "../StateGraph";
 
 /**
  * The State Graphs page teaches LangGraph's StateGraph by pointing at the
- * nine graphs this repository actually runs. Every claim it makes is either
+ * ten graphs this repository actually runs. Every claim it makes is either
  * a concept note about LangGraph as used here, or a byte visible in the same
  * repo (file names, state fields, verdict lexicon).
  *
- * Three of the nine are networked on purpose: cache_witness strikes this
+ * Four of the ten are networked on purpose: cache_witness strikes this
  * host's model lane to count the prefix cache, insight_advice strikes the
- * /insight Advice lane to witness it answering at all, and investigation_dig
- * strikes the model on purpose as a readonly workspace digger. The page must
- * say so — it must never let the browser learn to phone home through this
- * book, and never let a judge call hide behind a witness's name.
+ * /insight Advice lane to witness it answering at all, investigation_dig
+ * strikes the model on purpose as a readonly workspace digger, and
+ * runbook_triage strikes the model to answer one on-call alert from repo
+ * facts. The page must say so — it must never let the browser learn to
+ * phone home through this book, and never let a judge call hide behind a
+ * witness's name.
  */
 describe("StateGraph — LangGraph as wired in this repository", () => {
-  it("renders both locales with all eight concept terms and nine graphs", () => {
+  it("renders both locales with all eight concept terms and ten graphs", () => {
     for (const locale of ["zh", "en"] as const) {
       window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
       const { container } = render(
@@ -133,7 +135,25 @@ describe("StateGraph — LangGraph as wired in this repository", () => {
     }
   });
 
-  it("does not let the three networked graphs wear an offline colophon — names them", () => {
+  it("quotes the networked on-call triage verbatim from runbook_triage.json (CONFIRMED)", () => {
+    for (const locale of ["zh", "en"] as const) {
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+      const { container } = render(
+        <I18nProvider>
+          <StateGraph />
+        </I18nProvider>,
+      );
+      const witness = GRAPHS.find((g) => g.id === "runbook_triage");
+      expect(witness?.live).toBeTruthy();
+      expect(witness?.file).toBe("agent/graphs/runbook_triage_graph.py");
+      expect(witness?.chain).toEqual(["intake", "strike", "verdict", "report", "END"]);
+      expect(container.textContent).toContain("runbook_triage_graph.py");
+      expect(container.textContent).toContain("CONFIRMED");
+      cleanup();
+    }
+  });
+
+  it("does not let the four networked graphs wear an offline colophon — names them", () => {
     for (const locale of ["zh", "en"] as const) {
       window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
       const { container } = render(
@@ -144,8 +164,10 @@ describe("StateGraph — LangGraph as wired in this repository", () => {
       expect(container.textContent).toContain("cache_witness");
       expect(container.textContent).toContain("insight_advice");
       expect(container.textContent).toContain("investigation_dig");
+      expect(container.textContent).toContain("runbook_triage");
       expect(container.textContent).not.toContain("all seven run offline");
       expect(container.textContent).not.toContain("all eight run offline");
+      expect(container.textContent).not.toContain("all nine run offline");
       expect(container.textContent).toContain("usage_ledger");
       cleanup();
     }

@@ -66,12 +66,14 @@ export const MANUAL: ManualPackage = {
         zh: [
           "「AI 解读」/insight — admin/operator：让模型读这块面板的匿名聚合数，给出下一件事该做什么；不给判决，不替裁判",
           "「深挖现场」/dig — admin/operator：只读问一个问题，三只调查员（explorer/tester/security）并发敲同一把钥匙；不够就说不够",
+          "「值班手册」/runbook — admin/operator：告警一响，模型先读仓库（告警规则本体 + 最近 20 提交 + 最新 5 份 evidence）；它只回 CONFIRMED 或 INCONCLUSIVE；判词不下场",
           "「工单现场」craft × aizzz — 让 LLM 端对端跑一遍 AI 按需求改代码；验收门按你的要求不放行就是不放行",
           "「缓存账目」/usage — 车道 × 协议双轴拆开：direct 看 prefix 缓存，policy 看语义缓存；未上报的就是「—」，绝不是 0",
         ],
         en: [
           "“AI Advice” /insight — admin/operator: ask the model to read this panel's anonymous aggregates and name the next move. No verdict, never a judge.",
           "“The Dig” /dig — admin/operator: ask one question of three readonly investigators (explorer/tester/security); if the model can't tell, it says INSUFFICIENT rather than a fabricated answer.",
+          "“Runbook” /runbook — admin/operator: the alert fires, the model reads the repo first (the alert's own rule + last 20 commits + the five newest evidence files); it returns only CONFIRMED or INCONCLUSIVE — never a judged triage.",
           "“SpecCraft × aizzz” — the full chain with the model's hand on the key; the acceptance gate is not the model's to open.",
           "“Usage” /usage — the cache account split by lane × protocol: direct (prefix cache) and policy (semantic cache, off by default); an unreported call shows “—”, never a zero.",
         ],

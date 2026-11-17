@@ -222,11 +222,13 @@ _ADMIN_SUB_RESOURCES: dict[str, str] = {
     # in under a cosmetic name; this grants none).
     "insight-advice": "users",
     # The Dig's readonly investigators lane is the same shape: an
-    # admin/operator diagnostic that spends model budget to answer one
-    # question about this repo and writes nothing anywhere. It rides the
-    # `users` cell for the same reason (grant is exactly {admin, operator}) —
-    # deliberately NOT a new action (#dig).
+    # admin/operator diagnostic that spends model budget on anonymous aggregates
+    # or a repo question and writes nothing anywhere. It rides the `users` cell
+    # for the same reason (grant is exactly {admin, operator}).
     "investigation-dig": "users",
+    # Runbook triage is the same shape once again: readonly, model-backed,
+    # admin/operator-only, and it writes nothing.
+    "runbook-triage": "users",
 }
 
 

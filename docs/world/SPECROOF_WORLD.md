@@ -6098,3 +6098,65 @@ UI **576/576** · build ✓ · mvn -o **137/137**（Java 未动）· guide **6/6
 - **没有一魂捏造** —— `PIN_COMMIT = b7a011a` 是因为 `git rev-parse HEAD` 就是这么把 298 测出来钉死的；`192.168.1.5:8000` 是 #1843 真敲过 144/144 的这个本机宿主 lane，不是占位；
 - **没有一处涂绿** —— 判词判词一件没动；Exhibit #4 不挪；Night Watch 依旧 **CRACKED**；D1 ✅ · D2 ⏸ ·「密码-123」否决；
 - 本卷所有内容 **chronicle 增员** · worldbook **卷一百六十四（双语对称）**
+
+## 卷一百六十五 · 告警一响，模型先读仓库
+
+> 告警不是铃，它是一封没署名的信。真正值得的响应，是先把信里的事先对上再说。
+
+### 165.1 /runbook 落册（2026-11-17 · 收下总指令"继续找新任务做；把大模型能力深度用起来"）
+
+本号续接 #1958（修好 26 红门）：
+
+**触发路由**
+- `GET /api/v1/admin/runbook-triage/alerts` — 列出本仓 `infra/prometheus/alerts-slo.yml` 里真的部署着的告警（read-only）；
+- `POST /api/v1/admin/runbook-triage {"alert": "<rule>"}` — 不在 roster 的告警名一律 **422 UNKNOWN-ALERT**（绝不猜你想问的是哪一条）；
+  未经 tenant mode 的调用 → **503 PROVIDER_UNAVAILABLE**（与每条 admin lane 同款行为）。
+
+**事实包限定**——出去之前只有这几类：
+
+| 组件 | 内容 | 出处 |
+|---|---|---|
+| `ALERT RULE` | 告警规则本体的原样投射（expr / for / labels / annotations） | `infra/prometheus/alerts-slo.yml` |
+| `LAST 20 COMMITS` | 最新 20 条 commit：sha7 + 一行标题，无正文 | `git log -n 20` |
+| `NEWEST EVIDENCE FILES` | 最新 5 份 `docs/evidence/*.json` 的**文件名** | 文件系统 |
+| `API SERVICE ENV` | compose production 的 api lane 变量名；值全部脱敏 | `compose.production.yml` |
+
+**模型**：与 `/dig` 同一只 readonly investigator 三兄妹（explorer / tester / security），问具体一条告警的第一反应检查点。
+事实包不够 → **INCONCLUSIVE**（合法答案，永远不被涂绿）；能说出来的就如实说。
+
+**实敲**（本机 / Clash Verge / aizzz/gpt-6.1-terra · low reasoning）：
+
+```
+POST /api/v1/admin/runbook-triage  →  { "alert": "SpecproofApiDown",
+  "verdict": "CONFIRMED", "total_tokens_used": 21,980, ... }
+```
+
+**判词的位置**：CONFIRMED / INCONCLUSIVE 是动词旁证、不是法官席位。court 仍锁，Night Watch 依旧 **CRACKED**；
+`exhibit #4` 不挪 · exhibit_entries **16**。
+
+### 165.2 第十张灯：runbook_triage_graph.py
+
+| # | 名 | 文件 | 性质 |
+|---|---|---|---|
+| 10 | `runbook_triage_graph.py` | `agent/graphs/runbook_triage_graph.py` | networked · admin/operator 专属 |
+| — | `RunbookTriageState(TypedDict, total=False)` | 同上 | 链 intake → strike → verdict → report → END |
+| — | `/runbook` 页面 | `apps/web/src/pages/Runbook.tsx` | admin/operator 门 · 列表→选择→并发→展示 |
+
+/stategraph 从九盏升至十盏（6 离线 + 4 出网：cache_witness · insight_advice · investigation_dig · runbook_triage）。
+`StateGraph.test.tsx 9/9`；UI **580/580**；`scripts/openapi_diff.py --update` 基线重敲（+2 新面）。
+
+### 165.3 纪律
+
+- **court 不动**：`4117d2b0ca5fb23a` LOCKED · Night Watch 依旧 **CRACKED**（exhibit #4 不挪 · exhibit_entries **16**）；
+- **不涂绿**：INCONCLUSIVE 是合法答案；没有理由式的向上抬或向下压；
+- **RBAC**：admin/operator only；「密码-123」仍旧关门；
+- **不下场**：模型没有权力改一条告警、不能动一条阈值、不能把 INCONCLUSIVE 改成 CONFIRMED——它只能说，不能替人做；
+- **不压缩事实包**：四类各自有界（rule ≤1600 B · commits 一行一条 · filenames · redacted env），不碰密钥正文、不碰真实指标值；
+- **账本**：本轮 token 21,980；`usage_ledger` 账本继续按车道×协议拆；
+
+### 165.4 账房
+
+`test_access_role_parity` → **11/11**（SURFACES + NAV_SURFACES 加 runbook；principal.py 之 `classify_request` 也挂 `/api/v1/admin/runbook-triage*` → `users` cell = {admin, operator}）；
+`test_openapi_diff` 绿 · `test_web_client_calls_are_in_the_openapi_baseline` 绿 · UI **580/580** · mvn -o 双 service BUILD SUCCESS（未动）· purity **CLEAR** · Night Watch 依旧 **CRACKED** ·
+`test_verdict_channel_parity` → **14/14**（witness scale += CONFIRMED/INCONCLUSIVE · owners += `api/runbook_triage.py` + `agent/graphs/runbook_triage_graph.py` + `api/routes/admin.py`）；
+chronicle **1756** + 1 · worldbook **卷一百六十五 / 165 卷（双语对称）**

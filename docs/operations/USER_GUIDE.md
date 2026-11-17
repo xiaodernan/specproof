@@ -174,6 +174,7 @@ specproof verify --repo demo/spring-backend --base base --head head-v1 --spec de
 | `/identity` | 团队与权限 | RBAC、访问控制、审计（admin / operator 角色可见，fail-closed） |
 | `/insight` | 洞察舱 | admin / operator 专属仪表盘：合成校准人群 + 本机真实轨迹 + 28 日会话趋势与 7 日预测（r²），以及 6 条引擎规则优化措施（全部明确标注「合成数据」，非真实用户 PII）+ **AI 解读**：admin/operator 可让模型读这块面板的匿名聚合数（allowlist 包、零 PII、失败时如实报错、永远不是判决；「密码-123」永久否决） |
 | `/dig` | 深挖现场 | admin / operator 专属只读调查员：输入一个问题（1–600 字符），三只只读调查员（explorer 读树与计数、tester 读测试样本、security 扫 `.env*` 入口与 gitleaks 形状——绝不读取密钥正文）并发敲 aizzz/gpt-6.1-terra（reasoning low）· 只回两件事：EVIDENCE-GATHERED 或 INSUFFICIENT；任何一方「不够」就原样上报，不涂绿、不猜测、不给判决；「密码-123」照旧进不了这扇门 |
+| `/runbook` | 值班手册 | admin / operator 专属的 on-call 一响。选一条 `infra/prometheus/alerts-slo.yml` 里真在跑的告警（`GET /api/v1/admin/runbook-triage/alerts` 会先把部署着的告警列出来），然后敲 aizzz/gpt-6.1-terra：事实包限死——告警规则本体（原样）+ 最近 20 个提交的一行一条的新鲜证据 + 最新 5 份 `docs/evidence/*.json`（只给文件名）+ compose api 的环境变量脱敏名单。`POST /api/v1/admin/runbook-triage {"alert":"…"}`。只回两件事：**CONFIRMED** 或 **INCONCLUSIVE**；不改判词、不涂绿、不猜根因；「密码-123」照旧进不了这扇门 |
 | `/dossier` | 金案谱 | 111 件入库金案逐一可翻：BLOCKER 22 / MAJOR 51 / NONE 38，每案 Severity、Contract、evidence_type、是否应检出——ground-truth.json 当场读取，不经过演示数据、不经过 LLM，可 git show 对照 |
 | `/mint` | 印记阁 | 只属于「这个浏览器」的印记：巡览六印、快问阶位、十四式手印、最近脚迹；全部读本地 storage（specproof_tour_v1 / drill_v1 / gestures_v1 / onboarding_v1），不上报、不汇总、不联网，读不出就是「未知」不是零 |
 | `/last-call` | 末班车 | 三张独立抽牌：世界书一句抽见 + 金案一次抽见 + 编年史一节抽见——本仓库自己的内容随机出炉，不推荐、不解释、不向任何人献投，每次打开都是新的 |

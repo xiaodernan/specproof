@@ -52,6 +52,7 @@ const Manual = lazy(() => import("./pages/Manual"));
 const Chronicle = lazy(() => import("./pages/Chronicle"));
 const Insight = lazy(() => import("./pages/Insight"));
 const Dig = lazy(() => import("./pages/Dig"));
+const Runbook = lazy(() => import("./pages/Runbook"));
 const Dossier = lazy(() => import("./pages/Dossier"));
 const Mint = lazy(() => import("./pages/Mint"));
 const LastCall = lazy(() => import("./pages/LastCall"));
@@ -115,6 +116,7 @@ export const NAV: NavItem[] = [
   { path: "identity", labelKey: "nav.identity", icon: "team", groupKey: "group.admin", roles: IDENTITY_ROLES },
   { path: "insight", labelKey: "nav.insight", icon: "chart", groupKey: "group.admin", roles: IDENTITY_ROLES },
   { path: "dig", labelKey: "nav.dig", icon: "hammer", groupKey: "group.admin", roles: IDENTITY_ROLES },
+  { path: "runbook", labelKey: "nav.runbook", icon: "hammer", groupKey: "group.admin", roles: IDENTITY_ROLES },
   { path: "billing", labelKey: "nav.billing", icon: "billing", groupKey: "group.admin", roles: BILLING_ROLES },
   { path: "usage", labelKey: "nav.usage", icon: "chart", groupKey: "group.admin" },
   { path: "audit", labelKey: "nav.audit", icon: "health", groupKey: "group.admin", roles: AUDIT_ROLES },
@@ -188,6 +190,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "audit") return <Audit />;
   if (seg[0] === "insight") return <Insight />;
   if (seg[0] === "dig") return <Dig />;
+  if (seg[0] === "runbook") return <Runbook />;
   return <NotFoundPage />;
 }
 

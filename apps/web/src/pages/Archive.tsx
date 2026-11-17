@@ -70,6 +70,7 @@ const CARDS: Card[] = [
   // ── Admin Corridor (RBAC fail-closed) ───────────────
   { icon: "chart", route: "insight", group: "admin", who: "admin", title: { zh: "洞察舱", en: "Insight Deck" }, note: { zh: "admin/operator · 合成标定 + 本机真迹", en: "admin/operator · synthetic + local real" } },
   { icon: "hammer", route: "dig",     group: "admin", who: "admin", title: { zh: "深挖现场", en: "The Dig" },      note: { zh: "admin/operator · 模型进屋读 repo · 只读并行", en: "admin/operator · model enters the repo · readonly parallel" } },
+  { icon: "hammer", route: "runbook", group: "admin", who: "admin", title: { zh: "值班手册", en: "Runbook" },      note: { zh: "admin/operator · 告警一响模型先读仓库 · 只读不涂绿", en: "admin/operator · the alert fires; the model reads the repo first · never painted green" } },
   { icon: "team", route: "identity", group: "admin", who: "admin", title: { zh: "团队与权限", en: "Team & Access" }, note: { zh: "admin/operator · RBAC fail-closed", en: "admin/operator · fail-closed RBAC" } },
 
   // ── Engineer's Loft ────────────────────────────────

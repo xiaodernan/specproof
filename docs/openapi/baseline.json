@@ -37,6 +37,9 @@
       "200",
       "422"
     ],
+    "GET /api/v1/admin/runbook-triage/alerts": [
+      "200"
+    ],
     "GET /api/v1/admin/tenants": [
       "200"
     ],
@@ -162,6 +165,10 @@
       "422"
     ],
     "POST /api/v1/admin/investigation-dig": [
+      "200",
+      "422"
+    ],
+    "POST /api/v1/admin/runbook-triage": [
       "200",
       "422"
     ],

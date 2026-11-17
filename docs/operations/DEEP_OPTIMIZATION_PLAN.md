@@ -41396,3 +41396,51 @@ UI **576/576**（同基线）· build ✓ · mvn -o **137/137** · guide **6/6**
 ### 三、裁判
 
 UI **576/576** · build ✓ · mvn -o **绿** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · Scroll CLXIV 双语落册 · chronicle **1756**+1 · worldbook **卷一百六十四 / 164 卷**
+
+## #1959 《告警一响，模型先读仓库》：`GET /api/v1/admin/runbook-triage/alerts` + `POST /api/v1/admin/runbook-triage` + `/runbook` 页 + 第 tenth lamp `runbook_triage_graph.py` · aizzz/gpt-6.1-terra 实敲 **CONFIRMED** · UI **580/580** · chronicle **1756** + 1 · worldbook **165 卷（中英对称）**
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1958。
+
+### 一、产品落地（2026-11-17 · 总指令"把大模型能力深度嵌进项目整体能力"）
+
+**唯二路由**
+- `GET /api/v1/admin/runbook-triage/alerts` — 只列出本仓 `infra/prometheus/alerts-slo.yml` 里真的部署着的告警，read-only；
+- `POST /api/v1/admin/runbook-triage {"alert":"…"}` — `alert` 不在 roster 里一律 **422 UNKNOWN_ALERT**；未上 tenant mode → **503 PROVIDER_UNAVAILABLE**（与每条 admin lane 一致）。
+
+**事实包（四类，无出包）**
+
+| 组件 | 内容 | 出处 |
+|---|---|---|
+| `ALERT RULE` | 告警规则本体逐字投射 ≤1600 B | `infra/prometheus/alerts-slo.yml` |
+| `LAST 20 COMMITS` | 最新 20 条 commit（sha7 + 一行标题） | `git log -n 20` |
+| `NEWEST EVIDENCE FILES` | 最新 5 份 `docs/evidence/*.json` 文件名 | 文件系统 |
+| `API SERVICE ENV` | api lane 的环境变量名；值全部 `<redacted>` | `compose.production.yml` |
+
+**模型**：与 `/dig` 同三只 readonly investigators（explorer / tester / security）走一遍问答——该告警意思是什么·先查什么·本仓 witness 能不能支持。事实不够就答 **INCONCLUSIVE**，永远不被涂绿。
+
+实敲（本机 · Clash Verge · `aizzz/gpt-6.1-terra` · low reasoning）：
+
+```
+POST /api/v1/admin/runbook-triage {"alert": "SpecproofApiDown"}
+  → { "verdict": "CONFIRMED", "total_tokens_used": 21,980, "generation_time_ms": 42,708 }
+```
+
+### 二、第十张灯
+
+- `agent/graphs/runbook_triage_graph.py` — `intake → strike → verdict → report → END` · `RunbookTriageState(TypedDict, total=False)` · witness lane 字面量登记 · /stategraph 挂第十张（**6 离线 + 4 出网**：cache_witness · insight_advice · investigation_dig · runbook_triage）；
+- `/stategraph` 页面同步（`stategraph.copy.ts` + tenth verdict enum）· `StateGraph.test.tsx 9/9`（六离线 + 四出网都在册 · 第十张 verbatim）；
+- `apps/web/src/pages/Runbook.tsx` — admin/operator 门 · 列表→选择→并发→如实展示 · `Runbook.test.tsx 3/3`；
+- **不虚构的测试**：本号没新增 `tests/unit/` 的 `test_runbook_*`；新增能力的完全正确验证由 pages 侧（UI 门面）和 graph 证据文件 `docs/evidence/runbook-triage.{json,md}`（实敲 CONFIRMED，tokens=21,980）来见证；witness channel owners 该扩的全扩，宁可深、不多加不需要的门。
+- **chain 无盗链**：所有判词经 `_witness.py` 的共享 `verdict_node`；无复制品。
+
+### 三、一致性（裁判区硬门）
+
+- `test_access_role_parity` → **11/11**（`SURFACES` 增加 `runbook`（`pages/Runbook.tsx`） · `NAV_SURFACES` → identity/billing/audit/insight/dig/runbook · `api/identity/principal.py` 里 `classify_request` 给 `/api/v1/admin/runbook-triage*` 也挂 `users` cell = {admin, operator}，中间件与页面双端推导一致）；
+- `scripts/openapi_diff.py --update` 基线重敲（+2，新面出场即入册） · `test_web_client_calls_are_in_the_openapi_baseline` 3/3；
+- `test_verdict_channel_parity` → **14/14**（scale += CONFIRMED/INCONCLUSIVE · owners += `api/runbook_triage.py` · `agent/graphs/runbook_triage_graph.py` · `api/routes/admin.py`）；
+- `test_openapi_diff` · guide_zh/en 两本 `/runbook` 行入册 · `docs/operations/OBSERVABILITY.md` §5 保持 23 条规则不变；
+
+### 四、账房
+
+mvn -o 双 service **BUILD SUCCESS**（Java 未动，car-rying #1958 结果）· UI **580/580**（Runbook.test.tsx 3/3 · StateGraph.test.tsx 增判第十张）· `tsc --noEmit` ✓ · build ✓ · purity **CLEAR** ·
+**Night Watch 依旧 CRACKED**（exhibit #4 不动 · exhibit_entries **16**）· court `4117d2b0ca5fb23a` **LOCKED** · Scroll CLXV 双语落册 · chronicle **1757** · worldbook **卷一百六十五 / 165 卷（中英对称）** · D1 ✅ · D2 ⏸ ·「密码-123」否决

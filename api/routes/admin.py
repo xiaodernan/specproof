@@ -57,6 +57,7 @@ from api.errors import (
     USER_NOT_FOUND,
     VALIDATION_FAILED,
     ApiError,
+    UNKNOWN_ALERT,
 )
 from api.identity.config import (
     auth_enabled,
@@ -768,6 +769,77 @@ async def investigation_dig(
 
     return {
         "question": result["question"],
+        "verdict": result["verdict"],
+        "findings": result.get("findings", []),
+        "agents": result.get("agents", []),
+        "total_tokens_used": result.get("total_tokens_used", 0),
+        "generation_time_ms": result.get("generation_time_ms", 0),
+        "cached": False,
+    }
+
+
+# ── /api/v1/admin/runbook-triage ─────────────────────────────────────────────
+
+@admin_router.get("/runbook-triage/alerts", status_code=200)
+async def runbook_triage_alerts(request: Request) -> dict[str, Any]:
+    """List every alert this deployment actually ships (read-only)."""
+    _require_tenant_mode()
+    _principal(request)
+
+    from api.runbook_triage import alert_rule_names
+    return {"alerts": alert_rule_names()}
+
+
+class RunbookTriageRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    alert: str = Field(..., min_length=1, max_length=80)
+
+
+@admin_router.post("/runbook-triage", status_code=200)
+async def runbook_triage(
+    request: Request, payload: RunbookTriageRequest,
+) -> dict[str, Any]:
+    """The on-call alert just fired; the model triangulates it from the repo.
+
+    Discipline mirrors insight-advice AI 解读: bounded verbatim fact pack
+    (the alert's own rule block from this repo's deployed rules, the last 20
+    commits touching this lane, the five newest evidence files, redacted
+    compose api environment); no network beyond the local model proxy; no
+    disk writes; tenant mode + admin/operator RBAC; 503 on an unavailable
+    model rather than a fabricated triage; INCONCLUSIVE is a first-class
+    verdict and never silently upgraded.
+    """
+    _require_tenant_mode()
+    principal = _principal(request)
+    _assert_role(principal, frozenset({"admin", "operator"}))
+
+    from api.runbook_triage import (
+        RunbookTriageUnavailable,
+        alert_rule_names,
+        generate_triage,
+    )
+
+    if payload.alert not in alert_rule_names():
+        raise ApiError(
+            status_code=422,
+            code=UNKNOWN_ALERT,
+            detail=(
+                f"{payload.alert!r} is not an alert deployed in "
+                "infra/prometheus/alerts-slo.yml; refusing to guess at what you "
+                "meant — the rule name must exist verbatim."
+            ),
+        )
+
+    try:
+        result = await generate_triage(payload.alert)
+    except RunbookTriageUnavailable as exc:
+        raise ApiError(
+            status_code=503, code=PROVIDER_UNAVAILABLE, detail=str(exc),
+        ) from exc
+
+    return {
+        "alert": result["alert"],
         "verdict": result["verdict"],
         "findings": result.get("findings", []),
         "agents": result.get("agents", []),

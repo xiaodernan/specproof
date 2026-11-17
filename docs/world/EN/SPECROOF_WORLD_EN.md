@@ -5998,3 +5998,60 @@ No red was "the feature was disproven"; every one was a trailing edge from the p
 - **No ruler was narrowed** — every widening (`_SELF_TARGET_HOSTS`, the DNS-prose carve-out) was declared for a real, live lane with live evidence (`144/144` on this host, #1843); every narrowing (`float_env` refusal, re-pinned census, stricter RBAC) was a tightening;
 - **Nothing is fabricated** — the pin commit is what `git rev-parse HEAD` said; the carved scrape target is the one this machine actually struck live;
 - **Nothing was painted green** — Exhibit #4 stayed unmoved, Night Watch stayed CRACKED, court stayed `LOCKED`; chronicle **1756+1** · worldbook **Scroll CLXIV / 164 卷（双语对称）**
+
+## Scroll CLXV · The alert fires; the model reads the repo first
+
+> An alarm is not a bell — it is a letter nobody signed. The honest response is to match the facts in the letter before answering.
+
+### 165.1 /runbook on file (2026-11-17, per the standing order to keep going deeper with the model)
+
+Follow-up to #1958 (every red door re-struck). This is the deep-integration lane applied to operations:
+
+**Routes**
+- `GET /api/v1/admin/runbook-triage/alerts` — lists every alert actually deployed in `infra/prometheus/alerts-slo.yml` (read-only)
+- `POST /api/v1/admin/runbook-triage {"alert": "<rule>"}` — an unknown rule name → **422 UNKNOWN-ALERT** (refuse to guess); anything without tenant mode → **503 PROVIDER_UNAVAILABLE** (same as every other admin lane)
+
+**The facts pack** — nothing else leaves this box:
+
+| piece | what it is | source |
+|---|---|---|
+| `ALERT RULE` | the rule block verbatim (expr / for / labels / annotations) | `infra/prometheus/alerts-slo.yml` |
+| `LAST 20 COMMITS` | newest 20 one-line commit records (`sha7` + subject) | `git log -n 20` |
+| `NEWEST EVIDENCE FILES` | the newest five `docs/evidence/*.json` **filenames** | filesystem |
+| `API SERVICE ENV` | the api lane's variable names from compose — values redacted | `compose.production.yml` |
+
+**The model**: the same three readonly investigators (`explorer`, `tester`, `security`) ask one focused question — what this alert means, what to check first, whether this repo's own witnesses sustain the reading. If the facts can't carry a claim, it answers **INCONCLUSIVE** — and never upgrades itself.
+
+**Live struck** (this host · Clash Verge · `aizzz/gpt-6.1-terra` · low reasoning):
+
+```
+POST /api/v1/admin/runbook-triage  →  { "alert": "SpecproofApiDown",
+  "verdict": "CONFIRMED", "total_tokens_used": 21,980, ... }
+```
+
+The answer was true — the alert means `up{job="api"} == 0` for one minute — and the investigators said plainly which things the repo supports and which it does not (nothing there names the root cause; the fact pack does not carry the live target list, scrape error, or service logs, so none was invented).
+
+### 165.2 The tenth lamp: runbook_triage_graph.py
+
+| # | name | file | role |
+|---|---|---|---|
+| 10 | `runbook_triage_graph.py` | `agent/graphs/runbook_triage_graph.py` | networked · admin/operator only |
+| — | `RunbookTriageState(TypedDict, total=False)` | same | chain `intake → strike → verdict → report → END` |
+| — | `/runbook` page | `apps/web/src/pages/Runbook.tsx` | admin/operator only · list → select → ask → show |
+
+The stategraph family goes from nine to ten lamps (6 offline + 4 networked). On this host: **StateGraph.test.tsx 9/9**; UI **580/580**; `scripts/openapi_diff.py --update` baseline re-struck (+2 new surfaces: GET alerts + POST triage).
+
+### 165.3 Discipline
+
+- court `4117d2b0ca5fb23a` **LOCKED** · Night Watch still **CRACKED** (Exhibit #4 unmoved · entries **16**)
+- **no jade paint on triage answers** — INCONCLUSIVE is a legal answer; it is never upgraded;
+- **RBAC**: admin/operator only; the `password-123` route stays closed;
+- **the model never acts** — it cannot edit a rule, move a threshold, or resolve the alert; it says what it can and no more;
+- **facts stay bounded** — the rule, twenty commits, five filenames, a redacted env; never the content of any secret or metric payload;
+- **the ledger counts** — **21,980** tokens this strike; the lane follows the lane × protocol accounting;
+
+### 165.4 The ledger
+
+`test_access_role_parity` → **11/11** (SURFACES + NAV_SURFACES gained `runbook`; `classify_request` now maps `/api/v1/admin/runbook-triage*` onto the `users` cell → `{admin, operator}`);
+`test_openapi_diff` green · `test_web_client_calls_are_in_the_openapi_baseline` green · UI **580/580** · `mvn -o` both services **BUILD SUCCESS** (Java untouched) · purity **CLEAR** · Night Watch still **CRACKED** ·
+`test_verdict_channel_parity` → **14/14** (scale += CONFIRMED / INCONCLUSIVE · owners += `api/runbook_triage.py`, `agent/graphs/runbook_triage_graph.py`, `api/routes/admin.py`) · chronicle **1756** + 1 · worldbook **Scroll CLXV / 165 scrolls (zh+en symmetric)**

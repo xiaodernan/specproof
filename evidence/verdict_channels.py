@@ -432,6 +432,7 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             "agent/graphs/night_watch_graph.py",
             "agent/graphs/purity_graph.py",
             "agent/graphs/recall_graph.py",
+            "agent/graphs/runbook_triage_graph.py",
             "agent/graphs/usage_ledger_graph.py",
             # the audit roll's plumbing: the verdicts ride in as expressions
             # opaque to the scanner
@@ -450,6 +451,7 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             # INSUFFICIENT live in the same lexicon family
             "craft/investigators.py",
             "api/investigation_dig.py",
+            "api/runbook_triage.py",
             "api/routes/admin.py",
         ),
         scale=frozenset({
@@ -457,6 +459,7 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             "EVIDENCE-MISSING", "MISSING-QUERY", "ASKED",
             "ANSWERED", "UNAVAILABLE",
             "EVIDENCE-GATHERED", "INSUFFICIENT",
+            "CONFIRMED", "INCONCLUSIVE",
             "unknown",
             # build_roadmap_live.py:29 — a placeholder rendered by the roadmap
             # build when a date cannot be determined; the `?` is the page's own
@@ -477,6 +480,7 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             "agent/graphs/night_watch_graph.py",
             "agent/graphs/purity_graph.py",
             "agent/graphs/recall_graph.py",
+            "agent/graphs/runbook_triage_graph.py",
             "agent/graphs/usage_ledger_graph.py",
             "scripts/audit_court_lock.py",
             "scripts/audit_evidence.py",
@@ -491,6 +495,7 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             "scripts/stress_smoke.py",
             "craft/investigators.py",
             "api/investigation_dig.py",
+            "api/runbook_triage.py",
             "api/routes/admin.py",
         ),
         witnesses={
