@@ -6,7 +6,7 @@ export function ErrorBox(props: { error: Error | string | null }): JSX.Element |
   const text = typeof props.error === "string" ? props.error : props.error.message;
   return (
     <div className="errorbox" data-testid="errorbox" role="alert">
-      {(storedLocale() === "zh" ? "错误 ERROR · " : "ERROR · ") + text}
+      {(storedLocale() === "zh" ? "错误 · " : "ERROR · ") + text}
     </div>
   );
 }

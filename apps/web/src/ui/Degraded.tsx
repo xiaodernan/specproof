@@ -7,7 +7,7 @@ export function Degraded(props: { reasons: string[] }): JSX.Element | null {
   if (!props.reasons || props.reasons.length === 0) return null;
   return (
     <div className="degraded">
-      <strong>{storedLocale() === "zh" ? "降级 DEGRADED" : "DEGRADED"}</strong>
+      <strong>{storedLocale() === "zh" ? "降级" : "DEGRADED"}</strong>
       <ul>
         {props.reasons.map((r, i) => (
           <li key={i} title={r}>{describeDegradedReason(r)}</li>

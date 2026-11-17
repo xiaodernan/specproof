@@ -32,6 +32,6 @@ describe("ErrorBoundary", () => {
     );
     expect(screen.getByTestId("error-boundary")).toBeTruthy();
     expect(screen.getByText(/kaboom-fixture/)).toBeTruthy();
-    expect(screen.getByText(/错误 ERROR/)).toBeTruthy();
+    expect(screen.getByText(/错误 · 页面渲染异常/)).toBeTruthy();
   });
 });

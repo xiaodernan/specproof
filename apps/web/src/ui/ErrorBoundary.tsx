@@ -26,7 +26,9 @@ export class ErrorBoundary extends Component<
     if (this.state.error) {
       return (
         <div className="errorbox" data-testid="error-boundary" role="alert">
-          {(storedLocale() === "zh" ? "错误 ERROR · 页面渲染异常，已降级（error boundary）: " : "ERROR · render boundary caught: ") +
+          {(storedLocale() === "zh"
+            ? "错误 · 页面渲染异常，已降级（错误边界）： "
+            : "ERROR · render boundary caught: ") +
             (this.state.error.message || String(this.state.error))}
           <div style={{ marginTop: 8 }}>
             <a className="btn btn-ghost btn-sm" href="#/dashboard">

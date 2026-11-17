@@ -287,14 +287,14 @@ export default function Usage() {
           <Panel title={locale === "zh" ? "车道 × 协议 · 同口径缓存账" : "Lane × protocol · same cache account"}>
             <div className="usage-dim-pair">
               <Table<DimRow>
-                columns={DIM_COLUMNS(locale === "zh", "车道 lane", "Lane", "lane")}
+                columns={DIM_COLUMNS(locale === "zh", "车道", "Lane", "lane")}
                 rows={data.by_lane ?? []}
                 rowKey={(r) => String(r.lane)}
                 emptyTitle={locale === "zh" ? "暂无车道记录" : "No lane records yet"}
                 emptyDescription={t("usage.trendEmpty")}
               />
               <Table<DimRow>
-                columns={DIM_COLUMNS(locale === "zh", "协议 protocol", "Protocol", "protocol")}
+                columns={DIM_COLUMNS(locale === "zh", "协议", "Protocol", "protocol")}
                 rows={data.by_protocol ?? []}
                 rowKey={(r) => String(r.protocol)}
                 emptyTitle={locale === "zh" ? "暂无协议记录" : "No protocol records yet"}
