@@ -60,6 +60,12 @@ EXEMPT: dict[str, str] = {
         "third-party dataset fixture: `green`/`progress` are the upstream task "
         "data this generator mirrors, written into generated JSON, never read "
         "back as a product verdict",
+    "scripts/build_crewcard_markdown.py":
+        "display-side passthrough: the crewcard markdown table borrows the latest "
+        "exhibit's verdict word for a human reading one GitHub-rendered card; "
+        "its `—` default is a gap glyph, not a vocabulary word any consumer "
+        "parses as a verdict, and the card is regenerated wholesale on every "
+        "build",
     "scripts/test_c6_junit_diff.py":
         "self-contained demo script: its report strings are prose "
         "(\"REGRESSION DETECTED\", \"COMPLIANT (both pass)\") for a human reading "

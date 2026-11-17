@@ -10,14 +10,14 @@ import StateGraph from "../StateGraph";
  * a concept note about LangGraph as used here, or a byte visible in the same
  * repo (file names, state fields, verdict lexicon).
  *
- * Two of the seven are networked on purpose: cache_witness strikes this
+ * Two of the eight are networked on purpose: cache_witness strikes this
  * host's model lane to count the prefix cache, and insight_advice strikes the
  * /insight Advice lane to witness it answering at all. The page must say so —
  * it must never let the browser learn to phone home through this book, and
  * never let a judge call hide behind a witness's name.
  */
 describe("StateGraph — LangGraph as wired in this repository", () => {
-  it("renders both locales with all eight concept terms and seven graphs", () => {
+  it("renders both locales with all eight concept terms and eight graphs", () => {
     for (const locale of ["zh", "en"] as const) {
       window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
       const { container } = render(
@@ -94,6 +94,26 @@ describe("StateGraph — LangGraph as wired in this repository", () => {
     }
   });
 
+  it("quotes the offline ledger witness verbatim from usage_ledger_witness.json (ANSWERED · 84 rows)", () => {
+    for (const locale of ["zh", "en"] as const) {
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+      const { container } = render(
+        <I18nProvider>
+          <StateGraph />
+        </I18nProvider>,
+      );
+      const witness = GRAPHS.find((g) => g.id === "usage_ledger");
+      expect(witness?.live).toBeTruthy();
+      expect(witness?.file).toBe("agent/graphs/usage_ledger_graph.py");
+      expect(witness?.chain).toEqual(["intake", "strike", "verdict", "report", "END"]);
+      expect(witness?.live).toBeTruthy();
+      expect(container.textContent).toContain("usage_ledger_graph.py");
+      expect(container.textContent).toContain("ANSWERED");
+      expect(container.textContent).toContain("84");
+      cleanup();
+    }
+  });
+
   it("does not let the two networked graphs wear an offline colophon — names both", () => {
     for (const locale of ["zh", "en"] as const) {
       window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
@@ -105,6 +125,8 @@ describe("StateGraph — LangGraph as wired in this repository", () => {
       expect(container.textContent).toContain("cache_witness");
       expect(container.textContent).toContain("insight_advice");
       expect(container.textContent).not.toContain("all seven run offline");
+      expect(container.textContent).not.toContain("all eight run offline");
+      expect(container.textContent).toContain("usage_ledger");
       cleanup();
     }
   });

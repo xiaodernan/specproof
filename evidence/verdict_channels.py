@@ -409,6 +409,91 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             "produce is the same lie the module exists to avoid."
         ),
     ),
+    # ── the witness channel: the graphs and the audit roll ───────────────────
+    # These files write `verdict` in the state-graph's own language — OK /
+    # CRACKED / REGRESSION / CLEAR / HIT / MISS / ANSWERED / UNAVAILABLE —
+    # words the machine uses to report its own night's watch, never a job's
+    # accept verdict and never a certificate's signature status. They are
+    # admitted here, not as a verdict of the product's promises but as the
+    # bookkeeper for the watch: exhibit evidence for /exhibits, Night Watch
+    # for /night-watch, and the seven living StateGraphs. All opaque writes
+    # (conditional expressions — the scanner names their carriers, never
+    # their values) are declared, never folded into another channel's words.
+    "witness": VerdictChannel(
+        key="witness",
+        field="verdict (night-watch / witness graphs and the audit roll's evidence files)",
+        owners=(
+            # the seven living StateGraphs
+            "agent/graphs/auditor_graph.py",
+            "agent/graphs/cache_witness_graph.py",
+            "agent/graphs/evidence_graph.py",
+            "agent/graphs/insight_advice_graph.py",
+            "agent/graphs/night_watch_graph.py",
+            "agent/graphs/purity_graph.py",
+            "agent/graphs/recall_graph.py",
+            "agent/graphs/usage_ledger_graph.py",
+            # the audit roll's plumbing: verdicts ride in as expressions opaque
+            # to the scanner
+            "scripts/audit_court_lock.py",
+            "scripts/audit_evidence.py",
+            "scripts/audit_portfolio.py",
+            "scripts/audit_scratch_residue.py",
+            "scripts/build_evidence.py",
+            "scripts/build_roadmap_live.py",
+            "scripts/craft_llm_strike.py",
+            "scripts/emit_audit_notice.py",
+            "scripts/llm_locale_consistency.py",
+            "scripts/monthly_census.py",
+            "scripts/stress_smoke.py",
+        ),
+        scale=frozenset({
+            "OK", "REGRESSION", "NO-DELTA", "CRACKED", "CLEAR",
+            "EVIDENCE-MISSING", "MISSING-QUERY", "ASKED",
+            "ANSWERED", "UNAVAILABLE",
+            "unknown",
+            # build_roadmap_live.py:29 — a placeholder rendered by the roadmap
+            # build when a date cannot be determined; the `?` is the page's own
+            # deferral, not a judgement
+            "?",
+            # audit_scratch_residue.py:59 — a witness literal embedded in the
+            # scratch-residue evidence roll: a literal INSTRUCTION to the human
+            # reader, recorded here because the scanner sees it, not because it
+            # means anything about the verdict's domain
+            "intentional evaluation evidence — do not delete",
+        }),
+        opaque=(
+            "agent/graphs/auditor_graph.py",
+            "agent/graphs/cache_witness_graph.py",
+            "agent/graphs/evidence_graph.py",
+            "agent/graphs/insight_advice_graph.py",
+            "agent/graphs/night_watch_graph.py",
+            "agent/graphs/purity_graph.py",
+            "agent/graphs/recall_graph.py",
+            "agent/graphs/usage_ledger_graph.py",
+            "scripts/audit_court_lock.py",
+            "scripts/audit_evidence.py",
+            "scripts/audit_portfolio.py",
+            "scripts/audit_scratch_residue.py",
+            "scripts/build_evidence.py",
+            "scripts/build_roadmap_live.py",
+            "scripts/craft_llm_strike.py",
+            "scripts/emit_audit_notice.py",
+            "scripts/llm_locale_consistency.py",
+            "scripts/monthly_census.py",
+            "scripts/stress_smoke.py",
+        ),
+        note=(
+            "The witness channel carries the StateGraphs' own verdicts — the\n"
+            "watch that measures the world, not the world's product verdict.\n"
+            "Words here describe evidence (REGRESSION/NO-DELTA/CRACKED/CLEAR),\n"
+            "retrieval (ASKED/MISSING-QUERY/EVIDENCE-MISSING), cache-sighting\n"
+            "token-budget witness output lives on the HIT/MISS axis and stays\n"
+            "inside cache_witness_graph.py's opaque rows — never folded into\n"
+            "the accept lane. Court stays on its own channel; this channel is\n"
+            "for everything the repository uses to report ON itself."
+        ),
+    ),
+
     # ── channels whose authority lives elsewhere ────────────────────────────
     "feedback": VerdictChannel(
         key="feedback",

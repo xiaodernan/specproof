@@ -8,7 +8,7 @@ import "../styles/stategraph.css";
 /**
  * 状态图谱 · The State Graphs — a field guide to LangGraph's StateGraph as
  * actually wired inside this repository. Nothing here is tutorial prose from
- * the internet; every concept note maps onto one of the seven graphs in
+ * the internet; every concept note maps onto one of the eight graphs in
  * `agent/graphs/`.
  *
  * The diagrams are boxes-and-arrows because the browser never runs Python.
@@ -23,7 +23,7 @@ export default function StateGraph() {
     <div className="sg-page">
       <div className="page-head">
         <h1>{zh ? "状态图谱" : "The State Graphs"} <span className="sg-en">{zh ? "STATEGRAPHS · LangGraph 现役" : "LANGGRAPH · IN THE ROOM"}</span></h1>
-        <div className="page-sub">{zh ? "这本仓库里正在跑的七张 StateGraph——以及一张读图说明书。不是教程，是验收图纸。" : "The seven StateGraphs actually wired inside this repository — plus the legend this book reads them by. Not a tutorial — an acceptance drawing."}</div>
+        <div className="page-sub">{zh ? "这本仓库里正在跑的八张 StateGraph——以及一张读图说明书。不是教程，是验收图纸。" : "The eight StateGraphs actually wired inside this repository — plus the legend this book reads them by. Not a tutorial — an acceptance drawing."}</div>
       </div>
       <ChainBanner />
 
@@ -40,7 +40,7 @@ export default function StateGraph() {
       </section>
 
       <section className="sg-section">
-        <h2>{zh ? "七张活着的图" : "The seven living graphs"}</h2>
+        <h2>{zh ? "八张活着的图" : "The eight living graphs"}</h2>
         <ol className="sg-graphs">
           {GRAPHS.map((g) => (
             <li key={g.id} className="sg-graph" id={"sg-graph-" + g.id}>
@@ -71,8 +71,8 @@ export default function StateGraph() {
         <h2>{zh ? "卷末语" : "Colophon"}</h2>
         <p>
           {zh
-            ? "这这七张图里五张离线运行；cache_witness 与 insight_advice 按设计出网——前者量本机模型车道前缀缓存，后者盯洞察舱模型车道的公共健康；没有一个判词被涂成绿色。exhibit #4 的 REGRESSION 留在册子里，Night Watch 今天还是 CRACKED。浏览器永不运行 Python——这也是为什么本页用盒子和箭头而不是真实 trace。"
-            : "Five of the seven graphs run offline. cache_witness and insight_advice are networked by design — this host's model lane, watched twice on purpose — to strike the prefix cache and to witness the deck's lane. No verdict is painted jade. Exhibit #4's REGRESSION is still on file, and tonight's Watch is CRACKED. The browser never runs Python — which is why this page draws boxes and arrows instead of live traces."}
+            ? "这八张图里六张离线运行；cache_witness 与 insight_advice 按设计出网——前者量本机模型车道前缀缓存，后者盯洞察舱模型车道的公共健康；usage_ledger 只读本机账本、不敲车道；没有一个判词被涂成绿色。exhibit #4 的 REGRESSION 留在册子里，Night Watch 今天还是 CRACKED。浏览器永不运行 Python——这也是为什么本页用盒子和箭头而不是真实 trace。"
+            : "Six of the eight graphs run offline. cache_witness and insight_advice are networked by design — this host's model lane, watched twice on purpose — to strike the prefix cache and to witness the deck's lane; usage_ledger reads the local ledger only and never strikes a lane. No verdict is painted jade. Exhibit #4's REGRESSION is still on file, and tonight's Watch is CRACKED. The browser never runs Python — which is why this page draws boxes and arrows instead of live traces."}
         </p>
         <p className="sg-colophon muted">
           {zh

@@ -130,6 +130,7 @@ Craft（AI 开发）的**独立验收摘要**现在也显示在执行结果页�
 - **四门全绿了**（#1947）：theme-blind 字色总门 **593→0**——593 条书房漆面**逐字节登记**（463 枚 `--pigment-*` 新 token：一枚漆面·一个 token·值一字不挪；13 枚同值 token 复用，一律不复用 `--print-*` lane）· `test_no_painted_color_bypasses_the_theme_tokens` **3/3 绿** · 设计系统家族至此**全部落窗**（4 px 网格 601→0 · 圆角 ladder 101→0 · 字阶 scale 406→0 · 阴影 71→0 · 主题盲字色 1,315→0）· Atlas 门牌 `EST. Nº 130` · `lightningcss.transform` **42/42 OK** · UI **571/571** · build ✓ · mvn -o **137/137** · Scroll CLIII 双语落册。
 - **同一本账，两枚量杯**（#1948）：缓存账按**车道 × 协议**双轴拆开（`by_lane` direct **0.5418** / policy **0.0** · `by_protocol` 现网 `(unreported)` 归注）· 账本行+138,000 缓存 token 有据可考 · `Usage` 页面新增「车道 × 协议 · 同口径缓存账」双表面板 · 3 项 honesty 测试 **20/20 绿** · court 依旧 LOCKED 不缓存 · Scroll CLIV 双语落册。
 - **粗筛的尺子，量到三成**（#1949）：`scripts/i18n_audit.py` 升级——新增 bucket C（`L()`/`zh ?`/`{ zh: }`/`…_ZH` 同行成对双语 **1,172** 条归位）· bucket A **366→196→138** · 只降噪不放行 · audit 永远 exit 0、不进 CI · Scroll CLV 双语落册。
+- **第八张图 · #1950**：`usage_ledger_graph.py` 落册（离线读本机 token 级账本 · intake → strike → verdict → report → END）· /stategraph **八盏灯**（6 离线 + 2 出网）· 现场判词 **ANSWERED**（window 24h · 38 calls · 6 errors · hit_rate 0.430 basis 32 · rows_read 84）· StateGraph.test.tsx **7/7** · UI **572/572** · Scroll CLVI 双语落册。
 
 
 - **洞察 AI 解读**（#1936）：/insight 面板新增「AI 解读 · 数据怎么说下一件事」——admin/operator 可撬动 aizzz/gpt-6.1-terra 读这块面板的匿名聚合数；首敲 2026-11-16（packet 730 B · latency 17,032 ms · 模型原样引用 201→113 漏斗断崖、84→41 首次→验讫，并自发说「本包数据不足以判断不同入口的表现」）· RBAC 不动（admin/operator ·「密码-123」否决）· 失败=一处 503 如实报错，绝不编造 · tests/unit **10/10** · UI **570/570** · Scroll CXLIV 双语落册。

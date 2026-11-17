@@ -2,10 +2,11 @@ import type { Locale } from "../i18n/strings";
 import nightWatch from "./night_watch.json";
 import cacheWitness from "./cache_witness.json";
 import adviceWitness from "./insight_advice_witness.json";
+import usageLedger from "./usage_ledger_witness.json";
 
 /**
  * 状态图谱 · The State Graphs — everything this page says is either
- * copied verbatim from the seven graphs in `agent/graphs/`, or is a concept
+ * copied verbatim from the eight graphs in `agent/graphs/`, or is a concept
  * note about LangGraph's StateGraph as used by this repository.
  *
  * No LLM writes anything here; no network is involved; the browser re-draws
@@ -55,24 +56,24 @@ export const CONCEPTS: Concept[] = [
     id: "reducer",
     term: { zh: "Reducer / channel 通道", en: "Reducer / channel" },
     gloss: {
-      zh: "LangGraph 的每个字段都是一条通道；append 是 reducer（比如 add_messages）。这本书的七个图全是 overwrite 通道——没有对话，不需要累积。",
-      en: "Every field in LangGraph is a channel; append is a reducer (add_messages). All seven graphs in this book use overwrite channels — there is no dialogue to accumulate.",
+      zh: "LangGraph 的每个字段都是一条通道；append 是 reducer（比如 add_messages）。这本书的八个图全是 overwrite 通道——没有对话，不需要累积。",
+      en: "Every field in LangGraph is a channel; append is a reducer (add_messages). All eight graphs in this book use overwrite channels — there is no dialogue to accumulate.",
     },
   },
   {
     id: "entry",
     term: { zh: "Entry point 入口", en: "Entry point" },
     gloss: {
-      zh: "graph.set_entry_point(\"intake\") ——没有 set_entry_point 的图画得出来但跑不起来。七个图的入口全部是 intake / 第一个真相采集节点。",
-      en: "graph.set_entry_point(\"intake\") — a graph without an entry point draws fine and runs never. All seven graphs enter at intake / the first truth-gathering node.",
+      zh: "graph.set_entry_point(\"intake\") ——没有 set_entry_point 的图画得出来但跑不起来。八个图的入口全部是 intake / 第一个真相采集节点。",
+      en: "graph.set_entry_point(\"intake\") — a graph without an entry point draws fine and runs never. All eight graphs enter at intake / the first truth-gathering node.",
     },
   },
   {
     id: "end",
     term: { zh: "END 终态哨兵", en: "END" },
     gloss: {
-      zh: "哨兵 END 只做一件事：宣告这一轮结束。它不判断好坏——好坏看 verdict。七张图都以 END 收尾，这是 LangGraph 唯一的硬规则。",
-      en: "The sentinel END does one thing: declare this round over. It passes no judgement — the verdict does that. All seven graphs end there; it is the one hard rule LangGraph gives you.",
+      zh: "哨兵 END 只做一件事：宣告这一轮结束。它不判断好坏——好坏看 verdict。八张图都以 END 收尾，这是 LangGraph 唯一的硬规则。",
+      en: "The sentinel END does one thing: declare this round over. It passes no judgement — the verdict does that. All eight graphs end there; it is the one hard rule LangGraph gives you.",
     },
   },
   {
@@ -125,9 +126,24 @@ const AW = adviceWitness as unknown as {
   advice_chars?: number;
   verdict?: string;
 };
+const UL = usageLedger as unknown as {
+  calls?: number;
+  errors?: number;
+  error_rate?: number | null;
+  hit_rate?: number | null;
+  hit_basis_calls?: number;
+  streamed_ratio?: number | null;
+  rows_read?: number;
+  verdict?: string;
+};
 const liveInsightAdvice = {
   zh: `packet ${AW.packet_chars ?? "?"} B · fingerprint ${AW.fingerprint ?? "?"} · ${AW.model ?? "?"} · ${AW.latency_ms ?? "?"} ms · advice ${AW.advice_chars ?? "?"} 字 → ${AW.verdict ?? "?"}`,
   en: `packet ${AW.packet_chars ?? "?"} B · fingerprint ${AW.fingerprint ?? "?"} · ${AW.model ?? "?"} · ${AW.latency_ms ?? "?"} ms · advice ${AW.advice_chars ?? "?"} chars → ${AW.verdict ?? "?"}`,
+};
+
+const liveUsageLedger = {
+  zh: `本窗 ${UL.calls ?? "?"} 次调用 · ${UL.errors ?? "?"} 次错误 · 流式占比 ${UL.streamed_ratio ?? "?"} · hit_rate ${typeof UL.hit_rate === "number" ? (UL.hit_rate * 100).toFixed(1) + "%" : "?"}（basis ${UL.hit_basis_calls ?? "?"}）· 门牌 ${UL.verdict ?? "?"}（全量行数 ${UL.rows_read ?? "?"})`,
+  en: `${UL.calls ?? "?"} calls in the window · ${UL.errors ?? "?"} errors · streamed share ${UL.streamed_ratio ?? "?"} · hit_rate ${typeof UL.hit_rate === "number" ? (UL.hit_rate * 100).toFixed(1) + "%" : "?"} (basis ${UL.hit_basis_calls ?? "?"}) · verdict ${UL.verdict ?? "?"} (rows read ${UL.rows_read ?? "?"})`,
 };
 
 const liveNightWatch = {
@@ -226,5 +242,18 @@ export const GRAPHS: GraphCard[] = [
     },
     fields: ["packet_chars", "fingerprint", "model", "latency_ms", "prompt_tokens", "completion_tokens", "reasoning_tokens", "cached_tokens", "advice_chars", "verdict"],
     live: liveInsightAdvice,
+  },
+  {
+    id: "usage_ledger",
+    file: "agent/graphs/usage_ledger_graph.py",
+    stateName: "UsageLedgerState(TypedDict, total=False)",
+    chain: ["intake", "strike", "verdict", "report", "END"],
+    verdicts: { zh: "ANSWERED / UNAVAILABLE", en: "ANSWERED / UNAVAILABLE" },
+    role: {
+      zh: "读账自陈——离线读本机 token 级用量账本（.local/llm_usage.jsonl），同一套 Usage 面板的诚实口径：车道×协议两簿、错误计数、缓存基数（basis）、占比——报的是它读到的，不是它想明白的；读不到就是 UNAVAILABLE。永不敲模型、永不挑阈值、永不碰 court。",
+      en: "The ledger reports itself — read the local token-level ledger with the same honest accounting the Usage panel renders (by_lane × by_protocol, error counting, hit-rate basis, ratios): it reports what it read, never what it intuited; unreadable means UNAVAILABLE. Never strikes the model, never moves a threshold, never touches court.",
+    },
+    fields: ["window_hours", "started_utc", "summary", "rows_read", "verdict", "report_path"],
+    live: liveUsageLedger,
   },
 ];

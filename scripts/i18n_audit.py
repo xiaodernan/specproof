@@ -88,6 +88,43 @@ def classify(literal: str) -> str:
     return "A"
 
 
+def _open_call_spans(text: str, callee: str) -> list[tuple[int, int]]:
+    """Every (start, end) span of an `L(` call, with strings and parens inside
+    strings respected. A literal located inside such a span is the zh branch of
+    a coordinated bilingual call, not an untranslated leftover."""
+    spans: list[tuple[int, int]] = []
+    marker = callee + "("
+    i = 0
+    while True:
+        start = text.find(marker, i)
+        if start == -1:
+            break
+        # must not be a suffix of an identifier (fooL(bar) != L(bar))
+        if start > 0 and (text[start - 1].isalnum() or text[start - 1] == "_"):
+            i = start + 1
+            continue
+        depth = 1
+        j = start + len(marker)
+        in_str = None
+        while j < len(text) and depth:
+            ch = text[j]
+            if in_str:
+                if ch == in_str:
+                    in_str = None
+                elif ch == "\\":
+                    j += 1
+            elif ch in '"\'`':
+                in_str = ch
+            elif ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+            j += 1
+        spans.append((start, j))
+        i = j
+    return spans
+
+
 def main() -> int:
     if not REPO.is_dir():
         print(f"repo not found at {REPO}", file=sys.stderr)
@@ -108,13 +145,21 @@ def main() -> int:
         except OSError:
             continue
         lines = text.splitlines()
+        l_spans = _open_call_spans(text, "L")
         for m in LITERAL.finditer(text):
             lit = m.group(0)
             if not CJK.search(lit):
                 continue
             line_no = text.count("\n", 0, m.start())
             on_line = lines[line_no] if line_no < len(lines) else ""
-            if COORDINATED.search(on_line):
+            # marker on the same line, or on either of the two lines above it
+            # (the `{zh\n  ? "literal" ...}` expansion)
+            context_lines = "\n".join(
+                lines[max(0, line_no - k)] for k in (2, 1, 0)
+            )
+            if COORDINATED.search(on_line) or COORDINATED.search(context_lines) or any(
+                s <= m.start() < e for s, e in l_spans
+            ):
                 c_total += 1
                 continue
             bucket = classify(lit)
