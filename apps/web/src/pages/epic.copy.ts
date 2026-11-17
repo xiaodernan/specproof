@@ -297,8 +297,8 @@ export const SCROLLS_ZH: Scroll[] = [
     era: "2026-11 · 至今",
     verses: [
       "一个屏幕说两种话，不是双语——是噪音；中文模式全中文，英文模式全英文。",
-      "状态图不是装饰——它是契约：七张图在线跑，判词 fail-closed；Night Watch 永远 CRACKED。",
-      "铁证之书的每一页都能被敲开：/errata 是十六条亲笔更正，/stategraph 是八词说明书和七张活着的图。",
+      "状态图不是装饰——它是契约：八张图在线跑，判词 fail-closed；Night Watch 永远 CRACKED。",
+      "铁证之书的每一页都能被敲开：/errata 是十六条亲笔更正，/stategraph 是八词说明书和八张活着的图。",
     ],
     details: [
       { label: "纯度闸已上 · i18n.purity.test.ts", value: "en 零 CJK / CJK 标点 / 全宽；zh 零英语连词三连——随 vitest 生效（#1909）" },
@@ -315,6 +315,11 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "第七张图 · #1942", value: "insight_advice_graph.py 落册：intake → strike → verdict → report → END——盯洞察舱模型车道，「ANSWERED」即唯一表态；实敲 ANSWERED · latency 46,519 ms · cached 0（Prefix 不同）——七张活着的图（5 离线 + 2 出网）/stategraph 挂牌（#1942）" },
       { label: "红门只打三扇 · #1945", value: "设计系统门四道：4px 台阶／字阶／圆角／阴影计数 HEAD 608→0 / 406→0 / 101→0 / 71→0 · 颜色字色结构未动，1165 在册（字面量等语义命名） · Night Watch 依旧 CRACKED · exhibit_entries=16 · 改计数，没动阈值（#1945）" },
       { label: "撞门的人 · #1944", value: "rate-limit 钉死：SPECPROOF_RATE_LIMIT_PER_MIN 默认 5/min · specproof:rl:<sha256(key)[:16]>:<window> · incr→count==1 expire(90) · count>limit ⇒ 429 RATE_LIMITED · fail-open=声明不是bug · 32 连发错误钥全 401 · tests/unit/test_rate_limit_fixed_window.py 3/3（#1944）" },
+      { label: "红门又掀开半扇 · #1946", value: "theme-blind 字色总门 1,165→593：逐站实敲 pytest · 辉光/brass/parchment/steel 命名 · tokens.css 两次写浮后「双 pass 纪律」立册 · exhibit_entries=16（#1946）" },
+      { label: "门全绿了 · #1947", value: "theme-blind 字色总门 593→**0**：463 枚 --pigment-* token 逐字节登记 · 13 枚 context-invariant 复用（--print-* 一律不复用）· design-system 家族至此全部落窗 · 4 px 网格/圆角/字阶/阴影/字色 0（#1947）" },
+      { label: "同一本账 · #1948", value: "LLM 缓存账按车道×协议双轴拆开（by_lane direct 0.5418 / policy 0.0 · R16 有机器数据背书）· Usage 面板新增双表面板 · +3 honesty 测试（#1948）" },
+      { label: "粗筛的尺子 · #1949", value: "i18n 全量审计升级：bucket A 366→196→**138** · 新增 bucket C（L()/zh?/{ zh: }/…_ZH 同行成对双语 1,172 条归位）· 只降噪不放行 · audit 永远 exit 0 不进 CI（#1949）" },
+      { label: "第八张图 · #1950", value: "usage_ledger_graph.py 落册：intake → strike → verdict → report → END——离线读本机 token 级用量账本，同一套 Usage 面板的口径；现场判词 ANSWERED · window 24h · 38 次调用 · 6 次错误 · hit_rate 0.430（basis 32）· 八张活着的图（6 离线 + 2 出网）/stategraph 挂牌 · 判词 ANSWERED/UNAVAILABLE 沿用 witness 词表（#1950）" },
     ],
   },
   {
@@ -602,8 +607,8 @@ export const SCROLLS_EN: Scroll[] = [
     era: "2026-11 · today",
     verses: [
       "A screen that speaks two languages is not bilingual — it is noise. Chinese mode is all Chinese; English mode is all English.",
-      "Graphs are not decoration; they are the contract. Seven run live here — every verdict fail-closed; Night Watch stays CRACKED.",
-      "Every page in this book is knockable: /errata keeps the sixteen corrections; /stategraph is the eight words with the seven living graphs.",
+      "Graphs are not decoration; they are the contract. Eight run live here — every verdict fail-closed; Night Watch stays CRACKED.",
+      "Every page in this book is knockable: /errata keeps the sixteen corrections; /stategraph is the eight words with the eight living graphs.",
     ],
     details: [
       { label: "The purity gate · i18n.purity.test.ts", value: "zero CJK / punctuation / fullwidth in en; zero English link-word runs in zh — shipped with vitest (#1909)" },
@@ -620,6 +625,11 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "The seventh graph · #1942", value: "insight_advice_graph.py lands: intake → strike → verdict → report → END — watches the Insight Deck model lane; ANSWERED is its only utterance; struck live: ANSWERED · latency 46,519 ms · cached 0 (a different prefix) — the seven living graphs (5 offline + 2 networked) on /stategraph (#1942)" },
       { label: "Three red doors open · #1945", value: "the design-system #8 roster cracked: 4px grid 601→0 · font scale 406→0 · radii 101→0 · shadows 71→0 · 1,165 theme-blind literal colours left on file (untouched; needs semantic naming — a remediation batch of its own) · Night Watch CRACKED · exhibit_entries=16 (#1945)" },
       { label: "The door that does not fall · #1944", value: "rate-limit cemented: SPECPROOF_RATE_LIMIT_PER_MIN default 5/min · specproof:rl:<sha256(key)[:16]>:<window> · incr→count==1 expire(90) · count>limit ⇒ 429 RATE_LIMITED · fail-open is a rule, not a bug · 32 consecutive wrong keys → all 401 · tests/unit/test_rate_limit_fixed_window.py 3/3 (#1944)" },
+      { label: "The red door, half foot more · #1946", value: "theme-blind colours 1,165 → 593: sweeping gates station by station through pytest · glow/brass/parchment/steel named · tokens.css drifted twice then the double-pass rule landed · exhibit_entries=16 (#1946)" },
+      { label: "Every door is open · #1947", value: "theme-blind colours 593 → **0**: 463 `--pigment-*` tokens registered byte-for-byte · 13 re-binds to context-invariant tokens (never the `--print-*` lane) · the entire design-system family is green on master (grid/radii/scale/shadow/colours all 0) (#1947)" },
+      { label: "One ledger, two measures · #1948", value: "the cache account split along lane × protocol (by_lane: direct **0.5418** / policy **0.0** with machine backing for R16) · Usage panel gains the twin tables · +3 honesty tests (20/20) (#1948)" },
+      { label: "The coarse measure, made honest · #1949", value: "i18n audit upgraded: bucket A **366→196→138** · bucket C added (`L()`/`zh ?`/`{ zh: }`/`…_ZH` same-line coordinated bilinguals — 1,172 reclassified) · noise down, nothing blessed, audit stays exit 0 forever (#1949)" },
+      { label: "The eighth graph · #1950", value: "usage_ledger_graph.py lands: intake → strike → verdict → report → END — read the local token ledger with the Usage panel's own accounting; live strike: ANSWERED · window 24h · 38 calls · 6 errors · hit_rate 0.430 (basis 32) · the eight living graphs (6 offline + 2 networked) on /stategraph · ANSWERED/UNAVAILABLE reuse the witness lexicon (#1950)" },
     ],
   },
   {

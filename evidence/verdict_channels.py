@@ -431,6 +431,7 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             "agent/graphs/night_watch_graph.py",
             "agent/graphs/purity_graph.py",
             "agent/graphs/recall_graph.py",
+            "agent/graphs/usage_ledger_graph.py",
             # the audit roll's plumbing: verdicts ride in as expressions opaque
             # to the scanner
             "scripts/audit_court_lock.py",
@@ -468,6 +469,7 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             "agent/graphs/night_watch_graph.py",
             "agent/graphs/purity_graph.py",
             "agent/graphs/recall_graph.py",
+            "agent/graphs/usage_ledger_graph.py",
             "scripts/audit_court_lock.py",
             "scripts/audit_evidence.py",
             "scripts/audit_portfolio.py",

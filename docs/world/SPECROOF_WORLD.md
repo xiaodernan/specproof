@@ -5767,3 +5767,39 @@ UI **571/571** · build ✓ · mvn -o **137/137**（Java 未动）· guide **6/6
 
 ---
 
+
+## 卷一百五十六 · 第八盏灯会开口数账
+
+> 七个 StateGraph 早挂墙上了；
+> 今晚第八盏亮起来——
+> 它不量骨头、不问铁网、不碰模型，
+> 它只读账——然后说它读到的。
+
+### 156.1 第八盏灯
+
+| 卡 | 文件 | 链 | 判词 |
+|---|---|---|---|
+| usage_ledger | `agent/graphs/usage_ledger_graph.py` | intake → strike → verdict → report → END | **ANSWERED** / UNAVAILABLE（沿用 witness 词表，零新增判词）|
+
+- 离线图，纯本机文件 `.local/llm_usage.jsonl`；同 UI「Usage」面板的同一套诚实口径——**by_lane · by_protocol · hit basis · streamed_ratio · error rate**；读不到就是 UNAVAILABLE，永不编造；
+- 现场判词（git-tracked 快照 `apps/web/src/pages/usage_ledger_witness.json`）：**ANSWERED** · window 24h · **38 calls / 6 errors / rate 0.1579** · streamed 1.0 · cached 67,584 · **hit_rate 0.4297（basis 32）** · 全量行数 **rows_read 84**；
+- 八个 StateGraphs 挂上 /stategraph；**6 离线 + 2 出网**——cache_witness、insight_advice 按设计出网；usage_ledger 离线读本机账本、不敲车道；浏览器从不运行 Python；
+- **StateGraph.test.tsx 7/7**（第八枚卡 verbatim）；**UI 572/572**（+1）· build ✓。
+
+### 156.2 双灯记账的新页
+
+`llm_usage.jsonl` → `providers/usage_ledger.py`（同一套诚实口径）→ `Usage.tsx`（Usage 面板，#1948）→ `usage_ledger_graph.py`（#1950）→ `/stategraph`（第八枚卡）；
+
+五个落点，同一份口径，**没有一个数被涂平**——包括 `(unreported)` 车，不捏造、不吞并、不补零。
+
+### 156.3 手艺账
+
+- 1 枚新 graph（非新判词）；1 份 Snapshot（`usage_ledger_witness.json` git-tracked）；+1 UI 判词断言；
+- witness 通道 owners 18 → **19**（`usage_ledger_graph.py` 落册）；scale 复用 ANSWERED/UNAVAILABLE（零新增词）；2 行 opaque 如实在册（115 assign · 96 dict-key）；
+- purity CLEAR · Night Watch CRACKED · court LOCKED · exhibit_entries **16**——一个判词都没动。
+
+### 156.4 账房
+
+UI **572/572** · build ✓（minified）· mvn -o **137/137**（Java 未动）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（entries **16**）· court `4117d2b0ca5fb23a` **LOCKED** · chronicle 随本提交增员 · worldbook **卷一百五十六 / 156 卷（中英对称）** · D1 ✅ · D2 ⏸（owner's PAT 等待中）·「密码-123」否决
+
+---

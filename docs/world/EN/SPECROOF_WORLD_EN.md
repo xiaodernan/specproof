@@ -5670,3 +5670,39 @@ Each says "the author already declared both halves"; none of them is a mixed-scr
 UI **571/571** · build ✓ · mvn -o **137/137** (Java untouched) · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch still **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle grows with this commit · worldbook **Scroll CLV / 155 scrolls (zh+en symmetric)** · D1 ✅ · D2 ⏸ · 「密码-123」vetoed
 
 ---
+
+## Scroll CLVI · The eighth lamp that counts its own books
+
+> Seven StateGraphs stood already;
+> tonight the eighth came on —
+> it measures no bones, knocks on no network, calls no model;
+> it reads the local ledger, and says only what it read.
+
+### 156.1 The eighth card
+
+| card | file | chain | verdict lexicon |
+|---|---|---|---|
+| usage_ledger | `agent/graphs/usage_ledger_graph.py` | intake → strike → verdict → report → END | **ANSWERED** / UNAVAILABLE (reuses the witness lexicon — zero new verdicts) |
+
+- offline graph; reads only the local `.local/llm_usage.jsonl` with the same honest accounting the Usage panel renders — **by_lane × by_protocol, hit-rate basis, streamed_ratio, error rate**; unreadable means UNAVAILABLE, never a made-up report;
+- live verdict (git-tracked snapshot `apps/web/src/pages/usage_ledger_witness.json`): **ANSWERED** · window 24 h · **38 calls / 6 errors / rate 0.1579** · streamed 1.0 · cached 67,584 · **hit_rate 0.4297 (basis 32)** · rows_read **84** overall;
+- eight StateGraphs now hang on /stategraph; **six offline + two networked** — cache_witness and insight_advice are networked by design; usage_ledger stays local, never strikes a lane; the browser never runs Python;
+- **StateGraph.test.tsx 7/7** (eighth card, verbatim); **UI 572/572** (+1) · build ✓.
+
+### 156.2 How the books are now counted in two places
+
+`llm_usage.jsonl` → `providers/usage_ledger.py` (one honest ledger implementation) → `Usage.tsx` (Usage panel, #1948) → `usage_ledger_graph.py` (#1950) → `/stategraph` (the eighth card).
+
+Five ports, one accounting, **never one number smoothed** — including `(unreported)`: visible, never backfilled.
+
+### 156.3 The bookkeeping
+
+- 1 new graph (no new vocabulary); 1 verbatim snapshot; 1 new UI verdict assertion;
+- witness channel owners 18 → **19** (`usage_ledger_graph.py`); scale reuses ANSWERED/UNAVAILABLE; 2 opaque sites disclosed as-is (115 assign · 96 dict-key);
+- purity **CLEAR** · Night Watch **CRACKED** · court **LOCKED** · exhibit_entries **16** — not one verdict moved.
+
+### 156.4 The ledger
+
+UI **572/572** · build ✓ (minified) · mvn -o **137/137** (Java untouched) · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch still **CRACKED** (entries **16**) · court `4117d2b0ca5fb23a` **LOCKED** · chronicle grows with this commit · worldbook **Scroll CLVI / 156 scrolls (zh+en symmetric)** · D1 ✅ · D2 ⏸ (owner's PAT awaited) · 「密码-123」vetoed
+
+---

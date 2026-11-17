@@ -41116,3 +41116,35 @@ UI **571/571** · build ✓ · mvn -o **137/137**（Java 未动 · 沿用 #1947 
 ### 三、裁判
 
 UI **571/571** · build ✓ · mvn -o **137/137**（Java 未动）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（entries **16**）· court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **卷一百五十五 / 155 卷（中英对称）** · D1 ✅ · D2 ⏸ ·「密码-123」否决 · Scroll CLV 双语落册
+
+## #1950 《第八盏灯会开口数账》：`agent/graphs/usage_ledger_graph.py` 落册——离线读本机 token 账本、按 Usage 面板同口径自陈 ANSWERED · /stategraph 八盏灯 · witness 通道 owners 18→**19**
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1949。
+
+### 一、第八盏灯
+
+| 卡 | 文件 | 链 | 判词 |
+|---|---|---|---|
+| usage_ledger | `agent/graphs/usage_ledger_graph.py` | intake → strike → verdict → report → END | **ANSWERED** / UNAVAILABLE（witness 词表，零新增判词）|
+
+- 纯离线图；读本机 `.local/llm_usage.jsonl`；同 Usage 面板同口径：`by_lane` / `by_protocol` / hit rate basis / streamed ratio / error rate——**读不到就是 UNAVAILABLE，永不编造**；
+- 现场判词（git-tracked 快照 `apps/web/src/pages/usage_ledger_witness.json`）：**ANSWERED** · window 24h · 38 calls · 6 errors · rate 0.158 · streamed 1.0 · cached 67,584 · **hit_rate 0.4297（basis 32）** · 全量行数 **rows_read 84**；
+- 独立复敲 `tests/unit/test_usage_ledger_graph.py`：**8/8 green**——含 unseeded → UNAVAILABLE、错误行不扣担 ANSWERED 判词、by_lane 诚实拆分、window 排除旧行（rows_read 仍为全量）等诚实性测试；
+- witness 通道 owners 18→**19**：`usage_ledger_graph.py` 落册；判词复用 ANSWERED/UNAVAILABLE，零新增判词；2 行 opaque（115 assign · 96 dict-key）如实在册；
+- UI 新增第八枚卡（`stategraph.copy.ts`）：StateGraph.test.tsx 7/7（第八枚卡 verbatim 断言）；
+- **UI 572/572**（+1）· build ✓（minified）· `mvn -o` 未动（Java 无改）· `lightningcss.transform` 已复验全 OK。
+
+### 二、这东西为什么在这本书里
+
+`/usage` 面板告诉人的事，这本书里没有一盏灯会说；"账本对不对"不是任务，不是判词，是 bookkeeping——**但它长在同一张七张图挂墙的板上**。八盏灯之后，`/stategraph` 是完整陈述：量骨（evidence）、验血（purity）、五扇门（auditor）、巡夜（night_watch）、问铁（recall）、量缓存（cache_witness）、瞪洞察（insight_advice）、数账（usage_ledger）。八张灯，一盏不涂色。
+
+### 三、这号没做的事
+
+- 没有 merge fix/verdict-channel-witness（第十九位主到场）——该分支是 item #8 的审计程序，不到签核不合主干；
+
+- 没有把判词加进 witness scale（词表不增一字）；
+- 没有把 i18n bucket A 涂绿（剩余 138 继续在册等人眼）；court LOCKED 一丝没动；exhibit_entries **16** 一件。
+
+### 四、裁判
+
+UI **572/572** · build ✓ · mvn -o **137/137**（Java 未动）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（entries **16** · exhibit #4/#12/#13/#15 一件不挪）· court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **卷一百五十六 / 156 卷（中英对称）** · D1 ✅ · D2 ⏸（owner's PAT 仍在等）·「密码-123」否决 · Scroll CLVI 双语落册
