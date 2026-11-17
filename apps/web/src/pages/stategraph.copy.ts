@@ -3,10 +3,11 @@ import nightWatch from "./night_watch.json";
 import cacheWitness from "./cache_witness.json";
 import adviceWitness from "./insight_advice_witness.json";
 import usageLedger from "./usage_ledger_witness.json";
+import investigationDig from "./investigation_dig.json";
 
 /**
  * 状态图谱 · The State Graphs — everything this page says is either
- * copied verbatim from the eight graphs in `agent/graphs/`, or is a concept
+ * copied verbatim from the nine graphs in `agent/graphs/`, or is a concept
  * note about LangGraph's StateGraph as used by this repository.
  *
  * No LLM writes anything here; no network is involved; the browser re-draws
@@ -56,16 +57,16 @@ export const CONCEPTS: Concept[] = [
     id: "reducer",
     term: { zh: "Reducer / channel 通道", en: "Reducer / channel" },
     gloss: {
-      zh: "LangGraph 的每个字段都是一条通道；append 是 reducer（比如 add_messages）。这本书的八个图全是 overwrite 通道——没有对话，不需要累积。",
-      en: "Every field in LangGraph is a channel; append is a reducer (add_messages). All eight graphs in this book use overwrite channels — there is no dialogue to accumulate.",
+      zh: "LangGraph 的每个字段都是一条通道；append 是 reducer（比如 add_messages）。这本书的九个图全是 overwrite 通道——没有对话，不需要累积。",
+      en: "Every field in LangGraph is a channel; append is a reducer (add_messages). All nine graphs in this book use overwrite channels — there is no dialogue to accumulate.",
     },
   },
   {
     id: "entry",
     term: { zh: "Entry point 入口", en: "Entry point" },
     gloss: {
-      zh: "graph.set_entry_point(\"intake\") ——没有 set_entry_point 的图画得出来但跑不起来。八个图的入口全部是 intake / 第一个真相采集节点。",
-      en: "graph.set_entry_point(\"intake\") — a graph without an entry point draws fine and runs never. All eight graphs enter at intake / the first truth-gathering node.",
+      zh: "graph.set_entry_point(\"intake\") ——没有 set_entry_point 的图画得出来但跑不起来。九个图的入口全部是 intake / 第一个真相采集节点。",
+      en: "graph.set_entry_point(\"intake\") — a graph without an entry point draws fine and runs never. All nine graphs enter at intake / the first truth-gathering node.",
     },
   },
   {
@@ -73,7 +74,7 @@ export const CONCEPTS: Concept[] = [
     term: { zh: "END 终态哨兵", en: "END" },
     gloss: {
       zh: "哨兵 END 只做一件事：宣告这一轮结束。它不判断好坏——好坏看 verdict。八张图都以 END 收尾，这是 LangGraph 唯一的硬规则。",
-      en: "The sentinel END does one thing: declare this round over. It passes no judgement — the verdict does that. All eight graphs end there; it is the one hard rule LangGraph gives you.",
+      en: "The sentinel END does one thing: declare this round over. It passes no judgement — the verdict does that. All nine graphs end there; it is the one hard rule LangGraph gives you.",
     },
   },
   {
@@ -144,6 +145,16 @@ const liveInsightAdvice = {
 const liveUsageLedger = {
   zh: `本窗 ${UL.calls ?? "?"} 次调用 · ${UL.errors ?? "?"} 次错误 · 流式占比 ${UL.streamed_ratio ?? "?"} · hit_rate ${typeof UL.hit_rate === "number" ? (UL.hit_rate * 100).toFixed(1) + "%" : "?"}（basis ${UL.hit_basis_calls ?? "?"}）· 门牌 ${UL.verdict ?? "?"}（全量行数 ${UL.rows_read ?? "?"})`,
   en: `${UL.calls ?? "?"} calls in the window · ${UL.errors ?? "?"} errors · streamed share ${UL.streamed_ratio ?? "?"} · hit_rate ${typeof UL.hit_rate === "number" ? (UL.hit_rate * 100).toFixed(1) + "%" : "?"} (basis ${UL.hit_basis_calls ?? "?"}) · verdict ${UL.verdict ?? "?"} (rows read ${UL.rows_read ?? "?"})`,
+};
+const ID = investigationDig as unknown as {
+  verdict?: string;
+  generation_time_ms?: number;
+  total_tokens_used?: number;
+  agents?: { name?: string; outcome?: string; tokens?: number; duration_ms?: number }[];
+};
+const liveInvestigationDig = {
+  zh: `三位只读侦探 · ${(ID.agents || []).filter((a) => (a.name || "").includes("explorer") && a.outcome === "ok").length + (ID.agents || []).filter((a) => (a.name || "").includes("tester") && a.outcome === "ok").length + (ID.agents || []).filter((a) => (a.name || "").includes("security") && a.outcome === "ok").length}/3 到位 · 总计 ${ID.total_tokens_used ?? "?"} tokens · verdict ${ID.verdict ?? "?"}`,
+  en: `three readonly investigators · ${(ID.agents || []).filter((a) => (a.name || "").includes("explorer") && a.outcome === "ok").length + (ID.agents || []).filter((a) => (a.name || "").includes("tester") && a.outcome === "ok").length + (ID.agents || []).filter((a) => (a.name || "").includes("security") && a.outcome === "ok").length}/3 landed · ${ID.total_tokens_used ?? "?"} tokens total · verdict ${ID.verdict ?? "?"}`,
 };
 
 const liveNightWatch = {
@@ -255,5 +266,18 @@ export const GRAPHS: GraphCard[] = [
     },
     fields: ["window_hours", "started_utc", "summary", "rows_read", "verdict", "report_path"],
     live: liveUsageLedger,
+  },
+  {
+    id: "investigation_dig",
+    file: "agent/graphs/investigation_dig_graph.py",
+    stateName: "InvestigationDigState(TypedDict, total=False)",
+    chain: ["intake", "strike", "verdict", "report", "END"],
+    verdicts: { zh: "EVIDENCE-GATHERED / INSUFFICIENT", en: "EVIDENCE-GATHERED / INSUFFICIENT" },
+    role: {
+      zh: "三人同时入屋——explorer / tester / security 三位只读调查员并行问这个仓库一个问题，看模型能不能带回真证据。耗用的每个月光都记在 usage_ledger；INSUFFICIENT 不逼模型硬答、EVIDENCE-GATHERED 也不替人加分的边界全照实写。",
+      en: "Three investigators knock at once — explorer, tester and security readonly investigators fan out in parallel on one question and come back with what they actually found. Every token spent rides into the usage ledger; INSUFFICIENT never pushes the model to bluff, EVIDENCE-GATHERED never upgrades what the model merely implied.",
+    },
+    fields: ["question", "agents", "findings", "total_tokens_used", "generation_time_ms", "verdict"],
+    live: liveInvestigationDig,
   },
 ];

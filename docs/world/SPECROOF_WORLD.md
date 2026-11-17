@@ -5890,3 +5890,36 @@ UI **572/572** · build ✓ · mvn -o **137/137** · guide **6/6** · correction
 UI **572/572** · build ✓（minified）· mvn -o **137/137**（Java 未动）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle 随本提交增员 · worldbook **卷一百五十九 / 159 卷** · D1 ✅ · D2 ⏸ ·「密码-123」否决（即便人眼能过的 36 也没有关进笼子：audit 不出 CI）
 
 ---
+
+## 卷一百六十 · 三双手进了屋子——第九盏灯
+
+> 一盏问铜蛇，一盏问飞机库，
+> 一盏问大门门禁——
+> 三人一起进屋，各怀身手，
+> 也不许各自编故事塞给我。
+
+### 160.1 第九盏灯（2026-11-17 · 主人把「深度大模型」按进产品的第二步）
+
+| 卡 | 文件 | 链 | 判词 |
+|---|---|---|---|
+| investigation_dig | `agent/graphs/investigation_dig_graph.py` | intake → strike → verdict → report → END | **EVIDENCE-GATHERED / INSUFFICIENT**（复用 witness 词表 · 零新增判词）|
+
+- 纯离线三只读调查员并行同一问法（explorer / tester / security）；prompt 为非编造——它的「信息不足」就是信息不足，不逼它硬答；耗用在 usage_ledger 里照实数字；
+- `craft/investigators.py` 落册：并发探索（`ToolRegistry(workspace)` 只读 tree/glob/head-reads），不写 repo 外、不改锁、不替人加分；
+- 现场判词（git-tracked 快照 `apps/web/src/pages/investigation_dig.json`）：question "本仓库做了什么？" · **EVIDENCE-GATHERED** · explorer 3,109 / tester 6,351 / security 4,733 tokens（low effort；gpt-6.1-terra）· 当中 tester 给出多领域推断——把 acceptance/gate 等路线写明白了，不下一刀："它不完全确定"是一句事实。
+- 八盏 → **九盏** /stategraph；**6 离线 + 3 出网**（cache_witness / insight_advice / investigation_dig）· StateGraph.test.tsx **8/8**（+1 verbatim）· **UI 573/573** · build ✓。
+
+### 160.2 深度融合第二压强
+
+用户原话：「注意深度的把大模型api能力完整深度的嵌入项目整体能力 项目才能变得更强」——本号是第二刀：
+
+1. **LLM 驱动的状态流转不是字面文案**——readonly 调查员通过 ParallelRunner 并发问同一个问题，每个 investigator 都是 subagent（explorer / tester / security），结果进 json-snapshot 里、随 import 一起被前端 renderer 引；
+2. **权限由雄辩的 insufficiency 保证**——INSUFFICIENT 不是按钮上涂的颜色，是判词——当本咨询员在 fact pack 里找不到证据，它诚实地说"不够"——这是 witness 词表。用户得到的是信息不足，不是假绿色；
+3. **实验成本闭合到账本**——14,093 tokens 打入 usage_ledger；用户可以在 /usage 看日/周/月，硬要捏绿账者的下场是这页不会帮忙；
+4. **整套深度融合有结构，不只有提示**——LLM 在帮助哪种 state 怎样流转？read-only investigation + witness verdict = real flow；用户在每一个 StateGraph 卡片都能看到 judge 的眼。
+
+### 160.3 账房
+
+UI **573/573** · build ✓ · mvn -o **137/137**（Java 未动）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle 随本提交增员 · worldbook **卷一百六十 / 160 卷（中英对称）** · D1 ✅ · D2 ⏸（owner's PAT，等） ·「密码-123」否决
+
+---

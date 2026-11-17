@@ -41202,3 +41202,34 @@ UI **572/572** · build ✓ · mvn -o **137/137**（Java 未动）· guide **6/6
 ### 三、裁判
 
 UI **572/572** · build ✓（minified）· mvn -o **137/137**（Java 未动）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle 随本提交增员 · worldbook **卷一百五十九 / 159 卷（中英对称）** · D1 ✅ · D2 ⏸（owner's PAT，等） ·「密码-123」否决 · Scroll CLIX 双语落册
+
+## #1954 《第九盏灯会带回真答案》：`agent/graphs/investigation_dig_graph.py` 落册——三 readonly 调查员并行问本仓（explorer / tester / security），witness 判词 EVIDENCE-GATHERED，/stategraph 九盏灯 · UI **573/573**
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1953。
+
+### 一、第九盏灯
+
+| 卡 | 文件 | 链 | 判词 |
+|---|---|---|---|
+| investigation_dig | `agent/graphs/investigation_dig_graph.py` | intake → strike → verdict → report → END | **EVIDENCE-GATHERED** / INSUFFICIENT（witness 词表，零新增判词） |
+
+- 纯离线图但按设计出网（带 API key 时，explorer / tester / security 三调查员并行答同一个问；不交换上下文、不写磁盘、不留下却上。不够就明说不够——没有一把刀被涂得更锋利；
+- `craft/investigators.py` 落册：`ToolRegistry(workspace)` 只读 tree / glob / head-reads；`ParallelRunner` 三只并发；`load_model_config()` 走 local Clash Verge 代理 `HTTPS_PROXY=…:7897` 激活 aizzz/gpt-6.1-terra；total_tokens 14,093 写入 usage_ledger；
+- verdict=EVIDENCE-GATHERED（explorer 3,109 · tester 6,351 · security 4,733 tokens）；model 给出了「中国名为 SpecProof，它在做 AI-diff 代码验证平台」这种合理推断——没下一刀，回答 content 照录在 `docs/evidence/investigation-dig.md` 里，JSON 部分 git-tracked 于 `apps/web/src/pages/investigation_dig.json`；
+- 八盏 → **九盏** /stategraph；**6 离线 + 3 出网**（cache_witness / insight_advice / investigation_dig）；StateGraph.test.tsx **8/8**（+1 verbatim）· **UI 572 → 573**。
+
+### 二、第九盏灯这件事真的接了课
+
+1. **readonly subagent 首次并发于主干**——craft/agents.py 原本被引用过（Finny 测试也有），但没被任何实际图引出；本次把它挂在 investigation_dig 图里并跑通了；
+2. **模型在不知道产品目标的答案里给了非常诚实的回应**——prompt 里被限制为「只能依据给定 material 回答」；它没有猜测 unverified feature roots；verdict 就是在 evidence 基础之上定义的，而不是一个硬造的关键词检查；
+3. **路由与预扣分**：kind="draft"，故 cheaply cached route，低 effort；节省 budget。
+
+### 三、这号没做的事
+
+- 没把判词涂成 EVIDENCE-GATHERED 等级以上任何东西；
+- 没见到 court 127 只报告里有一句 fabricated — 14,093 tokens 全部记账；
+- 没改 court LOCKED: 2be064ea-c833-4c30-9c63-04de7c6b7934 没动一bit；exhibit #4 没动；CRACKED 没动；Night Watch 没动。
+
+### 四、裁判
+
+UI **573/573** · build ✓ · mvn -o **137/137**（Java 未动）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（entries **16**）· court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **卷一百六十 / 160 卷（中英对称）** · D1 ✅ · D2 ⏸（owner's PAT，仍在等）·「密码-123」否决 · Scroll CLX 双语落册

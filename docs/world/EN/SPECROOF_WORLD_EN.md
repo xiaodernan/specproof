@@ -5794,3 +5794,38 @@ All 36 remain on the roster; the audit stays advisory, exits 0, never enters CI,
 UI **572/572** · build ✓ (minified) · mvn -o **137/137** (Java untouched) · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch still **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle grows with this commit · worldbook **Scroll CLIX / 159 scrolls (zh+en symmetric)** · D1 ✅ · D2 ⏸ · 「密码-123」vetoed
 
 ---
+
+## Scroll CLX · Three hands enter the room — the ninth lamp
+
+> One goes to the copper serpent,
+> one for the iron shed,
+> one for the front-door lock —
+> three walk in at once, bare-handed,
+> each asking the same question with their own eyes,
+> and none of them is allowed to carry back a story.
+
+### 160.1 The ninth lamp (2026-11-17 · step two of the deep-integration push)
+
+| card | file | chain | verdict lexicon |
+|---|---|---|---|
+| investigation_dig | `agent/graphs/investigation_dig_graph.py` | intake → strike → verdict → report → END | **EVIDENCE-GATHERED / INSUFFICIENT** (witness lexicon, zero new verdicts) |
+
+- offline readonly investigators — explorer / tester / security — fan out in parallel on one question each; their prompts forbid fabrication — **when a thing is not there, they say so** — and answer with plain text, never JSON, never invented evidence;
+- `craft/investigators.py` on file: reads the workspace through the readonly ToolRegistry (tree / glob / bounded head reads), nothing writes outside the repo, no human judge gets out-voted, no lock is loosened;
+- live verdict (git-tracked snapshot `apps/web/src/pages/investigation_dig.json`): question "本仓库做了什么？" · **EVIDENCE-GATHERED** · explorer 3,109 / tester 6,351 / security 4,733 tokens (low-effort reasoning; gpt-6.1-terra) · the model brought back a reasonable read — it saw "SpecProof is an AI-diffed code review platform" · no hallucinated fence, no padded answer; users can watch this graph work and see the tokens.
+- eight → **nine** on /stategraph; **six offline + three networked** (cache_witness / insight_advice / investigation_dig) · StateGraph.test.tsx **8/8** (+1 verbatim) · **UI 573/573** · build ✓ (minified).
+
+### 160.2 Forward pressure — the deep-integration cut, second pass
+
+User's own words (original directive, verbatim intent): "把大模型API能力完整深度的嵌入项目整体能力" — this ticket is its second cut:
+
+1. **LLM-driven state transitions** are not decoration anymore — readonly investigators dispatched through `ParallelRunner` (stategraph finalized) replace any single-key hand-authorisation;
+2. **Insufficiency is a first-class answer** — INSUFFICIENT is a verdict, not a shrug; a green verdict is never painted over;
+3. **cost transparency** — 14,093 tokens to the usage ledger, in plain sight, every call tagging the gpt-6.1-terra lane exactly as recorded;
+4. **structure, not just prompts** — read-only investigation graphs plus witness lexicon are the shape of every LLM role this book is laying down.
+
+### 160.3 The ledger
+
+UI **573/573** · build ✓ · mvn -o **137/137** (Java untouched) · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch still **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle grows with this commit · worldbook **Scroll CLX / 160 scrolls (zh+en symmetric)** · D1 ✅ · D2 ⏸ (owner's PAT awaited) · 「密码-123」vetoed
+
+---
