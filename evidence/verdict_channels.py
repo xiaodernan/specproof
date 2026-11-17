@@ -426,6 +426,7 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             # the living StateGraphs
             "agent/graphs/auditor_graph.py",
             "agent/graphs/cache_witness_graph.py",
+            "agent/graphs/covenant_witness_graph.py",
             "agent/graphs/evidence_graph.py",
             "agent/graphs/insight_advice_graph.py",
             "agent/graphs/investigation_dig_graph.py",
@@ -460,6 +461,7 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             "ANSWERED", "UNAVAILABLE",
             "EVIDENCE-GATHERED", "INSUFFICIENT",
             "CONFIRMED", "INCONCLUSIVE",
+            "HELD", "DRIFTED",
             "unknown",
             # build_roadmap_live.py:29 — a placeholder rendered by the roadmap
             # build when a date cannot be determined; the `?` is the page's own
@@ -474,6 +476,7 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
         opaque=(
             "agent/graphs/auditor_graph.py",
             "agent/graphs/cache_witness_graph.py",
+            "agent/graphs/covenant_witness_graph.py",
             "agent/graphs/evidence_graph.py",
             "agent/graphs/insight_advice_graph.py",
             "agent/graphs/investigation_dig_graph.py",
@@ -502,9 +505,13 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             # `verdict` is chosen inside an IfExp in craft/investigators.py —
             # a conditional expression the write-shape scanner cannot fold;
             # the word is written verbatim on this line, which is what a
-            # witness must point at (a witness may not park a word nobody
-            # writes).
-            "EVIDENCE-GATHERED": "craft/investigators.py:294",
+            # witness must point at (a witness cannot park a word nobody
+            # writes). Shifted +2 by #1969's covenant_prefix import.
+            "EVIDENCE-GATHERED": "craft/investigators.py:296",
+            # The eleventh lamp speaks HELD / DRIFTED from an IfExp too —
+            # the scanner reads assignment/dict-write shapes, so IfExp needs
+            # a witness line pointing at the exact line that writes the word.
+            "HELD": "agent/graphs/covenant_witness_graph.py:90",
         },
         note=(
             "The witness channel carries the StateGraphs' own verdicts — the\n"

@@ -41679,3 +41679,24 @@ Archive 页顶 KPI 早已读 `worldbook.json`／`chronicle.json`／`dossier.json
 ### 三、账房
 
 mvn 未动 · UI **589/589** · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1767** + 1 · worldbook **172 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## #1971 《行宪见证人》：agent/graphs/covenant_witness_graph.py 落册——第十一盏灯 · HELD pinned=True · witness 通道扩登记（parity 14/14）· StateGraph 十一盏 · UI 590/590 · chronicle 1768 + 1 · worldbook 173 卷（双语）
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1970。
+
+### 一、交付
+
+1. `agent/graphs/covenant_witness_graph.py`（新）——intake → verify → verdict → report → END · 离线 · 不碰模型不碰 court；
+   - sha256 pin 住 `#1969` 落册的 1,450 B；逐行数 11 法则；@_PATH_RE 抽出宪章里点名的文件并查在库；`.local/llm.json`（刻意 untracked）例外登记为 `_EXPECTED_UNTRACKED`（不在场 ≠ 失败）；
+   - 产物：`docs/evidence/covenant-witness.{json,md}` → **HELD · pinned=True**；前端快照 `apps/web/src/pages/covenant_witness.json` 入册；
+2. `/stategraph`——第十一盏「行宪见证人」· StateGraph.tsx 十页/十图/十处全文案·概念段更新为十一 · i18n 中文/EN 双语拷贝更新 · StateGraph.test.tsx 新增「covenant_witness verbatim (HELD · pinned · 1450 B)」· 概念段「eleven graphs」；
+3. `tests/unit/test_system_covenant.py`（新 · 8 例）——PIN sha256 逐字 pin · 11 法则/≥1000 B · covenant_prefix 三消息置顶 · lanes 四条喂入首系统消息为 covenant · 实敲证人 HELD · tamper → DRIFTED。
+4. `evidence/verdict_channels.py`——witness 通道 scale += `HELD` · `DRIFTED` · owners += `agent/graphs/covenant_witness_graph.py` · `test_verdict_channel_parity` → **14/14**；同时订正 #1957 年立下的指针 `craft/investigators.py:294 → :296`（#1969 的一行 import 使行号 +2）。
+
+### 二、这灯出生时没信自己，被当场抓出来
+
+首跑：verify_node 回 `pinned=True` → LangGraph 把未声明 `pinned: bool` 的 key 吃掉 → report 落 `pinned: false` 且 verdict=HELD，自相矛盾。根因 = `TypedDict(total=False)` 丢未声明 key。修法 = 类型里补声明 + 复敲到 HELD/pinned=true。账房加一句：**先让灯自己认账，再让它给别人作证。**
+
+### 三、账房
+
+mvn 未动 · UI **590/590**（83 文件 · StateGraph.test **10/10**）· vitest run ✓ · vite build ✓ · OpenAPI 未动 · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1768** + 1 · worldbook **173 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门

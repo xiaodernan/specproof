@@ -5,10 +5,11 @@ import adviceWitness from "./insight_advice_witness.json";
 import usageLedger from "./usage_ledger_witness.json";
 import investigationDig from "./investigation_dig.json";
 import runbookTriage from "./runbook_triage.json";
+import covenantWitness from "./covenant_witness.json";
 
 /**
  * 状态图谱 · The State Graphs — everything this page says is either
- * copied verbatim from the nine graphs in `agent/graphs/`, or is a concept
+ * copied verbatim from the eleven graphs in `agent/graphs/`, or is a concept
  * note about LangGraph's StateGraph as used by this repository.
  *
  * No LLM writes anything here; no network is involved; the browser re-draws
@@ -174,6 +175,18 @@ const liveNightWatch = {
   en: `evidence=${NW.lanes?.evidence ?? "?"} · purity=${NW.lanes?.purity ?? "?"} · audit=${NW.lanes?.audit ?? "?"} → ${NW.verdict ?? "?"} (exhibit #4 still on file)`,
 };
 
+const CV = covenantWitness as unknown as {
+  bytes?: number;
+  sha256?: string;
+  laws?: number;
+  pinned?: boolean;
+  verdict?: string;
+};
+const liveCovenantWitness = {
+  zh: `行宪 ${CV.bytes ?? "?"} B · sha256 ${(CV.sha256 ?? "").slice(0, 12)}… · ${CV.laws ?? "?"}/11 法 · pinned=${CV.pinned} → ${CV.verdict ?? "?"}`,
+  en: `covenant ${CV.bytes ?? "?"} B · sha256 ${(CV.sha256 ?? "").slice(0, 12)}… · ${CV.laws ?? "?"}/11 laws · pinned=${CV.pinned} → ${CV.verdict ?? "?"}`,
+};
+
 export const GRAPHS: GraphCard[] = [
   {
     id: "recall",
@@ -304,5 +317,18 @@ export const GRAPHS: GraphCard[] = [
     },
     fields: ["alert", "agents", "findings", "total_tokens_used", "generation_time_ms", "verdict"],
     live: liveRunbookTriage,
+  },
+  {
+    id: "covenant_witness",
+    file: "agent/graphs/covenant_witness_graph.py",
+    stateName: "CovenantWitnessState(TypedDict, total=False)",
+    chain: ["intake", "verify", "verdict", "report", "END"],
+    verdicts: { zh: "HELD / DRIFTED", en: "HELD / DRIFTED" },
+    role: {
+      zh: "行宪见证——这一页五条车道之首的那段字节恒定中文宪章：sha256 逐字 pin 在 #1969 落册日。谁删了一个字、挪了一个空格，verdict 就翻成 DRIFTED；永不敲模型、永不评内容、永不碰 court。",
+      en: "The covenant witness — the byte-identical Chinese charter at the head of those five cacheable lanes. sha256 pinned verbatim to its #1969 drop day. One byte moves, one comma swaps — verdict flips to DRIFTED. Never strikes a model, never grades content, never touches court.",
+    },
+    fields: ["bytes", "sha256", "laws", "referenced_paths", "missing_paths", "pinned", "verdict"],
+    live: liveCovenantWitness,
   },
 ];

@@ -31,10 +31,9 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from api.system_covenant import covenant_prefix
 from providers.base import LLMMessage, LLMResponse
 from providers.openai_compatible import OpenAICompatibleProvider
-
-from api.system_covenant import covenant_prefix
 
 logger = logging.getLogger(__name__)
 

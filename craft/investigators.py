@@ -13,25 +13,20 @@ Verdict semantics (fail-closed):
 
 from __future__ import annotations
 
-import asyncio
 import json
-import os
 import time
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from collections.abc import Awaitable, Callable
-
+from api.system_covenant import covenant_prefix
 from providers.base import LLMMessage
 from providers.config import load_model_config
 from providers.openai_compatible import OpenAICompatibleProvider
 
-from api.system_covenant import covenant_prefix
-
-from .agents import ParallelRunner, AgentRunResult, SubAgentSpec
+from .agents import AgentRunResult, ParallelRunner, SubAgentSpec
 from .tools import ToolRegistry
-
 
 ROLES = ("explorer", "tester", "security")
 
@@ -162,7 +157,10 @@ async def _llm_execute_factory(
         prompt = f"TASK\n{spec.task}\n\nWORKSPACE FACT PACK\n{facts}"
         try:
             resp = await llm_client.chat(
-                covenant_prefix([LLMMessage(role="system", content=system), LLMMessage(role="user", content=prompt)]),
+                covenant_prefix([
+                    LLMMessage(role="system", content=system),
+                    LLMMessage(role="user", content=prompt),
+                ]),
                 label="crafted_investigator",
                 kind="draft",
                 timeout=spec.timeout,
@@ -174,8 +172,7 @@ async def _llm_execute_factory(
                 findings=[{"role": spec.role, "claim": f"{type(exc).__name__}: {exc}", "confidence": 0.0}],
                 duration_ms=0,
             )
-        age_s = 0
-        tokens = int((getattr(resp, "usage", None) or {}).get("prompt_tokens") or 0) + int(
+            tokens = int((getattr(resp, "usage", None) or {}).get("prompt_tokens") or 0) + int(
             (getattr(resp, "usage", None) or {}).get("completion_tokens") or 0
         )
         text = str(resp.content or "").strip()

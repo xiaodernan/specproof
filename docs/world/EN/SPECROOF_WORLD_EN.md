@@ -6247,3 +6247,25 @@ Archive's KPI strip already read the same JSONs; the three cards now drink from 
 ### 172.2 The ledger
 
 UI **589/589** · vite build ✓ · mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **17** · chronicle **1767** + 1 · worldbook **172 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is still a door marked "demo"
+
+## Scroll CLXXIII · The Covenant Witness
+
+> Once the covenant was laid down, not a byte may move. And to know it has not moved, there must be a witness that speaks for no one.
+
+### 173.1 The eleventh lamp · covenant_witness_graph.py
+
+The covenant shipped to five lanes; nothing watched it. This round grows the eleventh lamp:
+
+- `agent/graphs/covenant_witness_graph.py` — intake → verify → verdict → report → END · never strikes a model, never grades content, never touches court;
+- the act of witness: `sha256(SPECROOF_COVENANT)` pinned byte-for-byte to its #1969 drop day · eleven laws counted · every file the covenant names checked on disk (`.local/llm.json` is the deliberately-untracked exception, marked ☑️, not missing);
+- artifacts: `docs/evidence/covenant-witness.{json,md}` (HELD · pinned=True) · the card's snapshot committed to `apps/web/src/pages/covenant_witness.json`;
+- verdict channel `witness` accepts `HELD` / `DRIFTED` (both IfExp-born; witnesses point at the exact lines that write the words) · `test_verdict_channel_parity` → **14/14** (plus a stale witness pointer fixed: `craft/investigators.py` shifted 294→296 by #1969's one import line);
+- `/stategraph` gains lamp #11: "The Covenant Witness" · caption: one byte moved, verdict flips to DRIFTED.
+
+### 173.2 Honest books — the lamp failed its first self-check
+
+The first version of this lamp did not believe its own receipt: `verify_node` returned `pinned=True` correctly, and by the time the report was written the field was gone — the JSON printed `pinned: false` on the same line as `verdict: HELD`. **Root cause**: `TypedDict(total=False)` drops undeclared keys; `CovenantWitnessState` never declared `pinned`, so `state.get("pinned", False)` was always False. The fix is one line in the type — `pinned: bool` — and one re-strike until the receipt reads `pinned=true / HELD`. The book gains a sentence: **make the lamp believe itself before it testifies for others.** A witness that fails its own self-check testifies nothing.
+
+### 173.3 The ledger
+
+UI **590/590** (83 files · StateGraph.test **10/10**) · vitest run ✓ · vite build ✓ · mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **17** · chronicle **1768** + 1 · worldbook **173 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is still a door marked "demo"

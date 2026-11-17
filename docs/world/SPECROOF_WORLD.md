@@ -6354,3 +6354,25 @@ UI **589/589** · vite build ✓ · mvn 未动 · court `4117d2b0ca5fb23a` **LOC
 ### 172.2 账房
 
 UI **589/589** · vite build ✓ · mvn 未动 · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1767** + 1 · worldbook **172 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷一百七十三 · 行宪见证人
+
+> 宪章立下之后，字就得一字不动；要不动得知道它在动。这一卷给它配了一位不替任何人说法的见证人。
+
+### 173.1 第十一盏灯 · covenant_witness_graph.py
+
+行宪分给了五条车道，但没有人看着它。这一轮长出第十一盏灯：
+
+- `agent/graphs/covenant_witness_graph.py`——intake → verify → verdict → report → END · 永不敲模型、永不评内容、永不碰 court；
+- 见证动作：`sha256(SPECROOF_COVENANT)` 对 `#1969` 落册日逐字钉住；逐行数 11 条法则；对宪章里点名的文件逐一查在库（`.local/llm.json` 是「刻意不跟踪」的例外，去问在不在库记 ☑️）；
+- 见证产物：`docs/evidence/covenant-witness.{json,md}`（HELD · pinned=True）；前端 `apps/web/src/pages/covenant_witness.json` 入册（卡片所见）；
+- verdict 通道 `witness` 接纳 `HELD` / `DRIFTED`（IfExp 出字，witness 行指证）；`test_verdict_channel_parity` → **14/14**（含 #1957 以来的指针漂移订正：`craft/investigators.py` 由 #1969 的一行 import 推位 294→296）；
+- `/stategraph` 第十一盏 ·「行宪见证人」· 铭文：「谁动了一个字节，verdict 就翻成 DRIFTED」。
+
+### 173.2 诚实的记账（灯坏了一次才修好）
+
+这灯出生第一版就不认自己：当初 `verify_node` 回 `pinned=True` 没错，流过 `verdict` 通道就变成 `pinned=False`，`.json` 里写着 pin=false 而 verdict=HELD——同一张收据里自查不自洽。**根因**：LangGraph 的 `TypedDict(total=False)` 不会保留未声明的 key，`CovenantWitnessState` 里没写 `pinned`，于是 `state.get("pinned", False)` 恒为 False。修法只有一条——补上类型声明里的那行 `pinned: bool`，并复敲到 `pinned=true / HELD`。账房因此添了一句：**先让灯自己认账，再让它给别人作证。** 见证器第一步先验自己的通电，就是这一回的全意。
+
+### 173.3 账房
+
+UI **590/590**（83 文件 · StateGraph.test **10/10**）· vitest run ✓ · vite build ✓ · mvn 未动 · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1768** + 1 · worldbook **173 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门

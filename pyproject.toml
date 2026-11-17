@@ -115,6 +115,11 @@ select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
 # names (test_L01_..., test_R02_...) keep a mutation arm's red node-id readable
 # as the clause it charges, which a lowercase name would lose.
 "tests/**" = ["N801", "N802"]
+# The covenant (api/system_covenant.py) is a byte-identical cache prefix —
+# its literal cannot be rewrapped to fit a line-length budget without moving
+# the pinned sha256 every cacheable lane carries. Frozen content, frozen
+# ruling: the file is allowed to exceed E501.
+"api/system_covenant.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"

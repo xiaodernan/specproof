@@ -331,6 +331,7 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "不夹的章 · #1968", value: "i18n 夹杂收口八处——zh 分支不长英尾巴 · A 桶 37→29 · UI **589/589**（#1968）" },
       { label: "行宪 · #1969", value: "`api/system_covenant.py`——字节恒定中文宪章 1,450 B（11 法 · 钉住仓库真件）· 五车道共享 · 法院车道不带 · 缓存现状如实登记 · UI **589/589**（#1969）" },
       { label: "活数字 · #1970", value: "Archive 三卡接活值：世界书 **171** · 墨水池 **2,643**（span 130 d · streak 16）· 金案 **111** · inkwell.json 重敲入库 · UI **589/589**（#1970）" },
+      { label: "行宪见证人 · #1971", value: "/stategraph 第十一盏「行宪见证人」· sha256 pin 住 #1969 行宪日 · 永不敲模型 · parity **14/14** · UI **590/590**（#1971）" },
     ],
   },
   {
@@ -652,6 +653,7 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "The Unmixed Chapter · #1968", value: "i18n hybrid strike-down — zh branches grow no English tails · bucket A 37→29 · UI **589/589** (#1968)" },
       { label: "The Covenant · #1969", value: "`api/system_covenant.py` — byte-identical Chinese charter (11 laws · pinned to repo-truth files) carried by five cacheable lanes; court never carries it; provider cache honoured honestly as-is · UI **589/589** (#1969)" },
       { label: "Live Numbers · #1970", value: "Archive takes live values everywhere: World Book **171** · Inkwell **2,643** (span 130 d · streak 16) · dossier **111** · inkwell.json re-struck · UI **589/589** (#1970)" },
+      { label: "The Covenant Witness · #1971", value: "StateGraph lamp #11 — covenant pinned byte-for-byte to its #1969 day · never strikes a model · parity **14/14** · UI **590/590** (#1971)" },
     ],
   },
   {
