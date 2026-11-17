@@ -5874,3 +5874,53 @@ Three investigators answered from the same fact-pack with the same ruler — non
 UI **576/576** · build ✓ (minified) · mvn -o **137/137** (Java untouched) · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch still **CRACKED** (entries **16**) · court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries **16** · chronicle grows with this commit · worldbook **Scroll CLXI / 161 scrolls (zh+en symmetric)** · D1 ✅ · D2 ⏸ · 「密码-123」vetoed · chronicle 1754 · worldbook 161
 
 ---
+
+## Scroll CLXII · The Dig lands
+
+> Three readonly investigators walk into one doorway,
+> not to persuade you to trust them,
+> but to show you they will only say: evidence is on my side.
+
+### 162.1 /dig on file (2026-11-17 · under the brief's own line: "embed the model into the whole product at full depth")
+
+New endpoint **`/api/v1/admin/investigation-dig`** — admin/operator only, tenant-mode enforced; body `{"question":"…"}` (1–600 chars). Three readonly investigators fan out on one question:
+
+- `explorer` — tree + counts → what is this repo, in one breath
+- `tester` — glob `tests/unit/test_*.py` + head → what are the tests checking
+- `security` — `.env*` enumeration → is there a secrets floor
+
+They share one workspace (ToolRegistry readonly: `tree`/`glob`/`read_file`, `write_set=frozenset()`), the facts pack is capped (top-level 24 entries + README first 1,500 chars + file counts ≤ 4 KB), nothing is written to disk.
+
+**What the model actually said — the moment this scroll was struck** (Clash Verge → aizzz.xyz/v1, `gpt-6.1-terra`, reasoning `low`):
+
+```
+POST /api/v1/admin/investigation-dig
+{ "question": "本仓库 验证平台 是哪一类平台？" }
+```
+
+| field | value |
+|---|---|
+| explorer (verbatim) | "这是一个面向软件研发团队的 AI 代码变更独立验收与证据验证平台。它使用 Python 3.12+ 后端，主要依赖 FastAPI、LangGraph、Git、Docker 及多种数据库/基础设施客户端，并配有 TypeScript/TSX 前端工作台。核心入口包括本地启动脚本、后端 API/CLI 和前端 http://127.0.0.1:5173/。平台主要模块围绕 AI 辅助开发、需求验收、回归检查、风险与覆盖分析、证据留存，以及面向 agent 的 MCP 接入展开；具体前端和后端目录的职责仅凭当前事实包无法进一步确认。" |
+| tester (verbatim) | "根据工作区事实包中的测试描述，这更像是一个面向代码变更的自动化验证平台：它会对比变更前后的测试运行，评估回归，并记录失败归因、沙箱错误和安全发现等信息。仅凭列出的测试，无法确认它是否属于某个更具体的平台类别（例如 CI/CD 平台或安全扫描平台）。" |
+| security (verbatim) | "仅凭提供的事实包无法判断『验证平台』属于哪一类平台。包里只列出了 `.env` 和 `.env.example`，没有说明仓库的平台类型。" |
+| verdict | **EVIDENCE-GATHERED** |
+| usage | explorer 6,245 tok · tester 5,590 tok · security 4,535 tok · **16,370 tokens total** |
+| latency | generation_time_ms **55,380** |
+
+The verbatim responses are filed to `docs/evidence/investigation-dig.json` and rendered live on `/dig`.
+
+### 162.2 Where the model does — and does not — sit in this product
+
+| surface | what the model may do | what the model may never do |
+|---|---|---|
+| `/insight` (AI advice) | read aggregates and say "look at this next" | sign a verdict · move a threshold · paint a number green |
+| `/dig` (this scroll) | say "here is what I see" | open the merge door · act as a judge |
+| `craft/` (M2/M1/M4) | write the plan · produce the diff · diagnose and repair | rule on acceptance (only SpecProof may) |
+| COURT (internal) | explain the judgment in `explain_review_for_verdict.py` | change "BLOCKER / VERIFIED / UNVERIFIED" |
+
+The SpecProof court — the fail-closed deterministic layer — renders the verdict. The model is at every supporting station:
+planner, executor, self-verifier, AI advice reader, investigator — and never at the judge's seat.
+
+### 162.3 The ledger
+
+UI **576/576** · build ✓ · mvn -o **137/137** (Java untouched) · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch still **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · D1 ✅ · D2 ⏸ (the owner's PAT, awaited) · 「密码-123」vetoed · Scroll CLXII filed bilingual · worldbook **Scroll CLXII / 162 scrolls (zh+en symmetric)** · chronicle **1754**

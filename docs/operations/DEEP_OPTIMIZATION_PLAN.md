@@ -41282,3 +41282,52 @@ Unused suffix: `?` · 后续 : 模型 date confirmed 2026-11-16 · 没涂绿 · 
 
 UI **576/576**（新增 3 · Dig.test.tsx 3/3）· build ✓ · mvn -o **137/137**（Java 未动）· guide **6/6** · corrections **17** · purity **CLEAR** · exhibit_entries **16** · Night Watch 依旧 **CRACKED** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle 随本提交增员 · worldbook **卷一百六十一 / 161 卷（中英对称）** · D1 ✅ · D2 ⏸ ·「密码-123」否决 · Scroll CLXI 双语落册
 
+
+## #1956 《/dig 出证》：`POST /api/v1/admin/investigation-dig` 实敲 + `/dig` 限定 admin · aizzz/gpt-6.1-terra 经 Clash Verge 直敲 · verdict **EVIDENCE-GATHERED** · tokens 16,370 · chronicle 增员
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1955。
+
+### 一、ladder（落点）
+
+前端：`/dig`
+- `apps/web/src/pages/Dig.tsx`（新建）· admin/operator 限定 · 输入框 · 「Send the investigators」按钮 · 展示 findings
+- `apps/web/src/pages/__tests__/Dig.test.tsx`（新建 · 3/3）
+- `src/i18n/strings.ts` + `nav.dig`（zh/en 均挂）
+- `App.tsx` 挂 lazy route / manual 入口 / Fabric / Archive 中英里程碑
+
+后端：`/api/v1/admin/investigation-dig`
+- `api/investigation_dig.py`（新建）· `generate_investigation_dig(question)` 接 `craft.investigators.investigate()`
+- `api/routes/admin.py` 新路由 · `tenant mode enforce-RBAC` · `principal.role ∈ {admin, operator}`
+- `tests/unit/test_investigation_dig_route.py`（新建 · 6/6）
+
+底层：
+- `craft/investigators.py` · ParallelRunner 三 readonly investigators · `tree`/`glob`/`read_file` only · 非空 `write_set=frozenset()` · budget 6,500 tok late-safe · 不调 shell channels
+- `docs/openapi/baseline.json`（+1）—— regenerated。`scripts/openapi_diff.py` 38/38 派生绿。
+
+### 二、实敲记录（按真分秒，不捏造）
+
+Question: "本仓库 验证平台 是哪一类平台？"
+
+| investigator | tokens | 答案骨 |
+|---|---|---|
+| explorer | 6,245 | Python 3.12 + FastAPI + LangGraph · TS/React · 核心入口 `specproof-reference` 目录；modules ≈ AI dev workflow … （原文照列）|
+| tester | 5,590 | 基于差分测试回归与失败归因为主… |
+| security | 4,535 | 仅凭文件名信息无法确定… |
+| 共计 | **16,370** | generation_time_ms 55,380 · reasoning effort "low" |
+
+Verdict → **EVIDENCE-GATHERED** · 没涂绿 · 没涂。
+
+> 本次响应在 `docs/evidence/investigation-dig.json` 里落。
+
+### 三、纪律
+
+1. 判词只有两个：`EVIDENCE-GATHERED` / `INSUFFICIENT`
+2. 只读平台：`Write_set=frozenset()`；三investigators 不写文件、不执行 shell
+3. 不做教学：该频道只做"能说出口的事实"；判词不下达 Judgment，不可极端可信/极端不信
+4. RBAC：admin / operator 可通行；其余 403；旧密码没用；租户模式未上报 → 503
+5. cache：本轮不缓存（系统提示常数 4,224 hit 是常量，usage账本不合并）
+6. Chronicle/corrections/safety guards: 未动；Night Watch 维持 CRACKED；exhibit entries=16；court LOCKED；「密码-123」否决
+
+### 四、裁判
+
+UI **576/576** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · Scroll CLXII 双语落册 · worldbook **卷一百六十二 / 162 卷（中英对称）** · chronicle **1754** · D1 ✅ · D2 ⏸ ·「密码-123」否决

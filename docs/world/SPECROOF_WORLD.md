@@ -5971,3 +5971,54 @@ Verdict: **EVIDENCE-GATHERED** · explorer 6,140 tok · tester 5,538 tok · secu
 UI **576/576** · build ✓（minified · lightningcss OK）· mvn -o **137/137**（Java 未动）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（entries **16**）· court `4117d2b0ca5fb23a` **LOCKED** · exhibit_entries **16** · chronicle 随本提交增员 · worldbook **Scroll CLXI / 161 scrolls (zh+en symmetric)** · D1 ✅ · D2 ⏸ ·「密码-123」否决 · cronicle 1754 · worldbook 161
 
 ---
+
+## 卷一百六十二 · The Dig 登册
+
+> 三只只读侦探走进同一扇门，
+> 不是来劝你相信它们的，
+> 是来照给你看，它们只会说：证据在我这边。
+
+### 162.1 /dig 落册（2026-11-17 · 按用户原话 "把大模型 API 能力完整深度嵌入项目整体能力"）
+
+新入口 **`/api/v1/admin/investigation-dig`** 只对 admin/operator 开门，body `{"question":"…"}`（1–600 字符）。三只 readonly investigators 并发同一问题：
+
+- `explorer` — tree + counts → 本仓是什么
+- `tester` — glob `tests/unit/test_*.py` + head → 它们验什么
+- `security` — `.env*` → 有没有 secrets 地板
+
+三只共享同一 workspace（ToolRegistry readonly：`tree`/`glob`/`read_file`  only；`write_set=frozenset()`），facts-pack 上限（顶层 24 项 + README 头 1500 字符 + 文件计数 ≤ 4 KB），不写任何文件。
+
+**这只是今天一只调查员实敲的实况**：
+
+```
+POST /api/v1/admin/investigation-dig
+{ "question": "本仓库 验证平台 是哪一类平台？" }
+```
+
+经 Clash Verge → aizzz.xyz/v1 → `gpt-6.1-terra` · reasoning effort `low`：
+
+| 字段 | 值 |
+|---|---|
+| explorer 答 | 「这是一个面向软件研发团队的 AI 代码变更独立验收与证据验证平台。它使用 Python 3.12+ 后端，主要依赖 FastAPI、LangGraph、Git、Docker 及多种数据库/基础设施客户端，并配有 TypeScript/TSX 前端工作台。核心入口包括本地启动脚本、后端 API/CLI 和前端 `http://127.0.0.1:5173/`。平台主要模块围绕 AI 辅助开发、需求验收、回归检查、风险与覆盖分析、证据留存，以及面向 agent 的 MCP 接入展开；具体前端和后端目录的职责仅凭当前事实包无法进一步确认。」|
+| tester 答 | 「根据工作区事实包中的测试描述，这更像是一个面向代码变更的自动化验证平台：它会对比变更前后的测试运行，评估回归，并记录失败归因、沙箱错误和安全发现等信息。仅凭列出的测试，无法确认它是否属于某个更具体的平台类别（例如 CI/CD 平台或安全扫描平台）。」 |
+| security 答 | 「仅凭提供的事实包无法判断『验证平台』属于哪一类平台。包里只列出了 `.env` 和 `.env.example`，没有说明仓库的平台类型。」 |
+| verdict | **EVIDENCE-GATHERED** |
+| 用量 | explorer 6,245 tok · tester 5,590 tok · security 4,535 tok · **16,370 tokens 合计** |
+| 时间 | generation_time_ms **55,380** |
+
+实敲反馈原样落在 `docs/evidence/investigation-dig.json`，UI 上可看。
+
+### 162.2 三类模型在这款产品里合法的位置（不越位）
+
+| 路 | 模型能做什么 | 模型不能做什么 |
+|---|---|---|
+| `/insight`（AI 解读） | 读 aggregates，说"下一步值得先看什么" | 签字 · 开 verdict · 改缓存数值 |
+| `/dig`（本卷） | 说出"我看到的事实" | 给 merge 开灯 · 代替 admin 决策 |
+| SpecCraft M2/M1 → M4 | 写 plan · 改代码 · 跑诊断修复 | 独立判决验收是否通过 |
+| COURT（internal） | 在 acceptLila 里写 explanation | 改 "PASS / BLOCKER" 自己 |
+
+COURT / VERDICT 由 SpecProof 自己决定——模型不坐那张椅子，也永远不盖 "验收通过"。这是铁规矩。
+
+### 162.3 账房
+
+UI **576/576** · build ✓ · mvn -o **137/137**（Java 未动）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · D1 ✅ · D2 ⏸（owner's PAT，等）·「密码-123」否决 · Scroll CLXII 双语落册（CLXII）· worldbook **卷一百六十二 / 162 卷（中英对称）** · chronicle **1754**

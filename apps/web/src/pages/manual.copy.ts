@@ -61,6 +61,23 @@ export const MANUAL: ManualPackage = {
       },
     },
     {
+      title: { zh: "模型怎么帮忙（不是替代你）", en: "What the model does — and doesn't do for you" },
+      rows: {
+        zh: [
+          "「AI 解读」/insight — admin/operator：让模型读这块面板的匿名聚合数，给出下一件事该做什么；不给判决，不替裁判",
+          "「深挖现场」/dig — admin/operator：只读问一个问题，三只调查员（explorer/tester/security）并发敲同一把钥匙；不够就说不够",
+          "「工单现场」craft × aizzz — 让 LLM 端对端跑一遍 AI 按需求改代码；验收门按你的要求不放行就是不放行",
+          "「缓存账目」/usage — 车道 × 协议双轴拆开：direct 看 prefix 缓存，policy 看语义缓存；未上报的就是「—」，绝不是 0",
+        ],
+        en: [
+          "“AI Advice” /insight — admin/operator: ask the model to read this panel's anonymous aggregates and name the next move. No verdict, never a judge.",
+          "“The Dig” /dig — admin/operator: ask one question of three readonly investigators (explorer/tester/security); if the model can't tell, it says INSUFFICIENT rather than a fabricated answer.",
+          "“SpecCraft × aizzz” — the full chain with the model's hand on the key; the acceptance gate is not the model's to open.",
+          "“Usage” /usage — the cache account split by lane × protocol: direct (prefix cache) and policy (semantic cache, off by default); an unreported call shows “—”, never a zero.",
+        ],
+      },
+    },
+    {
       title: { zh: "三个不要", en: "The three don'ts" },
       rows: {
         zh: [
