@@ -74,6 +74,44 @@ describe("observatory · public readonly panel", () => {
     expect(container.textContent).toContain("240");
   });
 
+  it("renders this browser's real tape when the ledger has data", () => {
+    window.localStorage.setItem(
+      "specproof_heat_v1",
+      JSON.stringify([
+        { t: "view", path: "/#/jobs", at: 1000 },
+        { t: "dwell", path: "/#/jobs", ms: 2000, at: 3000 },
+        { t: "rage", target: "button.x", path: "/#/jobs", at: 3200 },
+        { t: "rage", target: "button.x", path: "/#/jobs", at: 3400 },
+        { t: "rage", target: "button.x", path: "/#/jobs", at: 3600 },
+      ]),
+    );
+    const { container } = render(
+      <I18nProvider>
+        <Observe />
+      </I18nProvider>,
+    );
+    expect(container.textContent).toContain("This one machine");
+    expect(container.textContent).toContain("5"); // events on record
+    expect(container.textContent).toContain("button.x ×3");
+    window.localStorage.setItem(LOCALE_STORAGE_KEY, "zh");
+    const { container: zh } = render(
+      <I18nProvider>
+        <Observe />
+      </I18nProvider>,
+    );
+    expect(zh.textContent).toContain("本机这一台");
+    expect(zh.textContent).toContain("点按记录");
+  });
+
+  it("says silence, not zero, when this browser has no taps yet", () => {
+    const { container } = render(
+      <I18nProvider>
+        <Observe />
+      </I18nProvider>,
+    );
+    expect(container.textContent).toContain("silence, not zero");
+  });
+
   it("opens the gate only on '123'", async () => {
     const { container } = render(
       <I18nProvider>

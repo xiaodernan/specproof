@@ -6261,3 +6261,28 @@ UI 预览时发现一个事实性谎言：`App.tsx` 的 `if (!hasKey && active !
 ### 168.5 账房
 
 mvn -o 未动 · UI **587/587** · vite build ✓ · purity **CLEAR**（本轮修掉 forced-fixture 污染：测试现在快照-还原证据件） · OpenAPI baseline 补入 `POST /observe/advice`（add-only） · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1762** + 1 · worldbook **168 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」不再是否决——它是一扇标着「演示」的门
+
+## 卷一百六十九 · 真一台机器，一台真事
+
+> 大厅里有 240 个「人」，是敲出来的；你这一台才是真的。这一卷把它挂上了墙。
+
+### 169.1 /observe 添了一块「本机这一台」
+
+「真实用户行为模拟出来」这句话的真金白银，是先让模拟承认自己是模拟，再让真实的那一台自己开口。此前 /observe 只挂了两类东西：240 人 mulberry32(seed 20261115) 校准群体 + 「本浏览器 localStorage 轨迹」四个统计（事件条数 · 到访页面 · 秒退 · 急躁点按 + 中位停留）。本轮把那半句落成了页面里真正一块面板：
+
+- 读 `specproof_heat_v1`（仅本地 · 不上传 · 不汇总 · 不属于任何人 · 清空浏览器数据即抹掉）；
+- 六枚 StatCard：点按记录 · 到访页面 · 秒退次数 · 急躁点按 · 不同页面 · 中位停留（秒）；
+- r² 的脚注下方说明这批数是「这一台浏览器亲手敲出来」的；
+- 无数据时显示**沉默，不是零**（Mint / LocalEcho 同款规则），绝不上补一个 0。
+
+模型车道不动：解读仍只可读匿名聚合判据，不读这一台的轨迹，不发明别人——这扇门的梁明写在页眉上。
+
+### 169.2 真实用户行为模拟，从局部到有根
+
+- 本机层（新）：/observe 挂上了真实的本地气候（rage taps / 秒退 / 中位停留），与 `#/insight` 气候图同源（`telemetry/behavior.ts` 的 `deriveHeat`，同一份求导、同一份语义）；
+- 校准层（原）：240 人合成群体 + 双语 persona 六枚 + 漏斗 240→201→113→84→41，继续作为「匿名演示」存在；
+- **后端车道**不读真人；r²=0.12 的预测值就是预测值，不是承诺。
+
+### 169.3 账房
+
+UI **589/589**（83 文件 · Observe.test 6/6 · 本次 +2 例）· vite build ✓ · vitest run ✓ · mvn 未动 · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1763** + 1 · worldbook **169 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门

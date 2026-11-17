@@ -6154,3 +6154,28 @@ Two honest footnotes: the provider lane showed a short window of instant-refusal
 ### 168.5 The ledger
 
 mvn -o untouched · UI **587/587** · vite build ✓ · purity **CLEAR** (forced-fixture pollution fixed this round: the test now snapshot-restores the evidence artefact) · OpenAPI baseline gains `POST /observe/advice` (add-only) · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **17** · chronicle **1762** + 1 · worldbook **Scroll CLXVIII / 168 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is vetoed no more — it is a door marked "demo"
+
+## Scroll CLXIX · One Real Machine, One Real Story
+
+> The hall holds 240 "people" struck from seed; this one machine of yours is the only real story in it. This scroll hangs it on the wall.
+
+### 169.1 /observe gains a panel: "This one machine"
+
+The phrase "simulate real user behaviour" only pays out when the simulation admits it is simulation — then the real thing may speak through. Until now /observe held two components: the 240-member mulberry32(seed 20261115) calibration cohort and a sentence claiming the browser's localStorage trail. This round lands the second half as an actual panel:
+
+- it reads `specproof_heat_v1` (local-only, never uploaded, never aggregated, never owned — clearing browser data erases it);
+- six StatCards — taps on record · pages visited · quick bounces · rage taps · distinct pages · median dwell (s);
+- the footnote says plainly these numbers were struck by this one browser's own hand;
+- with no data the panel says **silence, not zero** — zeros are never painted as data.
+
+The model lane is untouched: answers remain bound to the anonymous aggregate packet — it never reads this machine's trail, and it invents nobody to fill in.
+
+### 169.2 Real-behaviour simulation, rooted at both ends
+
+- The local end (new): /observe now surfaces the machine's true climate — rage taps, quick bounces, dwell — the same `deriveHeat` source feeding `#/insight`'s climate chart;
+- The calibration end (unchanged): 240 synthetic members, six bilingual personas, the funnel 240→201→113→84→41, kept as anonymous demo material;
+- **the backend lane reads no one's machine** — r² = 0.12 stays a forecast, never a promise.
+
+### 169.3 The ledger
+
+UI **589/589** (83 files · Observe.test 6/6 · +2 cases here) · vite build ✓ · vitest run ✓ · mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **17** · chronicle **1763** + 1 · worldbook **169 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is still a door marked "demo"

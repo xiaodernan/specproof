@@ -41586,3 +41586,27 @@ Clash Verge（127.0.0.1:7897）→ `api.aizzz.xyz` · `gpt-6.1-terra` · respons
 mvn -o 未动 · UI **587/587** · vite build ✓ · OpenAPI diff ✓（add-only） · 靶向门绿：test_observe_advice 7 · 5 门组合 43 · purity 两条（快照还原后复敲 CLEAR · 2911 tracked） · routerSmoke 9 · vitest `83 × 文件` · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1762** + 1 · worldbook **168 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」不再是否决——它是一扇标着「演示」的门。
 
 python 全量 `tests/unit`（`-q`）**重敲在飞**：上一笔（#1964 时代遗留 33%）因树已变被其中止；本笔在提交时重敲启动（PID 22004）。**全量 verdict 落笔于本条末尾**（若红，下一笔为修复件；既往基线 #1943 = 6,538 绿 · 63 红 · 44 跳过，红位皆非本轮引入）。
+
+## #1967 《真一台机器，一台真事》：/observe 添「本机这一台」面板——真实浏览器轨迹落墙 · UI 589/589 · chronicle 1763 · worldbook 169 卷（双语）
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1966。
+
+### 一、做了什么
+
+1. `apps/web/src/pages/Observe.tsx`——/observe 新增面板「本机这一台 · 只有你这一台是真的 / This one machine — the only real telemetry here」；
+   - 数据源：`specproof_heat_v1`（仅 localStorage · 不上传 · 不汇总 · 不属于任何人 · 清浏览器数据即抹）；
+   - `telemetry/behavior.ts` 的 `deriveHeat`（与 `#/insight` 气候图同源、同一求导）；
+   - 六枚 StatCard：点按记录 · 到访页面 · 秒退次数 · 急躁点按 · 不同页面 · 中位停留（秒）；
+   - 急躁点按 Top 3（如 `button.x ×3`）一行列出；无急躁 → 一句中文好消息；
+   - 无数据 → **沉默，不是零**（LocalEcho 同款口径），绝不上补 0；
+   - 整页双语；模型车道不变——解读仍只可读匿名聚合判据，不读这一台的轨迹。
+2. `tests`——`Observe.test.tsx` +2 例：真实轨迹渲染（英→中双语）· 空轨迹显示「silence, not zero」· 现有 4 例防回归。
+3. 无后端、无路由、无权限面、无 OpenAPI 变化——纯页面内容级更新；README 2026-11-17 守门在上一提交已更新（#1966 落定），本轮不再动前门。
+
+### 二、为什么不给后端开这一扇窗
+
+「观察一台真实前台」若后端也知道，这扇窗就长成监听尾巴——不展开。模型车道只读匿名聚合；本机气候只在这一台浏览器里；横向真实遥测仍走 OBSERVABILITY.md（D1 已签）。Observe 的存在就是为了让「观察舱」在无处可藏时，也真的是一扇照见自己的镜子。
+
+### 三、账房
+
+UI **589/589**（83 文件 · Observe.test **6/6** · 本轮 +2）· vite build ✓ · vitest run ✓ · mvn 未动 · OpenAPI 未动（页面内容级变更）· access_role_parity **11/11** 未触 · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1763** + 1 · worldbook **169 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门

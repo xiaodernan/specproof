@@ -327,6 +327,7 @@ export const SCROLLS_ZH: Scroll[] = [
       { label: "值班手册 · #1959", value: "runbook_triage_graph.py / /api/v1/admin/runbook-triage + Runbook 页面：探针一响模型先读仓库（alert rule × 最近 20 提交 × 最新 5 份 evidence × compose 的脱敏 api env）· 判词 CONFIRMED / INCONCLUSIVE · /stategraph 挂第十张（十张活图）· UI 580/580（#1959）" },
       { label: "术语自己会收口 · #1960", value: "glossary 长出三个 Runbook 词条：dig（深挖现场）· runbook（值班手册）· inconclusive（证据不足）· Runbook 页面的两处术语原生悬浮解释 · UI 580/580（#1960）" },
       { label: "观察舱 · #1966", value: "/observe 公开·只读·演示公开页：240 人合成校准群体 + 本机真实轨迹 · r²/斜率/漏斗双语 · 密码「123」放开模型现场解读（live 后端车道 · 指纹缓存）· 永不含真实人数据 · UI **587/587**（#1966）" },
+      { label: "真一台 · #1967", value: "/observe「本机这一台」面板：浏览器 `specproof_heat_v1` 真实气候（点按 · 秒退 · 急躁 · 中位停留）· 不上传 · 沉默不是零 · 模型车道仍只读匿名聚合 · UI **589/589**（#1967）" },
     ],
   },
   {
@@ -644,6 +645,7 @@ export const SCROLLS_EN: Scroll[] = [
       { label: "The runbook answers · #1959", value: "runbook_triage_graph.py / /api/v1/admin/runbook-triage + /runbook page — the alert fires, the model reads the repo (one alerts-slo rule × last 20 commits × five newest evidence files × the redacted api env) · verdict CONFIRMED / INCONCLUSIVE · /stategraph hangs its tenth living graph · UI 580/580 (#1959)" },
       { label: "The terms explain themselves · #1960", value: "glossary gains three Runbook entries — `dig` (深挖现场), `runbook` (值班手册), `inconclusive` (证据不足) — wrapping <Term id=…> directly on the page, single source of truth, never copied definitions · UI 580/580 (#1960)" },
       { label: "The Observatory · #1966", value: "/observe is a public, read-only, demo-only page: the 240-member synthetic calibration cohort + this browser's real taps · r² / slope / funnel bilingual · password \"123\" opens a live model read (server-side lane · fingerprint-cached) — never any real person's data · UI **587/587** (#1966)" },
+      { label: "One Real Machine · #1967", value: "/observe adds \"This one machine\": this browser's true climate from `specproof_heat_v1` (taps · bounces · rage · dwell median) · never uploaded · silence is not zero · the model lane still reads only the anonymous aggregates · UI **589/589** (#1967)" },
     ],
   },
   {

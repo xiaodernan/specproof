@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../i18n";
 import { buildInsight } from "./insight.copy";
+import { deriveHeat, loadHeat } from "../telemetry/behavior";
 import { postObserveAdvice, type ObserveAdvice } from "../api";
 import { Panel, Button, StatCard, Empty } from "../ui";
 import { ProductIcon } from "../ui/ProductIcon";
@@ -74,6 +75,18 @@ export default function Observe(): JSX.Element {
 
   const formatCount = (n: number): string => (n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n));
 
+  // This browser's own tap ledger — the only REAL telemetry on the page.
+  // Read from localStorage only; unreadable/quiet shows the silence line,
+  // never a fabricated zero. (Rule inherited from Mint/LocalEcho.)
+  const thisBrowser = useMemo(() => {
+    try {
+      const summary = deriveHeat(loadHeat());
+      return { ok: true as const, summary };
+    } catch {
+      return { ok: false as const, summary: null };
+    }
+  }, []);
+
   return (
     <div className="observe-page">
       <header className="page-head" style={{ marginBottom: 18 }}>
@@ -99,6 +112,41 @@ export default function Observe(): JSX.Element {
         <p className="muted usage-basis-note">
           r² = {data.r2.toFixed(2)} · {L("拟合很弱——平线，不是斜坡；预测逐日微减", "a weak fit — a near-flat line, easing down; the forecast steps down day by day")} · {L("斜率", "slope")} {data.dailySlope.toFixed(2)}/d
         </p>
+      </Panel>
+
+      <Panel title={L("本机这一台 · 只有你这一台是真的", "This one machine — the only real telemetry here")}>
+        {thisBrowser.ok && thisBrowser.summary.events > 0 ? (
+          <>
+            <div className="stat-grid" style={{ marginBottom: 10 }}>
+              <StatCard label={L("点按记录", "Taps on record")} value={String(thisBrowser.summary.events)} tone="ok" />
+              <StatCard label={L("到访页面", "Pages visited")} value={String(thisBrowser.summary.views)} />
+              <StatCard label={L("秒退次数", "Quick bounces")} value={String(thisBrowser.summary.quickBounces)} tone="warn" />
+              <StatCard label={L("急躁点按", "Rage taps")} value={String(thisBrowser.summary.rageTotal)} tone="warn" />
+              <StatCard label={L("不同页面", "Distinct pages")} value={String(thisBrowser.summary.distinctRoutes)} />
+              <StatCard label={L("中位停留(秒)", "Median dwell (s)")} value={String(thisBrowser.summary.medianDwellSec)} />
+            </div>
+            {thisBrowser.summary.rageTop.length > 0 ? (
+              <p className="muted usage-basis-note">
+                {L("急点最多的地方", "where the impatience lands")}: {thisBrowser.summary.rageTop.slice(0, 3).map((r) => `${r.target} ×${r.count}`).join(" · ")}
+              </p>
+            ) : (
+              <p className="muted usage-basis-note">{L("本机轨迹里没有急躁点按——这是最好的消息。", "No rage taps in this machine's ledger — the best signal on this page.")}</p>
+            )}
+            <p className="muted usage-basis-note">
+              {L(
+                "这组数字是你这一台浏览器亲手敲出来的——不上传、不汇总、不属于任何人；清空浏览器数据即抹掉。",
+                "These numbers were struck by this one browser — nothing is uploaded, nothing aggregated, nobody owns them; clearing your browsing data erases them.",
+              )}
+            </p>
+          </>
+        ) : (
+          <p className="muted" style={{ margin: 0 }}>
+            {L(
+              "这一台还没有足够的轨迹——沉默，不是零。随便去走几间屋，它就有了。",
+              "This machine has no trail yet — silence, not zero. Walk through a few rooms and it will have one.",
+            )}
+          </p>
+        )}
       </Panel>
 
       <Panel title={L("漏斗：来 240 个人，走 41 个人", "Funnel: 240 enter, 41 leave with a seal")}>
