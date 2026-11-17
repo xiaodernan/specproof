@@ -5924,3 +5924,28 @@ planner, executor, self-verifier, AI advice reader, investigator — and never a
 ### 162.3 The ledger
 
 UI **576/576** · build ✓ · mvn -o **137/137** (Java untouched) · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch still **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · D1 ✅ · D2 ⏸ (the owner's PAT, awaited) · 「密码-123」vetoed · Scroll CLXII filed bilingual · worldbook **Scroll CLXII / 162 scrolls (zh+en symmetric)** · chronicle **1754**
+
+## Scroll CLXIII · The witness signs for its own words
+
+> Nothing in a repository is entitled to a free pass — not even the bookkeeper. The ledger keeper must file its own handwriting.
+
+### 163.1 What went red (2026-11-17, struck right after `57afcea`)
+
+`tests/unit/test_verdict_channel_parity.py` reported failures — first two, then one:
+
+- `test_every_product_verdict_literal_is_claimed_by_a_channel` — the new files (`craft/investigators.py`, `api/investigation_dig.py`, `api/routes/admin.py`, `agent/graphs/investigation_dig_graph.py`) wrote `INSUFFICIENT` and `EVIDENCE-GATHERED` and no channel owned them;
+- `test_opaque_writes_stay_inside_a_channel_that_declared_them` — the new carriers' opaque writes (conditional expressions) were not declared;
+- `test_a_declared_word_is_written_and_a_written_word_is_declared` — the `witness` channel declared `EVIDENCE-GATHERED` in its scale, yet nowhere produced the word: the value is chosen inside an `IfExp` (invisible to the write-shape scanner), and the earlier references through named constants are `Name`, not `Constant`.
+
+### 163.2 What was fixed (declared, never painted green)
+
+1. **Witness-channel owners extended** with `craft/investigators.py`, `api/investigation_dig.py`, `api/routes/admin.py`, `agent/graphs/investigation_dig_graph.py` — their words belong to the witness channel (the machine's self-report lexicon), never to `job_summary` (the accept lane), never to the court;
+2. **Scale only grows**: `EVIDENCE-GATHERED` / `INSUFFICIENT` were registered; nothing was removed;
+3. **Opaque only grows**: the new carriers' unevaluated writes are registered as opaque — declared by their carrier, never by their value;
+4. **Inline literals**: the terminal return in `investigate()` now spells `"EVIDENCE-GATHERED"` and `"INSUFFICIENT"` directly in the dict — the caller reads the word itself, no indirection through a module-level constant;
+5. **Witness pointer**: `EVIDENCE-GATHERED` is chosen inside a conditional expression the scanner cannot fold, so it is witnessed verbatim at `craft/investigators.py:306` — the line that bears the token. The test opens the file, validates the line number and requires the token on that exact line; a witness may not park a word nobody writes;
+6. **No gate was lowered**: no forbidden word was repealed, no ruler trimmed, Exhibit #4 untouched, Night Watch still **CRACKED**, court `4117d2b0ca5fb23a` **LOCKED**.
+
+### 163.3 The ledger
+
+`pytest tests/unit/test_verdict_channel_parity.py` → **14/14 green**. Adjacent lanes (`test_investigation_dig` · `test_investigation_dig_route` · `test_insight_advice`) ran together: **38 passed**. `purity_graph` → **CLEAR** · `night_watch_graph` → **CRACKED** (exhibit #4 unmoved) · `audit_evidence` → **CONSISTENT** · court lock `4117d2b0ca5fb23a` **LOCKED**. Web untouched this round (last verified: UI **576/576**) · mvn -o **137/137**. chronicle **1755** · worldbook **Scroll CLXIII / 163 scrolls (zh+en symmetric)** · D1 ✅ · D2 ⏸ ·「密码-123」vetoed

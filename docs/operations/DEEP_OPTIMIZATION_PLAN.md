@@ -41331,3 +41331,39 @@ Verdict → **EVIDENCE-GATHERED** · 没涂绿 · 没涂。
 ### 四、裁判
 
 UI **576/576** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · Scroll CLXII 双语落册 · worldbook **卷一百六十二 / 162 卷（中英对称）** · chronicle **1754** · D1 ✅ · D2 ⏸ ·「密码-123」否决
+
+## #1957 《见证人也要自己签收》：verdict-channel 证人通道补登记——owners 扩展四文件、scale 只增、opaque 只增、`EVIDENCE-GATHERED` 按 IfExp 机制登记证人 `craft/investigators.py:306` · parity 14/14 绿 · chronicle **1755** · worldbook **163 卷（中英对称）**
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1956。
+
+### 一、红的来历（实话）
+
+`57afcea`（#1956）落盘后，按惯例敲 `tests/unit/test_verdict_channel_parity.py`，得两个失败：
+
+1. `test_every_product_verdict_literal_is_claimed_by_a_channel` — `agent/graphs/investigation_dig_graph.py:61·69·84`、`api/investigation_dig.py:57·72`、`api/routes/admin.py:771`、`craft/investigators.py:229·301·308` 的 `INSUFFICIENT` / 空值写，没有任何通道认领；
+2. `test_opaque_writes_stay_inside_a_channel_that_declared_them` — 同文件里的条件表达式写（值不可读）没有声明为 opaque；
+3. 修完上两项后仍余一红：`test_a_declared_word_is_written_and_a_written_word_is_declared` — `witness` 通道 scale 里声明了 `EVIDENCE-GATHERED`，但整个通道从不「产生」它：条件分支不是写形，具名常量不是字面量。
+
+### 二、修法（只登记，不涂绿）
+
+| 项 | 动作 |
+|---|---|
+| `evidence/verdict_channels.py` owners | witness 通道 owners 增加 `agent/graphs/investigation_dig_graph.py` · `craft/investigators.py` · `api/investigation_dig.py` · `api/routes/admin.py` |
+| `evidence/verdict_channels.py` scale | 增加 `"EVIDENCE-GATHERED"` · `"INSUFFICIENT"`（旧词一条没动） |
+| `evidence/verdict_channels.py` opaque | 上述四文件的条件表达式写全部入册（以载体登记，不以值登记） |
+| `evidence/verdict_channels.py` witnesses | 新增 `EVIDENCE-GATHERED → craft/investigators.py:306`（IfExp 恰是该机制的设计场景：文件打开、行号合法、`"EVIDENCE-GATHERED"` 就在该行） |
+| `craft/investigators.py` | 终局 return 内联字面量：`"EVIDENCE-GATHERED"` / `"INSUFFICIENT"` 直接写在 dict 里（撤掉了具名常量转述） |
+
+**没做的事**：没有删禁词、没有裁尺、没有放宽任何断言、没有把 witness 嫁接进 accept lane、court 一行没改、Exhibit #4 没挪、Night Watch 不变。
+
+### 三、账房（2026-11-17 本机实敲）
+
+- `tests/unit/test_verdict_channel_parity.py` → **14/14 green**；
+- 相邻四件套合敲 → **38 passed**（`test_investigation_dig` · `test_investigation_dig_route` · `test_insight_advice` · parity 自身）；
+- `purity_graph.py` → **CLEAR**（hits=0）；`night_watch_graph.py` → **CRACKED**（evidence=REGRESSION · exhibit #4 不挪）；`audit_evidence.py` → **CONSISTENT** · court lock `4117d2b0ca5fb23a` **LOCKED**；
+- 本轮未动 Web 与 Java：上次验证 UI **576/576** · mvn -o **137/137** 不另敲（零 Java / 零 Web 文件改动）；
+- i18n 纯审不进门（advisory-only，未变）；payload-census 红 **23** 仍挂着（#8 待专门批次）；
+
+### 四、裁判
+
+UI **576/576**（同基线）· build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle **1755** · worldbook **卷一百六十三 / 163 卷（中英对称）** · D1 ✅ · D2 ⏸（owner's PAT，等）·「密码-123」否决 · Scroll CLXIII 双语落册

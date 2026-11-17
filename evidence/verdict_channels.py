@@ -423,17 +423,18 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
         key="witness",
         field="verdict (night-watch / witness graphs and the audit roll's evidence files)",
         owners=(
-            # the seven living StateGraphs
+            # the living StateGraphs
             "agent/graphs/auditor_graph.py",
             "agent/graphs/cache_witness_graph.py",
             "agent/graphs/evidence_graph.py",
             "agent/graphs/insight_advice_graph.py",
+            "agent/graphs/investigation_dig_graph.py",
             "agent/graphs/night_watch_graph.py",
             "agent/graphs/purity_graph.py",
             "agent/graphs/recall_graph.py",
             "agent/graphs/usage_ledger_graph.py",
-            # the audit roll's plumbing: verdicts ride in as expressions opaque
-            # to the scanner
+            # the audit roll's plumbing: the verdicts ride in as expressions
+            # opaque to the scanner
             "scripts/audit_court_lock.py",
             "scripts/audit_evidence.py",
             "scripts/audit_portfolio.py",
@@ -445,11 +446,17 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             "scripts/llm_locale_consistency.py",
             "scripts/monthly_census.py",
             "scripts/stress_smoke.py",
+            # the new llm-verifying verdict surfaces — EVIDENCE-GATHERED /
+            # INSUFFICIENT live in the same lexicon family
+            "craft/investigators.py",
+            "api/investigation_dig.py",
+            "api/routes/admin.py",
         ),
         scale=frozenset({
             "OK", "REGRESSION", "NO-DELTA", "CRACKED", "CLEAR",
             "EVIDENCE-MISSING", "MISSING-QUERY", "ASKED",
             "ANSWERED", "UNAVAILABLE",
+            "EVIDENCE-GATHERED", "INSUFFICIENT",
             "unknown",
             # build_roadmap_live.py:29 — a placeholder rendered by the roadmap
             # build when a date cannot be determined; the `?` is the page's own
@@ -466,6 +473,7 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             "agent/graphs/cache_witness_graph.py",
             "agent/graphs/evidence_graph.py",
             "agent/graphs/insight_advice_graph.py",
+            "agent/graphs/investigation_dig_graph.py",
             "agent/graphs/night_watch_graph.py",
             "agent/graphs/purity_graph.py",
             "agent/graphs/recall_graph.py",
@@ -481,7 +489,18 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             "scripts/llm_locale_consistency.py",
             "scripts/monthly_census.py",
             "scripts/stress_smoke.py",
+            "craft/investigators.py",
+            "api/investigation_dig.py",
+            "api/routes/admin.py",
         ),
+        witnesses={
+            # `verdict` is chosen inside an IfExp in craft/investigators.py —
+            # a conditional expression the write-shape scanner cannot fold;
+            # the word is written verbatim on this line, which is what a
+            # witness must point at (a witness may not park a word nobody
+            # writes).
+            "EVIDENCE-GATHERED": "craft/investigators.py:306",
+        },
         note=(
             "The witness channel carries the StateGraphs' own verdicts — the\n"
             "watch that measures the world, not the world's product verdict.\n"

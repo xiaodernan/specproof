@@ -6022,3 +6022,28 @@ COURT / VERDICT 由 SpecProof 自己决定——模型不坐那张椅子，也�
 ### 162.3 账房
 
 UI **576/576** · build ✓ · mvn -o **137/137**（Java 未动）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · D1 ✅ · D2 ⏸（owner's PAT，等）·「密码-123」否决 · Scroll CLXII 双语落册（CLXII）· worldbook **卷一百六十二 / 162 卷（中英对称）** · chronicle **1754**
+
+## 卷一百六十三 · 见证人也要自己签收
+
+> 仓库里没有一条目光是天生合法的。连记事的人，也得在自己的本子上登记自己写的字。
+
+### 163.1 红了什么（2026-11-17，`57afcea` 之后立刻敲）
+
+`tests/unit/test_verdict_channel_parity.py` 报了三个红（后收为一个）：
+
+- `test_every_product_verdict_literal_is_claimed_by_a_channel` — 三个新文件上的 `INSUFFICIENT` / `EVIDENCE-GATHERED` 没有任何通道认领；
+- `test_opaque_writes_stay_inside_a_channel_that_declared_them` — 新载体的不透明写（条件表达式）没有声明；
+- `test_a_declared_word_is_written_and_a_written_word_is_declared` — `witness` 通道把 `EVIDENCE-GATHERED` 写进了自己的 scale，却找不到任何地方「产生」这个词：条件分支（`IfExp`）不是 scanner 认得的写形，三处引用是 `Name`，不是字面量。
+
+### 163.2 我修了什么（不涂绿，只登记）
+
+1. **证据通道扩编 owners**：加入 `craft/investigators.py`、`api/investigation_dig.py`、`api/routes/admin.py`、`agent/graphs/investigation_dig_graph.py`——它们写的字属于 `witness` 通道里的「这台机器自述」语言族，不嫁接到 `job_summary`（裁决）通道，也不嫁接到 court；
+2. **scale 只增不减**：登记 `EVIDENCE-GATHERED` 与 `INSUFFICIENT` 两词；旧词一字没删；
+3. **opaque 只增不减**：新文件的条件表达式写（读不出值）全部入册 opaque——以「谁扛着表达式」的身份登记，绝不以「值是什么」的身份登记；
+4. **`craft/investigators.py` 内联字面量**：final return 里把 `"EVIDENCE-GATHERED"` / `"INSUFFICIENT"` 直接写进 dict，不再借具名常量之名转述——字典值就是字面量本身；
+5. **证人指针**：`EVIDENCE-GATHERED` 由 `IfExp` 产生，扫描器的写形读不了条件分支，按该机制登记一份证人：`craft/investigators.py:306`——指向 `"EVIDENCE-GATHERED"` 这行本身。测试打开文件、行号合法、该行含此值，证人才能成立；
+6. **没有降低任何门**：禁词未散、尺未裁、court 未动、Exhibit #4 未挪、Night Watch 依旧 **CRACKED**、court `4117d2b0ca5fb23a` **LOCKED**。
+
+### 163.3 账房
+
+`pytest tests/unit/test_verdict_channel_parity.py` → **14/14 green**。相邻套件（`test_investigation_dig` · `test_investigation_dig_route` · `test_insight_advice`）合跑共 **38 passed**。`purity_graph` → **CLEAR** · `night_watch_graph` → **CRACKED**（exhibit #4 不挪动）· `audit_evidence` → **CONSISTENT** · court lock `4117d2b0ca5fb23a` **LOCKED**。本轮未动 Web（上次验证：UI **576/576**）· mvn -o **137/137**。chronicle **1755** · worldbook **卷一百六十三 / 163 卷（中英对称）** · D1 ✅ · D2 ⏸ ·「密码-123」否决

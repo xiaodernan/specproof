@@ -298,14 +298,18 @@ async def investigate(
         for r in realized.agents
     ]
     total_tokens = sum(a.get("tokens") or 0 for a in agents)
-    verdict = "EVIDENCE-GATHERED" if any(
-        a["outcome"] == "ok" and a["findings"] and any(f.get("confidence", 0) > 0 for f in a["findings"])
-        for a in agents
-    ) else "INSUFFICIENT"
-
+    # The scale words are spelled verbatim inside the return literal so the
+    # witness-channel parity scanner can read them straight from the AST.
     return {
         "question": question,
-        "verdict": verdict,
+        "verdict": (
+            "EVIDENCE-GATHERED"
+            if any(
+                a["outcome"] == "ok" and a["findings"] and any(f.get("confidence", 0) > 0 for f in a["findings"])
+                for a in agents
+            )
+            else "INSUFFICIENT"
+        ),
         "findings": [f for a in agents for f in a["findings"]],
         "agents": agents,
         "total_tokens_used": total_tokens,
