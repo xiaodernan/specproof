@@ -1,0 +1,55 @@
+name: latest-json
+
+# Keeps ``docs/latest.json`` — the fact pack the portfolio reads — fresh
+# without any credential: only this repo's own GITHUB_TOKEN, only on pushes
+# to master that touch the surfaces whose facts the pack claims.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "docs/world/**"
+      - "docs/operations/DEEP_OPTIMIZATION_PLAN.md"
+      - "docs/evidence/**"
+      - "apps/web/src/pages/evidence.json"
+      - "apps/web/src/pages/chronicle.json"
+      - "apps/web/src/pages/worldbook.json"
+      - "scripts/build_latest.py"
+      - ".github/workflows/latest-json.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: latest-json
+  cancel-in-progress: true
+
+jobs:
+  re-strike:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out specproof
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Re-derive the fact pack from this repo
+        run: python scripts/build_latest.py
+
+      - name: Commit the re-struck pack only if it moved
+        run: |
+          set -euo pipefail
+          git config user.name "specproof-bot"
+          git config user.email "specproof-bot@users.noreply.github.com"
+          git add docs/latest.json
+          if git diff --cached --quiet; then
+            echo "fact pack unchanged — nothing to commit"
+            exit 0
+          fi
+          git commit -m "chore(latest): re-strike the portfolio fact pack"
+          git push origin HEAD
