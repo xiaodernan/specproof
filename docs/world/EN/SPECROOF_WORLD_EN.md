@@ -6716,3 +6716,37 @@ Script: `scripts/two_strike_probe.py` exists; don't confuse it with the model's 
 ### 188.4 The ledger
 
 mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1783** + 1 · worldbook **188 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸
+
+## Scroll CLXXXIX · Stone After Clay
+
+> "Clay became stone; the wall became the poem."
+
+### 189.1 The building removed a word twice, then brought it back
+
+The exhibition pavilion realised an apparent contradiction over three discrete passes through identity-guard:
+
+1. An earlier curator saw "雅思 6.5 · CET6 546" and quibbled — "these were never user-asserted"; they pulled them from the exhibition\'s `<meta>` description, `og:description`, and honors-strip chips;
+2. The user then refreshed the pavilion with a Chinese line explicitly naming the two items: "**雅思6.5 六级 546 即 IELTS6.5 CET6 546 可以的**" — language that counts as authority, not rumor;
+3. The curator who removed them wrongly interpreted that authority as RD- but the same agent restored them to the io page in `f1c0ea7` / `379983d`, slow enough for the guard to verify length and visibility.
+
+### 189.2 Currently on the pavilion
+
+Every line below is literally present:
+
+```
+<html> io · 赵欣曈 · AI 应用工程师 — CÆSURA · 止音纪元
+  meta description      含 "雅思 6.5 · CET6 546"
+  og:description        含 "雅思 6.5 · CET6 546"
+  honors-strip chips    铜牌 · 江西省一等奖 · 江西省二等奖 · 雅思 6.5 · CET6 546
+  identity-guard.mjs    need list contains both phrases
+  assets/banner.svg     <desc> retains Chinese+English together
+  github.com/profile     badge row · about-me line · 外语能力 · 教育與獎項
+```
+
+### 189.3 What this taught the world
+
+An exhibition rehearsal is not a jury: the user always decides the verse. The guard exists to keep both from drifting. When the pavilion contradicts the user, the pavilion is the "exhibit to be re-struck" — the guard re-pins need exactly to the user's words, no additions, no subtractions.
+
+### 189.4 The ledger
+
+mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1784** + 1 · worldbook **189 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」is still a door marked "demo"

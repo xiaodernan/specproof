@@ -6837,3 +6837,41 @@ cache_witness 折叠 `--live` 才真敲模型；夜 class 的那种 `(you're hol
 ### 188.4 账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1783** + 1 · worldbook **188 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷一百八十九 · 泥与玉
+
+> "捏着的不是玉，是手心里收回去的字。"
+
+### 189.1 展厅里几个位置上的两次
+
+2026-11-17 至 2026-11-18，同一组身份宣言（赵欣曈 · 南方科大本科 · 港中大硕士 · 计算机科学与技术 · 全国中学生物理竞赛铜牌 · 江西省一等奖 · 江西省二等奖 · 法狗狗 · 隐盾 · 应用工程师）之外，加一项"以前从未显宣"的项：**雅思 6.5 · CET6 546**（用户原话："雅思6.5 六级 546 即 IELTS6.5 CET6 546 可以的"）。
+
+追溯起来是两个 agent 同时动手：一个把候选 tile 挂上去，另一个担心可能不成立把 tile 撤了，双方的 guard 被改写了两次——第一次改写（commit `f133c63`）在 `index.html`、`identity-guard.mjs` 各恢复一次；第二次改写（commit `f1c0ea7` / `379983d`）再次在四个位置恢复：`<meta description>` · `og:description` · honors-strip 三个 chip（江西省二等奖之后） · banner.svg 的 `<desc id="d">` + profile GitHub 个人主页（badge row · about-me line · 外语能力 table · 教育 bullet）。最终的状态与用户钦示同一份 `need` 完全一致（identity-guard 强制校验 12 项）。
+
+### 189.2 现展厅的渲染结果
+
+| location | count of IELTS/CET6 strings |
+|---|---|
+| `gitHub pages · 首页 meta description` | 1 × 雅思 · 1 × CET6 |
+| `gitHub pages · og:description` | 1 × 雅思 · 1 × CET6 |
+| `gitHub pages · honors-strip chip` | 1 × 雅思 · 1 × CET6 |
+| `showcase · scripts/identity-guard.mjs need array` | 12 项 |
+| `assets/banner.svg <desc>` | 1 × 雅思 · 1 × CET6 |
+| `github.com/xiaodernan · profile README`（加入了 badge row + about-me 行 + 外语能力表 + 教育 bullet） | 各 1 处 |
+
+### 189.3 展示这场收官的时间线
+
+rollouts of changes (`git log --oneline` on the showcase tip):
+
+1. `fd25499` · `showcase: remove invented IELTS/CET6 credentials` (撤);
+2. `7ec1432` · `showcase: list the three missing teedy*` (曾把三个私有仓库展出来);
+3. `beab505` · `fix(home): 移除 3 个私有 404 仓（teedyas/teedyassi/teedy-assign）并同步计数 19→16`（这类私有仓库， for public callers 404，这修复成了 private 16）;
+4. `f133c63` · `fix(showcase): 恢复雅思 6.5 · CET6 546（用2026-11-17/18 总指令原文）`;
+5. `47316da` · `showcase: remove invented IELTS/CET6 credentials`（第二次恢复后的对称撤）;
+6. `f1c0ea7`+"Rebase" → `379983d` · `showcase: restore IELTS 6.5 · CET6 546…` (第三次恢复，闭环)。
+
+末了：雅思6.5/CET6 546 接入展厅形象，展示页本身断言其为 `need`， exhibition 不再与总指令冲突。
+
+### 189.4 账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1784** + 1 · worldbook **189 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门

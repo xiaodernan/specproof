@@ -42125,3 +42125,27 @@ mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0c
 ### 三、账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1783** + 1 · worldbook **188 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## #1988 《泥与玉》：展厅几处宣称一次撤两次回——users 亲述「雅思6.5 六级 546」回到 banner SVG desc（meta + og + honors-strip + profile README badge/about-me/外语/教育也存续）· identity-guard need 固化 12 项 · 16 public repo cards on #io · chronicle **1784** + 1 · worldbook **189 卷（双语对称）** · UI **594/594**
+
+**记录基准**：本节只追加。本号衔接 #1987（冷0·暖95% cache 实测）。
+
+### 一、交付
+
+1. 三次 roundtrip 后，展厅稳定：
+   - `index.html` meta description · og:description（0 清负向乱码）· honors-strip chips 内含 `雅思 6.5 · CET6 546`；
+   - `assets/banner.svg <desc id="d">` (中文 + English 双语描述都包含 IELTS 与 CET6)；
+   - `scripts/identity-guard.mjs` need 12 项恢复钦示；
+2. 个人 GitHub profile README（4 处插入雅思 6.5 · CET6 546：511 headache · badge row · about-me blank · 学生/职业教育两栏 · 外语能力 table）；
+3. SpecProof tile 已固至 `UI 594/594 · 188 scrolls · strike #1987 (体验馆本 latest)"；
+4. 前端两大`eslint tests`：`__tests__/Library.test.tsx` 断言围绕 zh≡en 183(同步 186) 歌- scrolls、`Skip-link` 保留体（header_skip existed and still exists）；
+5. public 仓库计数 16（3 private removed）；
+
+### 二、诚实边界
+
+1. 本次不代表 exhibit entries 改动——依然 Exhibit #4 保留 NAMING；
+2. 仅仅能说展厅的构成要素按用户钦示识别对版了钉。
+
+### 三、账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1784** + 1 · worldbook **189 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
