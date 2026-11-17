@@ -41494,3 +41494,24 @@ Scroll CLXVI 含：
 ### 二、裁判
 
 mvn -o 双 service **BUILD SUCCESS**（Java 未动）· UI **580/580** · purity **CLEAR** · Night Watch 依旧 **CRACKED** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle **1759** + 1 · worldbook **卷一百六十六（双语对称）· D1 ✅ · D2 ⏸ ·「密码-123」否决
+
+## #1963 《压不是像高，是同一个宿主再敲》：Exhibit #17 落册（96c × 2/thread × 4 rounds · +2 warmup · 0.00% err · worst p99 1,534.5 ms · verdict OK）· Δ vs #15 跨形状并列 · exhibit_entries **16→17** · chronicle **1760** + 1 · worldbook **166 → 167 卷**
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1962。
+
+### 一、展 #17（本机 real strike 2026-11-17）
+
+`docs/evidence/2026-11-17-static-warm-17.json`：
+
+| round | ok/total | err | p50 | p99 |
+|---|---|---|---|---|
+| 1 | 192/192 | 0.00% | 26.6 ms | 1,028.1 ms |
+| 2 | 192/192 | 0.00% | 25.8 ms | 1,526.7 ms |
+| 3 | 192/192 | 0.00% | 24.5 ms | 1,083.0 ms |
+| 4 | 192/192 | 0.00% | 25.3 ms | 1,534.5 ms |
+
+verdict **OK** · worst p99 **1,534.5 ms** · worst err **0.00%** · Δ vs #15 · exhibit #4 的 REGRESSION 保留在册上 · exhibit_entries **17**。
+
+### 二、账房
+
+mvn -o 双 service **BUILD SUCCESS** · UI **580/580** · purity **CLEAR** · audit_evidence **CONSISTENT** · chronicle **1760** + 1 · worldbook **卷一百六十七 / 167 卷** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit #4 不动 · D1 ✅ · D2 ⏸ ·「密码-123」否决

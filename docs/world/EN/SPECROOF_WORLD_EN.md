@@ -6080,3 +6080,28 @@ Live struck with `SpecproofApiDown`: explorer read the `up{job="api"} == 0` rule
 | COURT | state the explanation plainly | change the verdict |
 
 `#/stategraph` shows ten living state graphs (**6 offline + 4 networked**: cache_witness, insight_advice, investigation_dig, runbook_triage) verbatim. UI **580/580** · build ✓ · purity **CLEAR** · `mvn -o` both services **BUILD SUCCESS** · chronicle **1758**
+
+## Scroll CLXVII · It is not taller; it is the same host, struck again
+
+> One hand does not know the shape of the other.
+
+### 167.1 Exhibit #17 on file (96c × 2/thread × 4 rounds = 192 req · +2 warmup, this host · 2026-11-17)
+
+`docs/evidence/2026-11-17-static-warm-17.json`:
+
+| round | ok/total | err% | p50 | p99 |
+|---|---|---|---|---|
+| 1 | 192/192 | **0.00%** | 26.6 ms | 1,028.1 ms |
+| 2 | 192/192 | **0.00%** | 25.8 ms | 1,526.7 ms |
+| 3 | 192/192 | **0.00%** | 24.5 ms | 1,083.0 ms |
+| 4 | 192/192 | **0.00%** | 25.3 ms | 1,534.5 ms |
+
+verdict **OK** · worst p99 **1,534.5 ms** · worst err **0.00%** · Δ vs #15 (`2026-11-16-static-warm-15.json` @ 384c): p99 **−526.6 ms** · avg_p95 **−1,010.4 ms** (browsed cross-shape, not substituted verdict) · exhibit_entries **16→17** (new entry in the ledger).
+
+### 167.2 Exhibits are medical charts, not medals
+
+Exhibit #4's REGRESSION stands. Exhibit #15 (384c · BUDGET-BLOWN) remains on file. Night Watch stays **CRACKED**. Court `4117d2b0ca5fb23a` **LOCKED**.
+
+### 167.3 The ledger
+
+mvn -o both services **BUILD SUCCESS** · UI **580/580** · purity **CLEAR** · audit_evidence **CONSISTENT** · exhibit_entries **17** · chronicle **1760** + 1 · worldbook **Scroll CLXVII / 167 scrolls** · D1 ✅ · D2 ⏸ ·「密码-123」vetoed

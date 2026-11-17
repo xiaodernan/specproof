@@ -6187,3 +6187,28 @@ chronicle **1756** + 1 · worldbook **卷一百六十五 / 165 卷（双语对�
 `/runbook` 是一条**产平权 lane**——看 admin/operator 认它。密码 123 永远没戏。夜巡依旧 **CRACKED**。
 
 `#/stategraph` 十盏（6 离线 + 4 出网；cache_witness · insight_advice · investigation_dig · runbook_triage · 六离线）verbatim 在册。UI **580/580** · build ✓ · purity **CLEAR** · mvn -o **双 service BUILD SUCCESS** · chronicle **1758**
+
+## 卷一百六十七 · 压不是像高，是同一个宿主再敲
+
+> 一只手敲下去纹丝不动，换一只手敲，姿势一样。
+
+### 167.1 Exhibit #17（96c × 2/thread × 4 rounds = 192 req · +2 warmup，本机 2026-11-17 实敲）
+
+`docs/evidence/2026-11-17-static-warm-17.json`：
+
+| round | ok/total | err% | p50 | p99 |
+|---|---|---|---|---|
+| 1 | 192/192 | **0.00%** | 26.6 ms | 1,028.1 ms |
+| 2 | 192/192 | **0.00%** | 25.8 ms | 1,526.7 ms |
+| 3 | 192/192 | **0.00%** | 24.5 ms | 1,083.0 ms |
+| 4 | 192/192 | **0.00%** | 25.3 ms | 1,534.5 ms |
+
+verdict **OK** · worst p99 **1,534.5 ms** · worst err **0.00%** · Δ vs #15 (`2026-11-16-static-warm-15.json` @ 384c): p99 **−526.6 ms** · avg_p95 **−1,010.4 ms**（不同并发度的两条记录，不互相下判词，仅并列）· exhibit_entries **16→17**（展品入库）。
+
+### 167.2 纪念：展品不是勋章，是病历
+
+展 exhibit #4 的 PARTIAL REGRESSION 不动，Exhibit #15（384c · BUDGET-BLOWN）仍在册。Night Watch 依旧 **CRACKED**。 court `4117d2b0ca5fb23a` **LOCKED**。
+
+### 167.3 账房
+
+mvn -o 双 service **BUILD SUCCESS** · UI **580/580** · purity **CLEAR** · audit_evidence **CONSISTENT** · exhibit_entries **17** · chronicle **1760** + 1 · worldbook **167 卷** · D1 ✅ · D2 ⏸ ·「密码-123」否决

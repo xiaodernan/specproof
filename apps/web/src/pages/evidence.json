@@ -1,60 +1,119 @@
 {
  "version": 1,
  "source": "docs/evidence/*.json (stress_smoke.py --json-report output; this host)",
- "files_count": 27,
- "exhibits_count": 16,
+ "files_count": 32,
+ "exhibits_count": 17,
  "latest": {
-  "file": "2026-11-16-static-warm-15.json",
+  "file": "2026-11-17-static-warm-17.json",
   "readable": true,
-  "started_utc": "2026-11-16T17:56:03.444536+00:00",
+  "started_utc": "2026-11-17T10:06:39.722166+00:00",
   "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
-  "concurrency": 384,
-  "warmup_rounds": 3,
+  "concurrency": 96,
+  "warmup_rounds": 2,
   "rounds": [
    {
-    "total": 768,
-    "ok": 734,
-    "p50_ms": 530.1749500004007,
-    "p95_ms": 2034.0414999998757,
-    "p99_ms": 2040.722865999469
+    "total": 192,
+    "ok": 192,
+    "p50_ms": 26.61784999986594,
+    "p95_ms": 1021.2626249999175,
+    "p99_ms": 1028.139167999907
    },
    {
-    "total": 768,
-    "ok": 750,
-    "p50_ms": 534.8993500001598,
-    "p95_ms": 2041.006884999024,
-    "p99_ms": 2049.45812400003
+    "total": 192,
+    "ok": 192,
+    "p50_ms": 25.810200000023542,
+    "p95_ms": 1033.8401200001044,
+    "p99_ms": 1526.6923110001608
    },
    {
-    "total": 768,
-    "ok": 735,
-    "p50_ms": 533.1173499989745,
-    "p95_ms": 2038.70081499972,
-    "p99_ms": 2050.3239399994345
+    "total": 192,
+    "ok": 192,
+    "p50_ms": 24.543650000168782,
+    "p95_ms": 1027.0990999998958,
+    "p99_ms": 1082.9527580000574
    },
    {
-    "total": 768,
-    "ok": 737,
-    "p50_ms": 547.1781500000361,
-    "p95_ms": 2045.4906749996553,
-    "p99_ms": 2061.027248999526
+    "total": 192,
+    "ok": 192,
+    "p50_ms": 25.284299999839277,
+    "p95_ms": 1035.567255000251,
+    "p99_ms": 1534.4596199999978
    }
   ],
-  "worst_p99_ms": 2061.027248999526,
-  "avg_p95_ms": 2039.8099687495687,
-  "total": 3072,
-  "total_ok": 2956,
-  "bytes_read": 991731190,
-  "verdict": "BUDGET-BLOWN"
+  "worst_p99_ms": 1534.4596199999978,
+  "avg_p95_ms": 1029.4422750000422,
+  "total": 768,
+  "total_ok": 768,
+  "bytes_read": 289556992,
+  "verdict": "OK"
  },
  "delta_vs_previous": {
-  "vs_file": "2026-11-16-static-warm-14.json",
-  "worst_p99_delta_ms": 986.606748999076,
-  "avg_p95_delta_ms": 1226.5477187494753,
-  "bytes_delta": 864910838,
-  "total_delta": 2688
+  "vs_file": "2026-11-16-static-warm-15.json",
+  "worst_p99_delta_ms": -526.5676289995281,
+  "avg_p95_delta_ms": -1010.3676937495266,
+  "bytes_delta": -702174198,
+  "total_delta": -2304
  },
  "all": [
+  {
+   "file": "2026-11-17-static-warm-17.json",
+   "readable": true,
+   "started_utc": "2026-11-17T10:06:39.722166+00:00",
+   "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
+   "concurrency": 96,
+   "warmup_rounds": 2,
+   "rounds": [
+    {
+     "total": 192,
+     "ok": 192,
+     "p50_ms": 26.61784999986594,
+     "p95_ms": 1021.2626249999175,
+     "p99_ms": 1028.139167999907
+    },
+    {
+     "total": 192,
+     "ok": 192,
+     "p50_ms": 25.810200000023542,
+     "p95_ms": 1033.8401200001044,
+     "p99_ms": 1526.6923110001608
+    },
+    {
+     "total": 192,
+     "ok": 192,
+     "p50_ms": 24.543650000168782,
+     "p95_ms": 1027.0990999998958,
+     "p99_ms": 1082.9527580000574
+    },
+    {
+     "total": 192,
+     "ok": 192,
+     "p50_ms": 25.284299999839277,
+     "p95_ms": 1035.567255000251,
+     "p99_ms": 1534.4596199999978
+    }
+   ],
+   "worst_p99_ms": 1534.4596199999978,
+   "avg_p95_ms": 1029.4422750000422,
+   "total": 768,
+   "total_ok": 768,
+   "bytes_read": 289556992,
+   "verdict": "OK"
+  },
+  {
+   "file": "insight-advice-witness.json",
+   "readable": true,
+   "started_utc": "2026-11-16T18:11:14+00:00",
+   "note": "",
+   "concurrency": null,
+   "warmup_rounds": 0,
+   "rounds": [],
+   "worst_p99_ms": 0.0,
+   "avg_p95_ms": 0.0,
+   "total": 0,
+   "total_ok": 0,
+   "bytes_read": 0,
+   "verdict": "ANSWERED"
+  },
   {
    "file": "2026-11-16-static-warm-15.json",
    "readable": true,
@@ -790,7 +849,7 @@
    "total": 0,
    "total_ok": 0,
    "bytes_read": 0,
-   "verdict": "CONSISTENT"
+   "verdict": "DRIFT"
   },
   {
    "file": "audit-links.json",
@@ -838,6 +897,21 @@
    "verdict": "intentional evaluation evidence — do not delete"
   },
   {
+   "file": "investigation-dig.json",
+   "readable": true,
+   "started_utc": "",
+   "note": "",
+   "concurrency": null,
+   "warmup_rounds": 0,
+   "rounds": [],
+   "worst_p99_ms": 0.0,
+   "avg_p95_ms": 0.0,
+   "total": 0,
+   "total_ok": 0,
+   "bytes_read": 0,
+   "verdict": "EVIDENCE-GATHERED"
+  },
+  {
    "file": "night-watch.json",
    "readable": true,
    "started_utc": "",
@@ -868,6 +942,21 @@
    "verdict": "CLEAR"
   },
   {
+   "file": "runbook-triage.json",
+   "readable": true,
+   "started_utc": "",
+   "note": "",
+   "concurrency": null,
+   "warmup_rounds": 0,
+   "rounds": [],
+   "worst_p99_ms": 0.0,
+   "avg_p95_ms": 0.0,
+   "total": 0,
+   "total_ok": 0,
+   "bytes_read": 0,
+   "verdict": "CONFIRMED"
+  },
+  {
    "file": "tally.json",
    "readable": true,
    "started_utc": "",
@@ -881,6 +970,21 @@
    "total_ok": 0,
    "bytes_read": 0,
    "verdict": "unknown"
+  },
+  {
+   "file": "usage-ledger-witness.json",
+   "readable": true,
+   "started_utc": "",
+   "note": "",
+   "concurrency": null,
+   "warmup_rounds": 0,
+   "rounds": [],
+   "worst_p99_ms": 0.0,
+   "avg_p95_ms": 0.0,
+   "total": 0,
+   "total_ok": 0,
+   "bytes_read": 0,
+   "verdict": "ANSWERED"
   }
  ]
 }
