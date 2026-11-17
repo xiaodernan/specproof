@@ -21,7 +21,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 ROOT = Path(__file__).resolve().parents[1]
 
 # 1 · git-tracked candidates matching .^[0-9a-f]{6}$
-out = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.splitlines()
+out = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True, encoding="utf-8", errors="replace").stdout.splitlines()
 hits = [p for p in out if p.rsplit(".", 1)[-1].islower() and len(p.rsplit(".", 1)[-1]) == 6 and all(c in "0123456789abcdef" for c in p.rsplit(".", 1)[-1])]
 
 by_dir: dict[str, int] = {}

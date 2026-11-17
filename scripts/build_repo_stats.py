@@ -105,6 +105,7 @@ def main() -> int:
         commit_count = int(subprocess.run(
             ["git", "rev-list", "--count", "HEAD"], cwd=REPO,
             capture_output=True, text=True, timeout=60, check=True,
+            encoding="utf-8", errors="replace",
         ).stdout.strip())
     except Exception:
         commit_count = -1

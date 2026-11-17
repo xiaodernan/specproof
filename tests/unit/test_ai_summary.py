@@ -25,6 +25,7 @@ from fastapi.testclient import TestClient
 from integrations.notify.protocol import SendStatus
 
 import api.ai_summary as ai_summary
+from tests._mysql_gate import requires_mysql
 from api.ai_summary import (
     AiSummaryUnavailable,
     build_evidence_packet,
@@ -342,6 +343,7 @@ def test_stream_endpoint_deltas_then_done(monkeypatch: pytest.MonkeyPatch, fake_
 
 @pytest.mark.integration
 @pytest.mark.integration
+@requires_mysql("the notify dead-letter drill writes verification_jobs/outbox rows to MySQL")
 def test_stream_endpoint_dead_letter_then_replay_delivers() -> None:
     """The full sad-then-happy lifecycle against the REAL (isolated) MySQL:
     no receiver (DISABLED connector) dead-letters the intent, the operator

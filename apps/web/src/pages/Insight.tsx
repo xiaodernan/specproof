@@ -6,6 +6,7 @@ import { buildInsight } from "./insight.copy";
 import { loadOnboardingProgress } from "../ui/onboarding";
 import { clearHeat, deriveHeat, loadHeat } from "../telemetry/behavior";
 import { ProductIcon } from "../ui/ProductIcon";
+import { Table } from "../ui";
 import { postInsightAdvice, type InsightAdvice } from "../api";
 import unsigned from "./unsigned.json";
 import "../styles/insight.css";
@@ -304,14 +305,16 @@ export default function Insight() {
               <div className="insight-heat-cols">
                 <div>
                   <h3>{zh ? "常驻页面（真实）" : "Resident routes (real)"}</h3>
-                  <table className="insight-heat-table">
-                    <thead><tr><th>{zh ? "页面" : "route"}</th><th>{zh ? "次数" : "views"}</th><th>{zh ? "停留" : "dwell"}</th></tr></thead>
-                    <tbody>
-                      {heatSummary.routes.map((r) => (
-                        <tr key={r.path}><td><code>{r.path}</code></td><td>{r.views}</td><td>{Math.round(r.dwellMs / 1000)}s</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <Table
+                    columns={[
+                      { key: "path", header: zh ? "页面" : "route", render: (r) => <code>{r.path}</code> },
+                      { key: "views", header: zh ? "次数" : "views", align: "right", sortable: true, sortValue: (r) => r.views },
+                      { key: "dwell", header: zh ? "停留" : "dwell", align: "right", sortable: true, sortValue: (r) => r.dwellMs, render: (r) => Math.round(r.dwellMs / 1000) + "s" },
+                    ]}
+                    rows={heatSummary.routes}
+                    rowKey={(r) => r.path}
+                    dense
+                  />
                 </div>
                 <div>
                   <h3>{zh ? "暴怒点按（真实）" : "Rage taps (real)"}</h3>

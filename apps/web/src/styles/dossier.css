@@ -39,10 +39,7 @@
 .dossier-card-pills { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .dossier-pill { font-size: var(--text-2xs); letter-spacing: 0.14em; text-transform: uppercase; padding: 3px 8px; border-radius: var(--radius-2xs); font-weight: 700; }
 .dossier-pill-family { border: 1px solid var(--archive-steel-mid); color: var(--steel-faint-highlight); background: var(--pigment-steel-glow-4); }
-.dossier-sev-blocker { background: var(--pigment-oxide-1); color: var(--pigment-oxide-2); }
-.dossier-sev-major { background: var(--pigment-gilt-5); color: var(--pigment-gilt-6); }
-.dossier-sev-trial, .dossier-sev-minor { background: var(--pigment-steel-4); color: var(--pigment-jade-5); }
-.dossier-sev-none { background: var(--pigment-jade-6); color: var(--pigment-jade-7); }
+
 .dossier-pill-detect { border: 1px solid var(--pigment-veil-2); color: var(--archive-rust-shadow); }
 .dossier-pill-negative { border-style: dashed; color: var(--archive-slate-deep); }
 .dossier-card-title { font-family: Georgia, "Noto Serif SC", serif; font-size: var(--text-xl); line-height: 1.55; color: var(--pigment-parchment-8); margin: 0; }

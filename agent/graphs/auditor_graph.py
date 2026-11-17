@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = ROOT / "scripts"
 
 
-def _evidence_dir(state) -> Path:
+def _evidence_dir(state: AuditChainState) -> Path:
     d = state.get("evidence_dir")
     return Path(d) if d else ROOT / "docs" / "evidence"
 
@@ -57,11 +57,12 @@ def _run(script: str, *args: str) -> tuple[int, str]:
     return proc.returncode, out.strip()
 
 
-def _read_json(state, name: str) -> dict[str, Any] | None:
+def _read_json(state: AuditChainState, name: str) -> dict[str, Any] | None:
     p = _evidence_dir(state) / name
     if not p.exists():
         return None
-    return json.loads(p.read_text(encoding="utf-8"))
+    data = json.loads(p.read_text(encoding="utf-8"))
+    return data if isinstance(data, dict) else None
 
 
 def unsigned_node(state: AuditChainState) -> AuditChainState:

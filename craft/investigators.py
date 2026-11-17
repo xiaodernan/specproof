@@ -21,6 +21,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from collections.abc import Awaitable, Callable
+
 from providers.base import LLMMessage
 from providers.config import load_model_config
 from providers.openai_compatible import OpenAICompatibleProvider
@@ -30,22 +32,6 @@ from .tools import ToolRegistry
 
 
 ROLES = ("explorer", "tester", "security")
-
-
-def _as_text(content: Any) -> str:
-    if isinstance(content, str):
-        return content
-    if isinstance(content, (list, tuple)):
-        out = []
-        for item in content:
-            if isinstance(item, dict):
-                text = item.get("text") or item.get("content")
-                if isinstance(text, str):
-                    out.append(text)
-            elif isinstance(item, str):
-                out.append(item)
-        return "\n".join(out)
-    return str(content)
 
 
 def _is_substantive_claim(text: str) -> bool:
@@ -59,7 +45,7 @@ def _is_substantive_claim(text: str) -> bool:
     return any(c.isalpha() for c in text)
 
 
-def _load_file_facts(workspace: Path, glob_pattern: str, max_files: int = 6) -> list[dict[str, str]]:
+def _load_file_facts(workspace: Path, glob_pattern: str, max_files: int = 6) -> list[dict[str, Any]]:
     """Collect a bounded citation set from the workspace."""
     facts = []
     for p in sorted(workspace.glob(glob_pattern))[:max_files]:
@@ -91,8 +77,8 @@ def _workspace_facts(workspace: Path) -> str:
     sections.append("TREE\n" + "\n".join(tree_lines))
 
     # short hints about the most informative files (read only metadata, bounded)
-    for rel in ("README.md", "pyproject.toml", "package.json", "requirements.txt", "pom.xml"):
-        p = workspace / rel
+    for name in ("README.md", "pyproject.toml", "package.json", "requirements.txt", "pom.xml"):
+        p = workspace / name
         if not p.is_file():
             continue
         try:
@@ -100,7 +86,7 @@ def _workspace_facts(workspace: Path) -> str:
         except OSError:
             continue
         text = raw.decode("utf-8", errors="ignore")
-        sections.append(f"FILE {rel}\n" + text[:1500])
+        sections.append(f"FILE {name}\n" + text[:1500])
 
     count_summary = []
     for label, pattern in [("JAVA", "**/*.java"), ("PY", "**/*.py"), ("TSX", "**/*.tsx")]:
@@ -111,11 +97,11 @@ def _workspace_facts(workspace: Path) -> str:
     readme = workspace / "README.md"
     if readme.is_file():
         try:
-            raw = readme.read_text(encoding="utf-8", errors="ignore")
+            readme_text = readme.read_text(encoding="utf-8", errors="ignore")
         except OSError:
-            raw = ""
+            readme_text = ""
         # heading lines only — bounded
-        heads = [ln for ln in raw.splitlines() if ln.lstrip().startswith("#")][:40]
+        heads = [ln for ln in readme_text.splitlines() if ln.lstrip().startswith("#")][:40]
         sections.append("README HEADINGS\n" + "\n".join(heads))
 
     tests = sorted(workspace.glob("tests/unit/test_*.py"))[:16]
@@ -165,8 +151,10 @@ def _role_payload(workspace: Path, role: str) -> str:
     return facts
 
 
-async def _llm_execute_factory(llm_client, workspace: Path):
-    async def executor(spec: SubAgentSpec, context) -> AgentRunResult:
+async def _llm_execute_factory(
+    llm_client: Any, workspace: Path
+) -> Callable[[SubAgentSpec, Any], Awaitable[AgentRunResult]]:
+    async def executor(spec: SubAgentSpec, context: Any) -> AgentRunResult:
         system = _ROLE_SYSTEMS[spec.role]
         facts = _role_payload(Path(context.workspace), spec.role)
         prompt = f"TASK\n{spec.task}\n\nWORKSPACE FACT PACK\n{facts}"
@@ -212,7 +200,7 @@ async def investigate(
     workspace: str | Path,
     question: str,
     *,
-    llm_client=None,
+    llm_client: Any | None = None,
     llm_provider: Any | None = None,
     timeout: float = 90.0,
 ) -> dict[str, Any]:
@@ -241,7 +229,7 @@ async def investigate(
         )
 
         class _InlineLLM:
-            async def chat(self, messages, *, label="", kind=None, job_id="", step_id="", timeout=None, thinking=False, response_format=None, estimated_prompt_tokens=0, **_):
+            async def chat(self, messages: list[LLMMessage], *, label: str = "", kind: str | None = None, job_id: str = "", step_id: str = "", timeout: float | None = None, thinking: bool | dict[str, Any] = False, response_format: dict[str, Any] | None = None, estimated_prompt_tokens: int = 0, **_: Any) -> Any:
                 return await provider.chat(
                     messages, timeout=timeout or 60.0, kind=kind, thinking=thinking,
                     response_format=response_format,
@@ -286,7 +274,7 @@ async def investigate(
     runner = ParallelRunner(registry=registry, executor=executor)
     realized = await runner.run(specs)
 
-    agents = [
+    agents: list[dict[str, Any]] = [
         {
             "name": r.agent,
             "role": next((s.role for s in specs if s.name == r.agent), "unknown"),
@@ -297,7 +285,7 @@ async def investigate(
         }
         for r in realized.agents
     ]
-    total_tokens = sum(a.get("tokens") or 0 for a in agents)
+    total_tokens = sum(int(a.get("tokens") or 0) for a in agents)
     # The scale words are spelled verbatim inside the return literal so the
     # witness-channel parity scanner can read them straight from the AST.
     return {

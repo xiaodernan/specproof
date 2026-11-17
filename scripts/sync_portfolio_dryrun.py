@@ -27,6 +27,7 @@ def run():
     proc = subprocess.run(
         [sys.executable, str(SRC)],
         capture_output=True, text=True, cwd=ROOT, timeout=120,
+        encoding="utf-8", errors="replace",
     )
     print("sync_portfolio.py exit:", proc.returncode)
     return proc

@@ -312,6 +312,20 @@ groups:
           summary: "SpecProof edge gateway 抓取目标 down"
           description: "{{ $labels.instance }} 超过 2 分钟不可抓取（§17: 仅组成栈时显现；未组合属预期，与 worker 同一语义）。本探针守的是 SpecproofEdgeCircuitBreakerOpen（resilience4j 家族）与 SpecproofEdgePoolSaturated（reactor_netty 家族）的唯一数据源——这两个家族都只由这一个 job 提供，抓取一断，两条告警同时沉默。"
 
+      # ── 单机自托管直连（2026-11-16 实测入册 #1843）──
+      # 宿主 LAN IP 直连，不是 compose 服务：这台开发机上 api.server 由宿主直接跑，
+      # 上报与上表 api 的同一个路由与同一批 specproof_* 指标。主 session 记录在
+      # #1844 的 live-lane 面板；本探针仅声明「该直连抓取任务本身 down」，
+      # 与 SpecproofApiDown 是两种语气：compose 栈起时本目标本来 down，down 属预期。
+      - alert: SpecproofLocalHostApiDown
+        expr: up{job="local-host-api"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpecProof 单机直连抓取目标 down"
+          description: "{{ $labels.instance }} 超过 5 分钟不可抓取（#1843: 单机自托管直连，宿主 LAN IP，内容与 api:8000 的 /metrics 相同；compose 栈起时本目标 down 属预期）。"
+
       # ── 边缘网关上游连接池 (§17, #1570/#1571) ─────────────────────
       # reactor-netty ConnectionProvider 的 pending gauge（pool.metrics: true，#1570）。
       # pending 非零 = 连接池在排队（上游慢或边缘忙），不是拒绝——先看看板 56，

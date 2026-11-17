@@ -98,6 +98,14 @@ services:
       SPECPROOF_BILLING_URL: ${SPECPROOF_BILLING_URL:-}
       SPECPROOF_NOTIFY_OUTBOX: ${SPECPROOF_NOTIFY_OUTBOX:-}
       SPECPROOF_NOTIFY_WEBHOOK_URL: ${SPECPROOF_NOTIFY_WEBHOOK_URL:-}
+      # Model-lane cache TTLs and telemetry (#1955 / #1956). Both TTL rows
+      # mirror the .env.example row and the code default (86_400 = one day);
+      # the ledger and workspace rows default to empty, i.e. the code's own
+      # default paths (.local/llm_usage.jsonl · repo cwd).
+      AI_SUMMARY_TTL_SECONDS: ${AI_SUMMARY_TTL_SECONDS:-86400}
+      INSIGHT_ADVICE_TTL_SECONDS: ${INSIGHT_ADVICE_TTL_SECONDS:-86400}
+      SPECPROOF_LLM_USAGE_LEDGER: ${SPECPROOF_LLM_USAGE_LEDGER:-}
+      SPECPROOF_WORKSPACE: ${SPECPROOF_WORKSPACE:-}
       SPECPROOF_NOTIFY_WEBHOOK_SECRET: ${SPECPROOF_NOTIFY_WEBHOOK_SECRET:-}
       SPECPROOF_NOTIFY_WEBHOOK_KIND: ${SPECPROOF_NOTIFY_WEBHOOK_KIND:-}
     ports:
@@ -201,6 +209,9 @@ services:
       SPECPROOF_NOTIFY_WEBHOOK_SECRET: ${SPECPROOF_NOTIFY_WEBHOOK_SECRET:-}
       SPECPROOF_NOTIFY_WEBHOOK_KIND: ${SPECPROOF_NOTIFY_WEBHOOK_KIND:-}
       SPECPROOF_BILLING_URL: ${SPECPROOF_BILLING_URL:-}
+      # The worker also reaches the model-lane ledger (craft loop strikes):
+      # the telemetry file defaults to .local/llm_usage.jsonl, overridable here.
+      SPECPROOF_LLM_USAGE_LEDGER: ${SPECPROOF_LLM_USAGE_LEDGER:-}
     volumes:
       - specproof-workspaces:/workspaces
     depends_on:

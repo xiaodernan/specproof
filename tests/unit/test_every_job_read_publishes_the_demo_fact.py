@@ -802,20 +802,35 @@ def test_the_pages_that_can_label_a_job_read_the_field() -> None:
         )
 
 
-#: The product sentence that makes a wrong is_demo a lie rather than a
-#: cosmetic miss. Written as escapes so this file stays byte-stable in a
-#: tree whose editors disagree about full-width punctuation.
+#: The promise moved with the i18n refactor: the sentence now lives in the
+#: bilingual copy pack (dashboard.copy.ts, `recentNote`), which Dashboard.tsx
+#: renders next to the demo badge. Written as escapes so this file stays
+#: byte-stable in a tree whose editors disagree about full-width punctuation.
 DEMO_PROMISE = (
-    r"标有“演示”"
-    r"的记录为示例数据"
+    r"标着“演示”"
+    r"的记录是示意数据"
 )
+DEMO_PROMISE_EN = (
+    r"Demo rows labelled here are seed data"
+)
+COPY = REPO / "apps" / "web" / "src" / "pages" / "dashboard.copy.ts"
 
 
 def test_the_promise_still_sits_next_to_a_badge() -> None:
-    text = (PAGES / "Dashboard.tsx").read_text(encoding="utf-8")
-    assert DEMO_PROMISE in text, (
-        "the sentence promising that 演示-labelled records are sample data moved; "
-        "the badge and the promise are one contract, not two decorations"
+    copy = COPY.read_text(encoding="utf-8")
+    assert DEMO_PROMISE in copy, (
+        "the sentence promising that demo-labelled records are sample data moved "
+        "out of the copy pack; the badge and the promise are one contract, not "
+        "two decorations"
+    )
+    assert DEMO_PROMISE_EN in copy, (
+        "the English demo-promise drifted out of the copy pack; the bilingual "
+        "pair is one contract, and one missing half is a broken promise"
+    )
+    page = (PAGES / "Dashboard.tsx").read_text(encoding="utf-8")
+    assert "recentNote" in page, (
+        "Dashboard.tsx no longer renders the demo-promise (recentNote); the "
+        "promise must sit on the page, next to the badge"
     )
 
 

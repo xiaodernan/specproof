@@ -221,6 +221,12 @@ _ADMIN_SUB_RESOURCES: dict[str, str] = {
     # deliberately NOT a new action (a new cell would smuggle a new privilege
     # in under a cosmetic name; this grants none).
     "insight-advice": "users",
+    # The Dig's readonly investigators lane is the same shape: an
+    # admin/operator diagnostic that spends model budget to answer one
+    # question about this repo and writes nothing anywhere. It rides the
+    # `users` cell for the same reason (grant is exactly {admin, operator}) —
+    # deliberately NOT a new action (#dig).
+    "investigation-dig": "users",
 }
 
 

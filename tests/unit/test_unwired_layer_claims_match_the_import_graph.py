@@ -10,8 +10,10 @@ derives its entry roots from packaging:
 * ``providers.resilience`` is imported at module top level by
   ``integrations/notify/webhook.py``, which calls :func:`classify_retry` on every failed
   notification send, and by ``providers/client_policy.py``;
-* ``providers.router`` and ``providers.semantic_cache`` are both imported at module top
-  level by ``craft/loop.py`` and by ``providers/client_policy.py``;
+* ``providers.router`` is imported at module top level by ``craft/loop.py`` and by
+  ``providers/client_policy.py``; ``providers.semantic_cache`` is imported at module
+  top level by those two and — since #1948 wired the cacheable path into the
+  provider — by ``providers/openai_compatible.py`` as well;
 * all three are reachable from an entry root following **top-level edges only**, so they
   are on the deployment's import path even under the strictest reading.
 
@@ -193,7 +195,14 @@ def test_the_claim_finder_is_not_line_local() -> None:
             "providers/resilience.py",
             ["integrations/notify/webhook.py:top", "providers/client_policy.py:top"],
         ),
-        ("providers/semantic_cache.py", ["craft/loop.py:top", "providers/client_policy.py:top"]),
+        (
+            "providers/semantic_cache.py",
+            # #1948 wired the cacheable path through the provider: this tree measures
+            # the same two importers plus `openai_compatible.py:top` (from
+            # .semantic_cache import cacheable). The docstring at the top of this
+            # file names both — this pin follows the tree, not the prose.
+            ["craft/loop.py:top", "providers/client_policy.py:top", "providers/openai_compatible.py:top"],
+        ),
         ("providers/router.py", ["craft/loop.py:top", "providers/client_policy.py:top"]),
     ],
 )
@@ -411,7 +420,10 @@ def test_relative_edges_are_visible_and_a_level_zero_census_is_blind() -> None:
         for node in ast.walk(tree)
         if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module
     }
-    assert len(relative) == 8, len(relative)
+    # #1948 added the usage_ledger + semantic_cache lanes (record_llm_call /
+    # the cacheable path): two more relative edges, so the pin rose with the
+    # tree. Both were measured on this tree in the same process that pins.
+    assert len(relative) == 10, len(relative)
     assert not any(module.endswith("client_policy") for module in naive), naive
     assert importers_of("providers.client_policy", _graph())["product"] == [
         "providers/openai_compatible.py:top"

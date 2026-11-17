@@ -149,8 +149,7 @@ def search_node(state: RecallState) -> RecallState:
             "detail": f"{len(hits)} hits above zero (corpus={n_docs} lines, avg_len={avg_all:.1f})"}
 
 
-def verdict_node(state: RecallState) -> RecallState:
-    return state
+from agent.graphs._witness import verdict_node  # absolute: same file runs as a script and as a module
 
 
 def build_recall_graph() -> Any:

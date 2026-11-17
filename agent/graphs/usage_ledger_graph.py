@@ -40,6 +40,7 @@ from typing_extensions import TypedDict
 from langgraph.graph import END, StateGraph
 
 from providers.usage_ledger import read_records, summarize
+from storage.env_config import float_env
 
 
 class UsageLedgerState(TypedDict, total=False):
@@ -53,8 +54,7 @@ class UsageLedgerState(TypedDict, total=False):
 
 
 def intake_node(state: UsageLedgerState) -> UsageLedgerState:
-    raw = os.environ.get("SPECPROOF_LEDGER_WINDOW_HOURS", "").strip()
-    window = float(raw) if raw else 24.0
+    window = float_env("SPECPROOF_LEDGER_WINDOW_HOURS", 24.0)
     return {
         "window_hours": max(1.0, min(window, 24.0 * 30)),
         "started_utc": datetime.now(UTC).isoformat(timespec="seconds"),
@@ -91,7 +91,7 @@ def report_node(state: UsageLedgerState) -> UsageLedgerState:
     out_dir = Path(os.environ.get("SPECPROOF_LEDGER_WITNESS_DIR") or (ROOT / "docs" / "evidence"))
     out_dir.mkdir(parents=True, exist_ok=True)
     summary = state.get("summary") or {}
-    payload = {
+    payload: dict[str, Any] = {
         "generated_utc": datetime.now(UTC).isoformat(timespec="seconds"),
         "verdict": state.get("verdict", "UNAVAILABLE"),
         "window_hours": state.get("window_hours"),
@@ -113,7 +113,7 @@ def report_node(state: UsageLedgerState) -> UsageLedgerState:
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     verdict = payload["verdict"]
-    by_lane = payload.get("by_lane") or []
+    by_lane: list[dict[str, Any]] = payload.get("by_lane") or []
     md_lines = [
         "# Usage Ledger Witness",
         "",
@@ -146,7 +146,7 @@ def report_node(state: UsageLedgerState) -> UsageLedgerState:
     return {"report_path": str(out_dir / "usage-ledger-witness.md")}
 
 
-def build_usage_ledger_graph():
+def build_usage_ledger_graph() -> Any:
     g = StateGraph(UsageLedgerState)
     g.add_node("intake", intake_node)
     g.add_node("strike", strike_node)

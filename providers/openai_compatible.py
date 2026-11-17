@@ -664,7 +664,7 @@ class OpenAICompatibleProvider(ModelProvider):
                     raise RuntimeError("The model returned no text or tool calls")
                 return LLMResponse(
                     content="".join(content_parts) or None,
-                    tool_calls=list(calls.values()) or None,
+                    tool_calls=list(calls.values()),
                     usage=usage,
                     model=model,
                     finish_reason=finish_reason,
@@ -978,7 +978,9 @@ class OpenAICompatibleProvider(ModelProvider):
             if not completed:
                 raise RuntimeError("Model stream ended before a completed response")
         finally:
-            await stream.close()
+            close = getattr(stream, "close", None)
+            if close is not None:
+                await close()
 
     def _to_openai_messages(self, messages: list[LLMMessage]) -> list[dict[str, Any]]:
         result: list[dict[str, Any]] = []

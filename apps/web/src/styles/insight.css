@@ -306,11 +306,6 @@
 .insight-heat-stats span { font-size: var(--text-2xs); letter-spacing: .18em; text-transform: uppercase; color: var(--steel-slate); display: block; margin-top: 4px; }
 .insight-heat-cols { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 16px; margin-top: 16px; }
 .insight-heat-cols h3 { font-size: var(--text-2xs); letter-spacing: .3em; text-transform: uppercase; color: var(--pigment-gilt-glow-40); margin: 0 0 8px; }
-.insight-heat-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
-.insight-heat-table th { text-align: left; font-size: var(--text-2xs); letter-spacing: .22em; text-transform: uppercase; color: var(--steel-slate); border-bottom: 1px solid var(--pigment-veil-8); padding: 4px 8px; }
-.insight-heat-table td { border-bottom: 1px dashed var(--pigment-veil-7); padding: 4px 8px; color: var(--steel-faint-highlight); }
-.insight-heat-table td:last-child, .insight-heat-table th:last-child { text-align: right; font-variant-numeric: tabular-nums; }
-.insight-heat-table code { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--lamp-verified); overflow-wrap: anywhere; }
 .insight-heat-rage { list-style: none; margin: 0; padding: 0; }
 .insight-heat-rage li { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px dashed var(--pigment-veil-7); padding: 8px 0; font-size: var(--text-sm); }
 .insight-heat-rage code { font-family: var(--font-mono); color: var(--lamp-pink-hi); overflow-wrap: anywhere; }

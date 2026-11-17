@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -28,10 +29,8 @@ class InvestigationDigUnavailable(RuntimeError):
     """Raised when the model lane could not produce an answer."""
 
 
-def _workspace_root():
-    from pathlib import Path
-
-    root = os.environ.get("SPECROOF_WORKSPACE")
+def _workspace_root() -> Path:
+    root = os.environ.get("SPECPROOF_WORKSPACE")
     return Path(root).resolve() if root else Path.cwd().resolve()
 
 

@@ -74,6 +74,8 @@ _LIVENESS_RULES = {
     # edge gateway liveness (compose.observability.yml 的 specproof-edge 服务,
     # 本 stack 单独组合时未必上 — 与 worker 同一语义, down 属预期)。
     "SpecproofEdgeGatewayDown",
+    # 单机自托管直连单宿直连 lane liveness (#1843): 与上面八个同一豁免。
+    "SpecproofLocalHostApiDown",
 }
 
 #: Rules whose expr fires on the FAILURE share: the declared SLO figure is the

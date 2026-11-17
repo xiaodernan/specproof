@@ -49,19 +49,14 @@ PROMPT = (
 )
 
 
-def _outbound_client_src():
-    from providers.net import outbound_client  # noqa: F401
-    return outbound_client
-
-
-def _model_config():
+def _model_config() -> dict[str, Any]:
     from providers.config import load_model_config
     return load_model_config()
 
 
-def _http_strike(cfg) -> dict[str, Any]:
+def _http_strike(cfg: dict[str, Any]) -> dict[str, Any]:
     """POST /v1/chat/completions with a fixed prompt; return usage."""
-    import httpx
+    from providers.net import outbound_client
 
     body = {
         "model": cfg["model"],
@@ -74,8 +69,8 @@ def _http_strike(cfg) -> dict[str, Any]:
 
     class _Sink:
         def __init__(self) -> None:
-            self.usage = None
-            self.text = []
+            self.usage: dict[str, Any] | None = None
+            self.text: list[str] = []
             self.chunks = 0
 
         def feed(self, line: str) -> None:
@@ -99,8 +94,7 @@ def _http_strike(cfg) -> dict[str, Any]:
                 self.usage = obj["usage"]
 
     sink = _Sink()
-    proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY") or os.environ.get("ALL_PROXY")
-    with httpx.Client(proxy=proxy, timeout=90.0) as client:
+    with outbound_client(timeout=90.0) as client:
         with client.stream(
             "POST",
             cfg["base_url"].rstrip("/") + "/chat/completions",
@@ -115,7 +109,7 @@ def _http_strike(cfg) -> dict[str, Any]:
             for line in resp.iter_lines():
                 if line:
                     sink.feed(line)
-    u = sink.usage or {}
+    u: dict[str, Any] = sink.usage or {}
     return {
         "prompt_tokens": u.get("prompt_tokens"),
         "completion_tokens": u.get("completion_tokens"),

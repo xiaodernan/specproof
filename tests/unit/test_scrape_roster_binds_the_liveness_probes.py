@@ -65,9 +65,14 @@ GATE_219 = ROOT / "tests" / "unit" / "test_alert_rules_bind_their_own_threshold_
 
 #: ``host:port`` a job may target without the host being a compose service
 #: name. Prometheus scrapes itself through the loopback interface, so the
-#: roster's one non-DNS target is declared here and R3 forces the prose claim
-#: in prometheus.yml to name it.
-_SELF_TARGET_HOSTS = {"localhost"}
+#: roster's self-target is declared here and R3 forces the prose claim in
+#: prometheus.yml to name it. The other is the owner's single-box host LAN
+#: IP (#1843): both loopback and host.docker.internal on this machine are
+#: occupied by another project, so this repo's own app process is scraped
+#: directly by its LAN address. It is NOT a compose service and it is NOT an
+#: image default — it is declared here for the same reason localhost is:
+#: a non-DNS target that R3 forces the prose to name explicitly.
+_SELF_TARGET_HOSTS = {"localhost", "192.168.1.5"}
 
 #: Which scrape jobs can serve a metric family. A prefix nobody declares makes
 #: R7 refuse the rule: an alert on a series no scraped target publishes is a
@@ -76,7 +81,7 @@ _FAMILY_OWNERS: dict[str, tuple[str, ...]] = {
     # specproof_* is emitted by observability/metrics.py and served by every
     # process that imports it — the three /metrics jobs running this repo's
     # code. The third-party jobs serve none of it.
-    "specproof_": ("api", "worker", "outbox-relay", "invoice-cron", "notify-relay"),
+    "specproof_": ("api", "worker", "outbox-relay", "invoice-cron", "notify-relay", "local-host-api"),
     # resilience4j_circuitbreaker_* is emitted by the gateway's specproof-edge
     # service (Spring Cloud CircuitBreaker filter, #1554) — only that job serves it.
     "resilience4j_circuitbreaker_": ("specproof-edge",),
@@ -109,7 +114,11 @@ _UNPROBED_JOBS: dict[str, str] = {
 }
 
 _PROM_FENCE = re.compile(r"^(?P<header>.*?)^global:", re.S | re.M)
-_TARGET_TOKEN = re.compile(r"\b([a-z][a-z0-9.-]*):(\d{2,5})\b")
+#: An IPv4 literal is a host too: `192.168.1.5:8000` is the owner's single-box
+#: host lane (#1843) and has to scan as host:port, not fall through the
+#: scanner's `[a-z]`-first blind spot. The shape stays host:port; nothing else
+#: about the census relaxes — R3 still forces the prose claim to name it.
+_TARGET_TOKEN = re.compile(r"\b((?:[a-z][a-z0-9.-]*|[0-9]{1,3}(?:\.[0-9]{1,3}){3})):(\d{2,5})\b")
 _LIVENESS_EXPR = re.compile(r'^up\{job="(?P<job>[^"]+)"\} == 0$')
 _UP_SELECTOR = re.compile(r'up\{job="(?P<job>[^"]+)"\}')
 #: A PromQL identifier that is not a function call. Braces and quoted label

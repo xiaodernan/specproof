@@ -57,6 +57,11 @@ SURFACES: dict[str, tuple[str, list[str]]] = {
     # which is why the sidebar's fourth gated page now carries a derived set
     # instead of borrowing IDENTITY_ROLES unchecked.
     "insight": ("IDENTITY_ROLES", ["pages/Insight.tsx"]),
+    # The Dig (admin/operator). Its governed call is POST
+    # /api/v1/admin/investigation-dig — derived, gated, and fail-closed —
+    # the five sidebar gates must be derived end to end; a one-line
+    # sidebar entry with no derived set would hide here too.
+    "dig": ("IDENTITY_ROLES", ["pages/Dig.tsx"]),
     # #116: a button, not a page. The governed action is the one FindingDetail
     # casts (POST /api/v1/jobs/{id}/feedback), so the derivation reads the same
     # call the click does.
@@ -67,7 +72,7 @@ SURFACES: dict[str, tuple[str, list[str]]] = {
 # SURFACES because since #116 a governed action can also be a button: the nav
 # count is a claim about the sidebar, and letting it grow to cover a button would
 # let a genuinely missing nav gate pass unnoticed.
-NAV_SURFACES = ("identity", "billing", "audit", "insight")
+NAV_SURFACES = ("identity", "billing", "audit", "insight", "dig")
 
 # Paths every principal may read, so they cannot narrow a surface's role set.
 # /auth/me answers with the caller's own principal; classify_request() returns
@@ -339,7 +344,7 @@ def test_every_gated_nav_item_resolves_to_one_shared_declaration() -> None:
     declared = declared_roles()
     assert len(gated) == len(NAV_SURFACES), (
         f"App.tsx gates {sorted(gated)} but this gate's nav surfaces are "
-        f"{sorted(NAV_SURFACES)}: a fourth gated page appeared (or one was removed) "
+        f"{sorted(NAV_SURFACES)}: a fifth gated page appeared (or one was removed) "
         "and its role set is unchecked either way"
     )
     missing = [name for name in gated if name not in declared]
@@ -356,7 +361,9 @@ def test_a_declaration_nobody_reads_is_not_a_gate() -> None:
     """Each shared role set must be used by the surface it claims to govern.
 
     #112 collapsed five hand copies into three declarations; #116 added a fourth
-    for a button. A declaration that no page or nav item reads proves nothing, so
+export for a button. The /dig sleeve is a fifth declaration and a real nav
+surface — it sits in NAV_SURFACES, never in the button bucket. A
+declaration that no page or nav item reads proves nothing, so
     the gate refuses it rather than counting it as coverage.
     """
     declared = declared_roles()

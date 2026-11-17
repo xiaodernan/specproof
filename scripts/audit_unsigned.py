@@ -102,7 +102,7 @@ checks.append({
 # ── 4 · branch cleanliness (ahead / behind / dirty / diverged) ──────────────
 def _git_count(args):
     try:
-        out = subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=False, timeout=10)
+        out = subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=False, timeout=10, encoding="utf-8", errors="replace")
         return out.stdout.strip()
     except Exception:
         return ""

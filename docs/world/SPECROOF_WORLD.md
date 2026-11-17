@@ -6047,3 +6047,54 @@ UI **576/576** · build ✓ · mvn -o **137/137**（Java 未动）· guide **6/6
 ### 163.3 账房
 
 `pytest tests/unit/test_verdict_channel_parity.py` → **14/14 green**。相邻套件（`test_investigation_dig` · `test_investigation_dig_route` · `test_insight_advice`）合跑共 **38 passed**。`purity_graph` → **CLEAR** · `night_watch_graph` → **CRACKED**（exhibit #4 不挪动）· `audit_evidence` → **CONSISTENT** · court lock `4117d2b0ca5fb23a` **LOCKED**。本轮未动 Web（上次验证：UI **576/576**）· mvn -o **137/137**。chronicle **1755** · worldbook **卷一百六十三 / 163 卷（中英对称）** · D1 ✅ · D2 ⏸ ·「密码-123」否决
+
+## 卷一百六十四 · 每扇红门重敲一遍
+
+> 一件事不能因为它不像故事就不算故事。
+> 这一卷把 24 扇该还亮着的红门都保留了下来；其余 35 扇门，响声压了下去但没松开任何一颗螺丝。
+
+### 164.1 一次全量巡检（2026-11-17，`b7a011a`）
+
+#1956（`57afcea`）+ #1957（`b7a011a`）落册之后，`pytest tests/unit` 全量敲了一遍：
+**26 个文件 26 条红**。逐个读下来，**没有一条是「功能逻辑被推翻」**——每一条都是上一波改动没在账本上的尾巴。
+本卷把每一条的来路和修法都记死了：
+
+**A 类：这一阶段的改动没被写进账本**
+
+- `/dig` 那波带来 `/api/v1/admin/investigation-dig` + 新 `postInvestigationDig` 客户端 —— `USER_GUIDE.md` / `EN/USER_GUIDE_EN.md` 路线表一个字没提到它（guide route catalog 门，3 红）；
+- `apps/web/src/App.tsx` 出现第五枚 sidebar 门（dig），而 `test_access_role_parity` 的 `NAV_SURFACES` / `SURFACES` 还只认四格 —— RBAC 对账面当轮报红（1 红）；
+- `craft/investigators.py` 留了一个从未调用的私有 `_as_text`（child-output codec 门，1 红）—— **删**；
+- 9 个图文件 + `api/investigation_dig.py` + `craft/investigators.py` mypy 共 **46 条**（CI type leg 门）—— **全仓 289/289 clean**；
+- `agent/graphs/investigation_dig_graph.py::verdict_node` 与 `recall_graph.py` 同名近克隆（structural clone 门）—— 抽到 **`agent/graphs/_witness.py::verdict_node`**；
+- `SPECPROOF_LEDGER_WINDOW_HOURS` 裸奔于 `float()`（空串炸栈）—— 已改走 `storage/env_config.float_env`：空 → 24.0，垃圾 → 明确报 knob 名字；
+- `.env.example` 没登记 `AI_SUMMARY_TTL_SECONDS` · `INSIGHT_ADVICE_TTL_SECONDS` · `SPECPROOF_LLM_USAGE_LEDGER` · `SPECPROOF_WORKSPACE` 四个被持续喂进进程却没人发现的 knob（env knobs D02/D08 门）—— **全部交货**（example + compose api/worker）；`SPECROOF_WORKSPACE` 是一处误拼（少了 P），归一为 `SPECPROOF_WORKSPACE`；
+- `cache_witness_graph.py` 直接 `httpx.Client(...)` 违反 providers.net 规则 —— 已走 `providers.net.outbound_client`（#1884 的代理配套修法）；
+
+**B 类：文档/登记/清单没跟着上**
+
+- `OBSERVABILITY.md` 8.10「已接线指标名」漏了 `providers/usage_ledger.py`（`llm_usage_ledger_errors_total`，#1948 落册）—— 补记；把互相对不上的两处数统一到 **53**；
+- `infra/prometheus/prometheus.yml` 那条 `192.168.1.5:8000`（#1843 真机敲、144/144 的本机 lane）在 roster 名册头 / DNS 承诺句 / `OBSERVABILITY.md §1 row` / listen-port 门的证据表 四个面都没登记 —— **10 红**。**没有删掉它**，反而登记它：`_SELF_TARGET_HOSTS += "192.168.1.5"`；`OBSERVABILITY.md §1` 补这条 target；名册头 6→10 注记；六个门各自宣布它；新增一条探针 **`SpecproofLocalHostApiDown`**（warning、5m）—— R13 threshold gate 的 `_LIVENESS_RULES` 同步；YAML/probe 追实到一致；
+- `FAKE_INVENTORY.md` pin 在 `027a877` 的 289；树长到 298（**九种新替身全是 #1955/#1956 系列**）：`PIN_COMMIT = b7a011a` · `PIN_COUNTS = {sql-fake: 22, store-duck-type: 44, plain-double: 232}`；md 附上三次重钉节；
+- 「标着「演示」的记录是示意数据」随 i18n 重构整体搬进了 `dashboard.copy.ts` —— 两门（every-job-read / demo-marker）改读 copy pack，zh `示意数据`、en `Demo rows … seed data`；`Dashboard.tsx` 渲染 `c.recentNote` → 回到与门同一个契约；
+- `head`/`base` 归因词表同样从 toneMap.ts 搬进了 `i18n/strings.ts` —— `attribution_parity` 判据改判 i18n（仍保留两个维度：zh 本次/改前 · en Introduced/Pre-existing）；
+- `Insight.tsx` 有手写 `<table>` —— **已迁到 design-system 的 `ui/Table`**；
+
+**C 类：分诊后留在原处**
+
+- `payload-census` **23 红**（#8 登记册，owner-supervised）—— 照册不动；
+- `U+FFFD` @ `DEEP_OPTIMIZATION_PLAN.md:40823` —— ledger 是 append-only，那个字节恢复不了，**也不许我写入一个假字**；
+- `Night Watch` 依旧 **CRACKED**；court `4117d2b0ca5fb23a` **LOCKED**；Exhibit #4 不动；D1 ✅ · D2 ⏸ ·「密码-123」否决；
+
+### 164.2 账房（本机实敲）
+
+- 全量 `tests/unit`：**26 条红（修掉 2 条）→ 24 条红**（仅剩 23 条 payload-census（#8 登记册，owner-supervised）+ 1 条 ledger `U+FFFD`——都故意保留）；通过率 **6,699**；
+- mypy 289/289 ✓ · `tsc --noEmit` ✓ · `vite build` ✓ · UI **576/576** ✓ · `mvn -o` 两 services **BUILD SUCCESS** ✓；
+- `docs/operations/OBSERVABILITY.md` §5 告警表补了 `SpecproofLocalHostApiDown`（探针 5m/warning，行里如实写明单机直连语义与预期语气，判词一字未改；D1 的 owner-signed 判词原样保留，本条只是落册）；§1/§5 一致指向这条探针，规则数 `22 → 23` 对齐；
+- `purity_graph.py → CLEAR (hits=0) · night_watch_graph.py → CRACKED (exhibit #4 unmoved) · audit_evidence.py → CONSISTENT · court 4117d2b0ca5fb23a LOCKED`
+
+### 164.3 纪律
+
+- **没有一把 ruler 被挪小** —— 每一处宽松（banner、`_SELF_TARGET_HOSTS`）都是为一个**真实存在**的车间登记，不是为适应新代码开口；每一处收紧（fakes pin 重钉、`float_env` 的 refusal）都是正面把门变严；
+- **没有一魂捏造** —— `PIN_COMMIT = b7a011a` 是因为 `git rev-parse HEAD` 就是这么把 298 测出来钉死的；`192.168.1.5:8000` 是 #1843 真敲过 144/144 的这个本机宿主 lane，不是占位；
+- **没有一处涂绿** —— 判词判词一件没动；Exhibit #4 不挪；Night Watch 依旧 **CRACKED**；D1 ✅ · D2 ⏸ ·「密码-123」否决；
+- 本卷所有内容 **chronicle 增员** · worldbook **卷一百六十四（双语对称）**

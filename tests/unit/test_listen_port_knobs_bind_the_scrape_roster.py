@@ -164,6 +164,7 @@ _DEFINITION_FILE = "observability/metrics_http.py"
 #: evidence or by _IMAGE_DEFAULTS below.
 _PATH_SOURCES: dict[str, tuple[str, str]] = {
     "api": ("api/server.py", "route"),
+    "local-host-api": ("api/server.py", "route"),
     "worker": ("observability/metrics_http.py", "comparison"),
     "outbox-relay": ("observability/metrics_http.py", "comparison"),
     "invoice-cron": ("observability/metrics_http.py", "comparison"),
@@ -189,6 +190,12 @@ _EVIDENCE: dict[str, frozenset[str]] = {
     "otel-collector": frozenset({"compose-publish", "config-endpoint"}),
     "prometheus": frozenset({"compose-publish", "image-default"}),
     "rabbitmq": frozenset({"image-default"}),
+    # The owner's single-box host target (2026-11-16 实测, #1843): the same
+    # api.server process serving the same /metrics route, pinned to the
+    # machine's LAN IP because both loopback and host.docker.internal on this
+    # host are taken by another project. No compose service stands behind it —
+    # its provider-side evidence is the api route itself.
+    "local-host-api": frozenset({"code-path"}),
 }
 
 #: Jobs whose listen port is the image's built-in default: nothing in this repo
@@ -1398,7 +1405,7 @@ def test_the_doc_row_states_a_path_exactly_where_the_roster_declares_one() -> No
     Omitting ``metrics_path`` is not the same claim as writing ``/metrics``, and
     /metrics/per-object is a different endpoint, not a spelling."""
 
-    token = re.compile(r"\b([a-z][a-z0-9.-]*):(\d{2,5})(/[A-Za-z0-9._/-]*)?\b")
+    token = re.compile(r"\b((?:[a-z][a-z0-9.-]*|[0-9]{1,3}(?:\.[0-9]{1,3}){3})):(\d{2,5})(/[A-Za-z0-9._/-]*)?\b")
     row = _sec1_row()
     claimed = {f"{h}:{p}{pth or ''}" for h, p, pth in token.findall(row)}
     jobs = _roster()

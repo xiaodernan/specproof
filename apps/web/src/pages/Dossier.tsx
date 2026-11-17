@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../i18n";
 import { ProductIcon } from "../ui/ProductIcon";
+import { severityPill } from "../ui";
 import dossier from "./dossier.json";
 import "../styles/dossier.css";
 
@@ -34,13 +35,6 @@ const CASES = (dossier as { version: number; cases: DossierCase[] }).cases;
 
 type FamilyFilter = "all" | DossierCase["family"];
 type SeverityFilter = "all" | "BLOCKER" | "MAJOR" | "NONE";
-
-const SEV_CLASS: Record<string, string> = {
-  BLOCKER: "dossier-sev-blocker",
-  MAJOR: "dossier-sev-major",
-  MINOR: "dossier-sev-minor",
-  NONE: "dossier-sev-none",
-};
 
 export default function Dossier(): JSX.Element {
   const { locale } = useI18n();
@@ -151,7 +145,7 @@ export default function Dossier(): JSX.Element {
               <span className="dossier-card-id">{c.path.replace(/^golden-cases-?/, "").replace(/^\//, "")}</span>
               <div className="dossier-card-pills">
                 <span className="dossier-pill dossier-pill-family">{familyLabel(c.family)}</span>
-                <span className={"dossier-pill " + (SEV_CLASS[c.severity] ?? "dossier-sev-minor")}>{c.severity}</span>
+                <span className={"dossier-pill " + severityPill(c.severity).cls}>{severityPill(c.severity).label}</span>
                 <span className={"dossier-pill dossier-pill-detect" + (c.should_detect ? "" : " dossier-pill-negative")}>
                   {c.should_detect ? L("应检出", "detect") : L("阴性对照", "control")}
                 </span>

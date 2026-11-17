@@ -499,7 +499,7 @@ CHANNELS: Final[dict[str, VerdictChannel]] = {
             # the word is written verbatim on this line, which is what a
             # witness must point at (a witness may not park a word nobody
             # writes).
-            "EVIDENCE-GATHERED": "craft/investigators.py:306",
+            "EVIDENCE-GATHERED": "craft/investigators.py:294",
         },
         note=(
             "The witness channel carries the StateGraphs' own verdicts — the\n"

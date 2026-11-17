@@ -56,10 +56,20 @@ def _ts_string_array(source: str, name: str) -> set[str]:
 
 
 def _ts_record_keys(source: str, name: str) -> set[str]:
-    """Read the keys of `const NAME: Record<string, string> = { KEY: "…" };`."""
+    """Read the keys of `const NAME: Record<string, string> = { KEY: "…" };`.
+
+    The Record literal can also come from the `buildStatusHelp` helper the
+    job page now uses to localize the guidance titles (the same constant,
+    rendered from the zh/en copy pack). The parser reads the object the
+    helper returns — the authoritative key set — and stays fail-closed on
+    absence.
+    """
     match = re.search(rf"const {name}[^=]*=\s*\{{(.*?)\n\}};", source, re.S)
-    assert match, f"{name} not found — the gate would pass vacuously"
-    return set(re.findall(r"^\s*([A-Z_][A-Z0-9_]*):", match.group(1), re.M))
+    if match:
+        return set(re.findall(r"^\s*([A-Z_][A-Z0-9_]*):", match.group(1), re.M))
+    helper = re.search(rf"function buildStatusHelp\b.*?return\s*\{{(.*?)\n  \}};", source, re.S)
+    assert helper, f"{name} not found — the gate would pass vacuously"
+    return set(re.findall(r"^\s*([A-Z_][A-Z0-9_]*):", helper.group(1), re.M))
 
 
 def _authoritative_statuses() -> set[str]:

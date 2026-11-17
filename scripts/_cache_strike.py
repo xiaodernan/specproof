@@ -29,6 +29,7 @@ async def main():
     out = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "live_lane_probe.py")],
         capture_output=True, text=True, timeout=60,
+        encoding="utf-8", errors="replace",
     )
     print(out.stdout, out.stderr)
 

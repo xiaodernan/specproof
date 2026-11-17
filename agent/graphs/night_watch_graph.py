@@ -28,8 +28,8 @@ EVID = ROOT / "docs" / "evidence"
 
 
 def _evidence_dir(state: "NightWatchState") -> Path:
-    value = state.get("evidence_dir") if state.get("evidence_dir") else str(EVID)
-    return Path(value)
+    value: object = state.get("evidence_dir")
+    return Path(value) if isinstance(value, str) and value else EVID
 
 
 class NightWatchState(TypedDict, total=False):

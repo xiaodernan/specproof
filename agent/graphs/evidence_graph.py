@@ -49,7 +49,7 @@ def intake_node(state: EvidenceState) -> EvidenceState:
     if not evidence_dir.is_dir():
         errors.append(f"evidence dir not found: {evidence_dir}")
         return {"evidence_dir": str(evidence_dir), "rounds": [], "errors": errors}
-    def order_key(path: Path):
+    def order_key(path: Path) -> tuple[int, str]:
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
             stamp = str(raw.get("started_utc", "")) or ""

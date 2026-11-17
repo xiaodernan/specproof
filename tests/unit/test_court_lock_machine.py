@@ -19,6 +19,7 @@ def test_court_lock_script_exits_zero_on_this_repo() -> None:
     out = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "audit_court_lock.py")],
         capture_output=True, text=True, cwd=ROOT, timeout=30, check=False, env=env,
+        encoding="utf-8", errors="replace",
     )
     assert out.returncode == 0, out.stdout + out.stderr
     assert "verdict: LOCKED" in out.stdout

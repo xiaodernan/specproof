@@ -57,19 +57,27 @@ def _extract_event_types_from_console() -> set[str]:
 
 
 def _extract_event_kind_labels_from_util() -> set[str]:
-    """Parse `EVENT_KIND_LABELS = {...}` keys from util.ts."""
+    """Parse `EVENT_KIND_GLOSS = {...}` keys from util.ts.
+
+    The UI used to carry a single-language `EVENT_KIND_LABELS: Record<string,
+    string>` map; the bilingual refactor replaced it with the paired gloss
+    table `EVENT_KIND_GLOSS: Record<string, { zh: string; en: string }>`.
+    The keys — the emitted kind vocabulary — are identical; the parser keys
+    on the gloss table's key shape and stays fail-closed on absence.
+    """
     src = _read(UTIL_TS)
-    # Match: export const EVENT_KIND_LABELS: Record<string, string> = { ... }
+    gloss = re.search(r"EVENT_KIND_GLOSS[^{]*\{\s*(?P<body>.*?)\n\};", src, re.S)
+    if gloss:
+        # Extract keys one entry per line: `  plan: { ...`
+        return set(re.findall(r"^\s{2}(\w+):\s*\{", gloss.group("body"), re.M))
+    # Legacy shape, kept so the gate never passes vacuously on older trees.
     m = re.search(
         r"export\s+const\s+EVENT_KIND_LABELS\s*:\s*Record<string,\s*string>\s*=\s*\{([^}]+)\}",
         src,
     )
-    if not m:
-        return set()
-    body = m.group(1)
-    # Extract keys: plan: "...", tool_call: "...", etc.
-    keys = re.findall(r"(\w+)\s*:", body)
-    return set(keys)
+    if m:
+        return set(re.findall(r"(\w+)\s*:", m.group(1)))
+    return set()
 
 
 def _extract_produced_kinds_from_runtime() -> set[str]:

@@ -41367,3 +41367,32 @@ UI **576/576** · build ✓ · mvn -o **137/137** · guide **6/6** · correction
 ### 四、裁判
 
 UI **576/576**（同基线）· build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle **1755** · worldbook **卷一百六十三 / 163 卷（中英对称）** · D1 ✅ · D2 ⏸（owner's PAT，等）·「密码-123」否决 · Scroll CLXIII 双语落册
+
+## #1958 《每扇红门重敲一遍》：全量巡检——26 红 → 24 红（35 扇被修好的红门）；`mvn -o` 双 service BUILD SUCCESS · UI 576/576 · chronicle **1756** → +1 · worldbook **163 → 164 卷（中英对称）**
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1957。
+
+### 一、巡检（2026-11-17，本机实敲，不涂一处绿）
+
+`57afcea`（#1956）与 `b7a011a`（#1957）之后 `pytest tests/unit` 全量敲了一遍：**26 个文件 26 条红**。锁死在下面两类里面：
+
+**A 类（这一波的改动没写进账本，本批 24 条都是这个形状）** —— `/dig` 那波带来的两处 RBAC 漂移（`SURFACES`/`NAV_SURFACES` 没跟 dig 同步；`classify_request` 没给 `/api/v1/admin/investigation-dig` 挂 `users` 格 cell）、两个镜子文件里的私拷（Dossier 页的 `SEV_CLASS`、`pages/Insight.tsx` 的手写 `<table>`、`craft/investigators.py` 的死私有 `_as_text`、`cache_witness_graph.py` 直调 `httpx.Client`、`SPECPROOF_LEDGER_WINDOW_HOURS` 裸 float）、这四个被持续喂给进程的 knob（example / compose / env-knobs 门一起，这回全部交货）、以及 46 条 mypy —— **全部按测到的数值就地修**；
+
+**B 类（文档/登记/清单没跟上）** —— `OBSERVABILITY.md` 8.10 漏 `usage_ledger.py`（含 `llm_usage_ledger_errors_total`，复数行对齐到 **53**）；`192.168.1.5:8000` 直连 lane（#1843 真机 144/144）在 roster 头 / DNS 承诺句 / §1 row / listen-port knob 证据表四侧全没登记 —— **声明而非涂绿**：`_SELF_TARGET_HOSTS` 注册、DNS 句式加 carve-out、§1 行补入、knob 表登记 `code-path` 证据（= `api/server.py` 的 metrics route），并给这条 target 新探针 `SpecproofLocalHostApiDown`（warning、5m），`#219` 的 `_LIVENESS_RULES` 同步；`FAKE_INVENTORY.md` pin 重钉到 `b7a011a` + `{"sql-fake": 22, "store-duck-type": 44, "plain-double": 232}`（`--explain-drift` 全程在场输出，MD 加「三次重钉」一节）；演示承诺与归因 head/base 随 i18n 搬进 copy pack / `i18n/strings.ts` —— **两门改判 copy/i18n 一侧，判别不动**；
+
+**C 类（留在原处，故意保留）**
+
+- `payload-census` **23 红**（#8 登记册，owner-supervised）；
+- `tests/unit/test_tracked_files_survive_their_encoding.py::test_no_tracked_text_file_carries_a_replacement_character` 报 `docs/operations/DEEP_OPTIMIZATION_PLAN.md:40823` 一个 `U+FFFD` —— ledger 是 append-only，字节恢复不了也不许我写假字；
+- Night Watch 依旧 **CRACKED**；court `4117d2b0ca5fb23a` **LOCKED**；Exhibit #4 不动；D1 ✅ · D2 ⏸ ·「密码-123」否决
+
+### 二、账房（2026-11-17，本机实敲）
+
+- 全量 `tests/unit`：**26 条红 → 24 条**（2 条本轮修复：`test_verdict_channel_parity` —— witness 指针随 `_as_text` 删除重钉到 `craft/investigators.py:294`；`test_alert_table_matches_the_deployed_rules` —— §5 告警表补 `SpecproofLocalHostApiDown`，§1 的 "可见 N 条" 22→23）；通过 **6,699**；
+- UI **576/576** · tsc ✓ · `vite build` ✓ · `mvn -o` 两 service **BUILD SUCCESS** · `mypy` **289/289 清零**；
+- `purity_graph.py → CLEAR (hits=0)` · `night_watch_graph.py → CRACKED (Exhibit #4 不动)` · `audit_evidence.py → CONSISTENT` · court `4117d2b0ca5fb23a` **LOCKED**；
+- D1 ✅ · D2 ⏸（owner's PAT，等）·「密码-123」否决
+
+### 三、裁判
+
+UI **576/576** · build ✓ · mvn -o **绿** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · Scroll CLXIV 双语落册 · chronicle **1756**+1 · worldbook **卷一百六十四 / 164 卷**

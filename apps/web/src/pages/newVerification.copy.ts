@@ -135,7 +135,7 @@ const zh: NewVerificationCopy = {
   prefillPrepared: "演示案例已填入，可直接点击开始验证。",
   preparing: "正在准备演示仓库…",
   prepareDemo: "一键创建演示仓库",
-  needApiKey: "需要先配置 API 密钥（见「模型连接 / 设置」）才能创建演示仓库。",
+  needApiKey: "需要先配置 API 密钥（见「模型连接 / 设置」）才能创建演示仓库。", // onboarding guidance; no credential material lives here  # specproof-nosec API Key Assignment
   prepareFailed: "演示仓库创建失败，请稍后重试。",
   noJobId: "任务未返回 ID——刷新验证记录列表，确认是否已创建成功。",
   createdOk: (refs) => `已创建演示仓库（${refs}），演示案例已填入左侧表单。`,
@@ -208,7 +208,7 @@ const en: NewVerificationCopy = {
   prefillPrepared: "Demo case filled — you can start the verification now.",
   preparing: "Preparing the demo repo…",
   prepareDemo: "Create demo repo in one click",
-  needApiKey: "You need to configure an API key first (see Model Connection / Settings) to create the demo repo.",
+  needApiKey: "You need to configure an API key first (see Model Connection / Settings) to create the demo repo.", // onboarding guidance; no credential material lives here  # specproof-nosec API Key Assignment
   prepareFailed: "Creating the demo repo failed; try again later.",
   noJobId: "The job id was not returned — refresh the verification list and check whether it was created.",
   createdOk: (refs) => `Demo repo created (${refs}); the demo case has been filled into the form on the left.`,

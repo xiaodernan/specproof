@@ -629,11 +629,20 @@ def test_the_badge_is_rendered_from_this_column_alone(page: str) -> None:
 
 
 def test_the_promise_sitting_next_to_the_badge_is_still_there() -> None:
-    """The sentence that makes a wrong is_demo a lie rather than a cosmetic miss."""
-    text = (REPO / "apps/web/src/pages/Dashboard.tsx").read_text(encoding="utf-8")
-    assert "示例数据" in text, (
-        "Dashboard.tsx no longer tells the reader that badged records are sample "
-        "data; if the copy moved, this gate and the product sentence must move together"
+    """The sentence that makes a wrong is_demo a lie rather than a cosmetic miss.
+
+    The copy moved into the bilingual copy pack (dashboard.copy.ts `recentNote`)
+    with the i18n refactor; the promise must exist there, bilingually, and the
+    page must still render it.
+    """
+    copy = (REPO / "apps/web/src/pages/dashboard.copy.ts").read_text(encoding="utf-8")
+    assert "示意数据" in copy, (
+        "dashboard.copy.ts no longer carries the demo-promise (recentNote); "
+        "if the copy moved, this gate and the product sentence must move together"
+    )
+    page = (REPO / "apps/web/src/pages/Dashboard.tsx").read_text(encoding="utf-8")
+    assert "recentNote" in page, (
+        "Dashboard.tsx no longer renders the demo-promise next to the badge"
     )
 
 

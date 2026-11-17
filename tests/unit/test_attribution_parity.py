@@ -133,9 +133,23 @@ def test_head_and_base_never_share_a_meaning() -> None:
     """The distinction a reviewer acts on: this change vs a pre-existing one."""
     table = _table_values(BUILD_MATRIX, "_ATTRIBUTION_BY_VERDICT")
     assert {"head", "base"} <= table
-    text = TONEMAP.read_text(encoding="utf-8")
-    head = next((raw for raw in text.splitlines() if raw.strip().startswith('head: "')), "")
-    base = next((raw for raw in text.splitlines() if raw.strip().startswith('base: "')), "")
-    assert "本次变更" in head and "改前" in base, (
-        f"head={head!r} base={base!r} — the two must not read as the same thing"
+    strings = (REPO / "apps" / "web" / "src" / "i18n" / "strings.ts").read_text(encoding="utf-8")
+    hits = list(re.finditer(r'"attribution\.(head|base)":\s*"([^"]+)"', strings))
+    by_pair = [(m.group(1), m.group(2)) for m in hits]
+    zh_pairs = [v for k, v in by_pair if k == "head"][:1] + [v for k, v in by_pair if k == "base"][:1]
+    en_pairs = [v for k, v in by_pair if k == "head"][1:2] + [v for k, v in by_pair if k == "base"][1:2]
+    assert len(zh_pairs) == 2 and len(en_pairs) == 2, (
+        f"attribution gloss missing from i18n/strings.ts (zh={zh_pairs}, "
+        f"en={en_pairs}) — the tone map now reads gloss keys, and both halves "
+        "must be bilingual"
+    )
+    head_zh, base_zh = zh_pairs
+    head_en, base_en = en_pairs
+    assert "本次" in head_zh and "改前" in base_zh, (
+        f"head={head_zh!r} base={base_zh!r} — the two must "
+        "not read as the same thing"
+    )
+    assert "Introduced" in head_en and "Pre-existing" in base_en, (
+        f"head={head_en!r} base={base_en!r} — the two must "
+        "not read as the same thing"
     )

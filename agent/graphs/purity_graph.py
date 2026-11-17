@@ -49,7 +49,7 @@ class PurityState(TypedDict, total=False):
 
 def intake_node(state: PurityState) -> PurityState:
     out = subprocess.run(
-        ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, timeout=30, errors="replace",
+        ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, timeout=30, encoding="utf-8", errors="replace",
     ).stdout
     files = [l for l in out.splitlines() if l]
     return {"files": files, "hits": []}

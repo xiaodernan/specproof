@@ -5949,3 +5949,52 @@ UI **576/576** · build ✓ · mvn -o **137/137** (Java untouched) · guide **6/
 ### 163.3 The ledger
 
 `pytest tests/unit/test_verdict_channel_parity.py` → **14/14 green**. Adjacent lanes (`test_investigation_dig` · `test_investigation_dig_route` · `test_insight_advice`) ran together: **38 passed**. `purity_graph` → **CLEAR** · `night_watch_graph` → **CRACKED** (exhibit #4 unmoved) · `audit_evidence` → **CONSISTENT** · court lock `4117d2b0ca5fb23a` **LOCKED**. Web untouched this round (last verified: UI **576/576**) · mvn -o **137/137**. chronicle **1755** · worldbook **Scroll CLXIII / 163 scrolls (zh+en symmetric)** · D1 ✅ · D2 ⏸ ·「密码-123」vetoed
+
+## Scroll CLXIV · Every red door struck again
+
+> A thing does not stop being a story just because it does not sound like one.
+> This volume struck every red door one by one — the paint was left alone, the handles were turned to where they belonged.
+
+### 164.1 The full sweep, once (2026-11-17, `b7a011a`)
+
+After #1956 (`57afcea`) and #1957 (`b7a011a`) landed, `pytest tests/unit` ran end-to-end: **26 failing files / 26 reds**.
+No red was "the feature was disproven"; every one was a trailing edge from the previous wave. Each entry names its cause and remedy:
+
+**A — the previous wave never crossed its own ledger**
+
+- `/dig` brought `/api/v1/admin/investigation-dig` plus a new `postInvestigationDig` client — `USER_GUIDE.md` / `EN/USER_GUIDE_EN.md` carried not a single row (guide route catalog gate, 3 reds);
+- `apps/web/src/App.tsx` gained a fifth sidebar sleeve (dig), while `test_access_role_parity` still declared exactly four `NAV_SURFACES` / `SURFACES` — the red RBAC totals disagreed across the two sides (1 red);
+- `craft/investigators.py` kept a dead private `_as_text` (child-output codec gate forbids private decoders, 1 red) — **deleted**;
+- Nine graphs + `api/investigation_dig.py` + `craft/investigators.py` — **46** mypy findings (CI type leg gate) — **repo-wide `mypy 289/289` clean**;
+- `agent/graphs/investigation_dig_graph.py::verdict_node` vs `recall_graph.py::verdict_node` — same-name near-clone pair (structural clone ratchet) — extracted to one shared `agent/graphs/_witness.py::verdict_node`;
+- `SPECPROOF_LEDGER_WINDOW_HOURS` ran through a bare `float()` (empty string crashed the frame) — moved onto `storage/env_config.float_env`: empty → 24.0, garbage → refusal naming the knob;
+- `.env.example` never declared `AI_SUMMARY_TTL_SECONDS` / `INSIGHT_ADVICE_TTL_SECONDS` / `SPECPROOF_LLM_USAGE_LEDGER` / `SPECPROOF_WORKSPACE` — four knobs read by production lanes, invisible to operators (env-knobs gate) — **delivered** (example + compose `api`/`worker`); `SPECROOF_WORKSPACE` was a misspelling (missing the P) — canonicalized to `SPECPROOF_WORKSPACE`;
+- `cache_witness_graph.py` called `httpx.Client(...)` directly — harness moved to `providers.net.outbound_client` (the #1884/Proxy repair, unchanged semantics);
+
+**B — the docs did not follow the code**
+
+- `OBSERVABILITY.md` §8.10 *「已接线指标名」* omitted `providers/usage_ledger.py` (`llm_usage_ledger_errors_total`, landed with #1948) — added; both disagreeing counts unified to **53**;
+- `infra/prometheus/prometheus.yml` — the `192.168.1.5:8000` direct lane (#1843, struck live: 144/144) was missing from the header roster, the DNS-prose carve-out, the `OBSERVABILITY.md §1` targets list, and the listen-port knob gate's provider-evidence table — **10 reds across both scrape gates + the env-knobs gate**. Instead of deleting it, **declared it**: `_SELF_TARGET_HOSTS` now contains `"192.168.1.5"`; the roster header lists ten jobs with the direct lane explicitly carved out; §1 lists the token; the knobs gate registers `local-host-api` as `{"code-path"}` (the `api/server.py` route itself, derived, not argued); below that, the scrape got a probe — **`SpecproofLocalHostApiDown`** (warning, 5m) — and `#219`'s `_LIVENESS_RULES` learned the name;
+- `docs/architecture/FAKE_INVENTORY.md` still pinned `027a877` (289). The inventory grew to **298** — nine new doubles, all landed by #1660 → #1665 → #1889 → #1936 → #1944 and **none of them strangers**: re-pinned to `PIN_COMMIT = b7a011a`, `PIN_COUNTS = {"sql-fake": 22, "store-duck-type": 44, "plain-double": 232}`; the doc gained a dated "2026-11-17 third re-strike" section;
+- The demo promise ("标着「演示」的记录是示意数据") moved wholesale into `dashboard.copy.ts` during the i18n refactor — both gates (every-job-read, demo-marker) re-pointed at the copy pack and at the `recentNote` token the page renders;
+- Attribution head/base words also left `toneMap.ts` for `i18n/strings.ts` — the parity test still pins the same invariant against the gloss table (zh `本次`/`改前`, en `Introduced`/`Pre-existing`, both languages) — it was the location that changed, not the contract;
+- `Insight.tsx` hand-rolled a `<table>` — migrated to `ui/Table`; `tsc --noEmit` still clean;
+
+**C — things left alone on purpose**
+
+- `payload-census` — **23 reds** (ROADMAP-LIVE item #8, owner-supervised; not cleared outside its own remediation track);
+- One `U+FFFD` at `docs/operations/DEEP_OPTIMIZATION_PLAN.md:40823` — the ledger is append-only; that byte is unrecoverable; **no fake character was written in its place**;
+- Night Watch stays **CRACKED**; court `4117d2b0ca5fb23a` **LOCKED**; Exhibit #4 unmoved; D1 ✅; D2 ⏸;「密码-123」vetoed;
+
+### 164.2 The ledger (verified on this host)
+
+- Full `tests/unit`: **26 red → 24** (fixed 2; remaining: 23 payload-census + the one ledger byte) — passing **6,699**;
+- `mypy` 289/289 ✓ · `tsc --noEmit` ✓ · `vite build` ✓ · UI **576/576** ✓ · `mvn -o` both services **BUILD SUCCESS** ✓;
+- `docs/operations/OBSERVABILITY.md` §1 and §5 brought in line with the new probe (`SpecproofLocalHostApiDown`, warning/5m): the §5 alerts table now lists **23 rules**, and the "可见 N 条 specproof-slo 规则" line in §1 agrees — D1's owner-signed verdict deliberately untouched;
+- `purity_graph.py` → **CLEAR** (hits=0) · `night_watch_graph.py` → **CRACKED** (Exhibit #4 unmoved) · `audit_evidence.py` → **CONSISTENT** · court `4117d2b0ca5fb23a` **LOCKED**;
+
+### 164.3 Discipline
+
+- **No ruler was narrowed** — every widening (`_SELF_TARGET_HOSTS`, the DNS-prose carve-out) was declared for a real, live lane with live evidence (`144/144` on this host, #1843); every narrowing (`float_env` refusal, re-pinned census, stricter RBAC) was a tightening;
+- **Nothing is fabricated** — the pin commit is what `git rev-parse HEAD` said; the carved scrape target is the one this machine actually struck live;
+- **Nothing was painted green** — Exhibit #4 stayed unmoved, Night Watch stayed CRACKED, court stayed `LOCKED`; chronicle **1756+1** · worldbook **Scroll CLXIV / 164 卷（双语对称）**

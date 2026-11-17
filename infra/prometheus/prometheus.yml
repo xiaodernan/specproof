@@ -1,8 +1,8 @@
 # SpecProof Prometheus (PRODUCTION_SPEC §17 Observability Profile)
 #
-# 抓取目标 (8 个 job 与下面的清单由 #220 的门逐条对账; 除 prometheus 自身抓
-# localhost:9090 之外全部为服务名 DNS, 依赖与 api/worker 同 compose 网络;
-# 见 compose.observability.yml 注释):
+# 抓取目标 (10 个 job 与下面的清单由 #220 的门逐条对账; 除 prometheus 自身抓
+# localhost:9090 与单机自托管直连 192.168.1.5:8000 之外全部为服务名 DNS,
+# 依赖与 api/worker 同 compose 网络; 见 compose.observability.yml 注释):
 #   api:8000/metrics            ← FastAPI /metrics (api/metrics.py → observability/metrics.py)
 #   worker:9100/metrics         ← worker 进程内 /metrics (observability/metrics_http.py, WORKER_METRICS_PORT)
 #   outbox-relay:9101/metrics   ← outbox relay 进程内 /metrics (OUTBOX_RELAY_METRICS_PORT; 应用栈部署 relay 服务后生效)
@@ -12,6 +12,9 @@
 #   rabbitmq:15692/metrics/per-object ← rabbitmq_prometheus 插件的每队列渲染
 #   specproof-edge:8090/actuator/prometheus   ← 边缘网关 management 端口
 #   localhost:9090/metrics      ← Prometheus 自身
+#   192.168.1.5:8000/metrics    ← 单机自托管直连（2026-11-16 实测入册 #1843）：本机 app 进程 `python -m api.server`，
+#                                 宿主 LAN IP（loopback 与 host.docker.internal 指向的地址都被另一个项目占用，打过去会 404）；
+#                                 非 compose 服务、非 image 默认，仅为单机落地的真实抓取通道，换机器改下面那一行即可。
 #
 # api 未起时目标显示 down 属正常; api 起来后同网络 DNS 解析即自动转 up。
 

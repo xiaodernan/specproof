@@ -73,9 +73,9 @@ def _synthetic_cohort() -> dict[str, Any]:
         p = (a * b) & 0xFFFFFFFF
         return p - 0x100000000 if p & 0x80000000 else p
 
-    def mulberry32(seed: int):
+    def mulberry32(seed: int) -> list[float]:
         a = seed & 0xFFFFFFFF
-        out = []
+        out: list[float] = []
         while len(out) < 28:
             a = (a + 0x6D2B79F5) & 0xFFFFFFFF
             t = imul(a ^ (a >> 15), 1 | a)
@@ -83,7 +83,7 @@ def _synthetic_cohort() -> dict[str, Any]:
             out.append((t ^ (t >> 14)) / 4294967296)
         return out
 
-    def least_squares(y: list[float]):
+    def least_squares(y: list[int]) -> tuple[float, float, float]:
         n = len(y)
         xs = list(range(n))
         mx = sum(xs) / n

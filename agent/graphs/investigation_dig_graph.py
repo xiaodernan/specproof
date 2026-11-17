@@ -20,6 +20,7 @@ import asyncio
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -36,8 +37,8 @@ class InvestigationDigState(TypedDict, total=False):
     question: str
     verdict: str
     report_path: str
-    agents: list[dict]
-    findings: list[dict]
+    agents: list[dict[str, Any]]
+    findings: list[dict[str, Any]]
     total_tokens_used: int
     generation_time_ms: int
 
@@ -72,14 +73,13 @@ def strike_node(state: InvestigationDigState) -> InvestigationDigState:
         }
 
 
-def verdict_node(state: InvestigationDigState) -> InvestigationDigState:
-    return state
+from agent.graphs._witness import verdict_node  # absolute: same file runs as a script and as a module
 
 
 def report_node(state: InvestigationDigState) -> InvestigationDigState:
     out_dir = ROOT / "docs" / "evidence"
     out_dir.mkdir(parents=True, exist_ok=True)
-    payload = {
+    payload: dict[str, Any] = {
         "question": state.get("question"),
         "verdict": state.get("verdict"),
         "agents": state.get("agents", []),
@@ -113,7 +113,7 @@ def report_node(state: InvestigationDigState) -> InvestigationDigState:
     return {"report_path": str(out_dir / "investigation-dig.md")}
 
 
-def build_investigation_dig_graph():
+def build_investigation_dig_graph() -> Any:
     g = StateGraph(InvestigationDigState)
     g.add_node("intake", intake_node)
     g.add_node("strike", strike_node)
