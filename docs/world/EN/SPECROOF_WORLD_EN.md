@@ -6337,3 +6337,30 @@ mvn untouched · UI **590/590** · vite build ✓ · vitest run ✓ · `/dig`/`/
 ### 176.3 The ledger
 
 mvn untouched · UI **590/590** · vite build ✓ · vitest run ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **17** · chronicle **1772** + 1 · worldbook **176 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is still a door marked "demo"
+
+## Scroll CLXXVII · Two Grains the Same Tide
+
+> Two identical strikes — one while the sun was out, one while the machine was occupied. The difference is not the code; it's the crowd.
+
+### 177.1 The same command, fired twice
+
+Struck again with `scripts/stress_smoke.py --concurrency 96 --per-thread 2 --rounds 4 --warmup 2` on the same front door — same `dist/`, same host, same lane, both **0.00% err**:
+
+| round | ok/total | err | p50 | p99 |
+|---|---|---|---|---|
+| 1 | 192/192 | **0.00%** | 323.5 ms | 1,558.7 ms |
+| 2 | 192/192 | **0.00%** | 85.2 ms | 1,639.6 ms |
+| 3 | 192/192 | **0.00%** | 525.1 ms | 1,650.6 ms |
+| 4 | 192/192 | **0.00%** | 106.2 ms | 2,027.1 ms |
+
+verdict **OK** · worst p99 **2,027.1 ms** · warmup 1/2 113/192 · warmup 2/2 147/192 (not counted) — worst Δ vs #17 = **+492.6 ms p99 · +523.2 ms avg_p95**, with **zero errors**.
+
+### 177.2 The honest caption: this is not a regression
+
+This strike landed while a full `pytest tests/unit` (PID 20544) was **already running** on the same host. exhibit #17 was struck while the host was mostly idle. The two samples differ only by host contention — not by code change. The front door's OK held under load.
+
+It is not a medal; it is a public demonstration of variance for identical configurations of the same probe. Exhibit #17 stays on file as the clean strike of this lane; this new entry simply records the same command, the same lane, the same machine, under a concurrent test suite — still OK.
+
+### 177.3 The ledger
+
+mvn untouched · UI **590/590** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **18** · chronicle **1773** + 1 · worldbook **177 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is still a door marked "demo"

@@ -41801,3 +41801,26 @@ mvn 未动 · UI **590/590** · vite build ✓ · vitest run ✓ · `/dig`/`/run
 ### 三、账房
 
 mvn 未动 · UI **590/590** · vite build ✓ · vitest run ✓ · scrolls **176**（中英对称）· court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1772** + 1 · worldbook **176 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## #1975 《两粒同潮》：exhibit #18 落册——同 96c recipe · 192×4 · 0.00% err · worst p99 2,027.1 ms（competition vs #17: +492.6 ms p99 · +523.2 ms avg_p95，在 full pytest（20544）并行 running 时）· exhibit_entries **17 → 18** · chronicle **1773** + 1 · worldbook **177 卷（双语对称）**
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1974。
+
+### 一、这是一次住院治疗（不是勋章）
+
+同一台机器、同一条前门静态车道、同一个 `dist/`、同一个 `stress_smoke.py`（`#17` 的姊妹曲：96c × 2/thread × 4 轮 + warmup 2 + `timeout 8`）：
+
+- round 1/4：192/192 · err **0.00%** · p50 323.5 · p99 1,558.7
+- round 2/4：192/192 · err **0.00%** · p50 85.2 · p99 1,639.6
+- round 3/4：192/192 · err **0.00%** · p50 525.1 · p99 1,650.6
+- round 4/4：192/192 · err **0.00%** · **p50 106.2 · p99 2,027.1 · max 2,039.2**
+
+verdict **OK** · worst p99 **2,027.1 ms** · warmup 1/2 113/192 · warmup 2/2 147/192（不计入）· verdict 沿用既有 OK 门（won't flip by thresholds judged）。
+
+### 二、为什么本次不在「更快」一栏
+
+`Δ vs exhibit #17 = +492.6 ms p99 · +523.2 ms avg_p95`；前后门完全相同、dist 相同——差的仅仅是机器在一段 full pytest 在跑下去。这条证据登记的不是退化，而是**控制组**：同样一击在 idle 与在 pytest-并行下的真实差。#17 仍是 exhibit 线上的纯净样本；这一击登记为 #18 上册页面「同机器、同配置、不同 load 的对照」。
+
+### 三、账房
+
+mvn 未动 · UI **590/590** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1773** + 1 · worldbook **177 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门

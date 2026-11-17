@@ -1,12 +1,12 @@
 {
  "version": 1,
  "source": "docs/evidence/*.json (stress_smoke.py --json-report output; this host)",
- "files_count": 32,
- "exhibits_count": 17,
+ "files_count": 34,
+ "exhibits_count": 18,
  "latest": {
-  "file": "2026-11-17-static-warm-17.json",
+  "file": "2026-11-17-static-warm-18.json",
   "readable": true,
-  "started_utc": "2026-11-17T10:06:39.722166+00:00",
+  "started_utc": "2026-11-17T15:27:40.402187+00:00",
   "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
   "concurrency": 96,
   "warmup_rounds": 2,
@@ -14,47 +14,91 @@
    {
     "total": 192,
     "ok": 192,
-    "p50_ms": 26.61784999986594,
-    "p95_ms": 1021.2626249999175,
-    "p99_ms": 1028.139167999907
+    "p50_ms": 323.47089999984746,
+    "p95_ms": 1534.4682149991968,
+    "p99_ms": 1558.6823969995748
    },
    {
     "total": 192,
     "ok": 192,
-    "p50_ms": 25.810200000023542,
-    "p95_ms": 1033.8401200001044,
-    "p99_ms": 1526.6923110001608
+    "p50_ms": 85.15535000060481,
+    "p95_ms": 1560.1870600004077,
+    "p99_ms": 1639.6026020003605
    },
    {
     "total": 192,
     "ok": 192,
-    "p50_ms": 24.543650000168782,
-    "p95_ms": 1027.0990999998958,
-    "p99_ms": 1082.9527580000574
+    "p50_ms": 525.0833000000057,
+    "p95_ms": 1541.0688450000634,
+    "p99_ms": 1650.5528830007656
    },
    {
     "total": 192,
     "ok": 192,
-    "p50_ms": 25.284299999839277,
-    "p95_ms": 1035.567255000251,
-    "p99_ms": 1534.4596199999978
+    "p50_ms": 106.19295000014972,
+    "p95_ms": 1574.701114999607,
+    "p99_ms": 2027.102691999171
    }
   ],
-  "worst_p99_ms": 1534.4596199999978,
-  "avg_p95_ms": 1029.4422750000422,
+  "worst_p99_ms": 2027.102691999171,
+  "avg_p95_ms": 1552.6063087498187,
   "total": 768,
   "total_ok": 768,
-  "bytes_read": 289556992,
+  "bytes_read": 302381568,
   "verdict": "OK"
  },
  "delta_vs_previous": {
-  "vs_file": "2026-11-16-static-warm-15.json",
-  "worst_p99_delta_ms": -526.5676289995281,
-  "avg_p95_delta_ms": -1010.3676937495266,
-  "bytes_delta": -702174198,
-  "total_delta": -2304
+  "vs_file": "2026-11-17-static-warm-17.json",
+  "worst_p99_delta_ms": 492.6430719991731,
+  "avg_p95_delta_ms": 523.1640337497765,
+  "bytes_delta": 12824576,
+  "total_delta": 0
  },
  "all": [
+  {
+   "file": "2026-11-17-static-warm-18.json",
+   "readable": true,
+   "started_utc": "2026-11-17T15:27:40.402187+00:00",
+   "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
+   "concurrency": 96,
+   "warmup_rounds": 2,
+   "rounds": [
+    {
+     "total": 192,
+     "ok": 192,
+     "p50_ms": 323.47089999984746,
+     "p95_ms": 1534.4682149991968,
+     "p99_ms": 1558.6823969995748
+    },
+    {
+     "total": 192,
+     "ok": 192,
+     "p50_ms": 85.15535000060481,
+     "p95_ms": 1560.1870600004077,
+     "p99_ms": 1639.6026020003605
+    },
+    {
+     "total": 192,
+     "ok": 192,
+     "p50_ms": 525.0833000000057,
+     "p95_ms": 1541.0688450000634,
+     "p99_ms": 1650.5528830007656
+    },
+    {
+     "total": 192,
+     "ok": 192,
+     "p50_ms": 106.19295000014972,
+     "p95_ms": 1574.701114999607,
+     "p99_ms": 2027.102691999171
+    }
+   ],
+   "worst_p99_ms": 2027.102691999171,
+   "avg_p95_ms": 1552.6063087498187,
+   "total": 768,
+   "total_ok": 768,
+   "bytes_read": 302381568,
+   "verdict": "OK"
+  },
   {
    "file": "2026-11-17-static-warm-17.json",
    "readable": true,
@@ -895,6 +939,21 @@
    "total_ok": 0,
    "bytes_read": 0,
    "verdict": "intentional evaluation evidence — do not delete"
+  },
+  {
+   "file": "covenant-witness.json",
+   "readable": true,
+   "started_utc": "",
+   "note": "",
+   "concurrency": null,
+   "warmup_rounds": 0,
+   "rounds": [],
+   "worst_p99_ms": 0.0,
+   "avg_p95_ms": 0.0,
+   "total": 0,
+   "total_ok": 0,
+   "bytes_read": 0,
+   "verdict": "HELD"
   },
   {
    "file": "investigation-dig.json",

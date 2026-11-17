@@ -6446,3 +6446,30 @@ mvn 未动 · UI 未动（**590/590**）· vite build ✓ · vitest run ✓ · `
 ### 176.3 账房
 
 mvn 未动 · UI 未改（**590/590**）· vite build ✓ · vitest run ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1772** + 1 · worldbook **176 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## 卷一百七十七 · 潮沙
+
+> 两个一模一样的样本：第一记天亮中敲，第二记集中敲。差别是那个在后面敲的，被一个 95% CPU 的测试在试吃了。
+
+### 177.1 同样命令做出来的第二击
+
+再次以 `scripts/stress_smoke.py --concurrency 96 --per-thread 2 --rounds 4 --warmup 2` 敲击同一前门——同样一份 `dist/`、同样本机同一条车道、同样 zero errors：
+
+| round | ok/total | err | p50 | p99 |
+|---|---|---|---|---|
+| 1 | 192/192 | **0.00%** | 323.5 ms | 1,558.7 ms |
+| 2 | 192/192 | **0.00%** | 85.2 ms | 1,639.6 ms |
+| 3 | 192/192 | **0.00%** | 525.1 ms | 1,650.6 ms |
+| 4 | 192/192 | **0.00%** | 106.2 ms | 2,027.1 ms |
+
+verdict **OK** · worst p99 **2,027.1 ms** · warmup 1/2 113/192 · warmup 2/2 147/192（不计入判决）——worst Δ vs #17 = **+492.6 ms p99 · +523.2 ms avg_p95**，**零错误**。
+
+### 177.2 诚实记录：这件事不等于「变差」
+
+这一击在 full pytest（PID 20544）**仍在跑的时候**上敲下去。#17 是主机相对独享时的样本。两样本差的只是「同一台机器同一个脚本两次敲」之间的 host contention，不是代码退化——前门证词的 OK 判决今天在吃力的情况下仍成立。
+
+它不是勋章——它是对「相同配置在不同负载下的方差」做的一次脱口秀。exhibit #17 仍在册里（最好的一次挥杆），这件新落册的只是「它没变坏」。
+
+### 177.3 账房
+
+mvn 未动 · UI **590/590** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1773** + 1 · worldbook **177 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
