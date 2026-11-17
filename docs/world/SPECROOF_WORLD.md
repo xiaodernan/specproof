@@ -5832,3 +5832,29 @@ UI **572/572** · build ✓（minified）· mvn -o **137/137**（Java 未动）�
 UI **571/571** · build ✓ · mvn -o **137/137**（Java 未动）· guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依旧 **CRACKED**（entries **16**）· court `4117d2b0ca5fb23a` **LOCKED** · chronicle 随本提交增员 · worldbook **卷一百五十七 / 157 卷（中英对称）** · D1 ✅ · D2 ⏸ ·「密码-123」否决
 
 ---
+
+## 卷一百五十八 · 两条支流，汇入同一本编年史
+
+> 兩條支流沒有衝突，
+> 只是沒人來得及替它們寫完最後一頁；
+> 今晚親手合攏，一頁一頁，對齊，再離岸。
+
+### 158.1 兩支家河（2026-11-17 · 审计流程的收尾）
+
+| 流向 | 內容 | 簽核 |
+|---|---|---|
+| `fix/payload-census-ai-summary-stream-register` | GET `/api/v1/jobs/{}/ai-summary/stream` 登记為 typed-unpaired（`streamAiSummary` → `openEventStream` SSE 傳輸，與 `/capsule`、`/auth/logout` 同源）；census 紅紙 24 → **23** | `test_every_route_without_a_frontend_consumer_is_rostered_by_name` 3/3 green |
+| `fix/verdict-channel-witness` | ①witness 通道落册（7 StateGraphs + 审计车道 11 脚本 = 18 owners · 15 判詞 · 18 個 opaque 全部宣告）— **verdict-channel-parity 2/2 脚本全綠 14/14**；②`usage_ledger_graph.py` 第八盏灯 · /stategraph 掛牌 八盞（6 offline + 2 networked）· StateGraph.test.tsx **7/7** · UI **572/572**；③i18n 粗篩第四刀：bucket A **366→196→138→118→73** · C **1,276** | parity 14/14 · 8/8 graph · UI 572/572 |
+
+### 158.2 合併的原則
+
+- **沒有一個紅門被涂綠**：census 僅保留 **23** 紅在冊（item #8 不歸零，直到整個家族真正修完）；verdict-channel 是**真正修复**（不是豁免，是登记 — 词库的 i18n 狀況也是如此：A 從 366 降到 73，沒有一條 "author waived"，每一件是 L()/zh?/同源位址键/…_ZH 的明文规则）；
+- **沒有覆寫任何人的捲軸**：CLVI/CLVII 與两批油墨先前的內容原樣，因為 append-only；
+- **兩支線都在 master 上**：cherry-pick 手順合并（`ort` 策略），共 **+803/-37** lines，沒有原碼衝突；
+- **Night Watch 依舊 CRACKED**：exhibit #4 一個判詞沒有挪動；purity **CLEAR**；exhibit_entries **16**；court `4117d2b0ca5fb23a` **LOCKED**。
+
+### 158.3 账房（主干當前實敲）
+
+UI **572/572** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch 依舊 **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle 随本提交增员 · worldbook **卷一百五十八 / 158 卷（中英对称）** · D1 ✅ · D2 ⏸ ·「密码-123」否决
+
+---

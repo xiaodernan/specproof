@@ -5734,3 +5734,30 @@ Not one `A` was hand-crossed-out; every one that left was reclassified by a rule
 UI **571/571** · build ✓ · mvn -o **137/137** (Java untouched) · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch still **CRACKED** (entries **16**) · court `4117d2b0ca5fb23a` **LOCKED** · chronicle grows with this commit · worldbook **Scroll CLVII / 157 scrolls (zh+en symmetric)** · D1 ✅ · D2 ⏸ · 「密码-123」vetoed
 
 ---
+
+## Scroll CLVIII · Two tributaries into the same Chronicle
+
+> Two rivers never met;
+> not because their deltas refused —
+> simply no hand had closed the last pages.
+> Tonight both were closed, one scroll at a time, and written into the same book.
+
+### 158.1 The two branches (2026-11-17 · audit flow's finishing touch)
+
+| branch | what it carried | sign-off |
+|---|---|---|
+| `fix/payload-census-ai-summary-stream-register` | GET `/api/v1/jobs/{}/ai-summary/stream` rostered typed-unpaired (SSE transport `streamAiSummary` → `openEventStream`, same family as `/capsule` and `/auth/logout`); census red **24 → 23** | `test_every_route_without_a_frontend_consumer_is_rostered_by_name` green |
+| `fix/verdict-channel-witness` | ①witness channel declared (7 StateGraphs + 11 audit-roll scripts = **18 owners · 15 words · 18 opaque declared**) — **verdict-channel-parity 2 reds → 0 · parity 14/14**; ②the eighth lamp `usage_ledger_graph.py` · /stategraph hangs **eight** cards (6 offline + 2 networked) · StateGraph.test.tsx **7/7** · UI **572/572**; ③i18n coarse audit v4: bucket A **366 → 196 → 138 → 118 → 73** · C **1,276** | parity 14/14 · graph 8/8 · UI 572/572 |
+
+### 158.2 The rules of the merge
+
+- **no red door got painted**: exactly **23 census** remain on file (item #8 stays open until the family is honestly closed); the verdict-channel pair is a true fix (not an exemption by fiat — the scale is the graphs' own vocabulary, with every opaque write declared as such, never folded into an accept lane);
+- **nobody's scroll got overwritten**: CLVI/CLVII content predates the merge unchanged — the book is append-only;
+- **both lanes land on master**: `ort` merge strategy passed cleanly (only test data and ledger touch), **+803/−37 lines**, zero conflict;
+- **Night Watch still CRACKED**: none of exhibit #4's bytes moved; purity **CLEAR**; exhibit_entries **16**; court `4117d2b0ca5fb23a` **LOCKED**.
+
+### 158.3 The ledger (verified on master)
+
+UI **572/572** · build ✓ · mvn -o **137/137** · guide **6/6** · corrections **17** · purity **CLEAR** · Night Watch still **CRACKED** · exhibit_entries **16** · court `4117d2b0ca5fb23a` **LOCKED** · chronicle grows with this commit · worldbook **Scroll CLVIII / 158 scrolls (zh+en symmetric)** · D1 ✅ · D2 ⏸ · 「密码-123」vetoed
+
+---
