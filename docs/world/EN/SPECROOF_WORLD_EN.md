@@ -6179,3 +6179,55 @@ The model lane is untouched: answers remain bound to the anonymous aggregate pac
 ### 169.3 The ledger
 
 UI **589/589** (83 files · Observe.test 6/6 · +2 cases here) · vite build ✓ · vitest run ✓ · mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **17** · chronicle **1763** + 1 · worldbook **169 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is still a door marked "demo"
+
+## Scroll CLXX · The Unmixed Chapter
+
+> In an all-Chinese interface no English should ever grow a face — and the mirror statement for English. This is not aesthetics; it is respect for the reader.
+
+### 170.1 Eight hybrids pulled out of the rendered UI
+
+`i18n_audit.py` bucket A went **37 → 29**. Every one removed was a real on-screen hybrid, not a comment:
+
+| file | before (zh branch hybrid) | after (zh branch pure) |
+|---|---|---|
+| `Health.tsx` | 服务健康 · Five-category health | 五类健康总览 |
+| `Health.tsx` | 依赖矩阵 Dependency Matrix | 依赖矩阵 |
+| `Health.tsx` | 服务受限 DEGRADED | 服务受限 |
+| `Health.tsx` | 延迟 Latency | 延迟 |
+| `Usage.tsx` | column heads 车道 lane / 协议 protocol | 车道 / 协议 |
+| `ErrorBox.tsx` | 错误 ERROR · … | 错误 · … |
+| `Degraded.tsx` | 降级 DEGRADED | 降级 |
+| `ErrorBoundary.tsx` | 错误 ERROR · 页面渲染异常… | 错误 · 页面渲染异常…（错误边界） |
+
+`ErrorBoundary.test.tsx`'s anchor was updated in step. The remaining 29 entries are filed as features, not residue: `glossary.ts` bilingual lexicon, CommandPalette's intentional dual-script keywords (documented in its header), `copySummary/epicCertificate` paired bilingual output, `AgentToolStream` twin arms. No new exemptions were added anywhere.
+
+### 170.2 The ledger
+
+UI **589/589** · vite build ✓ · mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · worldbook **170 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is a door marked "demo"
+
+## Scroll CLXXI · The Covenant
+
+> Every prefix you send is a command — byte-different, token deference refused. The covenant nails one clause to the head of every lane, so the model strikes into it and the cache finds its bones.
+
+### 171.1 A byte-identical charter, 1,450 bytes of it
+
+Struck today: `scripts/two_strike_probe.py` (4,676-token prefix · back-to-back) → `prompt_cache_hit_tokens=0`, flat. The reason needs no mystery: **no lane has ever shared one stable prefix.** Prefix caching rewards byte-identical leading sequences — under this account, nothing led with one.
+
+The repair is not a one-lane job; it is a rewrite of the call surface:
+
+- new file `api/system_covenant.py`: a 1,450-byte Chinese charter, eleven laws, every one pinned to a real file in the tree (`agent/review_court/policy.py` · `base_pass_head_fail` · `.local/llm.json` · `DEEP_OPTIMIZATION_PLAN.md`). **Append, never rewrite; numbers never reused; every edit re-strikes the witness.**
+- lanes wired: ai_summary · insight_advice · observe_advice · craft/investigators (both the /dig triad and the /runbook triad);
+- **the court lane never carries this prefix** (court caches nothing and takes no other crown);
+- touching the covenant re-strikes the whole chain — caches route bytes, not intentions.
+
+### 171.2 The honest books
+
+Same hour: the Clash Verge node showed two instant-refusals (logged `APIConnectionError`) and one good lane after a pool rotation (17–23 s answers). Browser layer saw two 502s; one reload held.
+
+- 4,676 × 4/4 strikes → **miss=4,676 every time**; no hit was written down;
+- what stands today: the Redis fingerprint cache (86,400 s · fail-open) — one fingerprint is one answer, served at zero new model cost;
+- provider-side prefix caching: outage, not solved. **We owe this to the truth; we do not say 90% today.**
+
+### 171.3 The ledger
+
+UI **589/589** · vite build ✓ · mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch stays **CRACKED** · exhibit_entries **17** · chronicle **1765** + 1 · worldbook **171 scrolls (bilingual mirror)** · D1 ✅ · D2 ⏸ ·「密码-123」 is still a door marked "demo"

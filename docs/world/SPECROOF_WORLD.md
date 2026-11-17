@@ -6286,3 +6286,55 @@ mvn -o 未动 · UI **587/587** · vite build ✓ · purity **CLEAR**（本轮�
 ### 169.3 账房
 
 UI **589/589**（83 文件 · Observe.test 6/6 · 本次 +2 例）· vite build ✓ · vitest run ✓ · mvn 未动 · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1763** + 1 · worldbook **169 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷一百七十 · 不夹的章
+
+> 全中文的界面里一句英文都不该长出脸来；全英文的界面里一句中文都不该挤进来——这不是审美，是尊不尊重用户。
+
+### 170.1 五扇门一寸一寸抠出来的夹杂
+
+本轮把 i18n 审计 A 桶 37 → **29**。抠出来的八处，全部是「放大招在用户屏幕上」的混血字形——不是注释：
+
+| 文件 | 修前（zh 分支混杂） | 修后（zh 分支纯中文） |
+|---|---|---|
+| `Health.tsx` | 服务健康 · Five-category health | 五类健康总览 |
+| `Health.tsx` | 依赖矩阵 Dependency Matrix | 依赖矩阵 |
+| `Health.tsx` | 服务受限 DEGRADED | 服务受限 |
+| `Health.tsx` | 延迟 Latency | 延迟 |
+| `Usage.tsx` | 列头「车道 lane」·「协议 protocol」 | 「车道」·「协议」 |
+| `ErrorBox.tsx` | 错误 ERROR · … | 错误 · … |
+| `Degraded.tsx` | 降级 DEGRADED | 降级 |
+| `ErrorBoundary.tsx` | 错误 ERROR · 页面渲染异常… | 错误 · 页面渲染异常…（错误边界） |
+
+`ErrorBoundary.test.tsx` 断言同步换锚点。残余 29 条逐条过目：`glossary.ts` 战术双语、CommandPalette 关键词双语（有意为之）、`copySummary/epicCertificate` 双语成对输出、`AgentToolStream` 中英双臂——全部记为**特性，非残留**。无一豁免被新增。
+
+### 170.2 账房
+
+UI **589/589** · vite build ✓ · mvn 未动 · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · worldbook **170 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## 卷一百七十一 · 行宪
+
+> 你的每一个前缀都是令教——字节不一，令牌不认。行宪把同一段话钉在所有车道的头上，模型敲之有根，缓存敲之得骨。
+
+### 171.1 一段三千字体、字节恒定的宪章
+
+本机这次的实测：`scripts/two_strike_probe.py`（4,676-token 前缀 · 两次连续敲）→ `prompt_cache_hit_tokens=0` 恒定。原因不必神秘：**车道从来没有共享过一个稳定前缀**。常规 prefix cache 依赖字节一致的输入——每条车道各带一段 system 提示、再加一个 JSON 数据包，首包逐次不同。
+
+补救方式不是某一个车道的工程，是一次对整个调用面的重写：
+
+- 新文件 `api/system_covenant.py`：1,450 字节中文宪章，11 条法，每条都能钉住仓库里真实存在的文件（`agent/review_court/policy.py` · `base_pass_head_fail` · `.local/llm.json` · `DEEP_OPTIMIZATION_PLAN.md`）。**追加而不删改 · 编号不再分配 · 任何编辑必须带着证人复敲。**
+- 车道接入：ai_summary · insight_advice · observe_advice · craft/investigators（/dig 三贤与 /runbook 三贤）
+- **法院车道永远没有这段前缀**（它不需要——它从不缓存，且不允许掺别人的教令）；
+- 增删 covenant 即必然重敲——因为缓存分派的是字节，不是善意。
+
+### 171.2 诚实登记：行宪落了，账怎么结
+
+同一小时，Clash Verge 节点出现两瞬间拒绝（APIConnectionError，uvicorn 日志在册）与一次众多节点轮转后的 200 恢复（17–23 s）。两次 browser 层 502 → reload 即 OK。
+
+- 4,676 的恒定前缀，4 次敲击 4 次 miss=4676——**没有一次命中写进账**；
+- 能站得住的缓存层，目前只有 Redis fingerprint 缓存（86,400 s · fail-open）——同一指纹就是同一份答案，不必重敲，零额外模型调用；
+- provider 侧前缀缓存，日沈。**我们欠得起，但不能说现在命中 90%**。账房不涂绿，这字巨细地记下。
+
+### 171.3 账房
+
+UI **589/589** · vite build ✓ · mvn 未动 · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1765** + 1 · worldbook **171 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门

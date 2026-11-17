@@ -41610,3 +41610,50 @@ python 全量 `tests/unit`（`-q`）**重敲在飞**：上一笔（#1964 时代�
 ### 三、账房
 
 UI **589/589**（83 文件 · Observe.test **6/6** · 本轮 +2）· vite build ✓ · vitest run ✓ · mvn 未动 · OpenAPI 未动（页面内容级变更）· access_role_parity **11/11** 未触 · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1763** + 1 · worldbook **169 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门
+
+## #1968 《全中文模式里也绝不夹英文》：i18n 审计 A 桶 37 → **29** · 8 处真 UI 夹杂收口 · UI 589/589 · chronicle 1764 + 1 · worldbook 170 卷（双语）
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1967。
+
+### 一、抠出哪八处（全部 zh 分支长英尾巴）
+
+| 文件 | 修前（zh 分支混杂） | 修后（zh 分支纯中文） |
+|---|---|---|
+| `Health.tsx` | 服务健康 · Five-category health | 五类健康总览 |
+| `Health.tsx` | 依赖矩阵 Dependency Matrix | 依赖矩阵 |
+| `Health.tsx` | 服务受限 DEGRADED | 服务受限 |
+| `Health.tsx` | 延迟 Latency | 延迟 |
+| `Usage.tsx` | 列头「车道 lane」·「协议 protocol」 | 「车道」·「协议」 |
+| `ErrorBox.tsx` | 错误 ERROR · … | 错误 · … |
+| `Degraded.tsx` | 降级 DEGRADED | 降级 |
+| `ErrorBoundary.tsx` | 错误 ERROR · 页面渲染异常… | 错误 · 页面渲染异常…（错误边界） |
+
+`ErrorBoundary.test.tsx` 断言同步（/kaboom-fixture/ 不变，前缀锚点换成中文）。残余 29 条逐条过目：glossary 战术双语（特性）· CommandPalette 双语关键词（文件头明示有意）· copySummary/epicCertificate 成对输出 · AgentToolStream/Gate 双臂 · 注释层 → 全部记为**特性非残留**，无一豁免被新增。
+
+### 二、账房
+
+UI **589/589**（83 文件）· vite build ✓ · mvn 未动 · i18n_audit A **37 → 29**（B 168 / C 1357 未动）· court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1764** + 1 · worldbook **170 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门
+
+## #1969 《行宪》：字节恒定前缀落册——`api/system_covenant.py` 五车道共享一段宪章 · 前缀缓存现状如实登记（今日恒 miss=4,676） · UI 589/589 · chronicle 1765 + 1 · worldbook 171 卷（双语）
+
+**记录基准**：本节只追加；master = 本提交。本号衔接 #1968。
+
+### 一、交付
+
+1. `api/system_covenant.py`（新）——中文行宪 · 1,450 B · 11 条法；每条钉住真实文件（`agent/review_court/policy.py` · `base_pass_head_fail` · `.local/llm.json` · `DEEP_OPTIMIZATION_PLAN.md`）；追加不重改编号；
+2. 车道接入：`ai_summary`（#BB-AI 解读复用）· `insight_advice`（空口径 · #1936 同口径）· `observe_advice`（#1966 同口径）· `craft/investigators`（/dig 三贤 explorer/tester/security 与 /runbook 三贤同源）；
+3. 法院车道不带此前缀（不缓存 · 不掺他教）。
+
+### 二、实敲登记（不涂绿）
+
+clash 节点这一小时轮转两次；浏览器两次 502 reload 后 OK；provider 日志在册两例 `APIConnectionError` 与多次 17–23 s 200 OK：
+
+- `scripts/two_strike_probe.py` 连敲两次：`prompt_cache_hit_tokens=0`、`prompt_cache_miss_tokens=4676`（两次）——**恒定**；成为 hit 的读数不写在这一笔里，因为不真；
+- 4 次 same-prefix 敲击（含 protocol/effort 低/空三档）全部 miss=4676；
+- `prompt_cache_key` 直敲 chat_completions 门：400 `stream_required` 如解（未成败，未使用）；
+- 能站得住的缓存 = Redis fingerprint（86,400 s · fail-open）——字节全同，零模型调用；
+- provider 侧前缀缓存：自本日早起一直 miss=4,676，即便在本 commit 落地后亦然——记为**未知令因未破（原因分析见本条收尾），不可欺**。
+
+### 三、账房
+
+mvn 未动 · UI **589/589** · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **17** · chronicle **1765** + 1 · worldbook **171 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」依旧是一扇标着「演示」的门
