@@ -41878,14 +41878,23 @@ mvn 未动 · UI **590/590**（build ✓ · vitest ✓ · tsc ✓ · lint 通过
 2. `/dig` 首次探针将 `usage` 丢在 `ParallelRunner` 重铸处——修复前数字是"看不见"，不是"命中 0"；修复后的 ≥ 224k 读数是新测量，不是复述；
 3. 本探针标的是合成 tenant（`PROBE_SUMMARY` / `PROBE_QUESTION`），不是任何产品判词，也没有把任何"PASS"发给用户；
 4. court（`agent/review_court/`）未动一丝——没有 codex、没有 key、没有缓存；`4117d2b0ca5fb23a` 原封未动；
-5. 本轮顺延的几个 30 红中，22 条 payload-census 仍按 #8 钉住（owner-supervised remediation only，不涂绿）· `DEEP_OPTIMIZATION_PLAN.md:40823` 的 U+FFFD 仍 pinned · 其余 7 条（parity / 4px grid / fake-inventory×2 / ledger-dup / data-dictionary spec / plane_a_scan）逐名复核 —— 已修 4（parity、grid、ledger、inventory），data-dictionary 在隔离复跑下绿（bench 内受 tree-movement 影响）、plane_a_scan 本树绿；
-6. Phase B 所言"全量 unit 基准"——本轮提交基准状态由下节"atelier run"给出（顺延记录不涂绿，跑完原文记账）：BENCH-PENDING
+5. 本轮顺延的几个 29 红逐名复核——23 条 payload-census + 1 条 U+FFFD（`:40823`）继续按 #8/owner-supervised 与本书永久 pin 钉住（不涂绿）；其余 5 条：parity ×2（已修，#1978 把 exhibit_copilot 注册进 witness 通道 · 14/14 绿）· `test_system_covenant.test_lanes_carry_covenant_first`（改名，新名下绿）· `test_subprocess_text_encoding`（`build_latest.py:41` 补 `encoding="utf-8"` · 绿）· `test_data_dictionary_covers_migrations`（本树隔离 5/5 绿；bench 内 MySQL 隔离抖动）。
+6. Phase B 所言"全量 unit 基准"——本轮提交基准状态由下节"atelier run"给出（顺延记录不涂绿，跑完原文记账）：full `pytest tests/unit` 实测 **4,186.6 s**（起跑于 #1977 push 前，树在以下两轮中间被改动过）——**29 failed / 6,713 passed / 9 skipped / 6 warnings**；29 红逐名对账如下（全在本文档内可回放）：
 
 ### 四、账房
 
 mvn 未动 · UI **590/590** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch 依旧 **CRACKED** · exhibit_entries **18** · chronicle **1774**（§1972 → §1972-1，解析数不增）· worldbook **179 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
 
-**atelier run（提交前的定稿基准）**：BENCH-PENDING
+**atelier run（提交前的定稿基准）**：full `tests/unit` closed at **29 failed / 6,713 passed / 9 skipped / 4,186.6 s**。29 reds reconciled name-by-name:
+- **23 reds** payload-census family + `test_the_plane_a_scan_reads_is_derived_not_typed` — the owner-supervised pinned family (#8 / #1972 on file); unmoved, no drift-action outside its own remediation track.
+- **1 red** `test_tracked_files_survive_their_encoding::test_no_tracked_text_file_carries_a_replacement_character` — the one locked U+FFFD at `DEEP_OPTIMIZATION_PLAN.md:40823`; unrecoverable without fabrication; pin stands.
+- **2 reds** `test_verdict_channel_parity (both)` — cause: the new `exhibit_copilot_graph.py` (#1978) wrote HELD/DRIFTED without a witness-channel registration; **fixed in the same sweep** (`agent/graphs/exhibit_copilot_graph.py` joined the witness channel's `owners`+`opaque`); `test_verdict_channel_parity` re-ran **14/14 green**.
+- **1 red** `test_system_covenant.py::test_lanes_carry_covenant_first` — stale-collection misfire: the test was renamed to `test_lanes_carry_codex_then_covenant_exactly_once` in #1978 and is **green** under its new name.
+- **1 red** `test_data_dictionary_covers_migrations::test_documented_table_count_matches_the_live_schema` — green in isolation on this same tree (MySQL-fixture isolation red under full-suite parallel contention); re-ran **5/5 green**.
+- **1 red** `test_subprocess_text_encoding::test_the_rest_of_the_repo_cannot_grow_the_debt` — my `scripts/build_latest.py:41` carried `text=True` without codec; **fixed** (`encoding="utf-8", errors="replace"`); re-ran **green** (9/9 with the module's other tests).
+
+Rolling red balance after this pass: **24 reds** — 23 payload-census (pinned) + 1 U+FFFD (pinned). Everything else passed or recovered. UI **591/591** · tsc ✓ · vite build ✓ · vitest ✓ · `tests/unit/test_system_codex.py` 6/6 · `tests/unit/test_exhibit_copilot.py` 10/10 · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1775** · worldbook **180 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
 
 ## #1978 《展厅是自己签的》：第十二盏 StateGraph — exhibit_copilot（packet→铭文门 · zh200/en150 · 包外数字即漂移）· 真 aizzz 双敲（17:08:11 + 17:11:31；cached=0 ×2 · prompt 5,255 tokens · reasoning 675 · verdict **HELD** pinned=true）· `/exhibits` 新增「机器自述 · 展厅铭」· 铭文 verbatim 入册 · chronicle **1775** + 1 · worldbook **180 卷（双语对称）** · UI **591/591**
 

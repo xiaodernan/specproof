@@ -38,7 +38,10 @@ OUT = ROOT / "docs" / "latest.json"
 
 
 def _git(*args: str) -> str:
-    proc = subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=True, timeout=120)
+    proc = subprocess.run(
+        ["git", *args], cwd=ROOT, capture_output=True,
+        text=True, encoding="utf-8", errors="replace", check=True, timeout=120,
+    )
     return proc.stdout.strip()
 
 
