@@ -24,6 +24,8 @@ from typing import Any
 from providers.base import LLMMessage, LLMResponse
 from providers.openai_compatible import OpenAICompatibleProvider
 
+from api.system_covenant import covenant_prefix
+
 logger = logging.getLogger(__name__)
 
 #: Packet budget — anything longer stops being "reviewer's 90-second read".
@@ -127,10 +129,10 @@ _PROMPT = (
 
 
 def _prompt(packet: str) -> list[LLMMessage]:
-    return [
+    return covenant_prefix([
         LLMMessage(role="system", content=_PROMPT),
         LLMMessage(role="user", content="证据包（JSON）：\n" + packet),
-    ]
+    ])
 
 
 async def generate_ai_summary(

@@ -36,6 +36,7 @@ from collections.abc import Callable
 from typing import Any
 
 from api.synthetic_cohort import cohort
+from api.system_covenant import covenant_prefix
 from providers.base import LLMMessage, LLMResponse
 from providers.openai_compatible import OpenAICompatibleProvider
 
@@ -125,13 +126,13 @@ _PROMPT_EN = (
 def _prompt(locale: str, packet: str) -> list[LLMMessage]:
     lang = "zh" if locale != "en" else "en"
     system = _PROMPT_ZH if lang == "zh" else _PROMPT_EN
-    return [
+    return covenant_prefix([
         LLMMessage(role="system", content=system),
         LLMMessage(
             role="user",
             content=("数据包（JSON）：\n" if lang == "zh" else "Packet (JSON):\n") + packet,
         ),
-    ]
+    ])
 
 
 async def generate_observe_advice(

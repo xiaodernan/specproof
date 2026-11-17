@@ -27,6 +27,8 @@ from providers.base import LLMMessage
 from providers.config import load_model_config
 from providers.openai_compatible import OpenAICompatibleProvider
 
+from api.system_covenant import covenant_prefix
+
 from .agents import ParallelRunner, AgentRunResult, SubAgentSpec
 from .tools import ToolRegistry
 
@@ -160,7 +162,7 @@ async def _llm_execute_factory(
         prompt = f"TASK\n{spec.task}\n\nWORKSPACE FACT PACK\n{facts}"
         try:
             resp = await llm_client.chat(
-                [LLMMessage(role="system", content=system), LLMMessage(role="user", content=prompt)],
+                covenant_prefix([LLMMessage(role="system", content=system), LLMMessage(role="user", content=prompt)]),
                 label="crafted_investigator",
                 kind="draft",
                 timeout=spec.timeout,
