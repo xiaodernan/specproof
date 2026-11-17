@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-17T21:40:01+00:00",
-  "count": 189,
+  "generated_at": "2026-11-17T21:57:37+00:00",
+  "count": 190,
   "zh": [
     {
       "num": "卷零",
@@ -946,6 +946,11 @@
       "num": "卷一百九十",
       "title": "教与止",
       "excerpt": "2026-11-18 本日 UI 修缮落在 showcase 仓（`xiaodernan.github.io` · commit `e5cbcbf`）："
+    },
+    {
+      "num": "卷一百九十一",
+      "title": "直声",
+      "excerpt": "2026-11-18 本日，三件事围绕同一根线："
     }
   ],
   "en": [
@@ -1893,6 +1898,11 @@
       "num": "Scroll CXC",
       "title": "Teaching and Stillness",
       "excerpt": "2026-11-18's UI tune-up landed in the showcase repo (`xiaodernan.github.io` · commit `e5cbcbf`):"
+    },
+    {
+      "num": "Scroll CXCI",
+      "title": "The Straight Voice",
+      "excerpt": "2026-11-18's thread, end to end:"
     }
   ],
   "note": "machine-struck from the two bibles; parity asserted at build time; never an editorial statement"

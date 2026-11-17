@@ -42172,3 +42172,25 @@ mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0c
 ### 三、账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1785** · worldbook **190 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## #1990 《直声》：2016-11-18 链路三件事——①展厅 UI（挤压/截断修复 + 全量教学提示， Pages 8540287 18s deploy success）② Clash 代理根因闭环（npm ci 补 undici devDep → aizzz 不再 403-direct）③ AI director live 重激活（corpus 4402 · KI.rows 593 · cached_tokens 181243 · draft 45《纸的回声》author-only）· chronicle **1786** · worldbook **191 卷（双语对称）** · UI **594/594**
+
+**记录基准**：本节只追加。本号衔接 #1989（展厅修缮 + 教与止）。
+
+### 一、交付
+
+1. `xiaodernan.github.io` `8540287`：`styles.css` auto-fit cells + wrap · 2 行截断；`script.js` `teachInteractive()`（导航 · 主题切换 · 英雄 · 项目链接 · 子导航 · 筛选 · 索引行 · 仓库卡 · 联系卡 · 里程碑 · 页脚）；identity-guard OK；Pages 构建 18s success；
+2. `caesura` `eee3e23`：AI director live re-strike（ UTC TODAY=2026-11-17）——`corpus 4402 chunks · atlas 44 · story chapters 44 · KI.rows 593 · statuses [200×4] · cached_tokens 181243 · consistency 88`，RUN doc +双镜像 JSON；前一次 mine-run 撞上并行 KI-675 lineage → rebase 让位（HEAD `db2199e` 存档）；
+3. KI-676 门前置条件备齐（草稿在手、一致性 88、flag 提案 4 条）——本次不落 canon；
+4. 验证：build_library 189 zh≡en（`#1989` 同步）· build_chronicle 1786 · worldbook 191 · Library.test unchanged（189）· UI 594/594；
+
+### 二、诚实边界
+
+1. 本节不含 exhibit #19——展品 18 不变；
+2.《纸的回声 / The Paper's Echo》仅为作者侧草稿，人工闸未开，**不声称 KI-676 已落库**；
+3. showcase fall-back tile 已改写为最新统计（`chronicle 1,785 · 190 scrolls` 基线），非 live 断言——live 值仍由 `sp-state` 读 `specproof@master/docs/latest.json`；
+4. 本节未声称任何 pressure/cache 新测；
+
+### 三、账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1786** · worldbook **191 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门

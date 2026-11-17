@@ -6775,3 +6775,26 @@ camp: Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_
 ### 190.4 The ledger
 
 mvn untouched · UI **594/594** (zero code changes in the SpecProof repo itself) · tsc ✓ · vitest ✓ · identity-guard ✓ (this round's real yield) · 24 pinned reds stand · 18 exhibit entries unchanged · court locked · 「密码-123」is still a door marked "demo"
+## Scroll CXCI · The Straight Voice
+
+> "A straight voice may find a listener — even silence makes an honest reply."
+
+### 191.1 One line, three pieces
+
+2026-11-18's thread, end to end:
+
+1. **The pavilion** — `xiaodernan.github.io`'s "live fact-pack" strip is fixed-width 5-column on narrow viewports (clipped), and `nowrap+ellipsis` was eating long commit subjects (sw=760/cw=190); pinned in `styles.css` (auto-fit 84px cells · wrap · 2-line clamp); every actionable element gained a zh+en one-line hover teaching hint (`teachInteractive()`, zero deps, zero identity claims touched). identity-guard 12 anchors OK per push; Pages deploy of commit `8540287` green in 18s (`Deploy portfolio to GitHub Pages`);
+2. **The straight voice, part II** — CÆSURA was shallow-cloned to audit the wheel semantics at KI-593/647's land sites. Root-cause unlocked: the clone had no `node_modules`, so `undici`'s `ProxyAgent` injection silently no-op'd and calls went out direct — aizzz returns **403 for direct** (documented in KI-617); `npm ci --ignore-scripts` (60 packages) restored the proxy path; curl sanity: `prompt 4394 · cached 4224`;
+3. **The straight voice, part III** — the AI director re-struck live: `node scripts/ai-director.mjs --live --focus "第四十四篇《未寄出的信》之后 · 下一篇原创短篇 · 状态流转 flag"` ⇒ `statuses=[200,200,200,200] · cached_tokens=181243 · errors=0`; it drafted 《纸的回声 / The Paper's Echo》 (draft no:45, consistency 88) — **author-only, behind the human gate, canon untouched**; artifacts committed as `eee3e23` (pushed). My first live run collided with a parallel agent landing KI-675《余响集》Ch.44《未寄出的信 / The Unsent Letter》; the KI-675 lineage was kept, and the director re-ran against the new canon;
+
+### 191.2 The collision, not swept under the rug
+
+Half-way through this session, the parallel agent landed `62b5356` (KI-675, 《余响集》Ch.44《未寄出的信 / The Unsent Letter》) plus a Pages refresh (`8f6b6d6`). My first run (pre-KI-675 HEAD) conflicted on rebase — resolution rule: **canon source keeps the base** (parallel lineage survives), then re-run live ⇒ `corpus 4402 chunks · atlas 44 · KI.rows 593 · 4×200 · 181243 cached`.
+
+### 191.3 The anchors
+
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · cache lanes steady ~95% · chronicle **1786** · worldbook **191 scrolls (bilingual mirror)** · library 189 zh≡en · UI **594/594**
+
+### 191.4 The ledger
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · identity-guard ✓ · 24 pinned reds stand · 18 exhibit entries unchanged · court locked · 「密码-123」is still a door marked "demo"

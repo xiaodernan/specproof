@@ -6900,3 +6900,26 @@ camp：Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit
 ### 190.4 账房
 
 mvn untouched · UI **594/594**（本轮零代码变更 SpecProof 本仓库）· tsc ✓ · vitest ✓ · identity-guard ✓（本轮的实质收益）· 24 红 pinned 岿然未动 · exhibit entries 18 未动 · court 依旧 locked ·「密码-123」依旧是一扇标着「演示」的门
+## 卷一百九十一 · 直声
+
+> "直声之下，或有人肯回应；否则，寂静也是回答。"
+
+### 191.1 本日一条真链
+
+2026-11-18 本日，三件事围绕同一根线：
+
+1. **展厅一**——`xiaodernan.github.io`"实时事实条"固定 5 列的窄屏挤出、`nowrap+ellipsis` 长提交截断、`overflow-wrap` 兜底，钉进 `styles.css`；主界面所有可操作元素追加悬停中英双轨的一句话教学说明（`teachInteractive()`，零依赖、零身份口径）。identity-guard 12 项逐推 OK，Pages `Deploy portfolio to GitHub Pages` 于 18s 内 success（commit `8540287`）；
+2. **直声二**——为审滚轮语义临时浅克隆 CÆSURA（`D:\面试项目\caesura`），发现 `node_modules` 缺席导致 undici ProxyAgent 注入静默失败 →  aizzz 对直连一律 403（KI-617 约定俗成）；`npm ci --ignore-scripts`（60 包）后代理路径通畅，curl 实测 `prompt 4394 · cached 4224`；
+3. **直声三**——AI 导演 live 重激活：`node scripts/ai-director.mjs --live --focus "第四十四篇《未寄出的信》之后 · 下一篇原创短篇 · 状态流转 flag"`，`statuses=[200,200,200,200] · cached_tokens=181243 · errors=0`；生成《纸的回声 / The Paper's Echo》（draft no:45，consistency 88）——**author-only 产物，人工闸未开，canon 零改动**；产物 commit `eee3e23` 已 push（前一次 mine-focus 撞上并行 agent 的 KI-675《未寄出的信》落库，按同源 lineage 规则让位，以 HEAD 存档）；
+
+### 191.2 没有被掩过去的撞档
+
+本会话半程，并行 agent 落下 `62b5356` KI-675《余响集》第四十四篇《未寄出的信 / The Unsent Letter》+ Pages 刷新（`8f6b6d6` chore site-latest）。我第一次在 pre-KI-675 的 HEAD 上跑 live，再 rebase 时撞档——编译通过、JSON 冲突，解决原则：**canon 源头归位**（让并行 lineage 留下），重跑 live 得到新 canon 的产物：`corpus 4402 chunks · atlas 44 篇 · KI.rows 593 · 4×200 · 181243 cached`。
+
+### 191.3 系数与座次
+
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · cache lanes steady ~95% · chronicle **1786** · worldbook **191 卷（双语对称）** · library 189 zh≡en · UI **594/594**
+
+### 191.4 账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · identity-guard ✓ · 24 红 pinned 岿然未动 · exhibit entries 18 未动 · court 依旧 locked ·「密码-123」依旧是一扇标着「演示」的门
