@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-11-18T18:22:13+00:00",
+  "generated_utc": "2026-11-18T19:18:29+00:00",
   "model": "gpt-6.1-terra",
   "protocol": "responses",
   "prompt_cache_key_per_lane": {
@@ -44,28 +44,28 @@
       "lane": "ask_the_book",
       "strike": 1,
       "outcome": "ok",
-      "elapsed_s": 45.97,
+      "elapsed_s": 13.93,
       "usage": {
         "prompt_tokens": 169186,
-        "completion_tokens": 178,
-        "total_tokens": 169364,
-        "prompt_cache_hit_tokens": 8056,
-        "prompt_cache_miss_tokens": 161130,
-        "reasoning_tokens": 149
+        "completion_tokens": 291,
+        "total_tokens": 169477,
+        "prompt_cache_hit_tokens": 158881,
+        "prompt_cache_miss_tokens": 10305,
+        "reasoning_tokens": 259
       }
     },
     {
       "lane": "ask_the_book",
       "strike": 2,
       "outcome": "ok",
-      "elapsed_s": 7.89,
+      "elapsed_s": 9.35,
       "usage": {
         "prompt_tokens": 169186,
-        "completion_tokens": 118,
-        "total_tokens": 169304,
+        "completion_tokens": 227,
+        "total_tokens": 169413,
         "prompt_cache_hit_tokens": 158881,
         "prompt_cache_miss_tokens": 10305,
-        "reasoning_tokens": 99
+        "reasoning_tokens": 196
       }
     },
     {
