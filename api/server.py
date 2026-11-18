@@ -60,6 +60,7 @@ from api.routes.jobs import router as jobs_router  # noqa: E402
 from api.routes.llm_usage import router as llm_usage_router  # noqa: E402
 from api.routes.model_settings import router as model_settings_router  # noqa: E402
 from api.routes.observe import router as observe_router  # noqa: E402
+from api.routes.worldbook_ask import router as worldbook_ask_router  # noqa: E402
 from api.routes.web import router as web_router  # noqa: E402
 from api.routes.webhooks import router as webhooks_router  # noqa: E402
 
@@ -89,6 +90,7 @@ app.include_router(model_settings_router)
 # The Observatory's public advice lane: no credential, anonymous aggregates
 # only; opened in the tenant-mode middleware like /health.
 app.include_router(observe_router)
+app.include_router(worldbook_ask_router)
 # Token-level LLM usage & cache-health panel (#BB5): read-only aggregate
 # over the provider-boundary JSONL ledger; require_api_key + rate limited.
 app.include_router(llm_usage_router)

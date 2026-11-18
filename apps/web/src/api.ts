@@ -1374,6 +1374,23 @@ export function postObserveAdvice(locale: "zh" | "en"): Promise<ObserveAdvice> {
   return apiPost<ObserveAdvice>("/observe/advice", { locale });
 }
 
+// ── The worldbook ask lane (public · readonly · demo) ─────────────────────
+// Ask the book through the model. The book is byte-frozen into the codex
+// prefix (the same sandwich the cache lanes use); the model may answer,
+// or admit it does not know — it may never rule.
+export interface WorldbookAsk {
+  answer: string;
+  model: string | null;
+  model_latency_ms: number | null;
+  usage: Record<string, unknown> | null;
+  question_chars: number;
+  cached: boolean;
+}
+
+export function postWorldbookAsk(question: string, locale: "zh" | "en"): Promise<WorldbookAsk> {
+  return apiPost<WorldbookAsk>("/worldbook/ask", { question, locale });
+}
+
 // ── Investigation Dig (mirror api/routes/admin.py /investigation-dig) ──
 // Readonly parallel investigators (explorer / tester / security) ask the
 // local model one question and return what they ACTUALLY read: the model is

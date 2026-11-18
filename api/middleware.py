@@ -64,6 +64,10 @@ _TENANT_OPEN_PREFIXES = (
     # synthetic cohort + this browser's own localStorage), fingerprint-cached
     # so the model is spent once per locale per TTL window, never per visitor.
     "/observe/",
+    # The worldbook ask lane: public, anonymous, one question about the
+    # public book — fingerprint-cached like /observe/ so model spend is
+    # one call per (question × locale × TTL), never per visitor.
+    "/worldbook/",
 )
 #: Paths under which a bearer credential is REQUIRED in tenant mode.
 _TENANT_PROTECTED_PREFIXES = ("/jobs", "/agent", "/api/", "/auth/")
