@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-18T11:02:51+00:00",
-  "count": 200,
+  "generated_at": "2026-11-18T11:09:27+00:00",
+  "count": 201,
   "zh": [
     {
       "num": "卷零",
@@ -1001,6 +1001,11 @@
       "num": "卷二百零一",
       "title": "千卷之前（史官的围炉札记）",
       "excerpt": "2026-11-18 下午，世界书第 200 卷入册（卷 #200《墨落江湖》· Scroll CC）。这一节是之后的札记——数字都能 `git log` 出来。"
+    },
+    {
+      "num": "卷二百零二",
+      "title": "江湖之远",
+      "excerpt": "2026-07-10，三笔 commit 在同一天落地："
     }
   ],
   "en": [
@@ -2003,6 +2008,11 @@
       "num": "Scroll CCI",
       "title": "An Epilogue on the Way to a Thousand",
       "excerpt": "On 2026-11-18 the world bible crossed an arc worth naming — Scroll 200 (《墨落江湖》) landed in the same cycle. This one is the epilogue. Every number can be `git log`ed."
+    },
+    {
+      "num": "Scroll CCII",
+      "title": "The Far Shore",
+      "excerpt": "2026-07-10 — three commits landed in one same day:"
     }
   ],
   "note": "machine-struck from the two bibles; parity asserted at build time; never an editorial statement"

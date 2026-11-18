@@ -7325,3 +7325,60 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entrie
 ### 201.4 账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds 仍钉 ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷二百零二 · 江湖之远
+
+> "第一个提交是一个人忘了吃饭的一个上午；两千条账之后，这个人学会了吃饭，也学会了把账本当礼物。"
+
+### 202.1 一天生的世界
+
+2026-07-10，三笔 commit 在同一天落地：
+
+```
+7d9aaa9  2026-07-10  Initial commit: SpecProof Phase 0 prototype
+4568104  2026-07-10  Add @PreAuthorize security annotation (base version)
+0558211  2026-07-10  Restore working tree to head-v1 (auth bypass present)
+```
+
+就这三笔。
+
+第一笔种下"Phase 0"——原型阶段。第二笔给 `changeEmail` 加上 `@PreAuthorize`
+——之后每一条 SPECROOF security 契约的祖父。第三笔把工作树原样恢复到
+`head-v1`（deliberately injected auth bypass）——这是今天每一个 golden scenario 的祖模式
+（`p0.5-verified-v1` / `case-98-head` / `head-v1` / `verified-base`——它们都长在同一颗根上）。
+
+**第一天，世界不是被设计出来的，是被挤出来的。**
+
+### 202.2 一百三十一天之后
+
+从 2026-07-10 到 2026-11-18，这本账本记下了**两千条账**（#2000 入册在
+卷二百零一之后）。这中间发生了什么？
+
+| 阶段 | 一天里长出了什么 |
+|---|---|
+| 2026-07（上旬） | Phase 0 prototype；base vs head 的差分执行语义；`@PreAuthorize` 作为第一条铁的"反例植入"模式确立 |
+| 2026-07（中旬） | golden scenarios CI 跑通——`head-v1` 每一次都精确落在 `base_pass_head_fail`，无歧义；沙箱安全语义（uid 1000 · `--network none` · `--cap-drop ALL`）落地 |
+| 2026-08~09 | LangGraph 18 节点流水线（intake → review_court → create_capsule → build_matrix → publish_report）完成；review_court 政策表、verdict channel 钉死在 `4117d2b0ca5fb23a`；Supabase/MySQL/Redis 接入；Spring Cloud 四服务本机跑通 **134/134** |
+| 2026-10~11 初 | 世界书（SPECROOF_WORLD）开卷；Chronicle **1,700+** 双语同步；世界书全量字节化进了 codex；cache 命中率 93.9–94.0%（饱和）；NIGHTLY-EVAL / weekly-stress 上线 |
+| 2026-11 下旬 | io 页（`xiaodernan.github.io`）成为世界的第二面；#1994 解锁 D2；TODAY'S ECHO 落地 io 页；#2000 ledger 整 |
+
+### 202.3 江湖不是逃出去——它是长出来的
+
+**重剑无锋。** 这个世界 131 天长成 2,954 个文件、2,733 次提交，
+不是因为谁计划了宏大，而是因为每一次提交都**真的落了一笔实账**：
+
+- 现场敲的 cache 数字（冷 4.8% / 热 93.9–94.0%）；
+- 前门压力测出 144/144 ok / err=0.00% / p99 1,547.2 ms；
+- Chronicle **1,797 节**账落定；世界书全量字节化于 codex 之中；FACT PACK 每推送都重敲一次；
+- 其中一笔事件——浏览器缓存"旧瓷砖说"时——靠**墨**读账才被口头指出；
+- 没有人拍过板，只有 log 留话。
+
+io 页不是这个世界的"门"，是"甲板"——每一个展品都写着它到底哪儿红、哪儿黑、哪儿 CRACKED。**它一直敞着；它从不遮。**
+
+### 202.4 座次
+
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1797** · worldbook **202 卷（双语对称）** · library **201 zh≡en** · UI **594/594**
+
+### 202.5 账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds 仍钉 ·「密码-123」依旧是一扇标着「演示」的门

@@ -42433,3 +42433,28 @@ mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb
 ### 三、账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1796** · worldbook **201 卷（双语对称）** · library **200 zh≡en** · D1 ✅ · D2 ✅ ·「密码-123」依旧是一扇标着「演示」的门
+
+## #2001 《江湖之远》：三笔 commit 一天生世界（2026-07-10 · 7d9aaa9），一百三十一天之后第二千零一条账 · 江湖不是逃出去是长出来的 · io 页不是门是甲板 · chronicle **1797** · worldbook **202 卷（双语对称）** · library **201 zh≡en** · UI **594/594**
+
+**记录基准**：本节只追加。本号衔接 #2000（千卷之前）。
+
+### 一、交付
+
+1. **卷 #202（zh≡en）入册**——《江湖之远》· Scroll CCII：以 2026-07-10 的三笔 Genesis commit（`7d9aaa9` "Initial commit: SpecProof Phase 0 prototype"、`4568104` "@PreAuthorize (base version)"、`0558211` "Restore working tree to head-v1 (auth bypass present)"）为叙事锚，沿 131 天列出真实阶段；所有数字都能 `git log —reverse | Select-Object -First 3` 核回；
+2. 卷二百零二多行合计表说明把 2026-07-10 → 2026-11-18 的世界阶段复述——每行都指着真实的机器：gateway/discovery/config/control-plane 134/134 · 18-node LangGraph pipeline · MySQL/Redis · codex · cache 饱和 · NIGHTLY-EVAL · weekly-stress · io 页 D2 闭环 · TODAY'S ECHO · #2000 ledger；
+3. chronicle → **1797**（第 1797 条账）· worldbook → **202 卷** · library → **201 zh≡en** · `Library.test.tsx` 钉页 200→201；UI **594/594** 不动；
+4. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · 24 pinned reds；
+5. **io 页是甲板、不是门**——每一展品都标红：Night Watch CRACKED、Exhibit 四件 Pin、「雅思 6.5 · CET6 546」honors-strip、TODAY'S ECHO 里程——`#specproof-live` 机器重敲，不人工改数；
+6. `ROADMAP-LIVE.md` / `repoStats.json` 上次已重建（`969d650`：2,732 commits / 1,796 chronicle / 201）。
+
+### 二、没涂没动没骗
+
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · 24 pinned reds；
+2. 没有一敲被改写 verdict；没有一条错账被糊弄成「双语对称就行」；
+3. Genesis 三笔 commit 号（`7d9aaa9` / `4568104` / `0558211`）已本地核实；不涂改 Genesis；
+4. io 新鲜部署在 10:53:44Z 自动跑了（D2 自动 push）—— Pages edge 的 max-age=600 时滞本节如实；
+5. `.local/llm.json` 不进 git；purity sift CLEAR。
+
+### 三、账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1797** · worldbook **202 卷（双语对称）** · D1 ✅ · D2 ✅ ·「密码-123」依旧是一扇标着「演示」的门

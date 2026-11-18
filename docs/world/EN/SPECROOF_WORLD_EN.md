@@ -7199,3 +7199,57 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entrie
 ### 201.4 The ledger
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds stand · 「密码-123」is still a door marked "demo"
+
+## Scroll CCII · The Far Shore
+
+> "The first commit was one person, one someone else's demand, and one forgetting-to-eat morning. Two thousand ledger entries later, the man learned to eat lunch — and to hand the ledger out as a gift."
+
+### 202.1 A world born in a single day
+
+2026-07-10 — three commits landed in one same day:
+
+```
+7d9aaa9  2026-07-10  Initial commit: SpecProof Phase 0 prototype
+4568104  2026-07-10  Add @PreAuthorize security annotation (base version)
+0558211  2026-07-10  Restore working tree to head-v1 (auth bypass present)
+```
+
+Three commits, and no more.
+
+The first planted Phase 0 — the prototype stage. The second put `@PreAuthorize` on `changeEmail` — the great-grandfather of every security contract this project has ever struck. The third restored the working tree to `head-v1`, deliberately carrying the injected auth bypass — the ancestor pattern every golden scenario stands on today (`p0.5-verified-v1` / `case-98-head` / `head-v1` / `verified-base` — they all grow from the same root).
+
+**The world was not designed on day one. It was squeezed out.**
+
+### 202.2 One hundred thirty-one days later
+
+Between 2026-07-10 and 2026-11-18 the ledger struck its **second thousand**. Numbers, all `git log`-able:
+
+| phase | what grew inside a single day |
+|---|---|
+| 2026-07 (early) | Phase 0 prototype; the differential semantics of base vs head; `@PreAuthorize` pinned down as the first iron pattern for "injected counterexample" |
+| 2026-07 (mid) | Golden scenarios running in CI — `head-v1` landed exactly on `base_pass_head_fail`, no ambiguity; the sandbox discipline (uid 1000 · `--network none` · `--cap-drop ALL`) standing |
+| 2026-08~09 | The 18-node LangGraph pipeline (intake → review_court → create_capsule → build_matrix → publish_report) closed; the verdict channel pinned to `4117d2b0ca5fb23a`; MySQL / Redis online; the four Spring Cloud services green locally **134/134** |
+| 2026-10~11 (early) | The world book opened (SPECROOF_WORLD); Chronicle **1,700+** bilingual; the book became the codex prefix; cache hit rate 93.9–94.0 % (saturated); NIGHTLY-EVAL / weekly-stress landed |
+| 2026-11 (mid) | The io page became the world's second face; #1994 unlocked D2; TODAY'S ECHO crossed onto the io page; ledger #2000 landed |
+
+### 202.3 The world was not escaped to — it grew there
+
+**Heavy sword, no sharpness.** 131 days grew 2,954 files and 2,733 commits —
+not because someone planned "grand", but because every commit **landed on a day with a real bill**:
+
+- live cache numbers every lane (cold 4.8 % / warm 93.9–94.0 %);
+- a front-door stress strike 192/192 ok · 0.00 % err · p99 1,547.2 ms;
+- Chronicle **1,797** entries settled;
+- the whole world book lives inside the codex now;
+- a CDN edge caught saying "the old tile still shows #1977" — named in writing **by the ink**;
+- not a single "I decided" — the log carries the burden.
+
+The io page is not a gate. It is a deck — every exhibit on it is marked where it is red, where it is dark, where it is CRACKED. The door never closed; it was open from day one.
+
+### 202.4 The anchors
+
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1797** · worldbook **202 scrolls (bilingual mirror)** · library **201 zh≡en** · UI **594/594**
+
+### 202.5 The ledger
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds stand · 「密码-123」is still a door marked "demo"
