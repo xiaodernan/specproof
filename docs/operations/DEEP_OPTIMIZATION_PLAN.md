@@ -42217,3 +42217,24 @@ mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0c
 ### 三、账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1787** · worldbook **192 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## #1992 《压力试窗》：specproof 本机被压敲——先发现 `stress_smoke.py --target` 拼 `/` 硬伤（后敲 `/health/` → 404 → 100% 假 err）才交数字修复 + `tests/integration/test_stress_smoke_target.py` 1 腿 · `/health` 24×6 144/144 0% err p99 746.6–2,893.9 ms（本机只是本地连接池）· `/observe` 8×2 16/16 err=0% p99 ≤50 ms（本机只看本机）· chronicle **1788** · worldbook **193 卷（双语对称）** · UI **594/594**
+
+**记录基准**：本节只追加。本号衔接 #1991（第二次热敲落账）。
+
+### 一、交付
+
+1. `scripts/stress_smoke.py --target` targeted lane 拼接 bug 修复——`paths=["/" => ""]`（从原先硬拼 `"/"` 到基于给定 URL 的精确敲门）；
+2. `tests/integration/test_stress_smoke_target.py` 1 腿——loopback 子进程起假站，直接跑脚本 `--target`，断言错误数 = 0、verdict 非 BUDGET-BLOWN；
+3. 本机真跑（2026-11-18，本机 · uvicorn 127.0.0.1:8019）：`/health` 并发 24×6=144 requests · 144/144 返回 · 0% err · p50 24.6–541.1 ms · p99 746.6–2,893.9 ms；`/observe` 8×2=16 · 16/16 返回 · 0% err · p50 40.6–43.7 ms · p99 47.9–50.0 ms；
+4. 两案都受本机单 worker / GIL 限制 · 不等于任何云主机基数 · 不跑 pytest（stress_smoke 不进入 pytest.toml）；
+
+### 二、诚实边界
+
+1. 本节不声称任何生产环境容量数字——本机 win10/UwU worker 就是一台机器；
+2. stress_smoke 本身不合并到持续跑的 CI —— 它敲 network，属于 out-of-band 认证；
+3. 本节不等于任何 exhibit 的「机动场景」——展品依然是 18 · Night Watch CRACKED · court 锁着；
+
+### 三、账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1788** · worldbook **193 卷（双语对称）** · D1 ✅ · D2 ✅（`.github/workflows/portfolio-sync.yml` 有了 verify-token 诚实闸门：zkp-token 假时静默退而 0 退出；**真 PAT 被作者追加给本次 dispatch 的——叫不准，但 workflow 现在永远照实通告自己**）·「密码-123」是一扇标着「演示」的门

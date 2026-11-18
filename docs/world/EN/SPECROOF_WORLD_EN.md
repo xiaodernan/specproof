@@ -6832,3 +6832,37 @@ Court `4117d2b0ca5fb23a` **LOCKED** · chronicle **1787** · worldbook **192 scr
 ### 192.4 The ledger
 
 mvn untouched · UI **594/594** · court locked · Night Watch **CRACKED** · 18 exhibit entries · warm ~94–95% held · 「密码-123」is still a door marked "demo"
+## Scroll CXCIII · The Pressure Window
+
+> "The honesty of a stress test isn't in how big the numbers get, but in whether each one came from this machine."
+
+### 193.1 A real defect found before any number could be delivered
+
+This round's probe of SpecProof found a real bug first. `scripts/stress_smoke.py` has been quietly broken in its `--target` lane since the day it was written — it concatenated `"/"` onto the user-supplied target URL, so hitting `/health` became `/health/`, the FastAPI router answered 404, and the harness then reported `err=100%` as if the service were down. No one had ever hit the targeted lane.
+
+Fix: targeted lane's `paths` from `["/"]` to `[""]`; new `tests/integration/test_stress_smoke_target.py` **1 leg** (loopback scratch server, runs the real script with `--target`, asserts `err=0.00%`).
+
+### 193.2 The honest two runs after the fix (this host · 2026-11-18)
+
+| target | concurrency | rounds | ok | err | p50 | p99 | verdict |
+|---|---|---|---|---|---|---|---|
+| `http://127.0.0.1:8019/health` | 24 × 6 | 3 + 1 warmup | 144/144 | 0.00% | 24–541 ms | 746.6–2,893.9 ms | OK |
+| `http://127.0.0.1:8019/observe` | 8 × 2 | 3 + 1 warmup | 16/16 | 0.00% | 40–44 ms | 47.9–50.0 ms | OK |
+
+Two things to note: (1) at high concurrency (144 concurrent hits on one uvicorn worker), every single request returned, but p99 rose proportionally with contention; (2) `/observe` — an SSR-only HTML page — held p99 under 50 ms. **These are numbers from this machine on this day, not a production deployment's capacity commitment.**
+
+### 193.3 What this round does not claim
+
+- **Not** any production P95/P99 figure;
+- **Not** capacity for MySQL/Redis anywhere;
+- **Not** cross-machine or multi-node resiliency;
+- **Not** a performance-regression gate for `stress_smoke`;
+- This round proves only that the targeted lane's URL composition can no longer be blindly trusted, and the fix is pinned by an integration test.
+
+### 193.4 The anchors
+
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1788** · worldbook **193 scrolls (bilingual mirror)** · library 191 zh≡en · UI **594/594**
+
+### 193.5 The ledger
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds remain pinned · 「密码-123」is still a door marked "demo"

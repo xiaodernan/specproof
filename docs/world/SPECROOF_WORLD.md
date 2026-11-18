@@ -6957,3 +6957,37 @@ Court `4117d2b0ca5fb23a` **LOCKED** · chronicle **1787** · worldbook **192 卷
 ### 192.4 账房
 
 mvn untouched · UI **594/594** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · 暖 ~94–95% 稳住 · 「密码-123」依旧是一扇标着「演示」的门
+## 卷一百九十三 · 压力试窗
+
+> "压测的诚实，不在数字多大，而在单位是不是这台机器。"
+
+### 193.1 发现一处真 bug，然后才交付了数字
+
+本会话给 SpecProof 下敲门：`scripts/stress_smoke.py`。`--target` 模式长期是坏的——targeted lane 把 `"/"` 硬拼到用户给的 URL 后面，向 `/health` 发请求变成 `/health/`，FastAPI router 答案 404，脚本却照常统计 `err=100%`，谁也不觉得有问题。
+
+修复 = 把 targeted lane 的 `paths` 从 `["/"]` 改为 `[""]`，并补 `tests/integration/test_stress_smoke_target.py` **1 腿**（loopback scratch server 真实敲 `scripts/stress_smoke.py --target`，断言 `err=0.00%`）。
+
+### 193.2 修完的两次真跑（本机 · 2026-11-18）
+
+| target | concurrency | rounds | ok | err | p50 | p99 | verdict |
+|---|---|---|---|---|---|---|---|
+| `http://127.0.0.1:8019/health` | 24 × 6 | 3 + 1 warmup | 144/144 | 0.00% | 24–541 ms | 746.6–2,893.9 ms | OK |
+| `http://127.0.0.1:8019/observe` | 8 × 2 | 3 + 1 warmup | 16/16 | 0.00% | 40–44 ms | 47.9–50.0 ms | OK |
+
+数字说明两件事：(1) targeted lane 在极高并发（144 个并发请求 / 一个 uvicorn worker）下 100% 返回，但 p99 受并发影响成比例上涨；(2) `/observe` 是 SSR 后只有 HTML 的页面， p99 都稳定在 50 ms 以下 —— 本机测，不代表任何生产容量承诺。
+
+### 193.3 不声称的
+
+- **不声称**任何关于生产部署下 P95/P99 的具体数值；
+- **不声称**任何关于 MySQL/Redis 的容量；
+- **不声称**任何关于跨机均衡的鲁棒性；
+- **不声称** stress_smoke 可以被当作性能回归门；
+- 本轮只证明一件事：`--target` 的拼接方式可以不再被盲目信任；诚实性测试留在 pytest。
+
+### 193.4 系数与座次
+
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1788** · worldbook **193 卷（双语对称）** · library 191 zh≡en · UI **594/594**
+
+### 193.5 账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds 依然钉住 · 「密码-123」是一扇标着「演示」的门

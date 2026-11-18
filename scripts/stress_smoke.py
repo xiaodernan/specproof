@@ -115,7 +115,7 @@ def main() -> int:
 
     started = datetime.now(UTC).isoformat()
     if args.target:
-        base, paths, server, note = (args.target.rstrip("/"), ["/"], None, "targeted lane")
+        base, paths, server, note = (args.target.rstrip("/"), [""], None, "targeted lane")
     else:
         if not DIST.is_dir():
             print(f"dist missing at {DIST} — run `npm run build` first")
