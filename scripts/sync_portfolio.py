@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -169,6 +170,27 @@ def main() -> None:
     }
 
     OUT.mkdir(parents=True, exist_ok=True)
+
+    # The front page's epigraph, copied verbatim: the io page renders the
+    # model's own sentences, labeled as model-written, never a verdict.
+    gazette_src = ROOT / "apps" / "web" / "src" / "pages" / "gazette_feature.json"
+    try:
+        gj = json.loads(gazette_src.read_text(encoding="utf-8"))
+        gpayload = {
+            "schema": 1,
+            "generated_at": gj.get("generated_at"),
+            "anchor": gj.get("anchor"),
+            "zh": gj.get("zh"),
+            "en": gj.get("en"),
+            "note": "model-written from the ledger; mechanical gates (zh<=280 CJK / en<=220 words / no markdown / non-empty); not a verdict",
+        }
+        (OUT / ".github-gazette.json").write_text(
+            json.dumps(gpayload, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        print("wrote:", OUT / ".github-gazette.json")
+    except Exception as exc:
+        print(f"gazette copy skipped: {exc}", file=sys.stderr)
     OUT / ".github-sync.json", OUT / "latest.md", OUT / "products.json"
 
     (OUT / ".github-sync.json").write_text(
