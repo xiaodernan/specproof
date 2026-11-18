@@ -135,6 +135,55 @@
 
 ---
 
+## Z
+
+### `cold floor` — 冷敲地板 4.8%
+> 铁语境：`lane_cache_probe.py` 五车道两敲实测（2026-11-18T06:46Z，13/13 ok）：冷敲 4.8% 是字节冻结前缀（codex + covenant 装订 + 车道小序言）的结构账单，不是 cache 故障；热敲钉 93.9–94.0%。
+> 位置：`scripts/lane_cache_probe.py`、`docs/evidence/lane-cache-probe-2026-11-18.*`、账本 `#1995`。
+> 语义：这不是 bug，是账目——别涂成 verdict。
+
+### `dual-value drift` / 双值缝
+> 铁语境：同一事实在两份账本里以两个数字同时存在的缝隙。卷 #196 落账瞬间（07:17Z 瓷砖=1,791/196，#197 未落地）与卷 #197 全落地后（07:51Z 瓷砖=1,792/197）各自成账；#1997 的 gazette epigraph 自己指出了这条缝，没人说破过。
+> 证据：`docs/evidence/gazette-feature.md`（"现场瓦片验收记 1791、196 卷"）、账本 `#1997` 二节、卷一九八 §198.2、卷一九九 §199.2。
+> 语义：缝不是错——缝是时间。眼睛看到两个数时，先翻账本，别用一个挑另一个。
+
+### `epigraph` — 头版一闪 / TODAY'S ECHO
+> 铁语境：`scripts/gazette_feature.py` 把最新账本节（`## #NNNN`）原文交给 aizzz；模型 ≤ 280 字 / ≤ 220 词，不过机械门不入门；产物 `gazette_feature.json`，io 页 `#specproof-live` 下方直接渲染，账上落 "as model-written"。
+> 证据：`apps/web/src/pages/gazette_feature.json`（2026-11-18T09:38:24Z）、账本 `#1997`、卷一九八。
+> 语义：文字量闸、机械门、non-verdict——不是 exhibit，不是判词。
+
+### `fact pack` — 事实包
+> 铁语境：`scripts/build_latest.py` 产出的 `docs/latest.json`——commits / scrolls / chronicle / exhibits / strike 全部由本仓库现算；浅克隆自毁（`fetch-depth: 1` 曾吐 `total_commits=1`）；`latest_strike` 从 ledger 尾条 `## #NNNN` 兜底。
+> 证据：账本 `#1981`（浅克隆史）、`#1993`（兜底 patch）、`#1994`、`docs/operations/DEEP_OPTIMIZATION_PLAN.md`。
+> 语义：机器敲的账可以给页面展示；没有一敲未经敲击就出现在页面上。
+
+### `inline derivation` — 同源派生
+> 铁语境：`sync_portfolio.py` 的 fact-pack 从 HEAD 内联推导（世界书 `## ` + ledger `#NNNN` + `git rev-list` / `ls-files`）——不复用带 bot 重敲节奏的 `docs/latest.json`；避免 latest-json 路径过滤下一敲延迟；sync 工作流已 `fetch-depth: 0`。
+> 证据：账本 `#1996` 一节、`.github/workflows/portfolio-sync.yml`、`scripts/sync_portfolio.py`。
+> 语义：跟 HEAD 运动的东西，就别等别人运动完再读。
+
+### `LIVE SHIP` — 现场直播区
+> 铁语境：io 页 `index.html#specproof-live`；fetch `./data/specproof-sync.json`（+products +gazette 协同），显示 head、scrolls、chronicle、exhibits、strike、changelog；完全机器重敲，人手不改一个数。
+> 证据：`#1994 / #1996 / #1997 / #1998` 现场记录；`.github/workflows/portfolio-sync.yml` 每次 master push 自动推。
+> 语义：写在主页上的数字只有两个来源——一是机器敲的 fact-pack；二是被机器拒绝写上去的旧值（后者绝不上墙）。
+
+### `parallel copies` — 复份
+> 铁语境：多个并行会话（parallel agents / 本仓 sync probes / bot 重敲）同时指向同一个 repo，各写各的账；CÆSURA《摆旁的灰》系 KI-677~680、ORACLE strip、nexus-content sync、keaw `SPECROOF_EXHIBIT_COPILOT_PROXY`——都是复份之手。
+> 证据：`git log --date-order --oneline -20`；账本 `#1994`、`#1997` 记录的 rebase-merge 收尾。
+> 语义：复份不是错误；但每份必须写自己的账、签当事人的 commit；RMH（rebase-merge-hand）收尾——保留基础、推自己的层、不替别人落账。
+
+### `strike` — 敲击 / 实敲
+> 铁语境：本仓库唯一认"实敲"的语言——每次 LLM 调用、每次 probe、每次 build、每次 CI run 都叫一敲；数字必落 `docs/evidence/*`；不敲不认，不认不写。
+> 证据：`docs/evidence/` 全目录；账本 #199x 系全部当前；任何"听说/据说/应该"都不入账。
+> 语义：一敲只是一敲；它不比"克隆下来重跑一遍"更权威，也不比"不敢面对"更卑微。
+
+### `warm-up rotation` — 热冷轮转
+> 铁语境：dig 车道第 1 敲时 tester/security 已热（probe 之前一敲写入同前缀），explorer 冷；第 2 敲 explorer 热了，tester 冷。key 同，但 cache line 各持——前缀不同就各守自己的槽；不叫"乱了"，叫"预热"。
+> 证据：`docs/evidence/lane-cache-probe-2026-11-18.md` addendum 第 4 条；账本 `#1995`。
+> 语义：车道冷热轮转不是 cache 失灵；它叫"不知道就去猜槽"。
+
+---
+
 ## 印记 — 验
 
 > 验讫，不是"想让它过"，而是**证据自己证明了**。
