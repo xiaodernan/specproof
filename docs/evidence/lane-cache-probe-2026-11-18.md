@@ -40,3 +40,49 @@ Going cold (first-ever strike per key) always reads `cached=0` — the key is be
 **What changed to make this real** (the four-line summary): `api/system_codex.py` (byte-frozen bible prefix) · lane wirings (`codex_first` + sticky key at every cacheable call site) · `ParallelRunner` preserves `usage` · per-lane timeout 45 s → 150 s (45 s predates the 135 K-token prompt era).
 
 — evidence kept beside the world · not a verdict · not beautified · committed as-struck
+
+
+---
+
+## Addendum · 2026-11-18T06:46Z (post-#1995) — all-green re-strike, recorded verbatim
+
+The two earlier sections above are left untouched: they record the 94.9 % strike of 2026-11-18 morning and the byte-frozen bodies at that moment (zh 413,655 B · en 424,582 B — **now drifted, see below**). This addendum is additive, never a rewrite.
+
+**Bible bodies as of commit `ab1e676` (scroll #196 landed)** — the codex prefix is byte-frozen *per commit*, not forever; every scroll append re-freezes the bodies:
+
+| body | bytes | sha256 |
+|---|---|---|
+| `docs/world/SPECROOF_WORLD.md` (zh) | 469,057 | `0bd35e34381ffab492165feb8cac3f09b40d9cbabc3464ea67095e7749374d6d` |
+| `docs/world/EN/SPECROOF_WORLD_EN.md` (en) | 480,233 | `1bb97b727de286ca211231fa81a1b7a1af951c6ae4b45e01e29c7dba5ee42917` |
+
+**This addendum's strike** (`scripts/lane_cache_probe.py` · protocol=`responses` · `stream=True` · `include_usage=True` · gateway was briefly flaky; see honesty note below):
+
+| lane | strike | prompt | cached | hit |
+|---|---|---|---|---|
+| observe | #1 cold | 158,210 | 7,533 | 4.8 % |
+| observe | #2 warm | 158,210 | **148,644** | **94.0 %** |
+| insight | #1 cold | 157,822 | 7,515 | 4.8 % |
+| insight | #2 warm | 157,822 | **148,264** | **93.9 %** |
+| ai_summary | #1 cold | 157,808 | 7,514 | 4.8 % |
+| ai_summary | #2 warm | 157,808 | **148,265** | **94.0 %** |
+| dig · explorer | #1 cold | 138,415 | 6,591 | 4.8 % |
+| dig · tester | #1 warm | 137,781 | 129,431 | 93.9 % |
+| dig · security | #1 warm | 136,718 | 128,420 | 93.9 % |
+| dig · explorer | #2 warm | 138,415 | 129,936 | 93.9 % |
+| dig · tester | #2 cold | 137,781 | 6,561 | 4.8 % |
+| dig · security | #2 warm | 136,718 | 128,420 | 93.9 % |
+| runbook · explorer | #1 cold | 139,902 | 6,662 | 4.8 % |
+| runbook · tester | #1 cold | 139,267 | 6,631 | 4.8 % |
+| runbook · security | #1 cold | 138,205 | 6,581 | 4.8 % |
+| runbook · explorer | #2 warm | 139,902 | 131,454 | 94.0 % |
+| runbook · tester | #2 warm | 139,267 | 130,821 | 93.9 % |
+| runbook · security | #2 warm | 138,205 | 129,810 | 93.9 % |
+
+Mechanics unchanged: ~7,500-token frozen skeleton (4.8 % floor), one sticky `prompt_cache_key` per lane, ~94 % when warm. dig rotates warm/cold *per agent prefix* (tester and explorer swapped slots between strikes; security held). runbook opened cold across all three agents (en key first-written) and landed 93.9–94.0 % on the second strike.
+
+**Honesty notes added this round:**
+
+1. A same-command strike immediately before this one saw the six `observe` / `insight` / `ai_summary` calls turned away by the gateway with 「模型暂时不可用」 (model temporarily unavailable — no verdict, no usage accountable, dig/runbook survived). That run is not in the table above; it is recorded here and in the session terminal log; nothing was manufactured from it.
+2. The 4.8 % cold-floor repeat across every lane on every first strike of the day is compositional (frozen prefix), not a cache bug.
+3. Evidence JSON for this addendum: `docs/evidence/lane-cache-probe-2026-11-18.json` (generated `2026-11-18T06:46:43+00:00`; the earlier failed merge was superseded by this all-green write, and the failure is disclosed in this addendum, not deleted from history).
+4. Court `4117d2b0ca5fb23a` untouched — no `prompt_cache_key`, no codex, ever; not struck in this probe, not struck in any probe.
