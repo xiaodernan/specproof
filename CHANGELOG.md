@@ -2,6 +2,24 @@
 
 格式约定：按日期列 **可归因的变更**；每条附"证据"行——命令、输出、结论，而非感知描述。本项目**尚无签名的版本标签**（tag），因此未发布 dists 无法引用；所有内容以 git 历史与 `docs/operations/DEEP_OPTIMIZATION_PLAN.md`（数字化账本，每个 `## #NNN` 对应一笔真实工作）为准：`git log --follow docs/operations/DEEP_OPTIMIZATION_PLAN.md` 或上面的账本。
 
+## 2026-11-18（世界书双卷落册 · D2 全程自动 · cache 实敲 94% · io 瓷砖 CDN 脱困）
+
+本条目覆盖 `aa08a26` → `332b392`（ledger `#1993` → `#1996`）。本次由本机驱动、全部实敲——未完成的部分在「验证状态」里如实记下。
+
+### 新增 / 修复
+- **io 瓷砖读 CDN 陈旧 latest.json（#1977 系 drift）**（#1996）：现场瓷砖渲染 `chronicle 1,774 · 179 scrolls · strike #1977`，同屏 `#specproof-live` 却是 `head=22678f7 · #1995`。三副本 latest.json 里 JS 读的是 raw CDN，`cache:'no-store'` 管不住边缘；仓库内兜底亦陈旧（`95b767b · #1977`）。修复：`scripts/sync_portfolio.py` 的 fact-pack 改为**始终在 HEAD 内联推导**（书 `## ` + 账本 `#NNNN` 计数、`git rev-list`/`ls-files` 实数）；`portfolio-sync.yml` 检出 `fetch-depth` 80 → **0**（全历史真数）；degenerate 守卫（rev-list < 100 时回退 `docs/latest.json` 的机器校验值）；io 瓷砖 JS 改为**同源 `./data/specproof-sync.json` 优先**（`chronicle_entries` 有值才用它）→ raw → 仓库兜底 → baked 首屏常量；兜底刷新为 `d30719be · #1995`。现场已验：`tile = MASTER · chronicle 1,792 · 197 scrolls · 18 exhibits · strike #1996`。
+- **cache 探针两敲每车道（13/13 ok，复敲）**（#1995）：observe / insight / ai_summary / dig / runbook ×2，protocol=`responses` · `stream=True` · `include_usage=True`；冷敲 4.8% 地板（≈7.5k 冻结前缀），热敲 **93.9–94.0%**（`prompt_cache_key` 一车道一把；dig explorer/tester 热冷互换、security 两敲全热）。紧挨着的前一次实敲，三车道六拍被网关以「模型暂时不可用」击退——**原样记录入账、不涂改、不删除**；复敲全部 `outcome=ok`。证据 `docs/evidence/lane-cache-probe-2026-11-18.{json,md}`（addendum 完整记录边界与失败）。
+- **卷 #196《冷的四点八》+ 卷 #197《旧牌子》双语入册**（zh≡en）；Library 194 → **196 zh≡en**（构建断言 parity）；worldbook **197 卷**；chronicle → **1792**；`Library.test.tsx` 同步 196。对账：scroll `#1995 / #1996`，byte-frozen bodies 重哈希（zh `0bd35e34…` / en `1bb97b72…`）。
+- **D2 闭环再验四轮**：specproof master 每次 push → `portfolio-sync.yml`（`gh api /user` HTTP 200 · xiaodernan · id 163225480）→ 克隆 io repo → 三件套 artifacts → `git push origin master`。io 页 `./data/specproof-sync.json` 现携带 fact-pack 字段（scrolls/chronicle/exhibits/strike/commits/tracked_files），现场 `last_synced 2026-11-18 07:51:20 UTC · head 332b3920 · total_commits 2,721 · worldbook_scrolls 197 · chronicle_entries 1,792 · latest_strike #1996`。
+- **dig/runbook 车道 LLM timeout 90s → 150s**（中文车道同值）；`world_size_bytes` 已由 sync payload 机器带出；`test_investigation_dig*.py` + `test_runbook_claims_hold` + `test_investigators_accounting` **17/17**。
+- **profile README 对位 `世界书 197 卷 · strike #1996`**（commit `1bff61fd`，已核验）；io 页 baked 首屏 / showcase README 全线 `#1996`。
+
+### 验证状态
+- `vitest` **594/594**（84 files）；`Library.test.tsx` ✅；`repoStats.json` 快照（commits **2,715** · 2,949 files · 58 langs · LOC **531,451**）；`tsc --noEmit` ✅；
+- Night Watch remains **CRACKED**（不涂任何 exhibit 的绿）；exhibit_entries **18**（未造 #19）；Court `4117d2b0ca5fb23a` **LOCKED**（永远不带 `prompt_cache_key`）；24 pinned reds 依然钉着；`.local/llm.json` 未进 git（purity sift CLEAR · tracked_files 2,952）；
+- 本条目不声称：cache 速率不构成 SLO；冷敲 4.8% 是组合性的冻结前缀账单不是 cache 故障；「UI 594/594」不进任何机器 JSON；
+- 本机证据 `docs/evidence/lane-cache-probe-2026-11-18.{json,md}`、`docs/operations/DEEP_OPTIMIZATION_PLAN.md`（`#1993`–`#1996`）——本条目不发明任何数字，每个数字都能 `git show` 到。
+
 ## 2026-11-15（六次登记） · 滚轮反转 + 压力测试车间 + /health 探针并行化
 
 本条目覆盖 `a504661` → `b0bb993`（ledger `#1750` → `#1755`）。
