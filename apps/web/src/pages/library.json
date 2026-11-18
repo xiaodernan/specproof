@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-18T05:37:15+00:00",
-  "count": 192,
+  "generated_at": "2026-11-18T06:05:01+00:00",
+  "count": 193,
   "zh": [
     {
       "num": "卷零",
@@ -961,6 +961,11 @@
       "num": "卷一百九十三",
       "title": "压力试窗",
       "excerpt": "本会话给 SpecProof 下敲门：`scripts/stress_smoke.py`。`--target` 模式长期是坏的——targeted lane 把 `\"/\"` 硬拼到用户给的 URL 后面，向 `/health` 发请求变成 `/health/`，FastAPI router 答案 404，脚本却照常统计 `err=100%`，谁也不觉得有问题。"
+    },
+    {
+      "num": "卷一百九十四",
+      "title": "压力试窗 · 增订",
+      "excerpt": "在 #1992（压力试窗）之后，这条线上又有三件事："
     }
   ],
   "en": [
@@ -1923,6 +1928,11 @@
       "num": "Scroll CXCIII",
       "title": "The Pressure Window",
       "excerpt": "This round's probe of SpecProof found a real bug first. `scripts/stress_smoke.py` has been quietly broken in its `--target` lane since the day it was written — it concatenated `\"/\"` onto the user-supplied target URL, so hitting `/health` be…"
+    },
+    {
+      "num": "Scroll CXCIV",
+      "title": "The Pressure Window, Addendum",
+      "excerpt": "Three follow-ups after #1992 (Pressure Window):"
     }
   ],
   "note": "machine-struck from the two bibles; parity asserted at build time; never an editorial statement"

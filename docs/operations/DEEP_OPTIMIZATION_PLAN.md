@@ -42238,3 +42238,24 @@ mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0c
 ### 三、账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1788** · worldbook **193 卷（双语对称）** · D1 ✅ · D2 ✅（`.github/workflows/portfolio-sync.yml` 有了 verify-token 诚实闸门：zkp-token 假时静默退而 0 退出；**真 PAT 被作者追加给本次 dispatch 的——叫不准，但 workflow 现在永远照实通告自己**）·「密码-123」是一扇标着「演示」的门
+
+## #1993 《压力试窗 · 增订》：`build_latest.py` patch——`latest_strike` 由现 HEAD subject 回退至 ledger 最新 `## #NNNN` · bot re-strike `4ecd3f5` `b2e1e2b` 已将 raw master → `#1992` · io 页 fully verified live (latest_strike=#1992 · 60 routes chip · `./data/specproof-sync.json` 联合确认) · chronicle **1789** · worldbook **194 卷（双语对称）** · UI **594/594**
+
+**记录基准**：本节只追加。本号衔接 #1992（stress_smoke.py `--target` bug → 真整）。
+
+### 一、交付
+
+1. `scripts/build_latest.py`: `latest_strike` 回退从 0/null → ledger 最后一条 `## #NNNN` · bot re-strike 立即重写 raw master → `#1992`（本地再打包 "4adf6e4 · #1992 · 193 scrolls · 1788 → 1789 · 18 exhibits"）；
+2. CI runs verified：`44248005145` queued → `44246889899 (latest-json success #1989/#1992)` 已经完成 · `latest.json` 这次在 raw master 上正确写回；
+3. 展示页（`xiaodernan.github.io`）：LIVE SHIP 区块活着 · `./data/specproof-sync.json` 通畅 · 60 route chips 已实喷 · `Last synced` 现场戳可见；
+4. 展示页 README 对齐：`SpecProof` row 现在显示 `strike #1992 · 193 scrolls · 18 exhibit · Court LOCKED`；
+
+### 二、诚实边界
+
+1. 本节不声明任何 exhibit #19 的「诞生」— exhibit 依旧 18 · court 依旧 locked · Night Watch 依旧 CRACKED；
+2. 不声明 raw.githubusercontent.com CDN 在 token 更新后即时刷新—但 master 上的 `docs/latest.json` 已经对齐 #1992；
+3. 本节未触动任何 exhibit 的 red/green 状态；
+
+### 三、账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1789** · worldbook **194 卷（双语对称）** · D1 ✅ · D2 ✅ ·「密码-123」依旧是一扇标着「演示」的门

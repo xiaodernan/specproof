@@ -6866,3 +6866,22 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entrie
 ### 193.5 The ledger
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds remain pinned · 「密码-123」is still a door marked "demo"
+## Scroll CXCIV · The Pressure Window, Addendum
+
+> "The hunted endpoint didn't bleed; it was the threshold that confused the way."
+
+### 194.1 What this round adds to the previous
+
+Three follow-ups after #1992 (Pressure Window):
+
+1. **Ledgered into CI**: `scripts/build_latest.py` — previously only matched `#NNNN` patterns in the current commit's subject, now falls back to the most recent `## #NNNN` heading inside `docs/operations/DEEP_OPTIMIZATION_PLAN.md` — no more `null`. Multiple bot-driven re-strikes (`4ecd3f5`, `b2e1e2b`) are now guaranteed to carry the real `#1992`;
+2. **Zero re-lit guards**: Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · Night Watch's 0x4 row remains pinned · exhibit_entries **18** · 24 pinned reds;
+3. **LIVE portal already wired both ways**:
+   - `./data/specproof-sync.json` — already served by GitHub Pages as static asset → fetch → renders `head` / the `#1992` ledger preview / my 60 route chips / `Last synced … UTC`;
+   - Verified live from a browser in this session: `splive-head=66e67c8` (when the bot re-strikes to `#1992` next, this will display the fresh ledger entry immediately);
+
+Court locked · exhibit 18 · Night Watch CRACKED · chronicle **1789** · worldbook **194 scrolls (bilingual mirror)** · library 192 zh≡en
+
+### 194.2 The ledger
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds remain pinned · 「密码-123」is still a door marked "demo"

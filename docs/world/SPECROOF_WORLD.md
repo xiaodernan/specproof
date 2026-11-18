@@ -6991,3 +6991,22 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entrie
 ### 193.5 账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds 依然钉住 · 「密码-123」是一扇标着「演示」的门
+## 卷一百九十四 · 压力试窗 · 增订
+
+> "被穷追的接口没垮；是写它的门槛冤了路。"
+
+### 194.1 接续上一卷的真事
+
+在 #1992（压力试窗）之后，这条线上又有三件事：
+
+1. **结账落到 CI 上**：`scripts/build_latest.py` —— 原本 latest_strike 只认「本次 commit 的 subject 是否带 #NNNN 数字」，本轮 `build_latest.py` patch 以「DEEP_OPTIMIZATION_PLAN.md 最后一条 `## #NNNN`」作为兜底——不会再出现 `null`；bot 触发的 re-strike（`4ecd3f5`、`b2e1e2b`）会迅速把 `latest_strike` 重写为真实的 `#1992`；
+2. **0 改的一条门禁**：Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · Night Watch 0x4 仍 sticky · exhibit_entries **18** · 24 pinned reds；
+3. **展示页 live-sync 双向可读**：
+   - `./data/specproof-sync.json`（已被 GitHub Pages 同时以静态资源发布）→ fetch → 渲染出 `head` / `#1992` ledger 预览 / 60 routes chip 标签 / `Last synced … UTC`；
+   - 进程在本轮上线后以浏览器实测 OK：`splive-head=66e67c8`（bot re-strike 时本地 latest.json 重写后将直接跟随最新的 `#1992`），`ledger='#1992 …'` 联合确认；
+
+Court 锁着 · exhibit 18 · Night Watch CRACKED · chronicle **1789** · worldbook **194 卷（双语对称）** · library 192 zh≡en
+
+### 194.2 账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds 仍钉 · `「密码-123」` 依旧是一扇标着「演示」的门
