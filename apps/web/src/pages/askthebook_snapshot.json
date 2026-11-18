@@ -1,0 +1,160 @@
+[
+  {
+    "id": "genesis",
+    "volume": "卷零 · 创世之炉",
+    "excerpt": "> 新的卷章会持续追加——此书不结卷。\n\n---\n\n## 卷零 · 创世之炉\n\n世人写代码，代码又写代码。AI 把箭射入天空，不问谁将拾箭。\n\n在创世的第一天，验收官立了这一条铁律：**凡欲过此炉者，证据先行；证据不成，不许谈白\n收不收。** AI 的手可以写，验收官的眼必看——眼不看的，机器代看；机器不能单判，还有人来签。\n\n于是第一座殿被盖起来，是**差分炉**（`experiments/differential.py（文件不在本仓库——计划中的实验车道，本书保留它的废弃事实，不保留文件）` 等族）：\n把同一段需求分别编入 base 与 head，在同一个牢笼（Docker 沙箱，`docker_sandbox.py`）\n里分别点火，看火苗往哪边倒。火往回烧的是基线的光荣，往前烧的是头上的伤口。\n一正一反，落在同一块铁上，无人可抵赖。\n\n差分炉里最常见的名字叫 **`base_pass_head_fail`**——基线过，头版本挂。\n世人称此为\"铁\"。炉火正旺之际，护炉者手痒，想把探针（probe）的结果说成铁，\n差点又被点掉了——这是卷一里讲的另一段公案（见\"卷一 · 探针防伪的九次红灯\"）。\n\n---\n\n## 卷一 · 铁证、矩阵与审判庭\n\n### 1.1 铁证五等\n\nSpecProof 的证据分五等，从下至上等级越高、越硬：\n\n| 等级 | 名称 | 例证 | 铁度 |\n|---|---|---|---|\n| 五等 | `static_analysis` | 静态分析、正则命中 | 可信可",
+    "keywords_zh": [
+      "创世",
+      "开始",
+      "第一",
+      "起点",
+      "哪一卷",
+      "开篇",
+      "炉"
+    ],
+    "keywords_en": [
+      "genesis",
+      "start",
+      "first",
+      "begin",
+      "open",
+      "beginning"
+    ]
+  },
+  {
+    "id": "three-genesis-commits",
+    "volume": "卷二百零二 · 江湖之远 §202.1",
+    "excerpt": "2026-07-10，三笔 commit 在同一天落地：\n\n```\n7d9aaa9  2026-07-10  Initial commit: SpecProof Phase 0 prototype\n4568104  2026-07-10  Add @PreAuthorize security annotation (base version)\n0558211  2026-07-10  Restore working tree to head-v1 (auth bypass present)\n```\n\n就这三笔。\n\n第一笔种下\"Phase 0\"——原型阶段。第二笔给 `changeEmail` 加上 `@PreAuthorize`\n——之后每一条 SPECROOF security 契约的祖父。第三笔把工作树原样恢复到\n`head-v1`（deliberately injected auth bypass）——这是今天每一个 golden scenario 的祖模式\n（`p0.5-verified-v1` / `case-98-head` / `head-v1` / `verified-base`——它们都长在同一颗根上）。\n\n**第一天，世界不是被设计出来的，是被挤出来的。**\n\n### 202.2 一百三十一天之后\n\n从 2026-07-10 到 2026-11-18，这本账本记下了**两千条账**（#2000 入册在",
+    "keywords_zh": [
+      "genesis",
+      "第一天",
+      "init",
+      "prototype",
+      "7d9aaa9",
+      "三笔"
+    ],
+    "keywords_en": [
+      "init",
+      "first",
+      "gen",
+      "7d9aaa9",
+      "phase 0",
+      "genesis",
+      "i"
+    ]
+  },
+  {
+    "id": "night-watch",
+    "volume": "卷一百零三 · 不装的证人",
+    "excerpt": "`night_watch_graph.py` 依旧出：\n\n```\nverdict=CRACKED evidence=REGRESSION purity=CLEAR audit=CLEAR\nfindings=[evidence lane: not jade]\n```\n\n谁去把 REGRESSION 翻成 OK 也算篡改——exhibit #4 那条 Δ=+495.99ms 的事实**仍然锁在证件里**：\n`worst_p99 #4=1526.1ms` 。\n任何人要再三把这页擦掉，都知道：本书没让任何人擦掉它，而它也照搬在面前。\n\n### 103.3 本卷不装的\n\n* exhibit #4（1,526.1ms）不被吹走、也不被编成「波动可忽略」——它是宿主在 Docker Desktop 复活当天的真实敲击；\n* court 永不缓存；「密码-123」永久否决；D1/D2 仍欠——OBSERVABILITY.md 签字仍然需要一只真手。\n\n### 103.4 夜灯的位置\n\n`/engine` 页尾夜眼面板这个位置会继续不更换。等到足够多的 exhib",
+    "keywords_zh": [
+      "夜",
+      "Night Watch",
+      "夜班",
+      "夜料",
+      "nightwatch"
+    ],
+    "keywords_en": [
+      "night",
+      "watch",
+      "nightwatch",
+      "midnight"
+    ]
+  },
+  {
+    "id": "court-lock",
+    "volume": "卷七十七 · 留一道锁",
+    "excerpt": "精确校验 |\n\n合成 lock（16 hex）= SHA256(排序后的五枚证据哈希拼接) — 杜甫。\n本卷落稿时 **LOCKED · `4117d2b0ca5fb23a`**。\n`pytest tests/unit/test_court_lock_machine.py`（2/2 ✅）随 CI 每次机器验锁。\n\n### 77.2 门与锁的家规\n\n1. **锁不靠记忆**——机器逐字节拼接，不信任何文档、任何注释、任何 ledger；\n2. **#/engine 屏**显示锁（机顶一 chip）——黑客要绕过，物理上不可能静默成功，此处也不需要代码评审\"雰围\"——读 SHA 即可判真伪；\n3. **BROKEN 永远可见**——审计脚本 exit 2 即因此；engine 页 chip 颜色换成红色；\n4. **court 启用缓存 = 破 lock = 红 chip**——本仓库里永远不",
+    "keywords_zh": [
+      "Court",
+      "锁着",
+      "lock",
+      "court-lock"
+    ],
+    "keywords_en": [
+      "court",
+      "lock",
+      "4117d2b0",
+      "never cached"
+    ]
+  },
+  {
+    "id": "exhibit-4",
+    "volume": "卷一百零三 · 不装的证人 §103.3",
+    "excerpt": "`\n\n谁去把 REGRESSION 翻成 OK 也算篡改——exhibit #4 那条 Δ=+495.99ms 的事实**仍然锁在证件里**：\n`worst_p99 #4=1526.1ms` 。\n任何人要再三把这页擦掉，都知道：本书没让任何人擦掉它，而它也照搬在面前。\n\n### 103.3 本卷不装的\n\n* exhibit #4（1,526.1ms）不被吹走、也不被编成「波动可忽略」——它是宿主在 Docker Desktop 复活当天的真实敲击；\n* court 永不缓存；「密码-123」永久否决；D1/D2 仍欠——OBSERVABILITY.md 签字仍然需要一只真手。\n\n### 103.4 夜灯的位置\n\n`/engine` 页尾夜眼面板这个位置会继续不更换。等到足够多的 exhibit 波动在 25ms 内的时刻，证据门自己会关上，夜灯自己会变玉色。\n\n---",
+    "keywords_zh": [
+      "展品 #4",
+      "exhibit #4",
+      "红",
+      "CRACKED",
+      "REGRESSION"
+    ],
+    "keywords_en": [
+      "exhibit #4",
+      "red",
+      "cracked",
+      "regression",
+      "pinned"
+    ]
+  },
+  {
+    "id": "five-lanes-cache",
+    "volume": "卷一百九十六 · 冷的四点八 §196.1",
+    "excerpt": "### 196.1 五车道全线复测（2026-11-18T06:46Z · 探针两敲每车道 · 13/13 ok）\n\n`scripts/lane_cache_probe.py` 于 2026-11-18 直敲 aizzz `gpt-6.1-terra`（protocol=`responses` · `stream=True` · `include_usage=True`）。证据写盘于 `docs/evidence/lane-cache-probe-2026-11-18.json`（generated `2026-11-18T06:46:43+00:00`）——本节数字以该次全绿实敲为准。\n\n诚实注明：在此之前的一次同命令实敲中，`observe` / `insight` / `ai_summary` 六拍被 aizzz 网关以「模型暂时不可用」击退（无 verdict、无 usage 可计，五车道里只有 dig / runbook 存活）。该次失败原样记录在操作终端日志中，未计入下表、也不抹去。复敲后全部 `outcome=ok`。\n\n| lane | strike | prompt_tokens | cached_tokens | 命中率 |\n|---|---|---|---|---|\n| observe | #1 冷 | 158,210 | 7,533 | 4.8% |\n| o",
+    "keywords_zh": [
+      "cache",
+      "命中",
+      "缓存",
+      "cold",
+      "warm",
+      "lane",
+      "94.0"
+    ],
+    "keywords_en": [
+      "cache",
+      "hit",
+      "cold",
+      "warm",
+      "cached",
+      "prompt_cache_hit_tokens"
+    ]
+  },
+  {
+    "id": "ask-the-book",
+    "volume": "卷二百零三 · 问之有答 §203.1–2",
+    "excerpt": "pecProof 里多了一个新的公共通道——**问问书 · Ask the Book**（`#/ask-the-book`，nav 上线即可，雅称 `nav.askTheBook`）。\n\n它做的很简单：你，浏览器里的任何人——打一行问题，模型会翻整本铁证之书（`SPECROOF_WORLD.md` zh / `SPECROOF_WORLD_EN.md` en，byte-frozen codex 前缀，同一套 `codex_first` + `prompt_cache_key=specproof-worldbook-ask` + `stream=True`+`include_usage=True`）然后把书里写过的话照实回答你：\n\n- 书里写过的 → 它会答；\n- 书里没写的 → 它会说「这本书里没写」，不许编造数字/日期/人物/起源；\n- 从头到尾，它不下判决——不判绿、不判红、不判『通过』『阻断』『发布批准』——它只能复述账本，不能审判世界。\n\n**这不是一个聊天机器人。这是全世界唯一",
+    "keywords_zh": [
+      "问问书",
+      "问之有答",
+      "ask",
+      "model",
+      "book",
+      "lane"
+    ],
+    "keywords_en": [
+      "ask",
+      "book",
+      "the model may",
+      "ask-the-book"
+    ]
+  },
+  {
+    "id": "gazette-echo",
+    "volume": "卷一百九十八 · 一闪，是墨",
+    "excerpt": "给第二天的人。\"\n\n### 198.1 TODAY'S ECHO，一卷的事后，再重敲一次\n\n2026-11-18T09:38:24Z，`scripts/gazette_feature.py` 以 `#1996《旧牌子》` 为锚，经 Clash Verge 调 aizzz `gpt-6.1-terra`，双侧 epigraph 同场重敲——此前头版停格在 2026-11-17T19:29Z、锚 `#1981` 的那一行，整整两个卷（#196《冷的四点八》、#197《旧牌子》）已经换了面，世界没丢，头版没跟上。\n\n中文（92 CJK 字 · 机械门 zh ≤ 280），逐字：\n\n> io 页的 SpecProof 瓷砖曾从 raw CDN 读到旧牌：同屏直播已到 #1995，砖面仍指向 #1977；修复落在同步器与瓷砖读取链，改由同源 specproof-sync.json 供数，并保留回退。dig、runbook 与 investigator 的 LLM 超时从 90 秒调至 150 秒，17 项测试通过，court lane 未动。账面并非一张牌：页首记 chronicle 1792、worldbook 197 卷，现场瓦片验收记 1791、196 卷；旧副本仍可",
+    "keywords_zh": [
+      "TODAY",
+      "echo",
+      "一闪",
+      "gazette",
+      "epigraph",
+      "墨"
+    ],
+    "keywords_en": [
+      "echo",
+      "epigraph",
+      "gazette",
+      "today"
+    ]
+  }
+]
