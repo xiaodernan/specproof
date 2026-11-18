@@ -42407,3 +42407,29 @@ mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb
 ### 三、账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1795** · worldbook **200 卷（双语对称·整）** · D1 ✅ · D2 ✅ ·「密码-123」依旧是一扇标着「演示」的门
+
+## #2000 《千卷之前（史官的围炉札记）》：第两千条账 · 世界书 201 卷 · io TODAY'S ECHO 实测落地（干净浏览器上下文 · ce4afbc7 · #1999） · Iron Lexicon Z-series zh≡en · static-warm 0.00% err · worst p99 1,547.2 ms · Court LOCKED · Night Watch CRACKED · exhibit 18 · 24 pinned reds · UI **594/594**
+
+**记录基准**：本节只追加。本号衔接 #1999（墨落江湖）。第两千条账。
+
+### 一、交付
+
+1. **卷 #201（zh≡en）入册**——《千卷之前（史官的围炉札记）》· Scroll CCI：以 2026-11-18 的三件实事立卷——
+   - **io 页头版一闪实测落地**：干净浏览器上下文，`.splive-gazette present=true`，zh/en epigraph 逐字渲染（zh=model 92 CJK · en=641 chars），tile 现读 `MASTER · chronicle 1,795 · 200 scrolls · 18 exhibits · strike #1999`，spliveHead=ce4afbc7，60 路由 chip；
+   - **Iron Lexicon Z-series 双车道入册**（zh≡en）：9 条铁语（cold floor 4.8% / 双值缝 / epigraph / fact pack / inline derivation / LIVE SHIP / parallel copies / strike / warm-up rotation)，全部指向仓库里的确切位置；
+   - **前门压测实敲**：static lane · 96 并发 × 2 per-thread × 4 轮 + 2 warmup —— 0.00% err（warmup 117/192→192/192）· worst p99 **1,547.2 ms** · verdict **OK** · artifact `docs/evidence/static-warm-2026-11-18.json` 已 commit（exit=0）；
+2. chronicle → **1796**（第 1796 条账）· worldbook → **201 卷** · library → **200 zh≡en** · `Library.test.tsx` 钉页 199→200；UI **594/594** 不动；
+3. **Ledger #2000 整**——从 #0001 到 #2000：两千条账；本次没有一敲自己标成 verdict，没有一敲企图绕过网关，夜观依然 CRACKED，Court 依然 LOCKED；
+4. `repoStats.json` 快照上次已重建（2,722 commits · 2,949 files · 58 langs）；本节只追加账目与正史、不改快照。
+
+### 二、没涂没动没骗
+
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · 24 pinned reds；
+2. 没有涂展品的绿；夜车/Night Watch/展品/24 reds 全部原样；
+3. 「UI 594/594」不进机器 JSON——机器只报机器数；
+4. `.local/llm.json` 不进 git；purity sift CLEAR；
+5. 网卡的「连接被拒」现象如实写出——本机静态服务器无 backend，credential 门存在但需自行 `uvicorn api.server:app`，不改缺省「演示」的定位。
+
+### 三、账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1796** · worldbook **201 卷（双语对称）** · library **200 zh≡en** · D1 ✅ · D2 ✅ ·「密码-123」依旧是一扇标着「演示」的门

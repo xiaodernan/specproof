@@ -7273,3 +7273,55 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entrie
 ### 200.5 账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds 仍钉 ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷二百零一 · 千卷之前（史官的围炉札记）
+
+> "第一个提交是一个人，一个别人家的需求，他把键盘按下去，然后去开窗。两千条账之后，账本上是一个世界在写自己的注脚。"
+
+### 201.1 两千条账之前，先把该做的都落账了
+
+2026-11-18 下午，世界书第 200 卷入册（卷 #200《墨落江湖》· Scroll CC）。这一节是之后的札记——数字都能 `git log` 出来。
+
+**今天动过的真实机器：**
+
+1. **io 页头版一闪（model printed epigraph）实测落地**——干净浏览器上下文实测：
+
+```
+.splive-gazette present  = true
+TODAY'S ECHO 锚点         = #1996《旧牌子》· generated 2026-11-18T09:38:24Z
+zh 正文                   = "io 页的 SpecProof 瓷砖曾从 raw CDN 读到旧牌：同屏直播已到 #1995，砖面仍指向 #1977…"
+en 正文                   = 641 字符 · enLen=641 ≈ 93 词
+tile                    = MASTER · chronicle 1,795 · 200 scrolls · 18 exhibits · strike #1999
+spliveHead              = ce4afbc7（live）· 60 route chips
+```
+
+2. **Iron Lexicon Z-series 双车道入册**（zh≡en）：`cold floor` · `dual-value seam / 双值缝` · `epigraph / 头版一闪` · `fact pack` · `inline derivation` · `LIVE SHIP` · `parallel copies / 复份` · `strike` · `warm-up rotation`——每条铁语都指向仓库里的确切文件、确切账号、确切的一敲。
+
+3. **前门压测（static lane）** 再实敲一轮——96 并发 × 2 per-thread × 4 rounds + 2 warmup：
+
+```
+warmup 1/2   117/192 ok（预热，不计账）
+warmup 2/2   192/192 ok
+round 1/4    err=0.00%  p95=1,533.4ms  p99=1,547.2ms  max=1,551.0ms
+round 2/4    err=0.00%  p95=1,023.7ms  p99=1,040.2ms  max=1,523.1ms
+round 3/4    err=0.00%  p95=1,027.1ms  p99=1,520.6ms  max=1,534.3ms
+round 4/4    err=0.00%  p95=1,020.2ms  p99=1,074.0ms  max=1,522.3ms
+worst p99    1,547.2ms · verdict OK · artifact docs/evidence/static-warm-2026-11-18.json
+```
+
+4. **court 始终 LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · 24 pinned reds · `.local/llm.json` 未进 git。
+
+### 201.2 关于这一敲的诚实账
+
+1. **进出都留印**：io 页刷新慢不是故障——`cache-control: max-age=600`；HTML 先于 JSONs 抵达的瞬态，在 splive IIFE 里用「等 2.5s 重试一次」消化；再失败就留占位符——不画假值；
+2. **localStorage 不管用**：unauthenticated visitor 永远看到 landing page，`#/anything` 一律落到 marketing page；匿名可访问的公共车道只有 `#/observe`；RBAC 门依旧 fail-closed；
+3. **demo password = 123**（公开演示 credential——`connection refused` 在本机静态服务器是正常的，那是网关们各就各位；实连需要自行起 uvicorn 前端 + 后端）；
+4. **没有一敲企图绕过网关**、没有一条 data line 被伪装成人手。全程 `purity CLEAR`.
+
+### 201.3 座次
+
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1796** · worldbook **201 卷（双语对称）** · library **200 zh≡en** · UI **594/594** · 账本 **#2000**（整两千条账）
+
+### 201.4 账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds 仍钉 ·「密码-123」依旧是一扇标着「演示」的门

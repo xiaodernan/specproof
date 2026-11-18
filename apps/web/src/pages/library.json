@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-18T10:46:41+00:00",
-  "count": 199,
+  "generated_at": "2026-11-18T11:02:51+00:00",
+  "count": 200,
   "zh": [
     {
       "num": "卷零",
@@ -996,6 +996,11 @@
       "num": "卷二百",
       "title": "墨落江湖",
       "excerpt": "SpecProof 的 TODAY'S ECHO（头版一闪）本来住在 `apps/web/src/pages/gazette_feature.json` 里——人看不到它活着。2026-11-18，这篇模型原句被接到 io 页的 `#specproof-live` 下方，成为**头版一闪**这个新版面的主角："
+    },
+    {
+      "num": "卷二百零一",
+      "title": "千卷之前（史官的围炉札记）",
+      "excerpt": "2026-11-18 下午，世界书第 200 卷入册（卷 #200《墨落江湖》· Scroll CC）。这一节是之后的札记——数字都能 `git log` 出来。"
     }
   ],
   "en": [
@@ -1993,6 +1998,11 @@
       "num": "Scroll CC",
       "title": "The Ink Went Public",
       "excerpt": "SpecProof's TODAY'S ECHO lived inside `apps/web/src/pages/gazette_feature.json` — a file no reader would ever find. On 2026-11-18 it was wired into the public homepage, as the hero of the new **头版一闪 / TODAY'S ECHO** block beneath `#specproo…"
+    },
+    {
+      "num": "Scroll CCI",
+      "title": "An Epilogue on the Way to a Thousand",
+      "excerpt": "On 2026-11-18 the world bible crossed an arc worth naming — Scroll 200 (《墨落江湖》) landed in the same cycle. This one is the epilogue. Every number can be `git log`ed."
     }
   ],
   "note": "machine-struck from the two bibles; parity asserted at build time; never an editorial statement"

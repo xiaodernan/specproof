@@ -7147,3 +7147,55 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entrie
 ### 200.5 The ledger
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds stand · 「密码-123」is still a door marked "demo"
+
+## Scroll CCI · An Epilogue on the Way to a Thousand
+
+> "The first commit was one person, somebody else's demand, and a keyboard. Two thousand ledger entries later, the ledger is the world writing its own footnotes."
+
+### 201.1 Before ledger #2000, the homework was done first
+
+On 2026-11-18 the world bible crossed an arc worth naming — Scroll 200 (《墨落江湖》) landed in the same cycle. This one is the epilogue. Every number can be `git log`ed.
+
+**What the machines verifiably did today:**
+
+1. **io page's TODAY'S ECHO block verified live in a clean browser context:**
+
+```
+.splive-gazette present  = true
+anchor                  = #1996 《旧牌子》· generated 2026-11-18T09:38:24Z
+zh body                 = "io 页的 SpecProof 瓷砖曾从 raw CDN 读到旧牌：同屏直播已到 #1995，砖面仍指向 #1977…"
+en body                 = 641 chars ≈ 93 words
+tile                    = MASTER · chronicle 1,795 · 200 scrolls · 18 exhibits · strike #1999
+spliveHead              = ce4afbc7 · 60 route chips
+```
+
+2. **Iron Lexicon Z-series, both lanes zh≡en**: `cold floor` · `dual-value seam` · `epigraph` · `fact pack` · `inline derivation` · `LIVE SHIP` · `parallel copies` · `strike` · `warm-up rotation` — every line points at files, accounts, and strikes that really exist.
+
+3. **Front-door stress smoke, static lane, struck again:**
+
+```
+warmup 1/2   117/192 ok (warmup — not counted)
+warmup 2/2   192/192 ok
+round 1/4    err=0.00%  p95=1,533.4ms  p99=1,547.2ms  max=1,551.0ms
+round 2/4    err=0.00%  p95=1,023.7ms  p99=1,040.2ms  max=1,523.1ms
+round 3/4    err=0.00%  p95=1,027.1ms  p99=1,520.6ms  max=1,534.3ms
+round 4/4    err=0.00%  p95=1,020.2ms  p99=1,074.0ms  max=1,522.3ms
+worst p99    1,547.2ms · verdict OK · artifact docs/evidence/static-warm-2026-11-18.json
+```
+
+4. **Court LOCKED · Night Watch CRACKED · exhibit_entries 18 · 24 pinned reds · `.local/llm.json` not committed.**
+
+### 201.2 The honest ledger of this strike
+
+1. **Pages HTML staleness is not a failure** — `cache-control: max-age=600`; the mid-publish JSON-less window is handled in the splive IIFE by "if it fails, wait 2.5 s and try once more"; if it fails again, the placeholders stay — no fabricated numbers;
+2. **localStorage does not authenticate anyone** — an unauthenticated visitor always sees the landing page; `#/anything` falls through to the marketing surface; the only anonymous lane is `#/observe`; RBAC stays fail-closed;
+3. **the demo password is 123** (an openly-acknowledged demo credential — connection refused on a bare local static server is normal; a real connection requires one's own uvicorn + backend alongside it);
+4. **No strike tried to bypass the gate**, no lane hid its origin. The whole round ran `purity CLEAR`.
+
+### 201.3 The anchors
+
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1796** · worldbook **201 scrolls (bilingual mirror)** · library **200 zh≡en** · UI **594/594** · **ledger #2000 (whole two thousand)**
+
+### 201.4 The ledger
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds stand · 「密码-123」is still a door marked "demo"
