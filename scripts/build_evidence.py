@@ -62,7 +62,7 @@ def sort_key(p: dict) -> tuple[int, str]:
 
 picked.sort(key=sort_key, reverse=True)
 
-EXHIBIT_RE = re.compile(r"static-(warm|light)(-\d+)?\.json$")
+EXHIBIT_RE = re.compile(r"static-(warm|light)(-[0-9-]+)?\.json$")
 
 def is_exhibit(p: dict) -> bool:
     return bool(p.get("readable") is not False and EXHIBIT_RE.search(str(p.get("file", ""))))

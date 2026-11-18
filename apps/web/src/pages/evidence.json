@@ -1,12 +1,12 @@
 {
  "version": 1,
  "source": "docs/evidence/*.json (stress_smoke.py --json-report output; this host)",
- "files_count": 34,
- "exhibits_count": 18,
+ "files_count": 38,
+ "exhibits_count": 19,
  "latest": {
-  "file": "2026-11-17-static-warm-18.json",
+  "file": "static-warm-2026-11-18.json",
   "readable": true,
-  "started_utc": "2026-11-17T15:27:40.402187+00:00",
+  "started_utc": "2026-11-18T10:58:49.319109+00:00",
   "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
   "concurrency": 96,
   "warmup_rounds": 2,
@@ -14,47 +14,91 @@
    {
     "total": 192,
     "ok": 192,
-    "p50_ms": 323.47089999984746,
-    "p95_ms": 1534.4682149991968,
-    "p99_ms": 1558.6823969995748
+    "p50_ms": 24.81084999999439,
+    "p95_ms": 1533.4068750000824,
+    "p99_ms": 1547.1663790000957
    },
    {
     "total": 192,
     "ok": 192,
-    "p50_ms": 85.15535000060481,
-    "p95_ms": 1560.1870600004077,
-    "p99_ms": 1639.6026020003605
+    "p50_ms": 34.42230000018753,
+    "p95_ms": 1023.7471899998582,
+    "p99_ms": 1040.1669399999537
    },
    {
     "total": 192,
     "ok": 192,
-    "p50_ms": 525.0833000000057,
-    "p95_ms": 1541.0688450000634,
-    "p99_ms": 1650.5528830007656
+    "p50_ms": 26.740700000118522,
+    "p95_ms": 1027.0609849998664,
+    "p99_ms": 1520.5616519997238
    },
    {
     "total": 192,
     "ok": 192,
-    "p50_ms": 106.19295000014972,
-    "p95_ms": 1574.701114999607,
-    "p99_ms": 2027.102691999171
+    "p50_ms": 26.836100000082297,
+    "p95_ms": 1020.208115000014,
+    "p99_ms": 1074.028568999817
    }
   ],
-  "worst_p99_ms": 2027.102691999171,
-  "avg_p95_ms": 1552.6063087498187,
+  "worst_p99_ms": 1547.1663790000957,
+  "avg_p95_ms": 1151.1057912499552,
   "total": 768,
   "total_ok": 768,
-  "bytes_read": 302381568,
+  "bytes_read": 340884992,
   "verdict": "OK"
  },
  "delta_vs_previous": {
-  "vs_file": "2026-11-17-static-warm-17.json",
-  "worst_p99_delta_ms": 492.6430719991731,
-  "avg_p95_delta_ms": 523.1640337497765,
-  "bytes_delta": 12824576,
+  "vs_file": "2026-11-17-static-warm-18.json",
+  "worst_p99_delta_ms": -479.9363129990752,
+  "avg_p95_delta_ms": -401.50051749986346,
+  "bytes_delta": 38503424,
   "total_delta": 0
  },
  "all": [
+  {
+   "file": "static-warm-2026-11-18.json",
+   "readable": true,
+   "started_utc": "2026-11-18T10:58:49.319109+00:00",
+   "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
+   "concurrency": 96,
+   "warmup_rounds": 2,
+   "rounds": [
+    {
+     "total": 192,
+     "ok": 192,
+     "p50_ms": 24.81084999999439,
+     "p95_ms": 1533.4068750000824,
+     "p99_ms": 1547.1663790000957
+    },
+    {
+     "total": 192,
+     "ok": 192,
+     "p50_ms": 34.42230000018753,
+     "p95_ms": 1023.7471899998582,
+     "p99_ms": 1040.1669399999537
+    },
+    {
+     "total": 192,
+     "ok": 192,
+     "p50_ms": 26.740700000118522,
+     "p95_ms": 1027.0609849998664,
+     "p99_ms": 1520.5616519997238
+    },
+    {
+     "total": 192,
+     "ok": 192,
+     "p50_ms": 26.836100000082297,
+     "p95_ms": 1020.208115000014,
+     "p99_ms": 1074.028568999817
+    }
+   ],
+   "worst_p99_ms": 1547.1663790000957,
+   "avg_p95_ms": 1151.1057912499552,
+   "total": 768,
+   "total_ok": 768,
+   "bytes_read": 340884992,
+   "verdict": "OK"
+  },
   {
    "file": "2026-11-17-static-warm-18.json",
    "readable": true,
@@ -956,6 +1000,36 @@
    "verdict": "HELD"
   },
   {
+   "file": "exhibit-copilot-2026-11-17.json",
+   "readable": true,
+   "started_utc": "",
+   "note": "",
+   "concurrency": null,
+   "warmup_rounds": 0,
+   "rounds": [],
+   "worst_p99_ms": 0.0,
+   "avg_p95_ms": 0.0,
+   "total": 0,
+   "total_ok": 0,
+   "bytes_read": 0,
+   "verdict": "HELD"
+  },
+  {
+   "file": "gazette-feature.json",
+   "readable": true,
+   "started_utc": "",
+   "note": "model-written from this entry; mechanical gates: zh ≤ 280 CJK chars · en ≤ 220 words · no markdown · non-empty",
+   "concurrency": null,
+   "warmup_rounds": 0,
+   "rounds": [],
+   "worst_p99_ms": 0.0,
+   "avg_p95_ms": 0.0,
+   "total": 0,
+   "total_ok": 0,
+   "bytes_read": 0,
+   "verdict": "unknown"
+  },
+  {
    "file": "investigation-dig.json",
    "readable": true,
    "started_utc": "",
@@ -969,6 +1043,21 @@
    "total_ok": 0,
    "bytes_read": 0,
    "verdict": "EVIDENCE-GATHERED"
+  },
+  {
+   "file": "lane-cache-probe-2026-11-18.json",
+   "readable": true,
+   "started_utc": "",
+   "note": "live probes; the two strikes per lane are byte-identical on the prefix; no verdicts minted; numbers recorded as returned",
+   "concurrency": null,
+   "warmup_rounds": 0,
+   "rounds": [],
+   "worst_p99_ms": 0.0,
+   "avg_p95_ms": 0.0,
+   "total": 0,
+   "total_ok": 0,
+   "bytes_read": 0,
+   "verdict": "unknown"
   },
   {
    "file": "night-watch.json",
