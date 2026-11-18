@@ -118,5 +118,30 @@ jobs:
             exit 0
           fi
           git commit -m "chore(specproof): sync latest master — portfolio data"
-          git push origin HEAD
-          echo "pushed fresh SpecProof data to portfolio repo"
+
+          # The io master receives pushes from parallel lanes; a stale clone
+          # gets rejected on push. Reset to the current tip and re-commit the
+          # payload so a healthy run always lands on a current ref — three
+          # attempts, then fail loudly.
+          attempt=1
+          while [ $attempt -le 3 ]; do
+            if git push origin HEAD 2>&1; then
+              echo "pushed fresh SpecProof data to portfolio repo (attempt ${attempt})"
+              exit 0
+            fi
+            echo "push rejected (attempt ${attempt}) — resetting to current tip and re-committing the payload…"
+            git fetch --depth 1 origin master
+            git reset --hard origin/master
+            mkdir -p data
+            cp ../artifacts/portfolio-data/.github-sync.json data/specproof-sync.json
+            cp ../artifacts/portfolio-data/latest.md data/specproof-latest.md
+            cp ../artifacts/portfolio-data/products.json data/specproof-products.json
+            if [ -f ../artifacts/portfolio-data/.github-gazette.json ]; then
+              cp ../artifacts/portfolio-data/.github-gazette.json data/specproof-gazette.json
+            fi
+            git add data/
+            git commit -m "chore(specproof): sync latest master — portfolio data"
+            attempt=$((attempt + 1))
+          done
+          echo "portfolio-sync: push rejected after 3 attempts — failing loudly (see log)"
+          exit 1
