@@ -7141,3 +7141,51 @@ sPliveHead  = 1c4e97d · spliveSynced = 2026-11-18 07:17:54 UTC · 60 route chip
 ### 197.5 账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1792** · worldbook **197 卷（双语对称）** · library **196 zh≡en** · 24 pinned reds 仍钉 ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷一百九十八 · 一闪，是墨
+
+> "报纸不替世界说话；它把世界从墨里捞出来，再递给第二天的人。"
+
+### 198.1 TODAY'S ECHO，一卷的事后，再重敲一次
+
+2026-11-18T09:38:24Z，`scripts/gazette_feature.py` 以 `#1996《旧牌子》` 为锚，经 Clash Verge 调 aizzz `gpt-6.1-terra`，双侧 epigraph 同场重敲——此前头版停格在 2026-11-17T19:29Z、锚 `#1981` 的那一行，整整两个卷（#196《冷的四点八》、#197《旧牌子》）已经换了面，世界没丢，头版没跟上。
+
+中文（92 CJK 字 · 机械门 zh ≤ 280），逐字：
+
+> io 页的 SpecProof 瓷砖曾从 raw CDN 读到旧牌：同屏直播已到 #1995，砖面仍指向 #1977；修复落在同步器与瓷砖读取链，改由同源 specproof-sync.json 供数，并保留回退。dig、runbook 与 investigator 的 LLM 超时从 90 秒调至 150 秒，17 项测试通过，court lane 未动。账面并非一张牌：页首记 chronicle 1792、worldbook 197 卷，现场瓦片验收记 1791、196 卷；旧副本仍可能与新事实同屏。
+
+English（93 words · 机械门 en ≤ 220），verbatim：
+
+> The ledger marks three repairs: scripts/sync_portfolio.py now carries a fact-pack in the sync payload; the io tile prefers ./data/specproof-sync.json, then falls back to raw data, assets/specproof/latest.json, and baked constants; and the LLM timeout is 150 seconds in craft/investigators.py, api/investigation_dig.py, and api/runbook_triage.py, with the cited tests passing 17/17. Around them, the world is shaped by parallel copies that can drift, and by sync routes carrying evidence from repository to page. Its horizon stays open: what matters is not that every view agrees by itself, but that each can show where its account came from.
+
+机械门全过——不过门的话，这一栏沿用 11/17 的旧行，不放行半个字。模型打印，不裁决。
+
+### 198.2 墨替世界核对了账
+
+这一版 epigraph 有一句是作者自己从没单独说出口的：
+
+> 「账面并非一张牌：页首记 chronicle 1792、worldbook 197 卷，现场瓦片验收记 1791、196 卷」
+
+它把时间线核对出来了：
+
+| 时刻 | 瓷砖 | 此刻的世界 |
+|---|---|---|
+| 07:17Z | **1791** · 196 scrolls · strike #1995 | 卷 #196 已入册，卷 #197 未落地 |
+| 07:51Z | **1792** · **197 scrolls** · strike #1996 | 卷 #197 已入册 |
+
+模型没有编造这两笔；它在复述它能看到的：页顶首屏、瓷砖 JS、账本——三处数字各说各的实话，缝在账本页里，谁翻都能对账。
+
+### 198.3 边界照旧
+
+1. 这一敲不是 verdict、不是 exhibit——exhibit_entries 依然 **18**；
+2. Court `4117d2b0ca5fb23a` **LOCKED**，连 `prompt_cache_key` 都没有；
+3. "17 项测试通过"——与 `test_investigation_dig` + `test_investigation_dig_route` + `test_runbook_claims_hold` 的 17/17 一致，未被夸大也未被抹小；
+4. 六拍网关失败在 `#1995` 原样入账；本节不涂、不删。
+
+### 198.4 座次
+
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1793** · worldbook **198 卷（双语对称）** · library **197 zh≡en** · UI **594/594**
+
+### 198.5 账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds 仍钉 ·「密码-123」依旧是一扇标着「演示」的门

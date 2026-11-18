@@ -7017,3 +7017,51 @@ spliveHead  = 1c4e97d · spliveSynced = 2026-11-18 07:17:54 UTC · 60 route chip
 ### 197.5 The ledger
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1792** · worldbook **197 scrolls (bilingual mirror)** · library **196 zh≡en** · 24 pinned reds stand · 「密码-123」is still a door marked "demo"
+
+## Scroll CXCVIII · The Ink Speaks
+
+> "The newspaper does not speak for the world; it fishes the world out of ink, and hands it to the next day's reader."
+
+### 198.1 TODAY'S ECHO, re-struck two volumes late
+
+2026-11-18T09:38:24Z — `scripts/gazette_feature.py`, anchored on `#1996 《旧牌子》`, struck aizzz `gpt-6.1-terra` (via Clash Verge) twice — once in Chinese, once in English — re-writing the front page's epigraph. The old line had been frozen at 2026-11-17T19:29Z, anchored on `#1981`, while two volumes (#196 《冷的四点八》 and #197 《旧牌子》) had since turned over. The world had not stopped; the front page had stalled.
+
+Chinese (92 CJK chars · mechanical gate zh ≤ 280), verbatim:
+
+> io 页的 SpecProof 瓷砖曾从 raw CDN 读到旧牌：同屏直播已到 #1995，砖面仍指向 #1977；修复落在同步器与瓷砖读取链，改由同源 specproof-sync.json 供数，并保留回退。dig、runbook 与 investigator 的 LLM 超时从 90 秒调至 150 秒，17 项测试通过，court lane 未动。账面并非一张牌：页首记 chronicle 1792、worldbook 197 卷，现场瓦片验收记 1791、196 卷；旧副本仍可能与新事实同屏。
+
+English (93 words · mechanical gate en ≤ 220), verbatim:
+
+> The ledger marks three repairs: scripts/sync_portfolio.py now carries a fact-pack in the sync payload; the io tile prefers ./data/specproof-sync.json, then falls back to raw data, assets/specproof/latest.json, and baked constants; and the LLM timeout is 150 seconds in craft/investigators.py, api/investigation_dig.py, and api/runbook_triage.py, with the cited tests passing 17/17. Around them, the world is shaped by parallel copies that can drift, and by sync routes carrying evidence from repository to page. Its horizon stays open: what matters is not that every view agrees by itself, but that each can show where its account came from.
+
+Both sides passed the mechanical gate — zh 92/280 CJK, en 93/220 words, no markdown, non-empty. Had either failed, the front page would have kept the 11/17 line; not one character was smuggled past the gate. The model prints; it does not rule.
+
+### 198.2 The ink audited the ledger
+
+This epigraph contains a sentence nobody on the human side had said out loud:
+
+> 「账面并非一张牌：页首记 chronicle 1792、worldbook 197 卷，现场瓦片验收记 1791、196 卷」 — the account is not one card: the front matter records chronicle 1792 and worldbook 197 volumes, while the on-site tile check recorded 1791 and 196.
+
+It reconciled the timeline on its own:
+
+| moment | tile | the world at that instant |
+|---|---|---|
+| 07:17Z | **1791** · 196 scrolls · strike #1995 | Scroll #196 landed; #197 had not |
+| 07:51Z | **1792** · **197 scrolls** · strike #1996 | Scroll #197 landed |
+
+The model invented neither figure; it was restating what it could see — the front tile, the JS tile, and the ledger tell three true stories, each self-auditable by anyone who flips the pages.
+
+### 198.3 The boundaries hold
+
+1. This strike is not a verdict and not an exhibit — exhibit_entries stays **18**;
+2. Court `4117d2b0ca5fb23a` **LOCKED** — not even a `prompt_cache_key`;
+3. "17 tests passing" matches the real suite (`test_investigation_dig` + `test_investigation_dig_route` + `test_runbook_claims_hold` = 17/17) — not inflated, not diminished;
+4. The six gateway-choked strikes of this morning remain recorded in `#1995` as they happened — nothing repainted, nothing deleted.
+
+### 198.4 The anchors
+
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1793** · worldbook **198 scrolls (bilingual mirror)** · library **197 zh≡en** · UI **594/594**
+
+### 198.5 The ledger
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds stand · 「密码-123」is still a door marked "demo"

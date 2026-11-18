@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-11-17T19:29:15+00:00",
-  "anchor": "#1981 《守门人的新装置》：bot 自敲自提的 fact pack 07:50Z 出厂自带假账（`total_commits=1 · worldbook=180 · chronicle=1775`）——根因 **`fetch-depth: 1`**；`.github/workflows/latest-json.yml` 改 `fetch-depth: 0`；`scripts/build_latest.py` 加**自毁检查**（`total_commits<100 || scrolls<100 || chronicle<1000` → exit 1，绝不为浅克隆生成 JSON）· treat-the-files-equals-trust-the-tanks；showcase bakes commit 跟上 #1980 · chronicle **1777** + 1 · worldbook **182 卷（双语对称）** · UI **591/591**",
-  "zh": "07:50Z，自敲自提的 fact pack 把浅克隆记成 total_commits=1、worldbook=180、chronicle=1775；根因是 fetch-depth: 1，现改为 0，build_latest.py 在 total_commits<100、worldbook_scrolls<100 或 chronicle_entries<1000 时退出，拒绝浅克隆生成 JSON。showcase baked master 跟上 #1980；本节 chronicle 至 1777（+1），worldbook 182 卷、双语对称，UI 591/591。边界未松：不出 exhibit，Night Watch 仍 CRACKED，bench 红 24 条不涂绿，D2 仍等 PORTFOLIO_TOKEN。",
-  "en": "In `.github/workflows/latest-json.yml`, `fetch-depth: 0` replaces the shallow checkout; in `scripts/build_latest.py`, the build exits if `total_commits < 100`, `worldbook_scrolls < 100`, or `chronicle_entries < 1000`; and the showcase’s `#sp-state` records `MASTER · UI 591/591 · 18 exhibits · 181 scrolls · strike #1980`. Around these marks, the world opens to evidence: the shallow lane cannot generate a JSON ledger, while this entry records chronicle 1777 and 182 bilingual-symmetric volumes. Its horizon remains uneven: exhibit entries stay at 18, D2 still awaits the owner’s `PORTFOLIO_TOKEN`, and Night Watch remains cracked.",
+  "generated_at": "2026-11-18T09:38:24+00:00",
+  "anchor": "#1996 《旧牌子》：io 瓷砖读走 raw CDN 陈旧 latest.json（#1977 系）——同屏对账 `#specproof-live` 新、瓷砖旧；修复：sync payload 携带 fact-pack、瓷砖改读同源 specproof-sync.json、兜底 latest.json 刷新 · dig/runbook timeout 90→150s · chronicle **1792** · worldbook **197 卷（双语对称）** · UI **594/594**",
+  "zh": "io 页的 SpecProof 瓷砖曾从 raw CDN 读到旧牌：同屏直播已到 #1995，砖面仍指向 #1977；修复落在同步器与瓷砖读取链，改由同源 specproof-sync.json 供数，并保留回退。dig、runbook 与 investigator 的 LLM 超时从 90 秒调至 150 秒，17 项测试通过，court lane 未动。账面并非一张牌：页首记 chronicle 1792、worldbook 197 卷，现场瓦片验收记 1791、196 卷；旧副本仍可能与新事实同屏。",
+  "en": "The ledger marks three repairs: scripts/sync_portfolio.py now carries a fact-pack in the sync payload; the io tile prefers ./data/specproof-sync.json, then falls back to raw data, assets/specproof/latest.json, and baked constants; and the LLM timeout is 150 seconds in craft/investigators.py, api/investigation_dig.py, and api/runbook_triage.py, with the cited tests passing 17/17. Around them, the world is shaped by parallel copies that can drift, and by sync routes carrying evidence from repository to page. Its horizon stays open: what matters is not that every view agrees by itself, but that each can show where its account came from.",
   "model": "gpt-6.1-terra",
-  "chars_zh": 53,
-  "words_en": 88,
+  "chars_zh": 92,
+  "words_en": 93,
   "note": "model-written from this entry; mechanical gates: zh ≤ 280 CJK chars · en ≤ 220 words · no markdown · non-empty"
 }

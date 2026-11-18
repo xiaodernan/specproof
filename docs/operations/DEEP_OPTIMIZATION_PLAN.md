@@ -42334,3 +42334,27 @@ mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb
 ### 三、账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1792** · worldbook **197 卷（双语对称）** · D1 ✅ · D2 ✅ ·「密码-123」依旧是一扇标着「演示」的门
+
+## #1997 《一闪，是墨》：gazette_feature 以 #1996 为锚重敲 TODAY'S ECHO（zh 92/280 · en 93/220 · 机械门全过） · 模型自行核对出『页首 1792/197 与现场瓦片 1791/196』的双值缝 · chronicle **1793** · worldbook **198 卷（双语对称）** · library **197 zh≡en** · UI **594/594**
+
+**记录基准**：本节只追加。本号衔接 #1996（旧牌子）。
+
+### 一、交付
+
+1. **实敲落盘**：`scripts/gazette_feature.py` 经 Clash Verge 调 aizzz aizzz `gpt-6.1-terra`（protocol=`responses`），以 `#1996` 为锚，双侧 epigraph 重敲 → `apps/web/src/pages/gazette_feature.json`（generated `2026-11-18T09:38:24+00:00`）+ `docs/evidence/gazette-feature.{json,md}`——此前头版停格在 #1981（11-17T19:29Z，两个卷前）；
+2. **机械门全过**：zh **92** CJK（≤280）· en **93** 词（≤220）· 无 markdown · 非空——任何一侧不过门，头版沿用旧行，绝不放行半个编的字；
+3. **模型自行对账**：epigraph 点出「页首记 chronicle 1792 / worldbook 197 卷，现场瓦片验收记 1791 / 196 卷；旧副本仍可能与新事实同屏」——07:17Z 瓷砖（1791/196）与 07:51Z 瓷砖（1792/197）的双值缝首次被非人手笔指出；本节不涂、不删、不润色；
+4. **scroll #198《一闪，是墨》**（zh≡en）入册；chronicle → **1793** · worldbook → **198 卷** · library → **197 zh≡en** · `Library.test.tsx` 钉页同步 196→197；UI **594/594** 不动；
+5. **D2 闭环保持**：master push → `portfolio-sync.yml` verify（`gh api /user` HTTP 200）→ clone → artifacts → push io master → LATEST SHIP 自动跟进。
+
+### 二、没涂没动没骗
+
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · 24 pinned reds；
+2. 没有一敲被改写 verdict；epigraph 里没有任何被润色过的字；
+3. "17 项测试通过"与实测 `test_investigation_dig` + `test_investigation_dig_route` + `test_runbook_claims_hold` = **17/17** 一致；
+4. 六拍网关瞬时失败不在本节重抄——原样在 `#1995`、《冷的四点八》《一闪，是墨》；
+5. `.local/llm.json` 不进 git；purity sift CLEAR。
+
+### 三、账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1793** · worldbook **198 卷（双语对称）** · D1 ✅ · D2 ✅ ·「密码-123」依旧是一扇标着「演示」的门
