@@ -7112,3 +7112,38 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entrie
 ### 199.5 The ledger
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds stand · 「密码-123」is still a door marked "demo"
+
+## Scroll CC · The Ink Went Public
+
+> "The front page is no longer a carved wooden plaque — it is ink, alive, pushed out together with every merge."
+
+### 200.1 A new face on the io page today
+
+SpecProof's TODAY'S ECHO lived inside `apps/web/src/pages/gazette_feature.json` — a file no reader would ever find. On 2026-11-18 it was wired into the public homepage, as the hero of the new **头版一闪 / TODAY'S ECHO** block beneath `#specproof-live`:
+
+1. `scripts/sync_portfolio.py` — alongside the sync payload, emits `.github-gazette.json`: the anchor, the zh/en bodies verbatim, and the mechanical-gate note. Copied byte-for-byte from `gazette_feature.json`; nothing reworded, nothing deleted;
+2. `.github/workflows/portfolio-sync.yml` — on every master push, `./data/specproof-gazette.json` rides the same ride as the sync trio to the io repo;
+3. io page `index.html` — `#specproof-live` grows a `<figure class="splive-gazette">`: kicker "TODAY'S ECHO · 头版一闪 · 模型原句 · 非裁决" + the anchor + Chinese quote + `<q>` English + a plain-words mechanism footnote (how this sentence got here: `scripts/gazette_feature.py` struck the anchor's newest ledger section with aizzz `gpt-6.1-terra` and passed the mechanical gates — zh ≤ 280 CJK · en ≤ 220 words · no markdown · non-empty — or it would not be on this page);
+4. `styles.css` — `.splive-gazette` glow gradient + a pulsing ✦ (2.4s) + `prefers-reduced-motion` guard; no new fonts, no network assets, no images;
+5. The closing line, printed on the page itself, for anyone who wonders what the model may do here: **模型可以复述账本，不得审判世界 — the model may restate the ledger, it may not judge the world.**
+
+### 200.2 The bytes on the wire, verbatim
+
+```
+TODAY'S ECHO · anchor #1996 《旧牌子》
+zh 92/280 CJK · en 93/220 w · generated 2026-11-18T09:38:24Z
+```
+
+> io 页的 SpecProof 瓷砖曾从 raw CDN 读到旧牌：同屏直播已到 #1995，砖面仍指向 #1977；修复落在同步器与瓷砖读取链，改由同源 specproof-sync.json 供数，并保留回退。dig、runbook 与 investigator 的 LLM 超时从 90 秒调至 150 秒，17 项测试通过，court lane 未动。账面并非一张牌：页首记 chronicle 1792、worldbook 197 卷，现场瓦片验收记 1791、196 卷；旧副本仍可能与新事实同屏。
+
+### 200.3 The edge, stated plainly
+
+Pages serves HTML with `cache-control: max-age=600` (10 minutes) — push, then up-to-ten minutes before the new face is in every reader's eyes. Measured, not asserted: edge HTML is already the new one (63,749 B containing `.splive-gazette` markup and the JS path `specproof-gazette.json`); `styles.css` is 46,999 B edge-fresh with the gazette rules; `GET /data/specproof-gazette.json` → 200; browser documents can lag the edge by the same window. The first-paint is honest either way: if fetch fails, the placeholder says exactly that, and retries once after 2.5 s before giving up — the fix for the exact CDN-mid-publish transient that had the tile glued to a stale `#1977`.
+
+### 200.4 The anchors
+
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1795** · worldbook **200 scrolls (bilingual mirror)** · library **199 zh≡en** · UI **594/594**
+
+### 200.5 The ledger
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds stand · 「密码-123」is still a door marked "demo"

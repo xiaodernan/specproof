@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-18T10:27:30+00:00",
-  "count": 198,
+  "generated_at": "2026-11-18T10:46:41+00:00",
+  "count": 199,
   "zh": [
     {
       "num": "卷零",
@@ -991,6 +991,11 @@
       "num": "卷一百九十九",
       "title": "墨替人对账",
       "excerpt": "2026-11-17T19:29Z，`scripts/gazette_feature.py` 锚在 `#1981` 的那一行，写下 TODAY'S ECHO。它写的时候世界是暖的：UI 591/591、worldbook 182、D2 仍在等钥匙。"
+    },
+    {
+      "num": "卷二百",
+      "title": "墨落江湖",
+      "excerpt": "SpecProof 的 TODAY'S ECHO（头版一闪）本来住在 `apps/web/src/pages/gazette_feature.json` 里——人看不到它活着。2026-11-18，这篇模型原句被接到 io 页的 `#specproof-live` 下方，成为**头版一闪**这个新版面的主角："
     }
   ],
   "en": [
@@ -1983,6 +1988,11 @@
       "num": "Scroll CXCIX",
       "title": "The Ink That Counted for Us",
       "excerpt": "2026-11-17T19:29Z, `scripts/gazette_feature.py` anchored the front page at `#1981`. The world was warm back then: UI 591/591, worldbook 182, D2 still waiting on the key."
+    },
+    {
+      "num": "Scroll CC",
+      "title": "The Ink Went Public",
+      "excerpt": "SpecProof's TODAY'S ECHO lived inside `apps/web/src/pages/gazette_feature.json` — a file no reader would ever find. On 2026-11-18 it was wired into the public homepage, as the hero of the new **头版一闪 / TODAY'S ECHO** block beneath `#specproo…"
     }
   ],
   "note": "machine-struck from the two bibles; parity asserted at build time; never an editorial statement"

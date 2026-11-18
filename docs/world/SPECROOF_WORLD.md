@@ -7236,3 +7236,40 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entrie
 ### 199.5 账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds 仍钉 ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷二百 · 墨落江湖
+
+> "头版不再是人刻的木牌——是墨自己活着，每次推送一起推到纸上。"
+
+### 200.1 今天 io 页长出了一块新版面
+
+SpecProof 的 TODAY'S ECHO（头版一闪）本来住在 `apps/web/src/pages/gazette_feature.json` 里——人看不到它活着。2026-11-18，这篇模型原句被接到 io 页的 `#specproof-live` 下方，成为**头版一闪**这个新版面的主角：
+
+1. `scripts/sync_portfolio.py`：payload 之外，多一份 `.github-gazette.json`——锚点 + zh / en 正文 + 机械门 note，从 `gazette_feature.json` 原样拷贝，不润色、不翻译、不删字；
+2. `.github/workflows/portfolio-sync.yml`：master 每次推送，自动把 `./data/specproof-gazette.json` 连同 sync 三件套一起推去 io master；
+3. io 页 `index.html`：`#specproof-live` 下方新增 `<figure class="splive-gazette">`——"TODAY'S ECHO · 头版一闪 · 模型原句 · 非裁决" + 锚点 + 中文直引 + `<q>` English 句 + 机制说明（这句是怎么进到这页来的：`scripts/gazette_feature.py` 以最新账本节为锚直敲 aizzz `gpt-6.1-terra`，机械门——zh ≤ 280 字 / en ≤ 220 词 / 无 markdown / 非空——全过才落盘）；
+4. `styles.css`：`.splive-gazette` 的 glow 渐变 + pulsing ✦（2.4s）+ `prefers-reduced-motion` 兜底；无新字体、无网络依赖、无图片；
+5. 尾行诚实：**模型可以复述账本，不得审判世界。**
+
+### 200.2 现场落盘（逐字）
+
+```
+TODAY'S ECHO · 锚 #1996《旧牌子》
+zh  92/280 CJK · en 93/220 w · generated 2026-11-18T09:38:24Z
+```
+
+> io 页的 SpecProof 瓷砖曾从 raw CDN 读到旧牌：同屏直播已到 #1995，砖面仍指向 #1977；修复落在同步器与瓷砖读取链，改由同源 specproof-sync.json 供数，并保留回退。dig、runbook 与 investigator 的 LLM 超时从 90 秒调至 150 秒，17 项测试通过，court lane 未动。账面并非一张牌：页首记 chronicle 1792、worldbook 197 卷，现场瓦片验收记 1791、196 卷；旧副本仍可能与新事实同屏。
+
+### 200.3 边缘的真相，也不假装没有
+
+Pages 给 HTML 打的是 `cache-control: max-age=600`（10 分钟）——这意味着每次推送之后，页面上的新版面最多要等十分钟才轮到读者眼睛。实测：`styles.css?v=20261118b` 与 `index.html` 都在边缘是新的（63,749 B，带 `.splive-gazette`；XHR `?cb=` 直打确认），`splive-gazette` 的 HTML/markup/JS/CSS 都在；`/data/specproof-gazette.json` 200 OK。
+
+另外抓到一个真的边缘瞬态：Pages 发布的那几秒里，边缘可能对 `data/*.json` 吐 404，而 JS 会把占位符显示出来——看起来像「没数据」。修法：IIFE 失败后等 2.5s 重试一次；再失败就留着占位符，不画假值。这正是之前它把自己误标成 CDN 地址没了的同一类瞬态。
+
+### 200.4 座次
+
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1795** · worldbook **200 卷（双语对称）** · library **199 zh≡en** · UI **594/594**
+
+### 200.5 账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds 仍钉 ·「密码-123」依旧是一扇标着「演示」的门

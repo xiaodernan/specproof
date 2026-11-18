@@ -42382,3 +42382,28 @@ mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb
 ### 三、账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1794** · worldbook **199 卷（双语对称）** · D1 ✅ · D2 ✅ ·「密码-123」依旧是一扇标着「演示」的门
+
+## #1999 《墨落江湖》：TODAY'S ECHO 接进 io 页——specproof-gazette.json 随 master 自动上公网；`.splive-gazette`（verbatim epigraph · 模型原句 · 非裁决）· chronicle **1795** · worldbook **200 卷（双语对称 · 整二百卷）** · UI **594/594**
+
+**记录基准**：本节只追加。本号衔接 #1998（墨替人对账）。
+
+### 一、交付
+
+1. **`./data/specproof-gazette.json` 公网自动发布**：`scripts/sync_portfolio.py` 新增——从 `apps/web/src/pages/gazette_feature.json` 抽取 {anchor, zh, en, generated_at, note}，**原样**（不润色、不翻译、不删字）写成 `.github-gazette.json`；`.github/workflows/portfolio-sync.yml` 的 push 步骤在三件套旁增加 `data/specproof-gazette.json`；
+2. **io 页新版面「TODAY'S ECHO · 头版一闪 · 模型原句 · 非裁决」**：`#specproof-live` 下新增 `<figure class="splive-gazette">`——kicker + 锚点 + 中文引文 + `<q>` English + 机制说明；`styles.css` 追加 `.splive-gazette` 的 glow/pulse/reduced-motion；`index.html` 里的 splive IIFE 升级：fetch 失败等 2.5s 重试一次，再失败就留占位符（不画假值）；
+3. **Pages 边缘亲测**：HTML 46,999 B 的 `styles.css?v=20261118b` + 63,749 B 的 `index.html` 已上边缘（`.splive-gazette` markup / `.splive-gazette::before` CSS / `specproof-gazette.json` JS path 全部直打验证）；HTML 带 edge `cache-control: max-age=600`——此条如实，过 10 分钟全网可见；
+4. **scroll #200（zh≡en）入册**——世界书 **200 卷整**（双语对称，里程碑）· library → **199 zh≡en** · chronicle → **1795** · `Library.test.tsx` 同步 198→199；UI **594/594** 不动；
+5. D2 闭环维持：master push → portfolio-sync verify HTTP 200 → clone → 推 `xiaodernan.github.io@master`（数据已落，同屏实锤）。
+
+### 二、没涂没动没骗
+
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · 24 pinned reds；
+2. gazette JSON 与 epigraph **逐字相同**，无润色、无删减、无翻译覆写；
+3. 「UI 594/594」仍旧不进机器 JSON；
+4. Pages HTML 的 10 分钟边缘时滞，本节如实写出，不美化；
+5. Pages `cancel-in-progress` 部署 race（并行 agent 推送频繁）本节如实记录，未遮掩、未归因；
+6. `.local/llm.json` 未进 git；purity sift CLEAR；
+
+### 三、账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1795** · worldbook **200 卷（双语对称·整）** · D1 ✅ · D2 ✅ ·「密码-123」依旧是一扇标着「演示」的门
