@@ -97,7 +97,7 @@ describe("问问书 · ask the world book", () => {
     cleanup();
   });
 
-  it("surfaces one honest error line when the lane fails — no ghost paragraph", async () => {
+  it("makes the book answer instead — never a fabricated paragraph, never a model verdict", async () => {
     stubFetchFailing();
     const { container } = render(
       <I18nProvider>
@@ -106,6 +106,28 @@ describe("问问书 · ask the world book", () => {
     );
     const input = container.querySelector<HTMLTextAreaElement>("#ask-the-book-input")!;
     fireEvent.change(input, { target: { value: "世界书从哪里开始？" } });
+    fireEvent.click(screen.getByRole("button", { name: /问！|^Ask$/i }));
+    // the lane failed → the local fallback serves the book's own text
+    await waitFor(() => expect(container.textContent).toContain("书里原文"));
+    expect(container.textContent).toContain("卷零 · 创世之炉");
+    expect(container.textContent).toContain("离线本地");
+    // the answer may never impersonate the model
+    expect(container.textContent).not.toContain("模型打印的话不附带裁决");
+    expect(container.textContent).not.toContain("gpt-6.1-terra");
+    expect(container.querySelector(".askthebook-answer")).not.toBeNull();
+    cleanup();
+  });
+
+  it("surfaces one honest error line when the lane fails AND the book has no match — no ghost paragraph", async () => {
+    stubFetchFailing();
+    const { container } = render(
+      <I18nProvider>
+        <AskTheBook />
+      </I18nProvider>,
+    );
+    const input = container.querySelector<HTMLTextAreaElement>("#ask-the-book-input")!;
+    // gibberish with no keyword overlap anywhere in the snapshot
+    fireEvent.change(input, { target: { value: "zzqxy vwx qrv wvu xyz" } });
     fireEvent.click(screen.getByRole("button", { name: /问！|^Ask$/i }));
     await waitFor(() => expect(container.textContent).toContain("模型暂时没回答出来"));
     // the answer box must not be filled with fiction

@@ -122,7 +122,7 @@ export default function Login(props: { onConnected?: () => void }) {
             <p>{c.exampleText}</p>
             <div className="welcome-example-result"><span aria-hidden="true">!</span><div><strong>{c.exampleFindingStrong}</strong><small>{c.exampleFindingSmall}</small></div></div>
           </div>
-          <a className="welcome-guide-link" href="#/guide">{c.guideLink}<span aria-hidden="true">→</span></a>
+          <a className="welcome-guide-link" href="#/guide" title={c.guideTip}>{c.guideLink}<span aria-hidden="true">→</span></a>
         </section>
 
         <section className="login-card welcome-connect" aria-labelledby="connect-title">
@@ -132,18 +132,18 @@ export default function Login(props: { onConnected?: () => void }) {
           <form onSubmit={(event) => { void connect(event); }}>
             {tenantMode ? (
               <div className="login-modes" aria-label={c.modesAria}>
-                <Button variant={mode === "token" ? "secondary" : "ghost"} aria-pressed={mode === "token"} disabled={connecting} onClick={() => { setMode("token"); setError(null); setValue(""); }}>{c.modeToken}</Button>
-                <Button variant={mode === "key" ? "secondary" : "ghost"} aria-pressed={mode === "key"} disabled={connecting} onClick={() => { setMode("key"); setError(null); setValue(""); }}>{c.modeKey}</Button>
+                <Button variant={mode === "token" ? "secondary" : "ghost"} aria-pressed={mode === "token"} disabled={connecting} title={c.modeTokenTip} onClick={() => { setMode("token"); setError(null); setValue(""); }}>{c.modeToken}</Button>
+                <Button variant={mode === "key" ? "secondary" : "ghost"} aria-pressed={mode === "key"} disabled={connecting} title={c.modeKeyTip} onClick={() => { setMode("key"); setError(null); setValue(""); }}>{c.modeKey}</Button>
               </div>
             ) : null}
             <label className="field" htmlFor="credential">{mode === "token" ? c.labelToken : c.labelKey}</label>
             <div className="credential-control">
               <input id="credential" type={showCredential ? "text" : "password"} value={value} placeholder={mode === "token" ? c.placeholderToken : c.placeholderKey} autoComplete="off" spellCheck={false} disabled={connecting} aria-describedby="credential-hint" onChange={(event) => setValue(event.target.value)} />
-              <button type="button" onClick={() => setShowCredential(!showCredential)} aria-label={showCredential ? c.revealAriaHide : c.revealAriaShow} aria-pressed={showCredential}>{showCredential ? c.hide : c.reveal}</button>
+              <button type="button" title={c.revealTip} onClick={() => setShowCredential(!showCredential)} aria-label={showCredential ? c.revealAriaHide : c.revealAriaShow} aria-pressed={showCredential}>{showCredential ? c.hide : c.reveal}</button>
             </div>
             <p className="welcome-input-hint" id="credential-hint">{mode === "key" ? c.hintKey : c.hintToken}</p>
             <ErrorBox error={error} />
-            <Button type="submit" variant="primary" size="lg" fullWidth loading={connecting}>{connecting ? c.connecting : c.connect}</Button>
+            <Button type="submit" variant="primary" size="lg" fullWidth loading={connecting} title={c.connectTip}>{connecting ? c.connecting : c.connect}</Button>
           </form>
           {config?.oidc.enabled ? (
             <div className="welcome-sso"><span>{c.oidcNote}</span><Button fullWidth disabled={connecting} onClick={() => { window.location.href = apiBase() + "/auth/oidc/login?return_to=" + encodeURIComponent("#/dashboard"); }}>{c.oidcButton}</Button></div>

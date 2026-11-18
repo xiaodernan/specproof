@@ -42,6 +42,11 @@ export interface LoginCopy {
   localBodyWindows: string;
   nonLocalBody: string;
   foot: string;
+  connectTip: string;
+  revealTip: string;
+  modeKeyTip: string;
+  modeTokenTip: string;
+  guideTip: string;
   error401: string;
   error403: string;
   error429: string;
@@ -98,6 +103,11 @@ const zh: LoginCopy = {
   localBodyWindows: "初次运行需要 Python 3.12、Node.js 18+ 和 Docker Desktop。",
   nonLocalBody: "自己部署：按项目的本地体验指南启动服务，在后端配置工作区凭据。",
   foot: "先看证据，再做交付决策",
+  connectTip: "凭据仅用于访问你所在工作区的验证任务，不写进日志、不上传第三方",
+  revealTip: "切换凭据明文 / 掩码显示；不会改变已保存的内容",
+  modeKeyTip: "用 API Key 静态凭据连接（适合本机或 CI 上跑的环境）",
+  modeTokenTip: "用短期访问令牌连接（适合团队单点登录后下发的场景）",
+  guideTip: "不必先读文档——点进说明书，五分钟看懂「从写需求到验收交付」的闭环",
   error401: "凭据未通过验证。请检查是否复制完整，或向工作区管理员获取新的凭据。",
   error403: "当前凭据没有工作区访问权限，请联系管理员。",
   error429: "连接请求过于频繁，请稍后重试。",
@@ -155,6 +165,11 @@ const en: LoginCopy = {
   localBodyWindows: "First run needs Python 3.12, Node.js 18+ and Docker Desktop.",
   nonLocalBody: "Self-hosting: follow the local-experience guide to start the service, then configure workspace credentials in the backend.",
   foot: "Look at the evidence first, then make the delivery call",
+  connectTip: "Credentials only open your workspace's verification tasks — never logged, never sent to a third party",
+  revealTip: "Toggle masked / plain display — it does not change anything that gets saved",
+  modeKeyTip: "Connect with a static API Key (good for this machine or CI)",
+  modeTokenTip: "Connect with a short-lived access token (the usual SSO-downstream case)",
+  guideTip: "No doc-reading ceremony — open the manual; five minutes from requirement to evidence",
   error401: "This credential did not pass verification. Check whether it was copied completely, or ask your administrator to issue a new one.",
   error403: "This credential does not have workspace access; contact your administrator.",
   error429: "Too many connection attempts; try again shortly.",
