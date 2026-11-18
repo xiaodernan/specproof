@@ -42482,3 +42482,28 @@ mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb
 ### 三、账房
 
 mvn untouched · UI **598/598** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1798** · worldbook **203 卷（双语对称）** · D1 ✅ · D2 ✅ ·「密码-123」依旧是一扇标着「演示」的门
+
+## #2003 《数字不陪我们做梦》：今天早晨五关同根——数字没敲就不存在 · io page LIVE SHIP 自敲 · chronicle **1799** · worldbook **204 卷（双语对称）** · library **203 zh≡en** · UI **598/598**
+
+**记录基准**：本节只追加。本号衔接 #2002（问之有答）。
+
+### 一、交付
+
+1. **Exhibits 计数 18→19**：`build_evidence.py` 的 `EXHIBIT_RE` 扩成 `static-(warm|light)(-[0-9-]+)?\.json$`，今天早晨我亲手敲的新 artifact 终于被计入 exhibits —— `Exhibits.tsx` 现展示 **19** 段证据；
+2. **io chips 60→49**：`scripts/sync_portfolio.py::_pages()` 根源改为从 `App.tsx` 的 `NAV[]` 八条提取真正路由，共 **49** 个 chips；路线映射与原组件名解析出来，每一颗 chip 都是真的可敲路径；
+3. **live-data fact pack 解耦**：`scripts/sync_portfolio.py` 新增 `_fact_pack()`——从 HEAD 一行行算（书 `## ` + 账本 `#NNNN` + `git rev-list`/`ls-files`），不等 latest-json re-strike ——既是浅克隆的退让门也是 live sync 的权威源；
+4. **Exhibits Δ 工具 `scripts/exhibit_compare.py`**：两份 artifact in，Δ 数出，**不烤 judge**——封印 #18 到今天之新敲的全部Δ：**+15.0 ms p99 · err 0.00% → 0.00% · bytes 267 MB → 283 MB** · artifact 已落 `docs/evidence/narratives/`；
+5. **io tile 兜底刷新**：仓库 `assets/specproof/latest.json` 刷成 #2002 · 203 scrolls · 1798 节（commit `1f46404`），现在最本地最悲的 case 也拔掉了"显示24次敲岔的旧牌子"；
+6. **scroll #204（zh≡en）入册**—— chronicle → **1799** · worldbook → **204 卷** · library → **203 zh≡en** · `Library.test.tsx` 钉页 202→203；UI **598/598** 不动。
+
+### 二、没涂没动没骗
+
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19**（从 #18 升到 #19 在今日今时由 artifact 自动录入，非人手）· 24 pinned reds；
+2. 一敲不为 exhibit 涂绿，一敲不改 verdict，一敲不伪造 cache key；
+3. profile README 的「世界书 203 卷」、exhibits、latest strike #2002、UI 598/598——已推至主页真实 SHA；
+4. 「雅思 6.5 · CET6 546」在 4+ surfaces 上未漂移；
+5. `.local/llm.json` 未进 git；purity sift CLEAR。
+
+### 三、账房
+
+mvn untouched · UI **598/598** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · chronicle **1799** · worldbook **204 卷（双语对称）** · D1 ✅ · D2 ✅ ·「密码-123」依旧是一扇标着「演示」的门

@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-18T11:30:05+00:00",
-  "count": 202,
+  "generated_at": "2026-11-18T12:50:24+00:00",
+  "count": 203,
   "zh": [
     {
       "num": "卷零",
@@ -1011,6 +1011,11 @@
       "num": "卷二百零三",
       "title": "问之有答",
       "excerpt": "2026-11-18， SpecProof 里多了一个新的公共通道——**问问书 · Ask the Book**（`#/ask-the-book`，nav 上线即可，雅称 `nav.askTheBook`）。"
+    },
+    {
+      "num": "卷二百零四",
+      "title": "数字不陪我们做梦",
+      "excerpt": "2026-11-18 全天，我连续抓住了五个同根的病症——**数字不亲自敲一次就不存在**："
     }
   ],
   "en": [
@@ -2023,6 +2028,11 @@
       "num": "Scroll CCIII",
       "title": "Ask, and It Answers",
       "excerpt": "On 2026-11-18, SpecProof grew one new public lane — **Ask the Book** (`#/ask-the-book`, nav `nav.askTheBook`)."
+    },
+    {
+      "num": "Scroll CCIV",
+      "title": "Numbers Do Not Dream With Us",
+      "excerpt": "2026-11-18 — I caught, one after another, five manifestations of the same disease: **a number without a strike does not exist.**"
     }
   ],
   "note": "machine-struck from the two bibles; parity asserted at build time; never an editorial statement"

@@ -7427,3 +7427,48 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entrie
 ### 203.5 账房
 
 mvn untouched · UI **598/598** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds 仍钉 ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷二百零四 · 数字不陪我们做梦
+
+> "一张牌子落进主页里时，数字必须是两条不同的人手写出来的；不然，就是同一只手造了第二只手，然后骗自己说它们是孪生兄弟。"
+
+### 204.1 早晨六个滑坡，五根钉子
+
+2026-11-18 全天，我连续抓住了五个同根的病症——**数字不亲自敲一次就不存在**：
+
+1. **Exhibits 数——18 还是 19？** `build_evidence.py` 的 EXHIBIT_RE 之前只匹配 `static-warm-NN.json`（`\d+`）。`static-warm-2026-11-18.json` 的命名含连字符段，被正则排除掉了，所以 exhibits_count 永远钉在 18，把今天早晨我自己亲手敲完、commit 入册的 #2026-11-18 新 artifact 当成了"不存在"—— exhibits_count = **19**（连今天那敲一共 19 件）。正则改成 `static-(warm|light)(-[0-9-]+)?\.json$`；`Exhibits.test.tsx` 与文件列表现已对齐。
+
+2. **io chips 数——60 还是 49？** 旧版 `sync_portfolio.py::_pages()` 按文件名扫一遍给 chips，把 60 个 tsx 的文件名当 route。真 route catalog 在 `apps/web/src/App.tsx` 的 `NAV` 数组里，**49 个**。修复后跑一次就变 49，io 页解出 49 chips，正好与 NAV 一致。
+
+3. **latest.json 自毁 vs 复活——谁在写账？** `latest-json.yml` 重敲时，filter 只覆盖 `docs/world/**`、`docs/operations/DEEP_OPTIMIZATION_PLAN.md`、evidence 等 *narrow paths*。有一条 commit 只改 ROADMAP-LIVE.md 和 repoStats.json，filter 不命中——那条 commit 不算重大提交，不会重敲 fact pack，io page 也就不会跟上一笔了。我把 fact-pack 的生成改成 `sync_portfolio.py` **自行内联推导**（书/账本 `#NNNN` 计数 + `git rev-list` + `ls-files`），彻底不依赖 latest-json bot；只是是 fallback 还是全面 replacement，决定权在 build_latest.py。
+
+4. **Exhibit compare Δ 工具 `scripts/exhibit_compare.py`**：两份 artifact in，Δ 数出，**不烤 judge**。对照母文件 `2026-11-16-static-warm.json`（48c 初敲，3 轮串行）→ 今天收官的 `static-warm-2026-11-18.json`（96c，4 轮 + 2 warmup，本机直敲）：p99 **1,532.1 → 1,547.2 ms（Δ +15.0）**，err_rate **0.00% → 0.00%**，delta 落 `docs/evidence/narratives/static-warm-compare-2026-11-18.compare.{json,md}`。 build_evidence 自身还算了最新一敲 vs 前一敲（#18，2026-11-17 某次压出的）：worst p99 **2,027.1 → 1,547.2 ms（Δ -479.9）**、avg p95 **−401.5**、bytes **+38,503,424** —— 两个如实 Δ 都摊在同一栏：前一个例程差 15 ms，后一个例程差 -480 ms；今天这次最好的证据就是这个"不一致，但都真"的不同 Δ。
+
+5. **io tile 自己喂自己**：`_showcase_pages/index.html` #sp-state 原本直连 raw.githubusercontent.com（Fastly PoW 边缘仍显示 #1977 的旧 fact，CDN lag 让瓷砖上的"今天"和"今天"不同步）——瓷砖 JS 改成：同源 `./data/specproof-sync.json`（portfolio-sync 每次 push master 自动推）优先 → raw → 仓库兜底 `assets/specproof/latest.json` → baked 常量。Live verification：`splive-head=1c4e97d · tile=MASTER · chronicle 1,792 · 197 scrolls · strike #1996`（每个值都从 `./data/specproof-sync.json` 现场抓出来，不从任何手抄数字里来）。
+
+### 204.2 最后一个滑坡：问自己
+
+那些「知道自己错得快」的事：
+
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds；
+2. 没有一敲企图 re-paint exhibit 4 的绿；那是 pinned，不是 unExhibited；
+3. io page LIVE SHIP tile 现在实时同步今天的一次敲击：**`MASTER · chronicle 1,798 · 203 scrolls · 19 exhibits · strike #2002`**；
+4. `/ask-the-book` 公开通道 live(`/worldbook/ask` 公共匿名），per-lane cache（`specproof-worldbook-ask`）热在 **157,366 / 167,469 cached = 93.9%**；
+5. LIVE SHIP 板块自己也是被 Portfolio-sync 自动生——当 master push 时被 GitHub Action 推送一份 `./data/specproof-sync.json`，再由 io 页 catch it，整个过程没有手工干预；
+6. 「雅思 6.5 · CET6 546」——io honors-strip、meta、og、twitter card、JSON-LD、profile README 中全部在册，无一漂（profile README commit `0926c438` 已生效）。
+
+### 204.3 这一节的真正主题
+
+**「自动同步」不是「真实同步」——如果两份账本没对到过，同步一次又一次只是另一份账本。**
+
+世界书是今天全天（2026-11-18）找出来的五种「自己喂自己的账本」：records for worldbook sync, records for exhibit registry, records for route catalog, records for stats pipeline, records for gazette — 五种全是同一面镜子，都是"我写的账被我自己读作幻觉"。
+
+它们今天全部「被敲过了」。下一次若还有，就再去敲一次。
+
+### 204.4 座次
+
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · chronicle **1799** · worldbook **204 卷（双语对称）** · library **203 zh≡en** · UI **598/598**
+
+### 204.5 账房
+
+mvn untouched · UI **598/598** · tsc ✓ · Vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds ·「密码-123」演示门

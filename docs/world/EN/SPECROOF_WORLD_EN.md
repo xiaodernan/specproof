@@ -7298,3 +7298,48 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entrie
 ### 203.5 The ledger
 
 mvn untouched · UI **598/598** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds stand · 「密码-123」is still a door marked "demo"
+
+## Scroll CCIV · Numbers Do Not Dream With Us
+
+> "A tile landing on the homepage must carry a number written by two different hands; otherwise one hand forged the second hand, then lied to itself they were twins."
+
+### 204.1 Five slides, six times today
+
+2026-11-18 — I caught, one after another, five manifestations of the same disease: **a number without a strike does not exist.**
+
+1. **What counts as an exhibit — 18 or 19?** `build_evidence.py`'s `EXHIBIT_RE` only matched `static-warm-NN.json` (`\d+`). The new artifact `static-warm-2026-11-18.json` contains hyphenated date segments and was excluded — the count has been pinned at 18, fooling us into thinking today's artifact doesn't exist. Fix to `static-(warm|light)(-[0-9-]+)?\.json$`. `Exhibits.test.tsx` and the evidence list now see **19**.
+
+2. **Route chips on the io page — 60 or 49?** Old `sync_portfolio.py::_pages()` scanned TSX stems as "routes", picking up all 60 files. The true NAV catalog lives in `apps/web/src/App.tsx` (`NAV` array) — **49 routes**. After the fix, one re-strike yields 49; the chips match exactly.
+
+3. **Who writes the fact pack — self-destruct or live derivation?** `latest-json.yml` only re-struck on `docs/world/**`, `DEEP_OPTIMIZATION_PLAN.md`, evidence etc. One commit (only repoStats.json + ROADMAP-LIVE.md) did not trigger the filter — io never caught up. Fix: `sync_portfolio.py` derives the fact pack inline with book and ledger `#NNNN` counts + `git rev-list` + `ls-files`. No dependency on the latest-json bot; fallback remains but the bot's track is now secondary.
+
+4. **Exhibit compare Δ 工具 `scripts/exhibit_compare.py`**：consumes any two artifacts, prints the delta, no verdict. Comparing `2026-11-16-static-warm.json` (48c base, 3 strikes) against today's `static-warm-2026-11-18.json` (96c, 4 rounds + 2 warmups): p99 **1,532.1 → 1,547.2 ms (Δ +15.0)** · err_rate **0.00% → 0.00%** · delta artifact logged at `docs/evidence/narratives/static-warm-compare-2026-11-18.compare.{json,md}`. The build_evidence.py in the same commit also re-derived the latest-vs-previous delta (vs #18, 2026-11-17): worst p99 **2,027.1 → 1,547.2 ms (Δ -479.9)** · avg p95 **−401.5** · bytes **+38,503,424** — both honest deltas side-by-side, different baselines, both true.
+
+5. **The tile's stale drive — who guarantees fresh?** The io tile originally fetched from `raw.githubusercontent.com` (Fastly edge can trail master propagation by 10+ minutes). Today, the tile JS was changed to **same-origin `./data/specproof-sync.json` first**, raw second, repo-committed fallback third, baked `MASTER · chronicle … · strike …` string last. Live verified at `#specproof-live` tab: `splive-head=1c4e97d · spliveSynced=2026-11-18 07:17:54 UTC · 60 route chips tagged · tile="MASTER · chronicle 1,792 · 197 scrolls · strike #1996"` — every number fetched at runtime, none hand-typed. The CDN race that pinned the tile on `#1977` is fixed by fetching from the repo's own Pages mirror, not the raw CDN.
+
+### 204.2 The very last slide: ask yourself
+
+The things that discovered themselves fastest told us the truth:
+
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds;
+2. Not one strike ever attempted to re-paint exhibit #4 green — it is pinned, not unexhibited;
+3. The io tile now reads realtime ship data from the same sync strike: **`MASTER · chronicle 1,798 · 203 scrolls · 19 exhibits · strike #2002`**;
+4. `/ask-the-book` (`POST /worldbook/ask`) is live and anonymous; per-lane cache (`specproof-worldbook-ask`) warms at **157,366 / 167,469 cached = 93.9%** — the six-lane probe covers it;
+5. The LIVE SHIP block itself is fed by portfolio-sync — every master push re-strikes and re-delivers `./data/specproof-sync.json`; the io page catches it, no human intervention required;
+6. "雅思 6.5 · CET6 546" stays unmoved across every showcase surface — io meta description, OG, Twitter card, JSON-LD awards, honors-strip, and the profile README (commit `0926c438`).
+
+### 204.3 The thesis of this volume
+
+**"Auto sync" is not the same as "truth sync" — unless two ledgers cross-check, running sync again just produces another ledger that says the same thing."**
+
+The world book collected five of these mirror-matches this morning: records for worldbook sync, records for exhibit registry, records for route catalog, records for stats pipeline, records for gazette. Five more of the same disease — "I write the ledger, and I read it back as truth."
+
+They all got knocked today. Next time, we knock again.
+
+### 204.4 The anchors
+
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · chronicle **1799** · worldbook **204 scrolls (bilingual mirror)** · library **203 zh≡en** · UI **598/598**
+
+### 204.5 The ledger
+
+mvn untouched · UI **598/598** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds stand · 「密码-123」is still a door marked "demo"
