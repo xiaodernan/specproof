@@ -74,33 +74,33 @@ def _latest_changelog() -> str:
 
 
 def _fact_pack() -> dict:
-    """Prefer the checked-in machine fact pack (re-struck by latest-json on
-    every master push); fall back to inline derivation with the same formulas."""
-    lp = ROOT / "docs" / "latest.json"
-    try:
-        d = json.loads(lp.read_text(encoding="utf-8"))
-        ok = (
-            isinstance(d.get("total_commits"), int) and d["total_commits"] >= 100
-            and isinstance(d.get("worldbook_scrolls"), int) and d["worldbook_scrolls"] >= 100
-            and isinstance(d.get("chronicle_entries"), int) and d["chronicle_entries"] >= 1000
-        )
-        if ok:
-            return {
-                "worldbook_scrolls": d["worldbook_scrolls"],
-                "chronicle_entries": d["chronicle_entries"],
-                "exhibit_entries": d.get("exhibit_entries"),
-                "latest_strike": d.get("latest_strike"),
-                "total_commits": d["total_commits"],
-                "tracked_files": d.get("tracked_files"),
-            }
-    except Exception:
-        pass
+    """Derive the fact pack inline from this checkout.
+
+    Earlier this preferred ``docs/latest.json`` (bot-struck), but the bot only
+    re-strikes when `latest-json.yml`'s path filter fires — a race that can
+    hand the portfolio a fact pack one strike behind HEAD. Deriving inline
+    with the same formulas is always true *now*, costs two regex scans, and
+    cannot drift from this commit.
+    """
     wtext = (ROOT / "docs" / "world" / "SPECROOF_WORLD.md").read_text(encoding="utf-8")
     scrolls = len(re.findall(r"(?m)^##\s", wtext)) + 1
     ledger = (ROOT / "docs" / "operations" / "DEEP_OPTIMIZATION_PLAN.md").read_text(encoding="utf-8")
     chron = len(re.findall(r"(?m)^## (#\d+)\s+", ledger))
     matches = list(re.finditer(r"(?m)^## (#[0-9]{4})", ledger))
     strike = matches[-1].group(1) if matches else None
+
+    def _git(*args: str) -> str:
+        proc = subprocess.run(
+            ["git", "-C", str(ROOT), *args], capture_output=True,
+            text=True, encoding="utf-8", errors="replace", timeout=60,
+        )
+        return proc.stdout.strip() if proc.returncode == 0 else ""
+
+    try:
+        total = int(_git("rev-list", "--count", "HEAD"))
+    except ValueError:
+        total = None
+    tracked = sum(1 for line in _git("ls-files").splitlines() if line.strip()) or None
     exhibits = None
     ev = ROOT / "apps" / "web" / "src" / "pages" / "evidence.json"
     if ev.is_file():
@@ -113,8 +113,8 @@ def _fact_pack() -> dict:
         "chronicle_entries": chron,
         "exhibit_entries": exhibits,
         "latest_strike": strike,
-        "total_commits": None,
-        "tracked_files": None,
+        "total_commits": total,
+        "tracked_files": tracked,
     }
 
 
