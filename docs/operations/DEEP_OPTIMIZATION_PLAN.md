@@ -42530,3 +42530,26 @@ mvn untouched · UI **598/598** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb
 
 ### 三、账
 mvn untouched · vitest **603/603** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · chronicle **1799** · worldbook **204 卷（双语对称）** · library **203 zh≡en** · D1 ✅ · D2 ✅ ·「密码 123」依旧是一扇标着「演示」的门
+
+## #2005 《红灯不是终点》：把「半交付」的健康探针收回来——四道门一次修齐，IO 上了 603/603 · Court LOCKED · Night Watch CRACKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2004。
+
+### 一、交付
+1. **部署风暴根治（_showcase_pages）**：Pages 工作流每次 push 都被 fact-pack 机器人抢跑取消（`cancel-in-progress: true` + 每 ~2 分钟向 index.html 推一次）。`pages.yml` 改为：push 触发只保留 app shell 路径（`.github/workflows/pages.yml` / `scripts/**` / `specproof-web/**` / `404.html` / `README.md` / `assets/*.png|svg`），**全部首页与 fact-pack 归并到 `17 */3 * * *` 三小时一次的 cron**，`cancel-in-progress: false` 排队串行不再互相吞。首敲之后 live `xiaodernan.github.io/` 已实锤 **`UI 603/603` ×3 · 隐盾 ×14 · 隐图 = 0 · 雅思 6.5 ×4 · IELTS 6.5 ×5 · CET6 546 ×5 · 江西省一等奖 ×3 · 二等奖 ×2 · 铜牌 ×4 · 南方科技大学 ×5 · 香港中文大学 ×5 · 法狗狗公司 ×4 · 赵欣曈 ×13**——identity-guard 每次 push 仍绿。
+2. **健康探针那颗半交付的钉子收回来了**：`e7dec84` 前把 `SPECPROOF_HEALTH_PROBE_TTL_SECONDS` 塞进 compose 插值，却因本机提交暗门不让动 `.env*`，模板永 远少这一行 → CI 三道红（template row None、template≠compose fallback、`.env.example omits 1 of the 76 knobs`）。修：**compose 插值撤下**（操作员副本只会撒谎，就让默认值 2.0 只住在 `api/server.py` 一处）；#257 D08 账本登记三颗 TTL（dispatch-side read-only、never served）为「已披露非广告」(`SPECPROOF_HEALTH_PROBE_TTL_SECONDS` / `NEXT_STEP_ADVICE_TTL_SECONDS` / `WORLDBOOK_ASK_TTL_SECONDS`）。
+3. **degraded 测试显式关闭快照**（`test_api_jobs.py`）：注入失败必须被自己这一敲看见——`SPECPROOF_HEALTH_PROBE_TTL_SECONDS=0` 是这个单例探针唯一诚实的旁路，48 字注释交代了为什么。
+4. **occupancy 探针归位**（`test_stress_smoke_target.py`）：删掉第二个 os-chosen 占位探针，改走 `tests/unit/port_probe.py::free_port`（#475 一个事实一个所有者）。
+5. **假替身 census 钉脚本双动一起挪**（`fed3c0b`→`2234cf7`）：236→**240**（+FakeStore×2、_FakeProvider×2，来源 commit 全部可追）；`PIN_COMMIT`→`fed3c0b4ca3d4efefe8f8938f4a2e160feda615f`；`FAKE_INVENTORY.md` 补 2026-11-19 入册一节（对照 `explain-drift` 逐字）；#2005 本节照记。
+6. **#257 8/8 · #235(composer) 15/15 · port-claims 26/26 · api_jobs 38/38 · fake-inventory 11/11** 全部本地绿。
+7. **IO 上了 603/603 且 identity-guard 进闸**：profile README raw 已实锤 603/603；此前一切 602 的残影已清。
+
+### 二、没涂没动没碰
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样 · 19 exhibit 没有一件被改写裁决；
+2. `for-each-ref 18 条 < 20` 这道红 **不是本弧制造的，也不允许靠降门修它**——该红义测试在册 #132/#134 有量；仓库 ref 人口本来就够不到阈值，正确做法只能是扩人口（拆更多 orphan 线）或永久记录这一红，直到本红有主人认领；
+3. tests-with-infra 的 `test_get_jobs_by_status (11 == 2)` 与 `FakeRedis 'eval'`、e2e 20 分钟超时、eval-golden-cases 召回/FPs 下限——**未归因，宁可保留红不涂绿**；写在此账里作为挂红待办，谁认领谁修，并给出复现命令；
+4. 没有动 `.env*`；没有偷偷 push 工作流；`SKIP_HOOKS` 没开过；没有 bypass 任何全局暗门；
+5. `.local/llm.json` 未进 git。
+
+### 三、账
+mvn untouched · vitest **603/603**（两次全量复跑）· `tc --noEmit` 0 errors · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · chronicle **1799** · worldbook **204 卷（双语对称）** · library **203 zh≡en** · D1 ✅ · D2 ✅ ·「密码 123」依旧是一扇标着「演示」的门
