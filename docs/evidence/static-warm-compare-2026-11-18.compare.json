@@ -1,0 +1,25 @@
+{
+  "base": "docs/evidence/2026-11-16-static-warm.json",
+  "head": "docs/evidence/static-warm-2026-11-18.json",
+  "base_started_utc": "2026-11-15T17:20:51.540914+00:00",
+  "head_started_utc": "2026-11-18T10:58:49.319109+00:00",
+  "base_concurrency": 48,
+  "head_concurrency": 96,
+  "base_verdict": "OK",
+  "head_verdict": "OK",
+  "base_worst_p99_ms": 1532.1360349968018,
+  "head_worst_p99_ms": 1547.1663790000957,
+  "worst_p99_delta_ms": 15.030344003293976,
+  "base_err_rates": [
+    0.0,
+    0.0
+  ],
+  "head_err_rates": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "head_err_rate_worst": 0.0,
+  "note": "delta is printed-as-measured. The two runs struck the same lane on the same host; differences include concurrency, dist size, and whatever else the OS was doing that minute. Neither is a production rating."
+}
