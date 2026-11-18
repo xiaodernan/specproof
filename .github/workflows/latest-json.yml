@@ -54,4 +54,18 @@ jobs:
             exit 0
           fi
           git commit -m "chore(latest): re-strike the portfolio fact pack"
-          git push origin HEAD
+
+          # master is pushed to constantly — fetch + rebase instead of failing
+          # red on a stale clone the moment someone else lands first.
+          attempt=1
+          while [ $attempt -le 3 ]; do
+            if git push origin HEAD 2>&1; then
+              echo "pushed fact pack (attempt ${attempt})"
+              exit 0
+            fi
+            echo "push rejected (attempt ${attempt}) — rebasing and retrying…"
+            git pull --rebase origin master
+            attempt=$((attempt + 1))
+          done
+          echo "fact pack push rejected after 3 attempts — failing loudly (see log)"
+          exit 1
