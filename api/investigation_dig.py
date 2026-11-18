@@ -22,7 +22,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-LLM_TIMEOUT_SECONDS = 90.0
+LLM_TIMEOUT_SECONDS = 150.0
 
 
 class InvestigationDigUnavailable(RuntimeError):

@@ -205,7 +205,7 @@ async def investigate(
     *,
     llm_client: Any | None = None,
     llm_provider: Any | None = None,
-    timeout: float = 90.0,
+    timeout: float = 150.0,
     cache_key: str = "specproof-dig",
 ) -> dict[str, Any]:
     """Run the three readonly investigators in parallel. Failures degrade to
