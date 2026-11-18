@@ -101,6 +101,17 @@ def _fact_pack() -> dict:
     except ValueError:
         total = None
     tracked = sum(1 for line in _git("ls-files").splitlines() if line.strip()) or None
+    if total is not None and total < 100:
+        # Shallow clone (workflow fetch-depth) — `rev-list --count` cannot see
+        # the real history; prefer the machine-struck fact pack instead of
+        # publishing a degenerate count.
+        try:
+            d = json.loads((ROOT / "docs" / "latest.json").read_text(encoding="utf-8"))
+            if isinstance(d.get("total_commits"), int) and d["total_commits"] >= 100:
+                total = d["total_commits"]
+                tracked = d.get("tracked_files") or tracked
+        except Exception:
+            total = None
     exhibits = None
     ev = ROOT / "apps" / "web" / "src" / "pages" / "evidence.json"
     if ev.is_file():
