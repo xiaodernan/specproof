@@ -20,6 +20,11 @@ from pathlib import Path
 
 import pytest
 
+# The host plane has exactly one owner for "give me a port nobody holds":
+# tests/unit/port_probe.py::free_port (#475). This module must not grow a
+# second occupancy probe — the deploy gate pins that rule.
+from tests.unit.port_probe import free_port as _free_port
+
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "stress_smoke.py"
 
@@ -44,14 +49,6 @@ class H(BaseHTTPRequestHandler):
 server = HTTPServer(('127.0.0.1', int(sys.argv[1])), H)
 server.serve_forever()
 """
-
-
-def _free_port() -> int:
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
 
 
 @pytest.mark.slow

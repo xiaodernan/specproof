@@ -297,6 +297,11 @@ def test_health_reports_degraded_when_mysql_is_down(monkeypatch):
 
     monkeypatch.setattr("storage.redis.RedisStore", DeadRedis)
     monkeypatch.setattr("storage.mysql.MySQLStore", DeadMySQL)
+    # The shared probe snapshot is quantized by SPECPROOF_HEALTH_PROBE_TTL_SECONDS
+    # (default 2.0) so polling hurts no dependency. A failure injected here must
+    # be visible to THIS request, so bypass the snapshot: the knob exists for
+    # exactly this legacy-per-request behavior.
+    monkeypatch.setenv("SPECPROOF_HEALTH_PROBE_TTL_SECONDS", "0")
     monkeypatch.setenv("SPECPROOF_AGENT_JOBS_URL", "sqlite:.local/light-jobs.sqlite3")
     client = TestClient(app)
     resp = client.get("/health")

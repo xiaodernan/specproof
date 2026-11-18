@@ -35,7 +35,10 @@ services:
       SPECPROOF_CORS_ORIGINS: ${SPECPROOF_CORS_ORIGINS:-http://localhost:3000}
       MYSQL_HOST: mysql
       REDIS_HOST: redis
-      SPECPROOF_HEALTH_PROBE_TTL_SECONDS: ${SPECPROOF_HEALTH_PROBE_TTL_SECONDS:-2.0}
+      # SPECPROOF_HEALTH_PROBE_TTL_SECONDS is deliberately NOT pinned here: the shipped
+      # default (2.0s) lives in api/server.py. An .env.example row cannot reach this
+      # machine's gated commit path, and an operator-visible lie is worse than an
+      # honestly-disclosed gap — the knob is registered in _NO_ROW_LEDGER (#257 D08).
       # Semantic cache backend for the provider policy layer: memory
       # (default) or redis (shared across replicas; non-evidence kinds only).
       SPECPROOF_SEMANTIC_CACHE_BACKEND: ${SPECPROOF_SEMANTIC_CACHE_BACKEND:-memory}

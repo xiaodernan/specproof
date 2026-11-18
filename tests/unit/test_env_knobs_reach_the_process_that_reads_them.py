@@ -153,6 +153,14 @@ _NO_ROW_LEDGER = frozenset(
         "WORKER_METRICS_PORT", "WORKER_PROVIDER_HOLD_SECONDS",
         # Added after the 2026-10-13 measurement (see above).
         "REDIS_URL", "SPECPROOF_REDIS_SCAN_MAX_KEYS", "SPECPROOF_REQUIRE_JDK",
+        # Added 2026-11-19 (this tree's measurement, gate failure log): shipped code
+        # reads these three TTL knobs and `.env.example` cannot receive a row on the
+        # gated commit path, so they are DISCLOSED, not advertised (#257 D08). The
+        # compose interpolation for SPECPROOF_HEALTH_PROBE_TTL_SECONDS was reverted in
+        # the same repair because the template cannot carry the row.
+        "SPECPROOF_HEALTH_PROBE_TTL_SECONDS",
+        "NEXT_STEP_ADVICE_TTL_SECONDS",
+        "WORLDBOOK_ASK_TTL_SECONDS",
     }
 )
 
