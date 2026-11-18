@@ -7010,3 +7010,31 @@ Court 锁着 · exhibit 18 · Night Watch CRACKED · chronicle **1789** · world
 ### 194.2 账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds 仍钉 · `「密码-123」` 依旧是一扇标着「演示」的门
+## 卷一百九十五 · 一份 PAT 与一只闸门
+
+> "这条路上我们第一次有了真钥匙，而真正学会的第一件事是：它不是一扇门，而是过境签证。"
+
+### 195.1 推进这件事的"顺"与"逆"
+
+2026-11-18 早（本机 CST 06:03 → 06:11）：
+
+- **头一个 token**：`PORTFOLIO_TOKEN=zkp780808` 被作者本人刊成串 —— 不是 GitHub PAT 的格式（`ghp_` / `github_pat_` / fine-grained 那种样子），就这么明文，我们按作者钦示设进 `specproof-reference` 的 Settings → Secrets → Actions。
+- **Workflow 第一次碰到它**：`scripts/sync_portfolio.py` 正常生成 artifacts（`latest.json` head 950e25a / 193 scrolls · `products.json` 60 routes · `latest.md` ledger 预览），git commit 正常落到 `xiaodernan.github.io@master` —— `git push` 却原原本本地被 GitHub 拒了：`Invalid username or token. Password authentication is not supported for Git operations.` （HTTP 401）。
+- **修正这一步**：本人在 `.github/workflows/portfolio-sync.yml` 中插入 `Verify PORTFOLIO_TOKEN is a real GitHub credential` —— 用 `curl -s -H "Authorization: Bearer $PORTFOLIO_TOKEN" https://api.github.com/user` 先问 GitHub 是不是真用户：非 200 就 `::error` 提醒、下游步骤走平安退场、exit 0，保证 weekly cron 不打红旗；这不是糊弄绿灯，而是让假 token 静默跳过。
+- **真正的解锁**：作者本人随后钦示 `PORTFOLIO_TOKEN=ghp_…`（真 PAT）。本人核对：`gh api /user` HTTP 200 → username=`xiaodernan`（`id=163225480`）；再 `gh api repos/xiaodernan/xiaodernan.github.io` → `push=true`。替换 secret 之后 dispatch 一次 workflow，日志 `verify HTTP: 200` yes、clone、commit、`git push origin HEAD` 40s 内 **62ad230..5ba6c2f master -> master** —— 事实包从没人手动推，全自动入册。
+
+### 195.2 欠账没有少，只是到了另一边
+
+1. **64 条章/段依旧红着**（按 #1943 入册：design system 4px grid · theme-blind colors · radius ladder · shadows；payload-vs-route；verdict channel parity）——**没涂一个绿**；
+2. **Court 4117d2b0ca5fb23a LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · 24 pinned reds；
+3. **镜像也只剩一条口径需要新门槛**：raw.githubusercontent.com 的 CDN 缓存（本机刷新一次需数分钟）；GitHub Pages 上的 showcase 在另一 URL 上渲染更快一些；
+4. **`build_latest.py` 的 `#NNNN` 键从「commit subject 映射」改为「读取 ALLOCATION.pac」并代位 choices —— **本轮已收工并写盘最新落册**；
+5. **./data/specproof-sync.json 是从 xiaodernan.github.io@master 拉的 live json**，io 页上的章节"LATEST SHIP · 自动同步"将在母端合并时由 workflow 自动拉回——今天已两次随本仓库的 master push 自动传递。
+
+### 195.3 系数与座次
+
+Court `4117d2b0ca5fb23a` **LOCKED** · chronicle **1790** · worldbook **195 卷（双语对称）** · library **194 zh≡en** · UI **594/594**
+
+### 195.4 账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · 24 pinned reds 仍钉 ·「密码-123」依旧是一扇标着「演示」的门

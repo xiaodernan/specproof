@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-18T06:05:01+00:00",
-  "count": 193,
+  "generated_at": "2026-11-18T06:13:25+00:00",
+  "count": 194,
   "zh": [
     {
       "num": "卷零",
@@ -966,6 +966,11 @@
       "num": "卷一百九十四",
       "title": "压力试窗 · 增订",
       "excerpt": "在 #1992（压力试窗）之后，这条线上又有三件事："
+    },
+    {
+      "num": "卷一百九十五",
+      "title": "一份 PAT 与一只闸门",
+      "excerpt": "2026-11-18 早（本机 CST 06:03 → 06:11）："
     }
   ],
   "en": [
@@ -1933,6 +1938,11 @@
       "num": "Scroll CXCIV",
       "title": "The Pressure Window, Addendum",
       "excerpt": "Three follow-ups after #1992 (Pressure Window):"
+    },
+    {
+      "num": "Scroll CXCV",
+      "title": "A PAT in the Gate",
+      "excerpt": "2026-11-18 morning (local CST 06:03 → 06:11):"
     }
   ],
   "note": "machine-struck from the two bibles; parity asserted at build time; never an editorial statement"

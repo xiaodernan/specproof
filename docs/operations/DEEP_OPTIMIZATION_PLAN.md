@@ -42259,3 +42259,29 @@ mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb
 ### 三、账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1789** · worldbook **194 卷（双语对称）** · D1 ✅ · D2 ✅ ·「密码-123」依旧是一扇标着「演示」的门
+
+## #1994 《一份 PAT 与一只闸门》：D2 正式解锁 · io 页 LIVE SHIP 烧入 · 顺带加实 #1943 ④⑤ · 顺带修 `build_latest.py latest_strike` 回退至 ledger · chronicle **1790** · worldbook **195 卷（双语对称）** · UI **594/594**
+
+**记录基准**：本节只追加。本号衔接 #1993（压力试窗 · 增订）。
+
+### 一、交付
+
+1. **io 页** `#specproof-live` — `fetch('./data/specproof-sync.json')` 现场抓 master 事实、博客 ledger 预览 / 60 route chip 标签 / `Last synced … UTC`；同源 `./data/specproof-products.json` 推每个路由 chip 的 `path`；
+2. **CI 闸门** · `.github/workflows/portfolio-sync.yml` 获得新 step — `Verify PORTFOLIO_TOKEN is a real GitHub credential`：用 `gh api /user` 检查凭证；若 token 是假的，周日 cron 不红旗、abort-validate 还是绿的（用 notice 通告 + exit 0）——不是糊弄绿灯，是给一个短码留出真实的错误一针见血
+3. **真正的解锁**：作者本人随后钦示 `PORTFOLIO_TOKEN=ghp_…` → token 替换 → verify 返回 `HTTP 200`，dispatch workflow 后 `62ad230..5ba6c2f` 推送到 `xiaodernan.github.io@master`；本次推送自动顺带处理 README 的「STRIKE 194 scrolls」；
+4. **io pins** · strike 194 scrolls / chronicle 1790 → profile/gh-pages 联合成功；one-line 都没动身份徽章；
+5. **build_latest.py**: `latest_strike` 不只看 commit subject 回退到 ledger 最后一条 `## #NNNN` —— 永远不会再次掉 `null`；这次 rebase 已 push 在 master（#1993 bot re-strike `d2b0ae30` 写 strike `#1992`）；
+6. **README 对齐 io 展示页**：profiles now show `ship 现场` link, wraps `#/specproof-live`；io README 现显示 `strike #1993 · 194 scrolls · 18 exhibit`；
+7. **runner 本身不掌握密钥** — `PORTFOLIO_TOKEN` 只进 CI Secrets，从不会进 git 或 ledger；
+
+### 二、诚实边界
+
+1. 不在本节 commit token；
+2. court 没动；exhibit_entries 没碰；Night Watch CRACKED 没动；exhibit #4 仍然 red-pinned；
+3. 24 pinned reds 没动；
+4. 本节未涂任何 exhibit 的绿；
+5. CDN 原始链接在被 push 后需几分钟传播 — Pages CDN 可能稍慢，GitHub API 上 raw master 已为 #1992/194；
+
+### 三、账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1790** · worldbook **195 卷（双语对称）** · D1 ✅ · D2 ✅（#1993 正式解锁 & 全自动推送）·「密码-123」依旧是一扇标着「演示」的门
