@@ -1,0 +1,15 @@
+.next-step-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.02em;
+}
+
+.next-step-meta {
+  font-size: 0.82em;
+  margin: 0 0 8px;
+}
+
+.next-step-body {
+  font: inherit;
+}

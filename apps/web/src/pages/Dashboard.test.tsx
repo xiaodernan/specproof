@@ -8,7 +8,10 @@ import { apiGet } from "../api";
 // raw string stays in the <li> title for audit; an unrecognized reason is
 // passed through verbatim — we never fabricate a meaning we don't know.
 
-vi.mock("../api", () => ({ apiGet: vi.fn() }));
+vi.mock("../api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api")>();
+  return { ...actual, apiGet: vi.fn() };
+});
 const apiGetMock = vi.mocked(apiGet);
 
 beforeEach(() => {

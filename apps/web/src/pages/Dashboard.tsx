@@ -6,6 +6,7 @@ import { ProductIcon } from "../ui/ProductIcon";
 import { useI18n } from "../i18n";
 import { DASHBOARD_BY_LOCALE } from "./dashboard.copy";
 import evidence from "./evidence.json";
+import NextStepCard from "./NextStepCard";
 
 export default function Dashboard() {
   const { locale } = useI18n();
@@ -65,6 +66,7 @@ export default function Dashboard() {
 
     <section className="welcome-banner" aria-label={c.welcomeAria}><div className="welcome-copy"><span className="welcome-kicker"><span className="tiny-dot" /> {c.welcomeKicker}</span><h2>{c.welcomeH1[0]}<br />{c.welcomeH1[1]}</h2><p>{c.welcomeP[0]}<br className="desktop-break" />{c.welcomeP[1]}</p><a href="#/guide">{c.welcomeGuideLink}<ProductIcon name="arrow" size={16} /></a></div><div className="proof-diagram" aria-label={c.welcomeAria}><div className="diagram-label">{c.diagramLabel}</div><div className="diagram-flow"><div className="diagram-node"><ProductIcon name="contracts" size={25} /><strong>{c.diagramNodeContracts.strong}</strong><small>{c.diagramNodeContracts.small}</small></div><span className="diagram-line" /><div className="diagram-core"><ProductIcon name="shield" size={34} /><strong>{c.diagramCore}</strong></div><span className="diagram-line" /><div className="diagram-node"><ProductIcon name="verify" size={25} /><strong>{c.diagramNodeVerify.strong}</strong><small>{c.diagramNodeVerify.small}</small></div></div><div className="diagram-caption"><span>{c.diagramCaption[0]}</span><span>{c.diagramCaption[1]}</span><span>{c.diagramCaption[2]}</span></div></div></section>
 
+    <NextStepCard />
     <div className="dashboard-census" role="note" aria-label={locale === "zh" ? "本月实敲" : "this month, struck"}>
       <span>{locale === "zh" ? "本月实敲" : "struck this month"}</span>
       <strong>

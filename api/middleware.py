@@ -68,6 +68,10 @@ _TENANT_OPEN_PREFIXES = (
     # public book — fingerprint-cached like /observe/ so model spend is
     # one call per (question × locale × TTL), never per visitor.
     "/worldbook/",
+    # The next-step advice lane: public, anonymous, mode-frozen packet of
+    # real repo numbers + the world book as the context — fingerprint-cached
+    # like /observe/, never a verdict and never a command from the throne.
+    "/next-step/",
 )
 #: Paths under which a bearer credential is REQUIRED in tenant mode.
 _TENANT_PROTECTED_PREFIXES = ("/jobs", "/agent", "/api/", "/auth/")
