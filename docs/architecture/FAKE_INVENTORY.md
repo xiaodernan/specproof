@@ -39,15 +39,15 @@
 |---|---|---|---|
 | **SQL 假** | **22** | 实现了 SQL 面（`cursor` / `fetchall` / `fetchone` / `commit` / `rollback` / `executemany` / `query` / `select` / `insert` / `update`；**`execute` 单独出现不算**，见下面「`execute` 撞名」） | **能**——求值器就是替这一面 |
 | 仓储鸭子类型 | 44 | 实现的是**领域方法**（`save` / `find_by_id` / `incr` / `expire` / `publish` / `delete` …） | **不能**——换成求值器等于把它变成**真 store**，那是另一类改动 |
-| 普通替身 | 236 | 只实现被测代码用到的那几个方法 | 不在讨论范围内 |
+| 普通替身 | 240 | 只实现被测代码用到的那几个方法 | 不在讨论范围内 |
 
-⇒ ⇒ **手写假一共 302 个，而「SQL 假」只有 22 个（约 7.3%）** ⇒ ⇒ 原队列项瞄准的集合比看上去小一个数量级 ⇒ ⇒
-且那 22 个类（SQL 替身 14 处）分布在 **14 个文件**里（其中 8 处是「一个游标 + 一个连接/存储」的分体：`fixture_server.py` `test_audit_action_parity.py` `test_drill_helpers.py` `test_feedback_store_read.py` `test_mcp_server.py` `test_mysql_isolation_contract.py` `test_tenant_auth.py` `test_web_api.py`；`fake_sql_engine.py` 的 `SqlFakeCursor` 是 SQL 求值器本体，按上表入账），——本页各处数字以 `b7a011a` 实测为准（见 `tests/unit/test_fake_inventory_stays_measured.py` 钉脚本；2026-11-13 之前的 289 钉，存于 `027a877`）。
+⇒ ⇒ **手写假一共 306 个，而「SQL 假」只有 22 个（约 7.2%）** ⇒ ⇒ 原队列项瞄准的集合比看上去小一个数量级 ⇒ ⇒
+且那 22 个类（SQL 替身 14 处）分布在 **14 个文件**里（其中 8 处是「一个游标 + 一个连接/存储」的分体：`fixture_server.py` `test_audit_action_parity.py` `test_drill_helpers.py` `test_feedback_store_read.py` `test_mcp_server.py` `test_mysql_isolation_contract.py` `test_tenant_auth.py` `test_web_api.py`；`fake_sql_engine.py` 的 `SqlFakeCursor` 是 SQL 求值器本体，按上表入账），——本页各处数字以 `fed3c0b` 实测为准（见 `tests/unit/test_fake_inventory_stays_measured.py` 钉脚本；2026-11-13 之前的 289 钉，存于 `027a877`）。
 
 ⇒ ⇒ **结论（这条队列项就此重框）**：
 1. 「把手写假换成求值器」**不成立**——多数手写假**根本不与 SQL 打交道**（它们替的是领域方法）⇒ ⇒ 换掉它们会让测试**从替身变成真 store**（⇒ 更慢、⇒ 更容易因环境而红、⇒ 且测的是**真 store**而不是被测代码）✗。
 2. 真正可以换的只有**12 处 SQL 替身** ⇒ ⇒ 那是**一小块**具体工作（⇒ 下一个号可以做，或干脆不值得做——**判据是「换了以后，测的是不是同一件事」**）。
-3. 剩下的 44 处仓储鸭子类型与 232 处普通替身**留在原处**——它们是**恰当的**测试替身（替的是**被测代码依赖的接口**，不是数据库）✓。
+3. 剩下的 44 处仓储鸭子类型与 240 处普通替身**留在原处**——它们是**恰当的**测试替身（替的是**被测代码依赖的接口**，不是数据库）✓。
 
 ## 2026-11-13 二次重钉（`027a877` 实测）
 
@@ -229,3 +229,11 @@ SQL 假占比 7.8% → 7.7%。
 - 直接加载分类器双核实：`census_at("3ebfc5f")` 与 `counts()` 均量得 `{"sql-fake": 22, "store-duck-type": 44, "plain-double": 236}`，字面照录在这一节；本轮无任何契约改动，只是测试族变厚。
 
 入场的三位替身全部从属 #1973 的证人族测试，来源提交可追，没有归属不明的替身；本页只记账不判词。
+
+## 再次入册 · 2026-11-19 · `fed3c0b`
+
+- `plain-double` 236 → **240**：`tests/unit/test_health_probe_cache.py:33` `FakeStore`、`:101` `DownStore`（`e7dec84` "perf(health): sample the deep readiness probe"—— /health 公开车道新时代的假仓）；`tests/unit/test_next_step_advice.py:70` `_FakeProvider`（`3d5afa9` "feat(next-step): the model reads this repo's shipped numbers"）；`tests/unit/test_worldbook_ask.py:57` `_FakeProvider`（`ef8fb6a` "feat(worldbook): 问问书 · ask the Iron Bible"）；
+- `store-duck-type` **44** 不变 · SQL 假 **22** 不变（约 7.2%）· 14 个文件分布不变 · 分体 8 处不变；
+- 总数 302 → **306**；钉脚本 `PIN_COMMIT` 改为 `fed3c0b4ca3d4efefe8f8938f4a2e160feda615f`，`PIN_COUNTS = {"sql-fake": 22, "store-duck-type": 44, "plain-double": 240}`；
+- 同一棵树双核实：`classify_test_fakes()` 实测 `{'sql-fake': 22, 'store-duck-type': 44, 'plain-double': 240}` · `total 306`，字面照录在这一节；`explain-drift 3ebfc5f…` 输出逐字入账（4 位入场替身、来源提交可追）；
+- 诚实边界：本轮无任何契约改动，只是测试族变厚了；本页只记账不判词。
