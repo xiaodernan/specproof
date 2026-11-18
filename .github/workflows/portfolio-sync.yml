@@ -13,6 +13,9 @@ name: portfolio-sync
 #   PORTFOLIO_TOKEN   — a GitHub PAT (or fine-grained token) with contents:write
 #                      on xiaodernan/xiaodernan.github.io
 # Without it, the job runs but exits with a friendly note and does NOT push.
+# With it set, we first call `gh api /user` with the token; a non-200 answer
+# means this is NOT a GitHub credential and the job gracefully produces
+# artifacts only.
 #
 # Cadence: weekly by default (Sunday 06:00 UTC), plus manual dispatch, plus
 # master merges — but only when the ledger index actually moved forward
@@ -52,11 +55,38 @@ jobs:
           python scripts/sync_portfolio.py
           ls -la artifacts/portfolio-data
 
+      - name: Verify PORTFOLIO_TOKEN is a real GitHub credential
+        id: verify
+        env:
+          PORTFOLIO_TOKEN: ${{ secrets.PORTFOLIO_TOKEN }}
+        run: |
+          set -u
+          if [ -z "${PORTFOLIO_TOKEN:-}" ]; then
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=portfolio-sync::PORTFOLIO_TOKEN not set — regenerating artifacts only; no push to the live site."
+            exit 0
+          fi
+          HTTP_CODE=$(curl -s -o /tmp/ghuser.json -w '%{http_code}' -H "Authorization: Bearer ${PORTFOLIO_TOKEN}" https://api.github.com/user)
+          echo "GitHub /user HTTP: ${HTTP_CODE}"
+          if [ "${HTTP_CODE}" != "200" ]; then
+            head -c 300 /tmp/ghuser.json || true
+            echo ""
+            echo "::error title=portfolio-sync::PORTFOLIO_TOKEN does not authenticate as a GitHub user (HTTP ${HTTP_CODE}). Please set PORTFOLIO_TOKEN to a PAT with repo scope. No push will happen until then."
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "valid=true" >> "$GITHUB_OUTPUT"
+
       - name: Decide whether the portfolio actually changed
         id: gate
         env:
           PORTFOLIO_TOKEN: ${{ secrets.PORTFOLIO_TOKEN }}
         run: |
+          if [ "${{ steps.verify.outputs.valid }}" != "true" ]; then
+            echo "no_token=true" >> "$GITHUB_OUTPUT"
+            echo "::notice title=portfolio-sync::Artifacts produced, but nothing will be pushed (token missing or invalid). See verification step."
+            exit 0
+          fi
           if [ -z "${PORTFOLIO_TOKEN}" ]; then
             echo "no_token=true" >> "$GITHUB_OUTPUT"
             echo "::notice title=portfolio-sync::PORTFOLIO_TOKEN not set — regenerating artifacts only; no push to the live site."
@@ -84,6 +114,6 @@ jobs:
             echo "portfolio data unchanged — nothing to push"
             exit 0
           fi
-          git commit -m "chore(specproof): sync latest master → portfolio data"
+          git commit -m "chore(specproof): sync latest master — portfolio data"
           git push origin HEAD
           echo "pushed fresh SpecProof data to portfolio repo"
