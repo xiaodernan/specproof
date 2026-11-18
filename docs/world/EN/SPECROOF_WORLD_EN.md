@@ -6970,3 +6970,50 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entrie
 ### 196.4 The ledger
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds stand · 「密码-123」is still a door marked "demo"
+
+## Scroll CXCVII · The Stale Tile
+
+> "A tile hanging on the homepage speaking weeks-old words — not because the card is wrong, but because it moved into somebody else's room."
+
+### 197.1 The symptom: the tile was speaking three weeks ago
+
+2026-11-18, live on `https://xiaodernan.github.io/`, the SpecProof tile rendered —
+
+```
+MASTER · chronicle 1,774 · 179 scrolls · 18 exhibits · strike #1977
+```
+
+while the `#specproof-live` section on the same screen rendered `head=22678f7 · ledger #1995 《冷的四点八》 · last synced 2026-11-18 07:02:33 UTC · 60 route chips`. Two surfaces, one API family — one speaking last week, one speaking now.
+
+### 197.2 The cause: three `latest.json`s, of which exactly one wakes on its own
+
+| copy | lives | updated by | today |
+|---|---|---|---|
+| `docs/latest.json` (specproof master) | the latest-json workflow | bot / workflow | ✅ alive (head `d30719be`, 196 / 1791 / #1995) |
+| `./data/specproof-sync.json` (io repo) | portfolio-sync on every master push | machine | ✅ alive (07:17:54Z, head `1c4e97d`) |
+| `https://raw.githubusercontent.com/...` | raw CDN | CDN edge cache | ❌ stale (edge still serving `#1977`) |
+| `assets/specproof/latest.json` (io repo) | committed into the site repo | human hands | ❌ stale (2026-11-17, `#1977`) |
+
+The tile script read the third one — `raw.githubusercontent.com`. `cache: 'no-store'` binds the browser only; it cannot command a CDN edge. So the JS faithfully re-rendered **new stale values** on every page view.
+
+### 197.3 The fix: make the tile follow the door that wakes by itself
+
+1. `scripts/sync_portfolio.py` — the payload now carries fact-pack fields wholesale (`worldbook_scrolls / chronicle_entries / exhibit_entries / latest_strike / total_commits / tracked_files`): reuse `docs/latest.json` when it passes degenerate self-checks (`total≥100 · scrolls≥100 · chronicle≥1000`), else fall back to inline derivation with the same formulas;
+2. The tile script now reads, in order: **same-origin `./data/specproof-sync.json`** (required: `chronicle_entries` finite) → `raw.githubusercontent.com` → `assets/specproof/latest.json` → baked constant as the last, honest floor;
+3. The repo-committed fallback `assets/specproof/latest.json` refreshed to `d30719be · 196 scrolls · 1,791 chronicle · strike #1995`;
+4. The baked first-paint was pre-set to the true values (`MASTER · UI 594/594 · 18 exhibits · 196 scrolls · chronicle 1,791 · strike #1995`) — if JS boots, the machine's strike wins; if it doesn't boot, the floor still tells the truth.
+
+**Verified live** (`#specproof-live` and tile re-struck in the same session):
+
+```
+tile        = MASTER · chronicle 1,791 · 196 scrolls · 18 exhibits · strike #1995
+spliveHead  = 1c4e97d · spliveSynced = 2026-11-18 07:17:54 UTC · 60 route chips
+```
+
+### 197.4 The one thing this round did NOT do
+
+`UI 594/594` exists nowhere in any machine-struck JSON — it lives only in the local vitest output before a commit. It was not hand-written into a live payload to make the tile look better. The baked constant carries it (honest floor); the JSON strikes print whatever they strike.
+
+### 197.5 The ledger
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1792** · worldbook **197 scrolls (bilingual mirror)** · library **196 zh≡en** · 24 pinned reds stand · 「密码-123」is still a door marked "demo"

@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-18T06:50:55+00:00",
-  "count": 195,
+  "generated_at": "2026-11-18T07:33:19+00:00",
+  "count": 196,
   "zh": [
     {
       "num": "卷零",
@@ -976,6 +976,11 @@
       "num": "卷一百九十六",
       "title": "冷的四点八",
       "excerpt": "`scripts/lane_cache_probe.py` 于 2026-11-18 直敲 aizzz `gpt-6.1-terra`（protocol=`responses` · `stream=True` · `include_usage=True`）。证据写盘于 `docs/evidence/lane-cache-probe-2026-11-18.json`（generated `2026-11-18T06:46:43+00:00`）——本节数字以该次全绿实敲为准。"
+    },
+    {
+      "num": "卷一百九十七",
+      "title": "旧牌子",
+      "excerpt": "2026-11-18 下午，`https://xiaodernan.github.io/` 现场，SpecProof 瓷砖显示——"
     }
   ],
   "en": [
@@ -1953,6 +1958,11 @@
       "num": "Scroll CXCVI",
       "title": "Four-Point-Eight, Cold",
       "excerpt": "`scripts/lane_cache_probe.py`, struck directly at aizzz `gpt-6.1-terra` (protocol = `responses`, `stream=True`, `include_usage=True`). Evidence struck at `docs/evidence/lane-cache-probe-2026-11-18.json` (generated `2026-11-18T06:46:43+00:00…"
+    },
+    {
+      "num": "Scroll CXCVII",
+      "title": "The Stale Tile",
+      "excerpt": "2026-11-18, live on `https://xiaodernan.github.io/`, the SpecProof tile rendered —"
     }
   ],
   "note": "machine-struck from the two bibles; parity asserted at build time; never an editorial statement"

@@ -42309,3 +42309,28 @@ mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0c
 ### 三、账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1791** · worldbook **196 卷（双语对称）** · D1 ✅ · D2 ✅ ·「密码-123」依旧是一扇标着「演示」的门
+
+## #1996 《旧牌子》：io 瓷砖读走 raw CDN 陈旧 latest.json（#1977 系）——同屏对账 `#specproof-live` 新、瓷砖旧；修复：sync payload 携带 fact-pack、瓷砖改读同源 specproof-sync.json、兜底 latest.json 刷新 · dig/runbook timeout 90→150s · chronicle **1792** · worldbook **197 卷（双语对称）** · UI **594/594**
+
+**记录基准**：本节只追加。本号衔接 #1995（冷的四点八）。
+
+### 一、交付
+
+1. **现场病象**：io 页 SpecProof 瓷砖渲染 `chronicle 1,774 · 179 scrolls · strike #1977`，而同屏 `#specproof-live` 为 `head=22678f7 · #1995`——三副本 latest.json 之一（raw CDN）陈旧、且 JS 的 `cache: 'no-store'` 管不住 CDN 边缘；
+2. **修法**：`scripts/sync_portfolio.py` payload 新增 fact-pack 字段（worldbook_scrolls / chronicle_entries / exhibit_entries / latest_strike / total_commits / tracked_files；优先复用 `docs/latest.json` degenerate 自检，否则同公式内联推导）；瓷砖脚本改为 `./data/specproof-sync.json` 优先、`chronicle_entries` 缺失则回退 raw、再回退 `assets/specproof/latest.json`、再回退 baked 常量；仓库内兜底刷新到 `d30719be · #1995`；
+3. **现场对账**：tile = `MASTER · chronicle 1,791 · 196 scrolls · 18 exhibits · strike #1995`（同源新数据生效）；`#specproof-live` = `head=1c4e97d · last synced 2026-11-18 07:17:54 UTC · 60 route chips`；
+4. **超时**：`craft/investigators.py` 默认 · `api/investigation_dig.py` · `api/runbook_triage.py` LLM timeout 90s→**150s**（中文车道早前已 150s）；`test_investigation_dig*.py` + `test_runbook_claims_hold` + `test_investigators_accounting` **17/17** 过；court lane 一行未动；
+5. **账**：profile README 对位 `世界书 196 卷 · strike #1995`（commit `ff477e4`，已核验 live）；showcase README / baked 首屏同步；`repoStats.json` + `ROADMAP-LIVE.md` 快照重建（commits **2,715** · 2,949 files · 58 langs）；
+6. D2 闭环再验三轮：push `ab1e676` `5d80420` `1c4e97d` → `portfolio-sync`（`44256239385` `44257287817` 等，`gh api /user` HTTP 200 → push io master）；io 自动三次入册：`f661a0a`（enriched）→ `e090f59`/`ff02d92`（fallback 刷新）。
+
+### 二、没涂没动没骗
+
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · 24 pinned reds；
+2. `UI 594/594` 不在任何机器 JSON 里——未被手写进 live payload；
+3. 没有一敲被改写 verdict；没有一条 fact 被复制出虚假的第三处；
+4. `.local/llm.json` 未进 git；
+5. 雅思 6.5 · CET6 546 在 meta description / og / twitter / JSON-LD awards / 作品 honors-strip 五处全部在册。
+
+### 三、账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1792** · worldbook **197 卷（双语对称）** · D1 ✅ · D2 ✅ ·「密码-123」依旧是一扇标着「演示」的门

@@ -8,9 +8,9 @@ import library from "../library.json";
  */
 describe("The Library carries the bible, not an abridgement (#1984)", () => {
   it("ships 183 scrolls in both languages", () => {
-    expect(library.count).toBe(195);
-    expect(library.zh).toHaveLength(195);
-    expect(library.en).toHaveLength(195);
+    expect(library.count).toBe(196);
+    expect(library.zh).toHaveLength(196);
+    expect(library.en).toHaveLength(196);
   });
 
   it("quotes the bible verbatim — scroll zero's opening sentence actually exists in the file", () => {

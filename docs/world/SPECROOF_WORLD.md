@@ -7094,3 +7094,50 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entrie
 ### 196.4 账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds 仍钉 ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷一百九十七 · 旧牌子
+
+> "主页上挂了一个旧日期的牌子，谁看见都觉得不对劲——不是卡牌错了，是它把自己搬到了别人的屋子里。"
+
+### 197.1 病象：瓷砖说的是三周前的话
+
+2026-11-18 下午，`https://xiaodernan.github.io/` 现场，SpecProof 瓷砖显示——
+
+```
+MASTER · chronicle 1,774 · 179 scrolls · 18 exhibits · strike #1977
+```
+
+而 `#specproof-live` 分区同屏渲染 `head=22678f7 · ledger #1995 《冷的四点八》 · last synced 2026-11-18 07:02:33 UTC · 60 route chips`——两屏，同一个 API family，一个说旧话、一个说新话。
+
+### 197.2 病根：三个 latest.json，只有一个会自己醒
+
+| 副本 | 住哪 | 谁来更新 | 本次状态 |
+|---|---|---|---|
+| `docs/latest.json`（specproof master） | latest-json 工作流自动重敲 | bot / workflow | ✅ 活跃（head `d30719be`，196 / 1791 / #1995） |
+| `./data/specproof-sync.json`（io repo） | portfolio-sync 每次 master push 自动推 | 机器 | ✅ 活跃（07:17:54Z，head `1c4e97d`） |
+| `https://raw.githubusercontent.com/...` | raw CDN | CDN 边缘节点缓存 | ❌ 陈旧（边缘节点仍在吐 `#1977`） |
+| `assets/specproof/latest.json`（io repo 提交入库） | 人工拷贝进仓库 | 人手 | ❌ 陈旧（2026-11-17，`#1977`） |
+
+瓷砖脚本读的是第三个——`raw.githubusercontent.com`，`cache: 'no-store'` 只约束浏览器，约束不了 CDN 边缘。所以 JS 每次把自己更新成**新的旧值**。
+
+### 197.3 修法：让瓷砖跟着那扇会自己醒的门走
+
+1. `scripts/sync_portfolio.py`：payload 直接携带 fact-pack 字段（`worldbook_scrolls / chronicle_entries / exhibit_entries / latest_strike / total_commits / tracked_files`）——优先复用 `docs/latest.json`（degenerate 自检 total≥100 / scrolls≥100 / chronicle≥1000），不可用时回退到同公式内联推导；
+2. 瓷砖脚本改为：**同源 `./data/specproof-sync.json` 优先**（`chronicle_entries` 不存在时）；→ `raw.githubusercontent.com` 次之；→ `assets/specproof/latest.json` 再次；→ baked 常量垫底；
+3. 仓库内兜底 `assets/specproof/latest.json` 刷新为 `d30719be · 196 scrolls · 1,791 chronicle · strike #1995`；
+4. baked 首屏常量提前改为 `MASTER · UI 594/594 · 18 exhibits · 196 scrolls · chronicle 1,791 · strike #1995`（JS 能跑就以机器值为准；不能跑也不骗人）。
+
+**现场验证**（`#specproof-live` 与瓷砖同屏复测）：
+
+```
+tile        = MASTER · chronicle 1,791 · 196 scrolls · 18 exhibits · strike #1995
+sPliveHead  = 1c4e97d · spliveSynced = 2026-11-18 07:17:54 UTC · 60 route chips
+```
+
+### 197.4 这一轮没做的一件事
+
+`UI 594/594` 这个数**不在任何机器重敲出的 JSON 里**——它只存在于提交前的 vitest 本地输出里。本次没有为了显示好看，手写进 live 数据里。baked 常量照旧带上它（首屏诚实），JSON 重敲出什么就是什么。
+
+### 197.5 账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1792** · worldbook **197 卷（双语对称）** · library **196 zh≡en** · 24 pinned reds 仍钉 ·「密码-123」依旧是一扇标着「演示」的门
