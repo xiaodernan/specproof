@@ -7038,3 +7038,59 @@ Court `4117d2b0ca5fb23a` **LOCKED** · chronicle **1790** · worldbook **195 卷
 ### 195.4 账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · 24 pinned reds 仍钉 ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷一百九十六 · 冷的四点八
+
+> "第一次敲，它只记下我们的脚；第二次敲，它把整条船都搬过来。"
+
+### 196.1 五车道全线复测（2026-11-18T06:46Z · 探针两敲每车道 · 13/13 ok）
+
+`scripts/lane_cache_probe.py` 于 2026-11-18 直敲 aizzz `gpt-6.1-terra`（protocol=`responses` · `stream=True` · `include_usage=True`）。证据写盘于 `docs/evidence/lane-cache-probe-2026-11-18.json`（generated `2026-11-18T06:46:43+00:00`）——本节数字以该次全绿实敲为准。
+
+诚实注明：在此之前的一次同命令实敲中，`observe` / `insight` / `ai_summary` 六拍被 aizzz 网关以「模型暂时不可用」击退（无 verdict、无 usage 可计，五车道里只有 dig / runbook 存活）。该次失败原样记录在操作终端日志中，未计入下表、也不抹去。复敲后全部 `outcome=ok`。
+
+| lane | strike | prompt_tokens | cached_tokens | 命中率 |
+|---|---|---|---|---|
+| observe | #1 冷 | 158,210 | 7,533 | 4.8% |
+| observe | #2 热 | 158,210 | **148,644** | **94.0%** |
+| insight | #1 冷 | 157,822 | 7,515 | 4.8% |
+| insight | #2 热 | 157,822 | **148,264** | **93.9%** |
+| ai_summary | #1 冷 | 157,808 | 7,514 | 4.8% |
+| ai_summary | #2 热 | 157,808 | **148,265** | **94.0%** |
+| dig · explorer | #1 冷 | 138,415 | 6,591 | 4.8% |
+| dig · tester | #1 热 | 137,781 | 129,431 | **93.9%** |
+| dig · security | #1 热 | 136,718 | 128,420 | **93.9%** |
+| dig · explorer | #2 热 | 138,415 | 129,936 | **93.9%** |
+| dig · tester | #2 冷 | 137,781 | 6,561 | 4.8% |
+| dig · security | #2 热 | 136,718 | 128,420 | **93.9%** |
+| runbook · explorer | #1 冷 | 139,902 | 6,662 | 4.8% |
+| runbook · tester | #1 冷 | 139,267 | 6,631 | 4.8% |
+| runbook · security | #1 冷 | 138,205 | 6,581 | 4.8% |
+| runbook · explorer | #2 热 | 139,902 | 131,454 | **94.0%** |
+| runbook · tester | #2 热 | 139,267 | 130,821 | **93.9%** |
+| runbook · security | #2 热 | 138,205 | 129,810 | **93.9%** |
+
+冷敲的 4.8% 是一个可重复的地板——约 7,500 个 prompt tokens 是字节级冻结的前缀（codex + covenant 装订 + 车道小序言），任何一车道任何一敲都命中它；剩余的是每车道独有内容，冷敲一分钱都不能赖 cache。
+
+热敲钉在 93.9–94.0%：每车道一把粘性 `prompt_cache_key`（`specproof-dig` / `specproof-runbook` / `specproof-observe-advice` / `specproof-insight-advice` / `specproof-ai-summary`）把同车道的历次敲击钉在同一块 cache 区域；codex（`docs/world/SPECROOF_WORLD.md` zh 457,543 B）+ covenant（1,450 B）字节不变，locale 路由不混。
+
+两点不能糊过去：
+
+1. **dig 车道里谁热谁冷会轮转**——#1 时 tester / security 已热（此前探针提前写入同前缀），explorer 冷；#2 时 explorer 热了，tester 反而冷了。同一 cache key 下，每个 agent 的前缀各占一个 cache line，轮转来自前缀内容本身与 cache 容量，不来自车道"乱了套"；`security` 两敲都热，因为它的前缀两敲字节一致。
+2. **runbook 整条线 #1 三 agent 全冷**——runbook 与 dig 分家的 key，且整段 en codex 首次写入，冷是写盘不是故障；#2 全部 93.9–94.0%。
+
+### 196.2 没涂，没动，没骗
+
+1. **Court `4117d2b0ca5fb23a` LOCKED** —— 永远不带 `prompt_cache_key`，这一敲也没有；judge lane 一行未动；
+2. **Night Watch 仍 CRACKED** —— 不涂；exhibit_entries **18**（不造 #19）；24 pinned reds 仍钉；
+3. `.local/llm.json` 从未进 git（purity sift：`CLEAR` · tracked_files **2952** · unexpected_hits 0）；covenant witness：**HELD · pinned=true**；
+4. io 页 LATEST SHIP 读的就是这一族 API 的产物——`./data/specproof-sync.json`（`#specproof-live` 现场可见），本节不编造任何一敲的 usage，数字均为 provider 原样返回；
+5. 没有一敲企图越狱，没有一条 cache 被共享给 court，没有一敲被标成 verdict。
+
+### 196.3 系数与座次
+
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1791** · worldbook **196 卷（双语对称）** · library **195 zh≡en** · UI **594/594**
+
+### 196.4 账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds 仍钉 ·「密码-123」依旧是一扇标着「演示」的门

@@ -42285,3 +42285,27 @@ mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb
 ### 三、账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1790** · worldbook **195 卷（双语对称）** · D1 ✅ · D2 ✅（#1993 正式解锁 & 全自动推送）·「密码-123」依旧是一扇标着「演示」的门
+
+## #1995 《冷的四点八》：五车道 cache 探针两敲每车道 · 冷 4.8% 地板 / 热 93.9–94.0% · 13/13 ok（前敲六拍网关瞬时『模型暂时不可用』原样记录，复敲全绿） · chronicle **1791** · worldbook **196 卷（双语对称）** · library **195 zh≡en** · UI **594/594**
+
+**记录基准**：本节只追加。本号衔接 #1994（一份 PAT 与一只闸门）。
+
+### 一、交付
+
+1. `lane_cache_probe` 直敲 aizzz `gpt-6.1-terra`（protocol=`responses` · `stream=True` · `include_usage=True`）：observe / insight / ai_summary 单敲两敲；dig / runbook 三 agents 各两敲。结果：冷 4.8%（≈7.5k 冻结前缀）→ 热 93.9–94.0%，cache 粘性 `prompt_cache_key` 一车道一把；证据 `docs/evidence/lane-cache-probe-2026-11-18.json`（generated `2026-11-18T06:46:43+00:00`，以本次全绿敲为准）；
+2. **诚实记录前一次失败**：六拍（observe / insight / ai_summary × 各两敲）被 aizzz 网关以「模型暂时不可用」击退，无 verdict、无 usage 可计，未计入交付数字，亦不抹去；复敲全部 `outcome=ok`；
+3. scroll #196《冷的四点八》入册（zh≡en）：`docs/world/SPECROOF_WORLD.md` · `docs/world/EN/SPECROOF_WORLD_EN.md`；worldbook → **196** 卷；`build_library.py` → **195** zh≡en（构建期断言 parity）；chronicle → **1791**；`Library.test.tsx` 钉 194→195；
+4. dig 车道轮转（explorer/tester 冷热互换）与 runbook 整条线 #1 全冷均原样记入卷中——缓存按前缀成行，不是玄学；
+5. D2 闭环仍然自动：master push → `portfolio-sync.yml` verify（`gh api /user` HTTP 200）→ clone → commit → push `xiaodernan.github.io@master` → io 页 LIVE SHIP 自动跟进；本次 push 照例触发。
+
+### 二、没涂没动没骗
+
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · 24 pinned reds；
+2. 没有新增 exhibit · #4 依然 pinned red；
+3. `.local/llm.json` 不进 git；purity sift `CLEAR`（tracked_files **2952**）；covenant witness `HELD · pinned=true`；
+4. 没有一敲被当成 verdict 涂进门楣；没有数字被涂改；
+5. UI 没有被顺手改动（594/594 原样）。
+
+### 三、账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1791** · worldbook **196 卷（双语对称）** · D1 ✅ · D2 ✅ ·「密码-123」依旧是一扇标着「演示」的门

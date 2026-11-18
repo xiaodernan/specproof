@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-18T06:13:25+00:00",
-  "count": 194,
+  "generated_at": "2026-11-18T06:50:55+00:00",
+  "count": 195,
   "zh": [
     {
       "num": "卷零",
@@ -971,6 +971,11 @@
       "num": "卷一百九十五",
       "title": "一份 PAT 与一只闸门",
       "excerpt": "2026-11-18 早（本机 CST 06:03 → 06:11）："
+    },
+    {
+      "num": "卷一百九十六",
+      "title": "冷的四点八",
+      "excerpt": "`scripts/lane_cache_probe.py` 于 2026-11-18 直敲 aizzz `gpt-6.1-terra`（protocol=`responses` · `stream=True` · `include_usage=True`）。证据写盘于 `docs/evidence/lane-cache-probe-2026-11-18.json`（generated `2026-11-18T06:46:43+00:00`）——本节数字以该次全绿实敲为准。"
     }
   ],
   "en": [
@@ -1943,6 +1948,11 @@
       "num": "Scroll CXCV",
       "title": "A PAT in the Gate",
       "excerpt": "2026-11-18 morning (local CST 06:03 → 06:11):"
+    },
+    {
+      "num": "Scroll CXCVI",
+      "title": "Four-Point-Eight, Cold",
+      "excerpt": "`scripts/lane_cache_probe.py`, struck directly at aizzz `gpt-6.1-terra` (protocol = `responses`, `stream=True`, `include_usage=True`). Evidence struck at `docs/evidence/lane-cache-probe-2026-11-18.json` (generated `2026-11-18T06:46:43+00:00…"
     }
   ],
   "note": "machine-struck from the two bibles; parity asserted at build time; never an editorial statement"

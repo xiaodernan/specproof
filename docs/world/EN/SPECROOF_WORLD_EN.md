@@ -6914,3 +6914,59 @@ Court `4117d2b0ca5fb23a` **LOCKED** · chronicle **1790** · worldbook **195 scr
 ### 195.4 The ledger
 
 mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · 24 pinned reds remain pinned · 「密码-123」is still a door marked "demo"
+
+## Scroll CXCVI · Four-Point-Eight, Cold
+
+> "First pass: it remembers our footsteps. Second pass: it carries the whole ship over."
+
+### 196.1 Five-lane re-strike (2026-11-18T06:46Z · two strikes per lane · 13/13 ok)
+
+`scripts/lane_cache_probe.py`, struck directly at aizzz `gpt-6.1-terra` (protocol = `responses`, `stream=True`, `include_usage=True`). Evidence struck at `docs/evidence/lane-cache-probe-2026-11-18.json` (generated `2026-11-18T06:46:43+00:00`) — the numbers below are the ones from that all-green run, nothing else.
+
+Stated plainly: in the immediately preceding run of the same command, the six `observe` / `insight` / `ai_summary` strikes were turned away by the gateway with 「模型暂时不可用」 (model temporarily unavailable; no verdict, no usage to account). That failure is recorded in the session log as it happened and is not papered over here; only `dig` / `runbook` survived that run. The re-strike below is `outcome=ok` on every one of the 13 strikes.
+
+| lane | strike | prompt_tokens | cached_tokens | hit rate |
+|---|---|---|---|---|
+| observe | #1 cold | 158,210 | 7,533 | 4.8% |
+| observe | #2 warm | 158,210 | **148,644** | **94.0%** |
+| insight | #1 cold | 157,822 | 7,515 | 4.8% |
+| insight | #2 warm | 157,822 | **148,264** | **93.9%** |
+| ai_summary | #1 cold | 157,808 | 7,514 | 4.8% |
+| ai_summary | #2 warm | 157,808 | **148,265** | **94.0%** |
+| dig · explorer | #1 cold | 138,415 | 6,591 | 4.8% |
+| dig · tester | #1 warm | 137,781 | 129,431 | **93.9%** |
+| dig · security | #1 warm | 136,718 | 128,420 | **93.9%** |
+| dig · explorer | #2 warm | 138,415 | 129,936 | **93.9%** |
+| dig · tester | #2 cold | 137,781 | 6,561 | 4.8% |
+| dig · security | #2 warm | 136,718 | 128,420 | **93.9%** |
+| runbook · explorer | #1 cold | 139,902 | 6,662 | 4.8% |
+| runbook · tester | #1 cold | 139,267 | 6,631 | 4.8% |
+| runbook · security | #1 cold | 138,205 | 6,581 | 4.8% |
+| runbook · explorer | #2 warm | 139,902 | 131,454 | **94.0%** |
+| runbook · tester | #2 warm | 139,267 | 130,821 | **93.9%** |
+| runbook · security | #2 warm | 138,205 | 129,810 | **93.9%** |
+
+The 4.8% cold floor is repeatable: ~7,500 prompt tokens are the byte-frozen skeleton (codex + covenant binding + the per-lane preamble) and are cache-hits on every lane, every strike. Everything beyond them is per-lane unique content; the cold strike pays for it all.
+
+Warm strikes pin at 93.9–94.0%: one sticky `prompt_cache_key` per lane (`specproof-dig` / `specproof-runbook` / `specproof-observe-advice` / `specproof-insight-advice` / `specproof-ai-summary`) keeps repeated strikes of the same lane in the same cache region; the codex (`docs/world/EN/SPECROOF_WORLD_EN.md` ≈469 KB) + covenant (1,450 B) never drift, and locale routing never mixes.
+
+Two things this table refuses to blur:
+
+1. **dig rotates warm/cold between agents, not between lanes** — at #1, tester / security were already warm (an earlier probe had written the same prefix) while explorer was cold; at #2, explorer was warm and tester had rotated cold. Under one cache key each agent's prefix occupies its own cache line; the rotation comes from prefix content and cache capacity, not from lane disorder. `security` held warm across both strikes: its prefix is byte-identical across both.
+2. **runbook was cold across all three agents at strike #1** — runbook shares neither key nor region with dig, and its whole en codex was being written to cache for the first time; cold is the write, not a fault. At #2, all three hold 93.9–94.0%.
+
+### 196.2 Nothing painted, nothing moved, nothing forged
+
+1. **Court `4117d2b0ca5fb23a` LOCKED** — no `prompt_cache_key` ever, this strike included; the judge lane did not move;
+2. **Night Watch stays CRACKED** — not repainted; exhibit_entries **18** (no #19 is minted); 24 pinned reds stand;
+3. `.local/llm.json` never entered git (purity sift: `CLEAR` · tracked_files **2952** · unexpected_hits 0); covenant witness: **HELD · pinned=true**;
+4. The io page LATEST SHIP renders from the artefacts of this same API family — `./data/specproof-sync.json`, live at `#specproof-live`. No usage figure in this scroll was invented; every number is the provider's own return;
+5. Not one strike attempted an escape; not one cache was shared with the court; not one strike was marked as a verdict.
+
+### 196.3 The anchors
+
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1791** · worldbook **196 scrolls (bilingual mirror)** · library **195 zh≡en** · UI **594/594**
+
+### 196.4 The ledger
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds stand · 「密码-123」is still a door marked "demo"
