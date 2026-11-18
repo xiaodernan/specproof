@@ -63,6 +63,18 @@ jobs:
             echo ""
             tail -n 8 stress-run.log
           } > stress-summary.md
+      - name: Digest the strike (offline, no network, no model)
+        # The fifteenth StateGraph lamp reads the strike it just wrote:
+        # byte-pinned prompts, deterministic packet, rounds table as a fact —
+        # never a release decision. No secrets, no network, cannot fail the run.
+        if: always()
+        run: |
+          set +e
+          SPECPROOF_STRESS_EVIDENCE="docs/evidence/weekly-${{ github.run_id }}.json" \
+            python agent/graphs/stress_digest_graph.py --offline
+          DIGEST_EXIT=$?
+          set -e
+          echo "digest exit: $DIGEST_EXIT (artifact carries the digest either way)"
       - name: Publish the strike artifact
         if: always()
         uses: actions/upload-artifact@v4
@@ -70,5 +82,7 @@ jobs:
           name: weekly-stress-${{ github.run_id }}
           path: |
             docs/evidence/weekly-${{ github.run_id }}.json
+            docs/evidence/weekly-${{ github.run_id }}-digest.md
+            docs/evidence/weekly-${{ github.run_id }}-digest.json
             stress-run.log
             stress-summary.md

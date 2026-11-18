@@ -42507,3 +42507,26 @@ mvn untouched · UI **598/598** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb
 ### 三、账房
 
 mvn untouched · UI **598/598** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · chronicle **1799** · worldbook **204 卷（双语对称）** · D1 ✅ · D2 ✅ ·「密码-123」依旧是一扇标着「演示」的门
+
+## #2004 《必须有人读数》：第十五盏 StateGraph 灯——周压测的读数员落地 · Court LOCKED · Night Watch CRACKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2003。
+
+### 一、交付
+1. **第十五盏 StateGraph lamp「stress_digest」**（`agent/graphs/stress_digest_graph.py` + 车道车皮 `api/stress_digest.py`）——每周的 k6 敲是数字，没人读就是装饰：证据包从仓库 `docs/evidence/weekly-*.json` 现读（mtime 最新，或 `SPECPROOF_STRESS_EVIDENCE` 指定 / 测试注入），不编造、不改写；
+2. **codex 前缀冻结 + sticky `prompt_cache_key=specproof-stress-digest`**：流式 `stream=True` + `include_usage=True`；info-only 词表命中统计（通过/未通过/批准/阻断/放行/approved/blocked）只报名，永不判决；
+3. **离线读数**（确定性、零网络）：逐轮 rounds 表 + `floor_comparison`（5000 ms 机器地板就是地板，明文说它不是 SLO）+ 原样搬敲击时的 honesty 行——每次 weekly-stress 现在都会自动带上 `weekly-<run_id>-digest.{md,json}` 工件；
+4. **实敲两敲（aizzz / gpt-6.1-terra，Clash Verge 出站）**：冷敲 zh 8,081/169,705 = 4.8%、en 7,039/147,837 = 4.8%（新车道首敲，预期）；热敲 zh **159,387/169,705 = 93.9%**、en **138,912/147,837 = 94.0%**——与 ask_the_book / next_step 两敲稳定 93.9% 一致；证据 `docs/evidence/stress-digest-2026-11-18.{md,json}`；info-hits 两次均为 `[]`；两次 `verdict=HELD`、`pinned=true`；
+5. **单测** `tests/unit/test_stress_digest_graph.py` **8/8 绿**（含 pin 漂移 → DRIFTED、证据缺失 → 不编造而报 UNREADABLE、离线表逐字带数、提示词钉 SHA-256 `db498ac7…`）；
+6. **weekly-stress 工作流**新增「Digest the strike (offline…)」步骤 + 工件携带 digest；不设网络、不需要密钥、不能让工作流变红——只是多一件读物；
+7. 判词：**图自己的话，不是我的话**——HELD / DRIFTED。判决权永远不在模型这里，也不在本账本这里。
+
+### 二、没涂没动没碰
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样；
+2. 没有 exhibit 被涂绿；本车道不写 exhibit、不 commit verdict、不碰 24 个 pinned reds；
+3. 没有伪造缓存命中率——两次敲击数字原样入账；冷 4.8% 如实记录；
+4. `.local/llm.json` 未进 git；本节无密钥；
+5. worldbook 204 / library 203 / chronicle 1799 / UI **603/603**（`naturalScroll.test.ts` 是 603 中的那一条，见 `127423a`）——本次只加 lamp，不动中文叙事卷，卷数不动，如实登记。
+
+### 三、账
+mvn untouched · vitest **603/603** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · chronicle **1799** · worldbook **204 卷（双语对称）** · library **203 zh≡en** · D1 ✅ · D2 ✅ ·「密码 123」依旧是一扇标着「演示」的门

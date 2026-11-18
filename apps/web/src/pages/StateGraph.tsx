@@ -8,7 +8,7 @@ import "../styles/stategraph.css";
 /**
  * 状态图谱 · The State Graphs — a field guide to LangGraph's StateGraph as
  * actually wired inside this repository. Nothing here is tutorial prose from
- * the internet; every concept note maps onto one of the twelve graphs in
+ * the internet; every concept note maps onto one of the fifteen graphs in
  * `agent/graphs/`.
  *
  * The diagrams are boxes-and-arrows because the browser never runs Python.
@@ -23,7 +23,7 @@ export default function StateGraph() {
     <div className="sg-page">
       <div className="page-head">
         <h1>{zh ? "状态图谱" : "The State Graphs"} <span className="sg-en">{zh ? "STATEGRAPHS · LangGraph 现役" : "LANGGRAPH · IN THE ROOM"}</span></h1>
-        <div className="page-sub">{zh ? "这本仓库里正在跑的十二个 StateGraph——以及一张读图说明书。不是教程，是验收图纸。" : "The twelve StateGraphs actually wired inside this repository — plus the legend this book reads them by. Not a tutorial — an acceptance drawing."}</div>
+        <div className="page-sub">{zh ? "这本仓库里正在跑的十五个 StateGraph——以及一张读图说明书。不是教程，是验收图纸。" : "The fifteen StateGraphs actually wired inside this repository — plus the legend this book reads them by. Not a tutorial — an acceptance drawing."}</div>
       </div>
       <ChainBanner />
 
@@ -40,7 +40,7 @@ export default function StateGraph() {
       </section>
 
       <section className="sg-section">
-        <h2>{zh ? "十二张活着的图" : "The twelve living graphs"}</h2>
+        <h2>{zh ? "十五张活着的图" : "The fifteen living graphs"}</h2>
         <ol className="sg-graphs">
           {GRAPHS.map((g) => (
             <li key={g.id} className="sg-graph" id={"sg-graph-" + g.id}>
@@ -71,8 +71,8 @@ export default function StateGraph() {
         <h2>{zh ? "卷末语" : "Colophon"}</h2>
         <p>
           {zh
-            ? "这十二张图里七张离线运行；cache_witness、insight_advice 与 investigation_dig 按设计出网；usage_ledger 只读本机账本、不敲车道；runbook_triage 是第十盏灯——按设计出网，探针一响模型先读仓库；covenant_witness 是第十一盏——按 #1969 落册日逐字 pin 住行宪字节，永不敲模型；exhibit_copilot 是第十二盏——`--live` 显式敲一下、模型用展厅风暴的数字写一句自己的展厅铭、包外一个数字都不给过。没有一个判词被涂成绿色。exhibit #4 的 REGRESSION 留在册子里，Night Watch 今天还是 CRACKED。浏览器永不运行 Python——这也是为什么本页用盒子和箭头而不是真实 trace。"
-            : "Seven of the twelve graphs run offline. cache_witness, insight_advice and investigation_dig are networked by design — the first strikes this host's model lane to count the prefix cache, the second watches the deck's lane, the third goes out on purpose to ask the repo a question and read what the model brings back; usage_ledger reads the local ledger only and never strikes a lane; runbook_triage is the tenth lamp — networked, fires only after an alert rings, and asks the model to read the repo before humans do; covenant_witness is the eleventh — pinned byte-for-byte to the #1969 charter day, it never strikes a model at all; exhibit_copilot is the twelfth — strikes only on demand, and under one byte-pinned prompt lets the model seal its own exhibit wall in numbers straight from the evidence. No verdict is painted jade. Exhibit #4's REGRESSION is still on file, and tonight's Watch is CRACKED. The browser never runs Python — which is why this page draws boxes and arrows instead of live traces."}
+            ? "这十五张图里七张永远不联网：recall / evidence / purity / auditor / night_watch 只读本机账本与文件；usage_ledger 只读本机 token 级账本，不敲车道；covenant_witness 按 #1969 落册日逐字 pin 住行宪字节，永不敲模型。五张按设计出网、只问敲车道的那一件事：cache_witness 量前缀缓存、insight_advice 盯洞察舱、investigation_dig 三人并行读仓库、runbook_triage 探针一响模型先读仓库、exhibit_copilot 展厅铭按需敲。剩下三张只在显式 `--live` 下才敲：ask_the_book（第十三盏——公开车道，模型只能复述整本 WorldBook）、next_step（第十四盏——这本书读自己的账本）、stress_digest（第十五盏——周压测读数员，把每周 k6 的裸数据现读现念）。没有一个判词被涂成绿色。exhibit #4 的 REGRESSION 留在册子里，Night Watch 今天还是 CRACKED。浏览器永不运行 Python——这也是为什么本页用盒子和箭头而不是真实 trace。"
+            : "Seven of the fifteen graphs never touch the network: recall, evidence, purity, auditor and night_watch read local files and the ledger; usage_ledger reads the local token-level ledger and never strikes a lane; covenant_witness stays pinned byte-for-byte to the #1969 charter day and never strikes a model. Five are networked by design and do only that one thing: cache_witness counts the prefix cache, insight_advice watches the insight deck's lane, investigation_dig fans out three readonly readers on one question, runbook_triage has the model read the repo before a human does, exhibit_copilot seals the exhibit wall only on demand. The last three strike only under an explicit --live: ask_the_book (the thirteenth lamp — the public lane; the model may only retell from the world book), next_step (the fourteenth — the book reads its own ledger's real numbers), stress_digest (the fifteenth — the weekly k6 numbers get a reader, not a judge). No verdict is painted jade. Exhibit #4's REGRESSION is still on file, and tonight's Watch is CRACKED. The browser never runs Python — which is why this page draws boxes and arrows instead of live traces."}
         </p>
         <p className="sg-colophon muted">
           {zh

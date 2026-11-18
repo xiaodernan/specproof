@@ -10,7 +10,7 @@ import exhibitCopilot from "./exhibit_copilot.json";
 
 /**
  * 状态图谱 · The State Graphs — everything this page says is either
- * copied verbatim from the eleven graphs in `agent/graphs/`, or is a concept
+ * copied verbatim from the fifteen graphs in `agent/graphs/`, or is a concept
  * note about LangGraph's StateGraph as used by this repository.
  *
  * No LLM writes anything here; no network is involved; the browser re-draws
@@ -357,5 +357,44 @@ export const GRAPHS: GraphCard[] = [
     },
     fields: ["bytes", "sha256", "laws", "referenced_paths", "missing_paths", "pinned", "verdict"],
     live: liveCovenantWitness,
+  },
+  {
+    id: "ask_the_book",
+    file: "agent/graphs/ask_the_book_graph.py",
+    stateName: "AskTheBookState(TypedDict, total=False)",
+    chain: ["intake", "strike", "verify", "verdict", "report", "END"],
+    verdicts: { zh: "HELD / DRIFTED", en: "HELD / DRIFTED" },
+    role: {
+      zh: "问书——公开车道。任何人就该世界书提问，模型整本读过后只复述账本：书里没写就说没写，包外一个字都不给编，判词永远不出自模型。`--live` 显式才敲，offline 默认不联网。",
+      en: "Ask the book — the public lane. Anyone asks the world book a question; the model has read the whole thing and may only retell it: unwritten means it says so, not one digit off-packet is tolerated, and the verdict never comes from the model. On-demand `--live` only; offline by default.",
+    },
+    fields: ["pinned", "prefix_identity_ok", "sanitizer_ok", "fingerprint_ok", "messages_shape_ok", "verdict", "report_path", "live_requested"],
+    live: null,
+  },
+  {
+    id: "next_step",
+    file: "agent/graphs/next_step_graph.py",
+    stateName: "NextStepState(TypedDict, total=False)",
+    chain: ["intake", "strike", "verify", "verdict", "report", "END"],
+    verdicts: { zh: "HELD / DRIFTED", en: "HELD / DRIFTED" },
+    role: {
+      zh: "读账——这本书读自己的账本。证据包现算自仓库本身（commits / chronicle / worldbook / library / unit tests，永远是新鲜数字），模型只许引用包内数字，说这本书接下来最值得落一笔什么；包不够厚就直说不够。`--live` 显式才敲。",
+      en: "Read the ledger — the book reads its own ledger. The packet is computed from the repo tree at call time (commits / chronicle / worldbook / library / unit tests — always fresh numbers); the model may only quote packet numbers and name the next most worthwhile strike; if the packet cannot support it, it says so. On-demand `--live` only.",
+    },
+    fields: ["pinned", "packet_identical", "messages_shape_ok", "verdict", "report_path", "live_requested", "zh_cached_tokens", "en_cached_tokens"],
+    live: null,
+  },
+  {
+    id: "stress_digest",
+    file: "agent/graphs/stress_digest_graph.py",
+    stateName: "StressDigestState(TypedDict, total=False)",
+    chain: ["intake", "strike", "verify", "verdict", "report", "END"],
+    verdicts: { zh: "HELD / DRIFTED", en: "HELD / DRIFTED" },
+    role: {
+      zh: "读数——周压测的读数员。k6 打完后现读 docs/evidence/weekly-*.json（p99 / err_rate / 诚实行）：这敲干净还是有伤、距 5000ms 机器地板多远，最多三条落在包内数字上的下一步；地板是地板不是 SLO，判词不出现。离线默认；`--live` 显式才敲。",
+      en: "The strike, read aloud — the weekly k6 numbers get a reader. It reads docs/evidence/weekly-*.json straight off the disk (p99 / err_rate / the verbatim honesty line): clean or wounded, how much headroom against the 5000 ms machine floor, at most three next actions grounded in packet numbers; the floor is a floor, not an SLO. Offline by default; `--live` only on demand.",
+    },
+    fields: ["pinned", "packet_identical", "messages_shape_ok", "verdict", "report_path", "live_requested", "zh_cached_tokens", "en_cached_tokens"],
+    live: null,
   },
 ];

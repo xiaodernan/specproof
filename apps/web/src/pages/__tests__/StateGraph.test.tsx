@@ -6,22 +6,23 @@ import StateGraph from "../StateGraph";
 
 /**
  * The State Graphs page teaches LangGraph's StateGraph by pointing at the
- * twelve graphs this repository actually runs. Every claim it makes is either
+ * fifteen graphs this repository actually runs. Every claim it makes is either
  * a concept note about LangGraph as used here, or a byte visible in the same
  * repo (file names, state fields, verdict lexicon).
  *
- * Five of the twelve go out on purpose: cache_witness strikes this host's
- * model lane to count the prefix cache, insight_advice strikes the /insight
- * Advice lane to witness it answering at all, investigation_dig strikes the
- * model on purpose as a readonly workspace digger, and runbook_triage
- * strikes the model to answer one on-call alert from repo facts.
+ * Eight of the fifteen go out by design or on an explicit --live: cache_witness
+ * strikes this host's model lane to count the prefix cache, insight_advice
+ * strikes the /insight Advice lane to witness it answering at all,
+ * investigation_dig strikes the model on purpose as a readonly workspace digger,
+ * runbook_triage strikes the model to answer one on-call alert from repo facts,
+ * ask_the_book / next_step / stress_digest strike only under an explicit --live.
  * covenant_witness stays offline forever — it hashes bytes, never a prompt.
  * The page must say so — it must never let the browser learn to
  * phone home through this book, and never let a judge call hide behind a
  * witness's name.
  */
 describe("StateGraph — LangGraph as wired in this repository", () => {
-  it("renders both locales with all eight concept terms and twelve graphs", () => {
+  it("renders both locales with all eight concept terms and fifteen graphs", () => {
     for (const locale of ["zh", "en"] as const) {
       window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
       const { container } = render(
@@ -192,7 +193,7 @@ describe("StateGraph — LangGraph as wired in this repository", () => {
     }
   });
 
-  it("does not let the four networked graphs wear an offline colophon — names them", () => {
+  it("does not let the networked graphs wear an offline colophon — names them", () => {
     for (const locale of ["zh", "en"] as const) {
       window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
       const { container } = render(
