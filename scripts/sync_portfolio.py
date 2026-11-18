@@ -54,12 +54,26 @@ def _ledger_first_heading() -> str:
     return m.group(1) if m else "(none)"
 
 
-def _pages() -> list[str]:
-    pdir = ROOT / "apps" / "web" / "src" / "pages"
-    return sorted(
-        f.stem for f in pdir.glob("*.tsx")
-        if f.stem != "__tests__" and not f.stem.startswith("_") and not f.stem.endswith(".test")
-    )
+def _pages() -> list[dict[str, str]]:
+    """Route catalog from the SPA's own NAV — never a filesystem guess.
+
+    Every chip shown on the io page is clickable route text; the source of
+    truth is App.tsx's NAV array. Components are looked up by stem name
+    (case-insensitive) so PascalCase chip labels still match the file that
+    implements them.
+    """
+    app = (ROOT / "apps" / "web" / "src" / "App.tsx").read_text(encoding="utf-8")
+    nav = re.findall(r'\{\s*path:\s*"([a-z0-9-]+)"', app)
+    pages_index_files = {p.stem.lower(): p.stem for p in (ROOT / "apps" / "web" / "src" / "pages").glob("*.tsx")}
+    pages: list[dict[str, str]] = []
+    for route in nav:
+        # map route slug → component file, if we can find one
+        component_key = route.replace("-", "")
+        component = pages_index_files.get(component_key) or pages_index_files.get(route) or (
+            route[:1].upper() + route[1:]
+        )
+        pages.append({"component": component, "path": f"/#/{route}"})
+    return pages
 
 
 def _world_bytes() -> int:
@@ -216,9 +230,7 @@ def main() -> None:
     products = {
         "schema": 1,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "pages": [
-            {"path": f"/#/{name}", "component": name} for name in payload["pages"]
-        ],
+        "pages": payload["pages"],
     }
     (OUT / "products.json").write_text(
         json.dumps(products, indent=2, ensure_ascii=False),
