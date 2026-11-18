@@ -73,6 +73,51 @@ def _latest_changelog() -> str:
     return m.group(1) if m else "(no changelog entry parsed)"
 
 
+def _fact_pack() -> dict:
+    """Prefer the checked-in machine fact pack (re-struck by latest-json on
+    every master push); fall back to inline derivation with the same formulas."""
+    lp = ROOT / "docs" / "latest.json"
+    try:
+        d = json.loads(lp.read_text(encoding="utf-8"))
+        ok = (
+            isinstance(d.get("total_commits"), int) and d["total_commits"] >= 100
+            and isinstance(d.get("worldbook_scrolls"), int) and d["worldbook_scrolls"] >= 100
+            and isinstance(d.get("chronicle_entries"), int) and d["chronicle_entries"] >= 1000
+        )
+        if ok:
+            return {
+                "worldbook_scrolls": d["worldbook_scrolls"],
+                "chronicle_entries": d["chronicle_entries"],
+                "exhibit_entries": d.get("exhibit_entries"),
+                "latest_strike": d.get("latest_strike"),
+                "total_commits": d["total_commits"],
+                "tracked_files": d.get("tracked_files"),
+            }
+    except Exception:
+        pass
+    wtext = (ROOT / "docs" / "world" / "SPECROOF_WORLD.md").read_text(encoding="utf-8")
+    scrolls = len(re.findall(r"(?m)^##\s", wtext)) + 1
+    ledger = (ROOT / "docs" / "operations" / "DEEP_OPTIMIZATION_PLAN.md").read_text(encoding="utf-8")
+    chron = len(re.findall(r"(?m)^## (#\d+)\s+", ledger))
+    matches = list(re.finditer(r"(?m)^## (#[0-9]{4})", ledger))
+    strike = matches[-1].group(1) if matches else None
+    exhibits = None
+    ev = ROOT / "apps" / "web" / "src" / "pages" / "evidence.json"
+    if ev.is_file():
+        try:
+            exhibits = int(json.loads(ev.read_text(encoding="utf-8")).get("exhibits_count") or 0) or None
+        except Exception:
+            exhibits = None
+    return {
+        "worldbook_scrolls": scrolls,
+        "chronicle_entries": chron,
+        "exhibit_entries": exhibits,
+        "latest_strike": strike,
+        "total_commits": None,
+        "tracked_files": None,
+    }
+
+
 def _e2e_passed_at() -> str:
     # cheap: find the latest modified e2e spec under tests/e2e whose body references a green date
     p = ROOT / "tests" / "e2e"
@@ -90,8 +135,15 @@ def main() -> None:
     latest_tag = _git("describe", "--tags", "--abbrev=7", "--always", "HEAD") or _git("describe", "--al ---abbrev=7", "--always", "HEAD")
     latest_branch = _git("branch", "--show-current")
     latest_day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    facts = _fact_pack()
     payload = {
         "schema": 1,
+        "worldbook_scrolls": facts["worldbook_scrolls"],
+        "chronicle_entries": facts["chronicle_entries"],
+        "exhibit_entries": facts["exhibit_entries"],
+        "latest_strike": facts["latest_strike"],
+        "total_commits": facts["total_commits"],
+        "tracked_files": facts["tracked_files"],
         "last_synced": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "branch": latest_branch,
         "head": _git("rev-parse", "--short", "HEAD"),
