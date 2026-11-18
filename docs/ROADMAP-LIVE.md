@@ -1,6 +1,6 @@
 # ROADMAP · LIVE — SpecProof
 
-> 自动生成·2026-11-18 11:38Z（scripts/build_roadmap_live.py）·下次 chronicle 重推会变灯花。
+> 自动生成·2026-11-18 11:50Z（scripts/build_roadmap_live.py）·下次 chronicle 重推会变灯花。
 > **不含任何承诺** — 每一条都是「门下一要敲什么 + 谁来敲（机器 / 人类）」的清单。
 
 | # | 件 | 谁来敲 / 阻塞 |
@@ -16,7 +16,7 @@
 
 ## 出厂事实（build 时快照）
 
-- commits **2,739** · ledger **1,798** · worldbook **203** ·
+- commits **2,744** · ledger **1,798** · worldbook **203** ·
 - engineer lane aizzz/gpt-6.1-terra · responses · stream+include_usage · cached_tokens 105,206（live_lane_probe 每次敲回 ~4224；R16）·
 - 端口 8000 归属：other-project-answering · 外网搜索：HTTP 402 · court 永不缓存
 
