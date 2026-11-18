@@ -70,6 +70,14 @@ def main() -> int:
     subject = _git("log", "-1", "--pretty=%s")
     match = re.search(r"#(\d{4})", subject)
     latest_strike = f"#{match.group(1)}" if match else None
+    if latest_strike is None:
+        # The ledger is the durable source of truth for "which strike is latest";
+        # fall back to its last ## #NNNN heading so the fact pack is never blank
+        # just because of a missing tag in the most recent commit subject.
+        ledger = LEDGER.read_text(encoding="utf-8")
+        matches = list(re.finditer(r"(?m)^## (#[0-9]{4})", ledger))
+        if matches:
+            latest_strike = matches[-1].group(1)
 
     # Self-check: anything resembling a degenerate strike (shallow clone,
     # partial history, transient mis-read) must be refused — never emit a
