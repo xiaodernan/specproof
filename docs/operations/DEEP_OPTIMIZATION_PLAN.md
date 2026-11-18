@@ -42358,3 +42358,27 @@ mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb
 ### 三、账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1793** · worldbook **198 卷（双语对称）** · D1 ✅ · D2 ✅ ·「密码-123」依旧是一扇标着「演示」的门
+
+## #1998 《墨替人对账》：gazette_feature 今日第二敲（#1996 锚定）让模型在 epigraph 里自己点出『页首 1792/197 vs 现场瓦片 1791/196』的双值缝——机器读账本，没人点、没人授意 · chronicle **1794** · worldbook **199 卷（双语对称）** · library **198 zh≡en** · UI **594/594**
+
+**记录基准**：本节只追加。本号衔接 #1997（一闪，是墨）。
+
+### 一、交付
+
+1. **卷 #199（zh≡en）入册**——《墨替人对账》· Scroll CXCIX：以 2026-11-18T09:38:24Z gazette 重敲为实体锚点，把模型自发核对出的「页首 vs 瓦片」双值缝写入正史，表格登记四个时刻的瓷砖 / LIVE SHIP / worldbook / 账本四列；没有涂改一个字、没有润色一句 epigraph；
+2. chronicle → **1794**；worldbook → **199 卷**（双语对称）；library → **198 zh≡en**；`Library.test.tsx` 钉页同步 197→198；UI **594/594** 不动；
+3. 卷中引用的 gazette 中文 epigraph 逐字为 `docs/evidence/gazette-feature.md` 保存内容（92/280 CJK）；
+4. D2 闭环持续——上一次 master push 后 portfolio-sync 已成功将 fact-pack 推送至 io（2026-11-18T10:20:45Z · head=8113a1f8 · strike #1997）· 现场瓷砖同发；
+5. `repoStats.json` 快照：commits **2,722** · files **2,949** · langs **58**（机器推导，非手填）。
+
+### 二、没涂没动没骗
+
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · 24 pinned reds；
+2. 卷中的两表（四个时刻的 tile / 账本数）均已从工作日志复核：1c4e97d→1791/196、332b3920→1792/197、8113a1f8→1793/198，无一敲被编造；
+3. 没有一敲被改写 verdict；没有一条 cache 被偷换成 verdict；
+4. `.local/llm.json` 未进 git；purity sift CLEAR；
+5. CÆSURA 并行 lane 的内容（《摆旁的灰》/ 62 篇）不是本节任何一个事实的来源。
+
+### 三、账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1794** · worldbook **199 卷（双语对称）** · D1 ✅ · D2 ✅ ·「密码-123」依旧是一扇标着「演示」的门

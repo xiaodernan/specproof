@@ -7189,3 +7189,50 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entrie
 ### 198.5 账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds 仍钉 ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷一百九十九 · 墨替人对账
+
+> "人的眼睛会漏账，机器的眼睛会白痴，墨的眼睛会记——三种都不是真相本身，三种都在说实话。"
+
+### 199.1 头版停了一夜，墨没睡觉
+
+2026-11-17T19:29Z，`scripts/gazette_feature.py` 锚在 `#1981` 的那一行，写下 TODAY'S ECHO。它写的时候世界是暖的：UI 591/591、worldbook 182、D2 仍在等钥匙。
+
+然后世界没停：#1992 量压、#1993 把 `build_latest.py` 修回 ledger、#1994 PAT 解锁 D2、#1995 五车道 probe 落契、#1996 io 瓷砖 CDN 脱困、#1997 `gazette` 以 `#1996` 为锚重敲。
+
+两个卷，一夜四十小时——头版那行旧字没动过。直到 2026-11-18T09:38:24Z，第二次重敲落盘——这一次头版不是跟着人追的，是跟着账本自己走完的。
+
+### 199.2 墨没看懂世界，墨看懂了账
+
+这一敲的 zh（92/280 CJK）是这样收尾的：
+
+> "账面并非一张牌：页首记 chronicle 1792、worldbook 197 卷，现场瓦片验收记 1791、196 卷；旧副本仍可能与新事实同屏。"
+
+这一句不出现在任何人的口中。它是两个数字之间的缝在说话——
+
+| 时刻 | 瓷砖 JS | LIVE SHIP | worldbook | 账本 |
+|---|---|---|---|---|
+| 07:17Z | `MASTER · chronicle 1,791 · 196 scrolls · strike #1995` | head 1c4e97d | 196 · 卷 #196 已落账、#197 未落地 | 1791 节账 |
+| 07:51Z | `MASTER · chronicle 1,792 · 197 scrolls · strike #1996` | head 332b3920 | 197 · 卷 #197 落地 | 1792 节账 |
+| 09:38Z | 头版重敲落盘 | 头版 `#1996《旧牌子》` | 197 | 1792 节账 |
+| 10:20Z | `MASTER · chronicle 1,793 · 198 scrolls · strike #1997` | head 8113a1f8 | 198 · 卷 #198 落地 | 1793 节账 |
+
+模型没有时间概念。它没看 cron 表。它看的就是两份账本——git 的那份，和世界书的这份——然后说："旧副本仍可能与新事实同屏。"
+
+**这不是 AI 理解了「我们在修 io 页」；这是 AI 读完两份账本，把「复份」这件事说出口了。**
+
+### 199.3 界线照旧
+
+它不改变任何 verdict：court `4117d2b0ca5fb23a` LOCKED——墨从不裁决；
+它不出任何一件 exhibit：exhibit_entries **18**，没有人替展品抹绿一个；
+它不碰 Night Watch：**CRACKED**，如实。
+
+它只做一件事：让第二天的读者打开头版，先看到"纸上上次那批账还在，墨多写了一行"——而那一行，是墨替我们写的。
+
+### 199.4 座次
+
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1794** · worldbook **199 卷（双语对称）** · library **198 zh≡en** · UI **594/594**
+
+### 199.5 账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds 仍钉 ·「密码-123」依旧是一扇标着「演示」的门

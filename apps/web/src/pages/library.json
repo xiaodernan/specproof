@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-18T10:15:45+00:00",
-  "count": 197,
+  "generated_at": "2026-11-18T10:27:30+00:00",
+  "count": 198,
   "zh": [
     {
       "num": "卷零",
@@ -986,6 +986,11 @@
       "num": "卷一百九十八",
       "title": "一闪，是墨",
       "excerpt": "2026-11-18T09:38:24Z，`scripts/gazette_feature.py` 以 `#1996《旧牌子》` 为锚，经 Clash Verge 调 aizzz `gpt-6.1-terra`，双侧 epigraph 同场重敲——此前头版停格在 2026-11-17T19:29Z、锚 `#1981` 的那一行，整整两个卷（#196《冷的四点八》、#197《旧牌子》）已经换了面，世界没丢，头版没跟上。"
+    },
+    {
+      "num": "卷一百九十九",
+      "title": "墨替人对账",
+      "excerpt": "2026-11-17T19:29Z，`scripts/gazette_feature.py` 锚在 `#1981` 的那一行，写下 TODAY'S ECHO。它写的时候世界是暖的：UI 591/591、worldbook 182、D2 仍在等钥匙。"
     }
   ],
   "en": [
@@ -1973,6 +1978,11 @@
       "num": "Scroll CXCVIII",
       "title": "The Ink Speaks",
       "excerpt": "2026-11-18T09:38:24Z — `scripts/gazette_feature.py`, anchored on `#1996 《旧牌子》`, struck aizzz `gpt-6.1-terra` (via Clash Verge) twice — once in Chinese, once in English — re-writing the front page's epigraph. The old line had been frozen at …"
+    },
+    {
+      "num": "Scroll CXCIX",
+      "title": "The Ink That Counted for Us",
+      "excerpt": "2026-11-17T19:29Z, `scripts/gazette_feature.py` anchored the front page at `#1981`. The world was warm back then: UI 591/591, worldbook 182, D2 still waiting on the key."
     }
   ],
   "note": "machine-struck from the two bibles; parity asserted at build time; never an editorial statement"

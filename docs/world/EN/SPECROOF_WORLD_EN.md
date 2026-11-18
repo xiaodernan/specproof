@@ -7065,3 +7065,50 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entrie
 ### 198.5 The ledger
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds stand · 「密码-123」is still a door marked "demo"
+
+## Scroll CXCIX · The Ink That Counted for Us
+
+> "Human eyes drop the ledger; a machine's eyes are blind to story; ink remembers — all three tell the truth, none of them is the truth itself."
+
+### 199.1 The front page slept for a night; the ink did not
+
+2026-11-17T19:29Z, `scripts/gazette_feature.py` anchored the front page at `#1981`. The world was warm back then: UI 591/591, worldbook 182, D2 still waiting on the key.
+
+And then the world did not stop: #1992 pressure-test window, #1993 the `build_latest.py` fallback back to the ledger, #1994 the PAT unlock of D2, #1995 the five-lane probe, #1996 the io tile's CDN de-staling, #1997 `gazette` re-struck on `#1996`.
+
+Two volumes inside forty hours of one night — and the front page still slept on the old line. At 2026-11-18T09:38:24Z the front page was re-struck — this time, not by a human chasing it, but by the ledger walking itself forward.
+
+### 199.2 The ink never understood the world; the ink understood the ledger
+
+The zh epigraph (92/280 CJK) closed with this:
+
+> "账面并非一张牌：页首记 chronicle 1792、worldbook 197 卷，现场瓦片验收记 1791、196 卷；旧副本仍可能与新事实同屏。" — The account is never a single card: the front matter says chronicle 1792 and worldbook 197; the on-site tile check said 1791 and 196; old copies may well coexist with new facts on the same screen.
+
+Nobody said it aloud. The seam between two numbers said it instead —
+
+| moment | tile JS | LIVE SHIP | worldbook | ledger |
+|---|---|---|---|---|
+| 07:17Z | `MASTER · chronicle 1,791 · 196 scrolls · strike #1995` | head 1c4e97d | 196 · #196 landed, #197 not yet | 1791 |
+| 07:51Z | `MASTER · chronicle 1,792 · 197 scrolls · strike #1996` | head 332b3920 | 197 · #197 landed | 1792 |
+| 09:38Z | front page re-struck | anchor `#1996 《旧牌子》` | 197 | 1792 |
+| 10:20Z | `MASTER · chronicle 1,793 · 198 scrolls · strike #1997` | head 8113a1f8 | 198 · #198 landed | 1793 |
+
+The model had no concept of time; it read no cron table; it read two ledgers — the git one and the world one — and said: "old copies may well coexist with new facts on the same screen."
+
+**This is not the AI understanding the sentence "we were fixing the io tile."** This is the AI reading two account books, noticing the same fact told differently, and saying so out loud before anyone else did.
+
+### 199.3 How far this goes
+
+It changes no verdict; the court `4117d2b0ca5fb23a` remains **LOCKED** — the ink never rules.
+It mints no exhibit; exhibit_entries stay **18** — nobody painted a single green for the wall.
+It touches nothing on the Night Watch; it stays **CRACKED**, exactly as it should.
+
+It does one thing only: let the reader of tomorrow's front page see the old rows still there — and one more line in ink, written by ink itself.
+
+### 199.4 The anchors
+
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1794** · worldbook **199 scrolls (bilingual mirror)** · library **198 zh≡en** · UI **594/594**
+
+### 199.5 The ledger
+
+mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds stand · 「密码-123」is still a door marked "demo"
