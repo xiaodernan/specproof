@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-11-18T06:46:43+00:00",
+  "generated_utc": "2026-11-18T12:36:57+00:00",
   "model": "gpt-6.1-terra",
   "protocol": "responses",
   "prompt_cache_key_per_lane": {
@@ -7,7 +7,8 @@
     "insight": "specproof-insight-advice",
     "ai_summary": "specproof-ai-summary",
     "dig": "specproof-dig",
-    "runbook": "specproof-runbook"
+    "runbook": "specproof-runbook",
+    "ask_the_book": "specproof-worldbook-ask"
   },
   "note": "live probes; the two strikes per lane are byte-identical on the prefix; no verdicts minted; numbers recorded as returned",
   "results": [
@@ -37,6 +38,34 @@
         "prompt_cache_hit_tokens": 148265,
         "prompt_cache_miss_tokens": 9543,
         "reasoning_tokens": 347
+      }
+    },
+    {
+      "lane": "ask_the_book",
+      "strike": 1,
+      "outcome": "ok",
+      "elapsed_s": 15.52,
+      "usage": {
+        "prompt_tokens": 167469,
+        "completion_tokens": 177,
+        "total_tokens": 167646,
+        "prompt_cache_hit_tokens": 157366,
+        "prompt_cache_miss_tokens": 10103,
+        "reasoning_tokens": 158
+      }
+    },
+    {
+      "lane": "ask_the_book",
+      "strike": 2,
+      "outcome": "ok",
+      "elapsed_s": 15.47,
+      "usage": {
+        "prompt_tokens": 167469,
+        "completion_tokens": 239,
+        "total_tokens": 167708,
+        "prompt_cache_hit_tokens": 157366,
+        "prompt_cache_miss_tokens": 10103,
+        "reasoning_tokens": 215
       }
     },
     {

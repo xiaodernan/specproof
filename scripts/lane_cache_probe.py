@@ -1,4 +1,4 @@
-"""Lane cache probe — strike the five cacheable lanes twice each, live.
+"""Lane cache probe — strike the six cacheable lanes twice each, live.
 
 Every strike runs the real lane code path (``generate_*``), not a mock.
 Recorded per strike: wall seconds, outcome, and the usage dict the gateway
@@ -10,7 +10,7 @@ Re-running merges into one evidence file: results are keyed by
 
 Usage:
   python -X utf8 scripts/lane_cache_probe.py [lane ...]
-  lanes: observe insight ai_summary dig runbook (default: all five)
+  lanes: observe insight ai_summary dig runbook ask_the_book (default: all six)
 """
 from __future__ import annotations
 
@@ -94,12 +94,28 @@ async def strike_runbook(n: int) -> list[dict]:
     return [await _strike("runbook", i, lambda: generate_triage("SpecproofApiHigh5xxRate")) for i in range(1, n + 1)]
 
 
+async def strike_ask_the_book(n: int) -> list[dict]:
+    from api.worldbook_ask import generate_ask_answer
+
+    async def call() -> dict:
+        result = await generate_ask_answer(
+            "世界书从哪一卷开始？", "zh",
+        )
+        return {
+            "agents": [],
+            "usage": result.get("usage") or {},
+        }
+
+    return [await _strike("ask_the_book", i, call) for i in range(1, n + 1)]
+
+
 LANES = {
     "observe": strike_observe,
     "insight": strike_insight,
     "ai_summary": strike_ai_summary,
     "dig": strike_dig,
     "runbook": strike_runbook,
+    "ask_the_book": strike_ask_the_book,
 }
 
 PROMPT_CACHE_KEYS = {
@@ -108,6 +124,7 @@ PROMPT_CACHE_KEYS = {
     "ai_summary": "specproof-ai-summary",
     "dig": "specproof-dig",
     "runbook": "specproof-runbook",
+    "ask_the_book": "specproof-worldbook-ask",
 }
 
 
