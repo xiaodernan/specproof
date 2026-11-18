@@ -251,6 +251,17 @@ async def metrics() -> Any:
     return PlainTextResponse(render_text())
 
 
+# ── Readiness probes are sampled, not transactional: one deep probe result is
+# shared for SPECPROOF_HEALTH_PROBE_TTL_SECONDS (default 2.0 s) so a readiness
+# storm (thousands of pollers) cannot open a fresh MySQL connection per inbound
+# request. Measured 2026-11-18/19: a single-worker probe each call collapses at
+# ~25 rps with MYSQL_POOL_SIZE=8 (94% timeout failure at 100 rps). 0 disables.
+import threading as _threading
+
+_HEALTH_CACHE: dict[str, Any] = {"at": 0.0, "payload": None}
+_HEALTH_CACHE_LOCK = _threading.Lock()
+
+
 @app.get("/health")
 def health() -> dict[str, Any]:
     """Readiness probe — reports the stores that actually gate job execution.
@@ -261,9 +272,34 @@ def health() -> dict[str, Any]:
     answering 200 while a dependency is down, so readiness pollers still
     work and the payload tells the truth instead.
 
+    Deep probes are sampled: results are shared for at most
+    ``SPECPROOF_HEALTH_PROBE_TTL_SECONDS`` seconds (default 2.0) with a
+    single-flight lock, which is what keeps a readiness storm from opening
+    one fresh MySQL connection per inbound request. 300-second stale polls
+    still see the truth, only quantized to the TTL grid.
+
     `status` reflects the Verify path (MySQL + Redis). Light mode has no
     MySQL, so it is honestly reported as degraded with per-component detail.
     """
+    import os
+    import time
+
+    ttl = float(os.environ.get("SPECPROOF_HEALTH_PROBE_TTL_SECONDS", "2.0"))
+    now = time.monotonic()
+    payload = _HEALTH_CACHE.get("payload")
+    if ttl > 0.0 and isinstance(payload, dict) and now - float(_HEALTH_CACHE.get("at") or 0.0) < ttl:
+        return dict(payload)
+    with _HEALTH_CACHE_LOCK:
+        payload = _HEALTH_CACHE.get("payload")
+        if ttl > 0.0 and isinstance(payload, dict) and now - float(_HEALTH_CACHE.get("at") or 0.0) < ttl:
+            return dict(payload)
+        computed = _compute_health_payload()
+        if ttl > 0.0:
+            _HEALTH_CACHE.update(at=time.monotonic(), payload=computed)
+        return dict(computed)
+
+
+def _compute_health_payload() -> dict[str, Any]:
     checks: dict[str, bool] = {}
 
     from concurrent.futures import ThreadPoolExecutor

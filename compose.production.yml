@@ -35,6 +35,7 @@ services:
       SPECPROOF_CORS_ORIGINS: ${SPECPROOF_CORS_ORIGINS:-http://localhost:3000}
       MYSQL_HOST: mysql
       REDIS_HOST: redis
+      SPECPROOF_HEALTH_PROBE_TTL_SECONDS: ${SPECPROOF_HEALTH_PROBE_TTL_SECONDS:-2.0}
       # Semantic cache backend for the provider policy layer: memory
       # (default) or redis (shared across replicas; non-evidence kinds only).
       SPECPROOF_SEMANTIC_CACHE_BACKEND: ${SPECPROOF_SEMANTIC_CACHE_BACKEND:-memory}

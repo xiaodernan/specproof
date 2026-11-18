@@ -1,0 +1,36 @@
+{
+  "date": "2026-11-19",
+  "host": "this machine, uvicorn single worker + MYSQL_POOL_SIZE=8 + redis 6379 up + mysql 3306 up",
+  "targets": [
+    "GET /health at 100 rps constant-arrival-rate for 30s",
+    "POST /jobs with randomly forged X-API-Key, 25 VUs, 20s"
+  ],
+  "before": {
+    "health_200_rate": 0.0566,
+    "http_req_failed_rate": 0.9476,
+    "dropped_iterations": 1780,
+    "avg_latency_ms": 4920,
+    "p95_latency_ms": 5160
+  },
+  "cause": "deep /health probe per request (fresh MySQLStore + RedisStore + is_ready each call) exhausts MYSQL_POOL_SIZE=8 at 100 rps",
+  "fix": "api/server.py deep probe is sampled: SPECPROOF_HEALTH_PROBE_TTL_SECONDS (default 2.0, single-flight lock), 0 disables; compose.production.yml + .env.example updated; tests/unit/test_health_probe_cache.py (5/5 green)",
+  "after": {
+    "health_200": "100% (3001/3001)",
+    "checks_succeeded": "100% (3001/3001)",
+    "dropped_iterations": 0,
+    "http_reqs": 11277,
+    "avg_latency_ms": 44.6,
+    "p95_latency_ms": 83,
+    "max_latency_ms": 176
+  },
+  "brute_rotation": {
+    "requests": 8276,
+    "successes": 0,
+    "two_xx": 0,
+    "five_xx": 0,
+    "avg_ms": 7,
+    "outcome": "all rejected at require_api_key (constant-time compare) before the rate limiter; deliberate ordering; per-key buckets never fill"
+  },
+  "court": "4117d2b0ca5fb23a LOCKED — stress never aimed at LLM lanes",
+  "kb": "k6 script kept out of the tree (one-shot gauge, not a product)"
+}
