@@ -1,0 +1,22 @@
+{
+  "generated_utc": "2026-11-18T14:19:02+00:00",
+  "lane": "ask_the_book",
+  "pinned_sha256": "ae853cb5ea0870fa2537495aa6b6105908824834bc2ad004a944d321aaa9cd4e",
+  "pinned": true,
+  "sanitizer_ok": true,
+  "fingerprint_ok": true,
+  "messages_shape_ok": true,
+  "verdict": "HELD",
+  "live_requested": true,
+  "zh_chars": 57,
+  "en_chars": 295,
+  "zh_prompt_tokens": 169186,
+  "zh_cached_tokens": 158881,
+  "en_prompt_tokens": 147273,
+  "en_cached_tokens": 138279,
+  "info_verdict_word_hits_zh": [],
+  "info_verdict_word_hits_en": [
+    " verdict "
+  ],
+  "notes": "codex_first sandwich 4 msgs; zh codex bytes=490782; fingerprint=42eeeb35de13 (deterministic=True); zh strike ok chars=57 prompt_tokens=169186 cached_tokens=158881 info_hits=[]; en strike ok chars=295 prompt_tokens=147273 cached_tokens=138279 info_hits=[' verdict ']"
+}
