@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-11-17T16:25:33+00:00",
+  "generated_utc": "2026-11-18T00:25:49+00:00",
   "model": "gpt-6.1-terra",
   "protocol": "responses",
   "prompt_cache_key_per_lane": {
@@ -15,38 +15,185 @@
       "lane": "ai_summary",
       "strike": 1,
       "outcome": "ok",
-      "elapsed_s": 27.07,
-      "verdict": null,
+      "elapsed_s": 20.28,
       "usage": {
-        "prompt_tokens": 136132,
-        "completion_tokens": 1110,
-        "total_tokens": 137242,
+        "prompt_tokens": 147338,
+        "completion_tokens": 769,
+        "total_tokens": 148107,
         "prompt_cache_hit_tokens": 0,
-        "prompt_cache_miss_tokens": 136132,
-        "reasoning_tokens": 979
+        "prompt_cache_miss_tokens": 147338,
+        "reasoning_tokens": 650
       }
     },
     {
       "lane": "ai_summary",
       "strike": 2,
       "outcome": "ok",
-      "elapsed_s": 17.24,
-      "verdict": null,
+      "elapsed_s": 16.48,
       "usage": {
-        "prompt_tokens": 136132,
-        "completion_tokens": 603,
-        "total_tokens": 136735,
-        "prompt_cache_hit_tokens": 129130,
-        "prompt_cache_miss_tokens": 7002,
-        "reasoning_tokens": 486
+        "prompt_tokens": 147338,
+        "completion_tokens": 640,
+        "total_tokens": 147978,
+        "prompt_cache_hit_tokens": 139834,
+        "prompt_cache_miss_tokens": 7504,
+        "reasoning_tokens": 516
       }
     },
     {
       "lane": "dig",
       "strike": 1,
       "outcome": "ok",
-      "elapsed_s": 135.25,
-      "verdict": "EVIDENCE-GATHERED",
+      "elapsed_s": 69.18,
+      "agents": [
+        {
+          "name": "investigate_explorer",
+          "outcome": "ok",
+          "tokens": 129255,
+          "usage": {
+            "prompt_tokens": 129194,
+            "completion_tokens": 61,
+            "total_tokens": 129255,
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 129194,
+            "reasoning_tokens": 0
+          }
+        },
+        {
+          "name": "investigate_tester",
+          "outcome": "ok",
+          "tokens": 128650,
+          "usage": {
+            "prompt_tokens": 128600,
+            "completion_tokens": 50,
+            "total_tokens": 128650,
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 128600,
+            "reasoning_tokens": 0
+          }
+        },
+        {
+          "name": "investigate_security",
+          "outcome": "ok",
+          "tokens": 127614,
+          "usage": {
+            "prompt_tokens": 127588,
+            "completion_tokens": 26,
+            "total_tokens": 127614,
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 127588,
+            "reasoning_tokens": 0
+          }
+        }
+      ]
+    },
+    {
+      "lane": "dig",
+      "strike": 2,
+      "outcome": "ok",
+      "elapsed_s": 52.27,
+      "agents": [
+        {
+          "name": "investigate_explorer",
+          "outcome": "ok",
+          "tokens": 129233,
+          "usage": {
+            "prompt_tokens": 129194,
+            "completion_tokens": 39,
+            "total_tokens": 129233,
+            "prompt_cache_hit_tokens": 122565,
+            "prompt_cache_miss_tokens": 6629,
+            "reasoning_tokens": 0
+          }
+        },
+        {
+          "name": "investigate_tester",
+          "outcome": "ok",
+          "tokens": 128633,
+          "usage": {
+            "prompt_tokens": 128600,
+            "completion_tokens": 33,
+            "total_tokens": 128633,
+            "prompt_cache_hit_tokens": 121954,
+            "prompt_cache_miss_tokens": 6646,
+            "reasoning_tokens": 0
+          }
+        },
+        {
+          "name": "investigate_security",
+          "outcome": "ok",
+          "tokens": 127615,
+          "usage": {
+            "prompt_tokens": 127588,
+            "completion_tokens": 27,
+            "total_tokens": 127615,
+            "prompt_cache_hit_tokens": 120981,
+            "prompt_cache_miss_tokens": 6607,
+            "reasoning_tokens": 0
+          }
+        }
+      ]
+    },
+    {
+      "lane": "insight",
+      "strike": 1,
+      "outcome": "ok",
+      "elapsed_s": 11.18,
+      "usage": {
+        "prompt_tokens": 147351,
+        "completion_tokens": 384,
+        "total_tokens": 147735,
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 147351,
+        "reasoning_tokens": 291
+      }
+    },
+    {
+      "lane": "insight",
+      "strike": 2,
+      "outcome": "ok",
+      "elapsed_s": 10.48,
+      "usage": {
+        "prompt_tokens": 147351,
+        "completion_tokens": 352,
+        "total_tokens": 147703,
+        "prompt_cache_hit_tokens": 139833,
+        "prompt_cache_miss_tokens": 7518,
+        "reasoning_tokens": 270
+      }
+    },
+    {
+      "lane": "observe",
+      "strike": 1,
+      "outcome": "ok",
+      "elapsed_s": 16.0,
+      "usage": {
+        "prompt_tokens": 147721,
+        "completion_tokens": 396,
+        "total_tokens": 148117,
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 147721,
+        "reasoning_tokens": 233
+      }
+    },
+    {
+      "lane": "observe",
+      "strike": 2,
+      "outcome": "ok",
+      "elapsed_s": 14.39,
+      "usage": {
+        "prompt_tokens": 147721,
+        "completion_tokens": 529,
+        "total_tokens": 148250,
+        "prompt_cache_hit_tokens": 140198,
+        "prompt_cache_miss_tokens": 7523,
+        "reasoning_tokens": 368
+      }
+    },
+    {
+      "lane": "runbook",
+      "strike": 1,
+      "outcome": "ok",
+      "elapsed_s": 106.26,
       "agents": [
         {
           "name": "investigate_explorer",
@@ -57,230 +204,66 @@
         {
           "name": "investigate_tester",
           "outcome": "ok",
-          "tokens": 118956,
+          "tokens": 130708,
           "usage": {
-            "prompt_tokens": 118900,
-            "completion_tokens": 56,
-            "total_tokens": 118956,
-            "prompt_cache_hit_tokens": 112839,
-            "prompt_cache_miss_tokens": 6061,
-            "reasoning_tokens": 0
+            "prompt_tokens": 130030,
+            "completion_tokens": 678,
+            "total_tokens": 130708,
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 130030,
+            "reasoning_tokens": 320
           }
         },
         {
           "name": "investigate_security",
           "outcome": "ok",
-          "tokens": 117924,
+          "tokens": 129358,
           "usage": {
-            "prompt_tokens": 117888,
-            "completion_tokens": 36,
-            "total_tokens": 117924,
-            "prompt_cache_hit_tokens": 111866,
-            "prompt_cache_miss_tokens": 6022,
+            "prompt_tokens": 129018,
+            "completion_tokens": 340,
+            "total_tokens": 129358,
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 129018,
             "reasoning_tokens": 0
           }
         }
       ]
-    },
-    {
-      "lane": "dig",
-      "strike": 2,
-      "outcome": "ok",
-      "elapsed_s": 38.28,
-      "verdict": "EVIDENCE-GATHERED",
-      "agents": [
-        {
-          "name": "investigate_explorer",
-          "outcome": "ok",
-          "tokens": 119521,
-          "usage": {
-            "prompt_tokens": 119485,
-            "completion_tokens": 36,
-            "total_tokens": 119521,
-            "prompt_cache_hit_tokens": 113322,
-            "prompt_cache_miss_tokens": 6163,
-            "reasoning_tokens": 0
-          }
-        },
-        {
-          "name": "investigate_tester",
-          "outcome": "ok",
-          "tokens": 118951,
-          "usage": {
-            "prompt_tokens": 118900,
-            "completion_tokens": 51,
-            "total_tokens": 118951,
-            "prompt_cache_hit_tokens": 112839,
-            "prompt_cache_miss_tokens": 6061,
-            "reasoning_tokens": 0
-          }
-        },
-        {
-          "name": "investigate_security",
-          "outcome": "ok",
-          "tokens": 117923,
-          "usage": {
-            "prompt_tokens": 117888,
-            "completion_tokens": 35,
-            "total_tokens": 117923,
-            "prompt_cache_hit_tokens": 111866,
-            "prompt_cache_miss_tokens": 6022,
-            "reasoning_tokens": 0
-          }
-        }
-      ]
-    },
-    {
-      "lane": "insight",
-      "strike": 1,
-      "outcome": "ok",
-      "elapsed_s": 14.51,
-      "verdict": null,
-      "usage": {
-        "prompt_tokens": 136144,
-        "completion_tokens": 384,
-        "total_tokens": 136528,
-        "prompt_cache_hit_tokens": 0,
-        "prompt_cache_miss_tokens": 136144,
-        "reasoning_tokens": 304
-      }
-    },
-    {
-      "lane": "insight",
-      "strike": 2,
-      "outcome": "ok",
-      "elapsed_s": 17.43,
-      "verdict": null,
-      "usage": {
-        "prompt_tokens": 136144,
-        "completion_tokens": 642,
-        "total_tokens": 136786,
-        "prompt_cache_hit_tokens": 129129,
-        "prompt_cache_miss_tokens": 7015,
-        "reasoning_tokens": 516
-      }
-    },
-    {
-      "lane": "observe",
-      "strike": 1,
-      "outcome": "ok",
-      "elapsed_s": 13.79,
-      "verdict": null,
-      "usage": {
-        "prompt_tokens": 136514,
-        "completion_tokens": 411,
-        "total_tokens": 136925,
-        "prompt_cache_hit_tokens": 129495,
-        "prompt_cache_miss_tokens": 7019,
-        "reasoning_tokens": 248
-      }
-    },
-    {
-      "lane": "observe",
-      "strike": 2,
-      "outcome": "ok",
-      "elapsed_s": 11.51,
-      "verdict": null,
-      "usage": {
-        "prompt_tokens": 136514,
-        "completion_tokens": 433,
-        "total_tokens": 136947,
-        "prompt_cache_hit_tokens": 129495,
-        "prompt_cache_miss_tokens": 7019,
-        "reasoning_tokens": 285
-      }
     },
     {
       "lane": "runbook",
-      "strike": 1,
+      "strike": 2,
       "outcome": "ok",
-      "elapsed_s": 53.19,
-      "verdict": "CONFIRMED",
+      "elapsed_s": 157.78,
       "agents": [
         {
           "name": "investigate_explorer",
-          "outcome": "ok",
-          "tokens": 121405,
-          "usage": {
-            "prompt_tokens": 121129,
-            "completion_tokens": 276,
-            "total_tokens": 121405,
-            "prompt_cache_hit_tokens": 0,
-            "prompt_cache_miss_tokens": 121129,
-            "reasoning_tokens": 0
-          }
+          "outcome": "timed_out",
+          "tokens": 0,
+          "usage": {}
         },
         {
           "name": "investigate_tester",
           "outcome": "ok",
-          "tokens": 120854,
+          "tokens": 130232,
           "usage": {
-            "prompt_tokens": 120544,
-            "completion_tokens": 310,
-            "total_tokens": 120854,
-            "prompt_cache_hit_tokens": 0,
-            "prompt_cache_miss_tokens": 120544,
+            "prompt_tokens": 130030,
+            "completion_tokens": 202,
+            "total_tokens": 130232,
+            "prompt_cache_hit_tokens": 123291,
+            "prompt_cache_miss_tokens": 6739,
             "reasoning_tokens": 0
           }
         },
         {
           "name": "investigate_security",
           "outcome": "ok",
-          "tokens": 119812,
+          "tokens": 129298,
           "usage": {
-            "prompt_tokens": 119532,
+            "prompt_tokens": 129018,
             "completion_tokens": 280,
-            "total_tokens": 119812,
-            "prompt_cache_hit_tokens": 0,
-            "prompt_cache_miss_tokens": 119532,
-            "reasoning_tokens": 0
-          }
-        }
-      ]
-    },
-    {
-      "lane": "runbook",
-      "strike": 2,
-      "outcome": "ok",
-      "elapsed_s": 42.76,
-      "verdict": "CONFIRMED",
-      "agents": [
-        {
-          "name": "investigate_explorer",
-          "outcome": "ok",
-          "tokens": 121346,
-          "usage": {
-            "prompt_tokens": 121129,
-            "completion_tokens": 217,
-            "total_tokens": 121346,
-            "prompt_cache_hit_tokens": 114904,
-            "prompt_cache_miss_tokens": 6225,
-            "reasoning_tokens": 0
-          }
-        },
-        {
-          "name": "investigate_tester",
-          "outcome": "ok",
-          "tokens": 120820,
-          "usage": {
-            "prompt_tokens": 120544,
-            "completion_tokens": 276,
-            "total_tokens": 120820,
-            "prompt_cache_hit_tokens": 114293,
-            "prompt_cache_miss_tokens": 6251,
-            "reasoning_tokens": 0
-          }
-        },
-        {
-          "name": "investigate_security",
-          "outcome": "ok",
-          "tokens": 119824,
-          "usage": {
-            "prompt_tokens": 119532,
-            "completion_tokens": 292,
-            "total_tokens": 119824,
-            "prompt_cache_hit_tokens": 113320,
-            "prompt_cache_miss_tokens": 6212,
+            "total_tokens": 129298,
+            "prompt_cache_hit_tokens": 122446,
+            "prompt_cache_miss_tokens": 6572,
             "reasoning_tokens": 0
           }
         }

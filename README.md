@@ -129,7 +129,7 @@ Craft（AI 开发）的**独立验收摘要**现在也显示在执行结果页�
 
 
 - **「教与止」· #1989**：展厅修缮（io page）——`.minicc-latest-grid` 窄条由定宽 5 列改 `repeat(auto-fit,minmax(84px,1fr))`；数字 `overflow-wrap:anywhere`；最近提交由 nowrap+ellipsis 改两行截断；主界面所有可操作元素悬停中英双轨一句话教学说明（`teachInteractive()`，零依赖、零身份口径）；Pages 随 `8540287` 部署 18s green · chronicle **1785** · worldbook **190 卷（双语对称）**。
-- **「直声」· #1990**：CÆSURA 浅克隆审滚轮（KI-593/647 默认行为正确：scroll up = gaze up，源码未改）；Clash 代理根因闭环（ aizzz 直连即 403 · `npm ci --ignore-scripts` 补 undici devDep 恢复代理路径）；**AI 导演 live 重激活** · `statuses=[200,200,200,200] · cached_tokens=181,243 · consistency=88` · artifacts 提交至 `eee3e23`（authoring-only，人工闸）；showcase 事实条已对齐 · chronicle **1786** · worldbook **191 卷（双语对称）** · library **190 卷 zh≡en**（Library.test 同步更新）· UI **594/594**。
+- **「直声」· #1990**：CÆSURA 浅克隆审滚轮（KI-593/647 默认行为正确：scroll up = gaze up，源码未改）；Clash 代理根因闭环（ aizzz 直连即 403 · `npm ci --ignore-scripts` 补 undici devDep 恢复代理路径）；**AI 导演 live 重激活** · `statuses=[200,200,200,200] · cached_tokens=181,243 · consistency=88` · artifacts 提交至 `eee3e23`（authoring-only，人工闸）；showcase 事实条已对齐 · chronicle **1787** · worldbook **192 卷（双语对称）** · library **191 卷 zh≡en**（Library.test 同步更新）· UI **594/594**。
 
 ## 最新验收 · 2026-11-17
 

@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-17T21:57:37+00:00",
-  "count": 190,
+  "generated_at": "2026-11-18T00:26:53+00:00",
+  "count": 191,
   "zh": [
     {
       "num": "卷零",
@@ -951,6 +951,11 @@
       "num": "卷一百九十一",
       "title": "直声",
       "excerpt": "2026-11-18 本日，三件事围绕同一根线："
+    },
+    {
+      "num": "卷一百九十二",
+      "title": "暖而不烫",
+      "excerpt": "2026-11-18（第二次热敲证据落账 `docs/evidence/lane-cache-probe-2026-11-18.json`；本次探测为 2026-11-18 第二次跑，同路径按 `(lane, strike)` 键合并）："
     }
   ],
   "en": [
@@ -1903,6 +1908,11 @@
       "num": "Scroll CXCI",
       "title": "The Straight Voice",
       "excerpt": "2026-11-18's thread, end to end:"
+    },
+    {
+      "num": "Scroll CXCII",
+      "title": "Warm, Not Hot",
+      "excerpt": "2026-11-18 — the second hot-probe of the day is merged into `docs/evidence/lane-cache-probe-2026-11-18.json` (the merge-rule is `(lane, strike)`, newer rows replace older ones):"
     }
   ],
   "note": "machine-struck from the two bibles; parity asserted at build time; never an editorial statement"

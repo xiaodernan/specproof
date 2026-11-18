@@ -6798,3 +6798,37 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entrie
 ### 191.4 The ledger
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · identity-guard ✓ · 24 pinned reds stand · 18 exhibit entries unchanged · court locked · 「密码-123」is still a door marked "demo"
+## Scroll CXCII · Warm, Not Hot
+
+> "On the second knock, it brought back exactly what the first one left."
+
+### 192.1 Today's probe: five lanes, ten strikes, one report
+
+2026-11-18 — the second hot-probe of the day is merged into `docs/evidence/lane-cache-probe-2026-11-18.json` (the merge-rule is `(lane, strike)`, newer rows replace older ones):
+
+| lane | cold | warm cached | share |
+|---|---|---|---|
+| observe | 147,721 prompt · 0 cached | **140,198** | ~94.9% |
+| insight | 147,351 prompt · 0 cached | **139,833** | ~94.9% |
+| ai_summary | 147,338 prompt · 0 cached | **139,834** | ~94.9% |
+| dig · explorer | 129,194 · 0 | **122,565** | ~94.9% |
+| dig · tester | 128,600 · 0 | **121,954** | ~94.9% |
+| dig · security | 127,588 · 0 | **120,981** | ~94.9% |
+| runbook · tester | 130,030 · 0 | **123,291** | ~94.8% |
+| runbook · security | 129,018 · 0 | **122,446** | ~94.9% |
+| runbook · explorer | **timed_out (0 tokens · no usage)** | **timed_out** | — |
+
+Cold miss is the cache write-slot (expected); ~95% warm is the sticky `prompt_cache_key` joined with the codex–covenant monolith.
+
+### 192.2 Two things this round refuses to paper over
+
+1. **runbook explorer timed out twice in this probe** — noted honestly; both peers (tester/security) returned ok and ~94.9% cached;
+2. **Court still untouched** — `agent/review_court/` unchanged; Night Watch stays **CRACKED**; exhibit_entries **18**; 24 pinned reds; UI **594/594**.
+
+### 192.3 The anchors
+
+Court `4117d2b0ca5fb23a` **LOCKED** · chronicle **1787** · worldbook **192 scrolls (bilingual mirror)** · library 190 zh≡en · UI **594/594**
+
+### 192.4 The ledger
+
+mvn untouched · UI **594/594** · court locked · Night Watch **CRACKED** · 18 exhibit entries · warm ~94–95% held · 「密码-123」is still a door marked "demo"

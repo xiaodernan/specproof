@@ -42194,3 +42194,26 @@ mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0c
 ### 三、账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1786** · worldbook **191 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门
+
+## #1991 《暖而不烫》：2026-11-18 第二次热敲落账（probe 合并键 `(lane, strike)` 生效，新行替换同 cell 旧行）· runbook explorer 两次 timed_out · 暖 94–95% 稳住 · chronicle **1787** · worldbook **192 卷（双语对称）** · UI **594/594**
+
+**记录基准**：本节只追加。本号衔接 #1990（AI director 重激活 · cached 181,243）。
+
+### 一、交付
+
+1. `scripts/lane_cache_probe.py` 2026-11-18 第二次执行——所有 5 条 cacheable lane 双敲：
+   - observe 140,198/147,721（~94.9%）· insight 139,833/147,351（~94.9%）· ai_summary 139,834/147,338（~94.9%）
+   - dig 三个 investigator 各 ~94.9%（122,565 / 121,954 / 120,981）
+   - runbook tester 123,291 · security 122,446 · explorer **timed_out**（记账，不为掩饰，不遮挡 2 名 ok 子的缓存命中证据）
+2. court `agent/review_court/` 依旧未动一行 · `.local/llm.json` 未提交、密钥未出现在 markdown · 本号也不含任何 exhibit #19 的虚报
+3. Library 计数未触动（190 卷 zh≡en）· UI 594/594 · Library.test unchanged
+
+### 二、诚实边界
+
+1. 本节不等于任何 exhibit 的「胜利」；runbook explorer 的 timed_out 单独入册为事实
+2. 暖命中属于粘性 `prompt_cache_key` 与 codex–covenant 前缀的已知效果复现；不声称任何「保证永远不掉缓存」——缓存行为由网关实际分发决定
+3. 本节未触及 `K-I 485..???`（CÆSURA 行）— 那个仓库的故事线不是本账本侧内容
+
+### 三、账房
+
+mvn untouched · UI **594/594** · tsc ✓ · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1787** · worldbook **192 卷（双语对称）** · D1 ✅ · D2 ⏸ ·「密码-123」是一扇标着「演示」的门

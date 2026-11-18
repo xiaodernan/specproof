@@ -6923,3 +6923,37 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entrie
 ### 191.4 账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · identity-guard ✓ · 24 红 pinned 岿然未动 · exhibit entries 18 未动 · court 依旧 locked ·「密码-123」依旧是一扇标着「演示」的门
+## 卷一百九十二 · 暖而不烫
+
+> "第二次敲门时，它把第一次留下的那一点，原样带回来了。"
+
+### 192.1 本日一敲，五条车道一起回话
+
+2026-11-18（第二次热敲证据落账 `docs/evidence/lane-cache-probe-2026-11-18.json`；本次探测为 2026-11-18 第二次跑，同路径按 `(lane, strike)` 键合并）：
+
+| lane | 第一次 | 第二次 cached | 比例 |
+|---|---|---|---|
+| observe | 147,721 prompt · 0 cached | **140,198** | ~94.9% |
+| insight | 147,351 prompt · 0 cached | **139,833** | ~94.9% |
+| ai_summary | 147,338 prompt · 0 cached | **139,834** | ~94.9% |
+| dig · explorer | 129,194 · 0 | **122,565** | ~94.9% |
+| dig · tester | 128,600 · 0 | **121,954** | ~94.9% |
+| dig · security | 127,588 · 0 | **120,981** | ~94.9% |
+| runbook · tester | 130,030 · 0 | **123,291** | ~94.8% |
+| runbook · security | 129,018 · 0 | **122,446** | ~94.9% |
+| runbook · explorer | **timed_out（Tokens 0 · 无 usage）** | **timed_out** | —— |
+
+冷 Miss 是 cache 写槽（expected）；暖 94-95% 是粘性 `prompt_cache_key` + codex–covenant 前缀 joint 的结果。
+
+### 192.2 本轮特地说明的两件事
+
+1. ** runbook 的 explorer 连续两次 timed_out **——本次探测没有为了好看而隐去它；两名同门 sub-agent（tester/security）ok 且 ~94.9% cached；
+2. **Court 依旧没动一丝**——`agent/review_court/` 未修改一行；Night Watch **CRACKED**；exhibit_entries **18**；24 pinned reds；UI **594/594**。
+
+### 192.3 系数与座次
+
+Court `4117d2b0ca5fb23a` **LOCKED** · chronicle **1787** · worldbook **192 卷（双语对称）** · library 190 zh≡en · UI **594/594**
+
+### 192.4 账房
+
+mvn untouched · UI **594/594** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · 暖 ~94–95% 稳住 · 「密码-123」依旧是一扇标着「演示」的门
