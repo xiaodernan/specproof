@@ -7382,3 +7382,48 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entrie
 ### 202.5 账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds 仍钉 ·「密码-123」依旧是一扇标着「演示」的门
+
+## 卷二百零三 · 问之有答
+
+> "书不糊弄，墨不许赌——全力去问，全知便答，答不上来的事，书说『没写』。"
+
+### 203.1 这次加进世界里的是什么
+
+2026-11-18， SpecProof 里多了一个新的公共通道——**问问书 · Ask the Book**（`#/ask-the-book`，nav 上线即可，雅称 `nav.askTheBook`）。
+
+它做的很简单：你，浏览器里的任何人——打一行问题，模型会翻整本铁证之书（`SPECROOF_WORLD.md` zh / `SPECROOF_WORLD_EN.md` en，byte-frozen codex 前缀，同一套 `codex_first` + `prompt_cache_key=specproof-worldbook-ask` + `stream=True`+`include_usage=True`）然后把书里写过的话照实回答你：
+
+- 书里写过的 → 它会答；
+- 书里没写的 → 它会说「这本书里没写」，不许编造数字/日期/人物/起源；
+- 从头到尾，它不下判决——不判绿、不判红、不判『通过』『阻断』『发布批准』——它只能复述账本，不能审判世界。
+
+**这不是一个聊天机器人。这是全世界唯一一份被公开贩卖的自传，旁边站着一个只会背书的模型。**
+
+### 203.2 结构是怎么立住的
+
+| 层 | 文件 |
+|---|---|
+| 模型车道（契约、缓存键 `specproof-worldbook-ask`） | `api/worldbook_ask.py` |
+| 公共路由（匿名可问 · 限流 · 指纹缓存 · 24h TTL→周） | `api/routes/worldbook_ask.py`（`POST /worldbook/ask`）· 注册进 `api/server.py` · `_TENANT_OPEN_PREFIXES` 加 `/worldbook/`，与 `/observe/` 并列公开 |
+| 前端页面（locale zh≡en） | `apps/web/src/pages/AskTheBook.tsx` · `apps/web/src/styles/askthebook.css` · `apps/web/src/i18n/strings.ts` |
+| 前端 API 客户端 | `apps/web/src/api.ts`（`postWorldbookAsk`） |
+| 测试 | `tests/unit/test_worldbook_ask.py`（**7/7**：cap · "printable-only" 清洗 · fingerprint 稳定 & locale 敏感 · 空 provider→失败诚实 · 空回答→诚实 · "书里没写" 规则） + `apps/web/src/pages/__tests__/AskTheBook.test.tsx`（**4/4**：zh≡en 渲染 · 成功路径 · 失败路径只暴露一条诚实错误行） |
+
+缓存语义：**同一个 (question × locale) 已敲过一次 → 全程 fingerprint-cache 命中，模型不用再次回答**，不是网站把答案藏起来——那是你还没敲过它。
+
+### 203.3 实测与观察
+
+- `npx vitest run AskTheBook`：**4/4** 通过；`python -m pytest tests/unit/test_worldbook_ask.py`：**7/7**；`npx tsc --noEmit`：**0 errors**；全量 `vitest`：**598/598 (85 files)** ✅
+- i18n 两语言均有全页支持（h1 / sub / textarea placeholder / 按钮 / 错误行 / 免责声明全双语）；
+- 页面渲染挂 `.chain-banner` 一起骑上——和 Recall 一致，chain roll-call 永远在场；
+- io 页 chips 自动 **60 → 61**（`specproof-products.json` 的 `AskTheBook` 被 portfolio-sync 自动搬运——_{live origin 同步时间 2026-11-18T11:28:43Z}_）。
+
+> "一个书架，上面放着一本正在被敲的世界书。任何人都可以问，问什么就能答什么；书没写的，它说没写。要命的是——它不会judges。"
+
+### 203.4 座次
+
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1798** · worldbook **203 卷（双语对称）** · library **202 zh≡en** · UI **598/598**
+
+### 203.5 账房
+
+mvn untouched · UI **598/598** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds 仍钉 ·「密码-123」依旧是一扇标着「演示」的门

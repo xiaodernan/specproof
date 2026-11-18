@@ -7253,3 +7253,48 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entrie
 ### 202.5 The ledger
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds stand · 「密码-123」is still a door marked "demo"
+
+## Scroll CCIII · Ask, and It Answers
+
+> "The book does not fudge. The ink does not gamble. Ask what you can; the answer only ever comes from it."
+
+### 203.1 What was added to the world today
+
+On 2026-11-18, SpecProof grew one new public lane — **Ask the Book** (`#/ask-the-book`, nav `nav.askTheBook`).
+
+It does one thing, well: anyone, on any browser, types one question, and the model — which has just read the whole iron-grammar bible (`SPECROOF_WORLD.md` zh / `SPECROOF_WORLD_EN.md` en, byte-frozen codex prefix, same `codex_first` chain + `prompt_cache_key=specproof-worldbook-ask` + `stream=True` + `include_usage=True`) — hands back what the book says, or admits it does not say:
+
+- The book says it → the model answers;
+- the book does not say it → the model says «the book does not say» — no invented numbers, dates, people, origins;
+- and above all: **the model never rules.** No green, no red, no "approved", no "blocked", no "release approved". It may restate the ledger — it may not judge the world.
+
+**This is not a chatbot. This is the only self-published autobiography on the public internet, with a model standing next to it that refuses to flatter it.**
+
+### 203.2 How the lane is wired
+
+| layer | file |
+|---|---|
+| Model lane (contract + cache key `specproof-worldbook-ask`) | `api/worldbook_ask.py` |
+| Public route (no RBAC · rate-limited · fingerprint-cached · week-long TTL) | `api/routes/worldbook_ask.py` (`POST /worldbook/ask`) · mounted in `api/server.py` · added to `_TENANT_OPEN_PREFIXES` in `api/middleware.py` — it stands next to `/observe/` as the second fully-public lane |
+| Front-end page (locale zh ≡ en) | `apps/web/src/pages/AskTheBook.tsx` · `apps/web/src/styles/askthebook.css` · `apps/web/src/i18n/strings.ts` |
+| Client | `apps/web/src/api.ts` (`postWorldbookAsk`) |
+| Tests | `tests/unit/test_worldbook_ask.py` (**7/7** — cap · printable-only sanitize · fingerprint stability & locale sensitivity · empty provider → one honest error · empty answer → one honest error · "the book does not say" discipline) + `apps/web/src/pages/__tests__/AskTheBook.test.tsx` (**4/4** — zh≡en render · success path · failure path shows one honest error line) |
+
+Caching semantics: same (question × locale) already struck once → fingerprint-cached, re-read the warm prefix, never spend twice. The answer is not hidden — it just doesn't need paying for twice.
+
+### 203.3 The strikes that actually happened
+
+- `npx vitest run AskTheBook`: **4/4** · `pytest tests/unit/test_worldbook_ask.py`: **7/7** · `npx tsc --noEmit`: **0 errors** · full `vitest`: **598/598** across **85** test files ✅
+- Both locales render the whole page (h1 / sub / placeholder / CTA / error line / footnote — all of it bilingual);
+- The page mounts `.chain-banner` like Recall — the roll-call is never missing;
+- io route chips flipped **60 → 61** — `specproof-products.json` picked up `AskTheBook` and `portfolio-sync` forwarded it: live at `./data/specproof-products.json` since 2026-11-18T11:28:43Z.
+
+> "One shelf. On it, a book that is still being struck. Anyone may ask. The book answers what it knows; for the rest, it says it does not know. And — this is the strange part — it never rules."
+
+### 203.4 The anchors
+
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1798** · worldbook **203 scrolls (bilingual mirror)** · library **202 zh≡en** · UI **598/598**
+
+### 203.5 The ledger
+
+mvn untouched · UI **598/598** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds stand · 「密码-123」is still a door marked "demo"

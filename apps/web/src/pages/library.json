@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-18T11:09:27+00:00",
-  "count": 201,
+  "generated_at": "2026-11-18T11:30:05+00:00",
+  "count": 202,
   "zh": [
     {
       "num": "卷零",
@@ -1006,6 +1006,11 @@
       "num": "卷二百零二",
       "title": "江湖之远",
       "excerpt": "2026-07-10，三笔 commit 在同一天落地："
+    },
+    {
+      "num": "卷二百零三",
+      "title": "问之有答",
+      "excerpt": "2026-11-18， SpecProof 里多了一个新的公共通道——**问问书 · Ask the Book**（`#/ask-the-book`，nav 上线即可，雅称 `nav.askTheBook`）。"
     }
   ],
   "en": [
@@ -2013,6 +2018,11 @@
       "num": "Scroll CCII",
       "title": "The Far Shore",
       "excerpt": "2026-07-10 — three commits landed in one same day:"
+    },
+    {
+      "num": "Scroll CCIII",
+      "title": "Ask, and It Answers",
+      "excerpt": "On 2026-11-18, SpecProof grew one new public lane — **Ask the Book** (`#/ask-the-book`, nav `nav.askTheBook`)."
     }
   ],
   "note": "machine-struck from the two bibles; parity asserted at build time; never an editorial statement"

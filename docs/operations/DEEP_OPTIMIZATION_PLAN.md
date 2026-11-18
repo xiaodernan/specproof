@@ -42458,3 +42458,27 @@ mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb
 ### 三、账房
 
 mvn untouched · UI **594/594** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1797** · worldbook **202 卷（双语对称）** · D1 ✅ · D2 ✅ ·「密码-123」依旧是一扇标着「演示」的门
+
+## #2002 《问之有答》：问问书 · Ask the Book —— 公开 · 匿名 · 限流 · 指纹缓存 · 模型不得审判 · zh+en · 61 routes · chronicle **1798** · worldbook **203 卷（双语对称）** · UI **598/598**
+
+**记录基准**：本节只追加。本号衔接 #2001（江湖之远）。
+
+### 一、交付
+
+1. **新车道「问问书 · Ask the Book」**（scroll CCIII）—— `POST /worldbook/ask`：任何人就该世界书提问（292→480 CJK/拉丁 · printable-only 清洗 · 空问拒发 400）；模型整本读过后再回答；**不下判决、不涂绿、不发明数字/起源/日期/人物**——书里没写就说「书里没写」；
+2. **五层落位**：`api/worldbook_ask.py`（模型车道，cache key `specproof-worldbook-ask`）→ `api/routes/worldbook_ask.py`（公共路由，rate-limit + 指纹缓存 + fingerprint[q×locale][:24]）→ `api/server.py` 挂载 + `api/middleware.py` `_TENANT_OPEN_PREFIXES` 添加 `/worldbook/`（与 `/observe/` 并列两条公开只读车道）→ 前端 `apps/web/src/pages/AskTheBook.tsx`（locale zh≡en · `<textarea maxLength=480>` · `.chain-banner` 骑上 · 两态 loading / chips）+ `styles/askthebook.css`（glow gradient + pulsing ✦ reduced-motion 兜底）+ `i18n/strings.ts`（zh/en）→ `api.postWorldbookAsk`；
+3. **测试**：backend **7/7**（`tests/unit/test_worldbook_ask.py`）· UI **4/4**（`AskTheBook.test.tsx`）+ `routerSmoke` **6/6**（每个 NAV 目的地双 locale 挂载）；全量 **UI 598/598**（85 files）；`npx tsc --noEmit` **0 errors**；vite build ✓；
+4. **io 自动跟：chips 60→61**（`AskTheBook` 被 `specproof-products.json` 拾取，portfolio-sync 推至 io master，live 同步时间 `2026-11-18T11:28:43Z`）；
+5. scroll #203（zh≡en）· chronicle → **1798** · worldbook → **203** · library → **202 zh≡en** · `Library.test.tsx` 钉页 201→202；court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · 24 pinned reds。
+
+### 二、没涂没动没骗
+
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · 24 pinned reds；
+2. 没有 exhibit 被涂绿；模型不 commit exhibit，模型不 commit verdict，模型不 commit "release approved"；
+3. `.local/llm.json` 不进 git；purity sift CLEAR；
+4. io 显示 60→61 那条账：机器推出来的，不是人敲的；
+5. 「雅思 6.5 · CET6 546」在 io 页各位（honors strip / meta / og / twitter / JSON-LD / profile README）全部在册。
+
+### 三、账房
+
+mvn untouched · UI **598/598** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **18** · chronicle **1798** · worldbook **203 卷（双语对称）** · D1 ✅ · D2 ✅ ·「密码-123」依旧是一扇标着「演示」的门
