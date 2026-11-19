@@ -5,7 +5,7 @@ import "../styles/library.css";
 
 /**
  * The Library — every volume of the world bible, in the same order as the
- * file, without reordering or omission. 183 scrolls zh≡en. Built from the
+ * file, without reordering or omission. 203 scrolls zh≡en. Built from the
  * world bible, machine-struck by `scripts/build_library.py`.
  */
 
@@ -34,7 +34,7 @@ export default function Library() {
   return (
     <div className="library-page">
       <div className="page-head">
-        <h1>{zh ? "图 书 馆" : "THE LIBRARY"} <span className="library-en">SPECROOF BIBLE · 183 SCROLLS</span></h1>
+        <h1>{zh ? "图 书 馆" : "THE LIBRARY"} <span className="library-en">SPECROOF BIBLE · 203 SCROLLS</span></h1>
         <div className="page-sub">
           {zh
             ? "每一卷都对着真实发生过的事；没有重排、没有删节；任何一条你想"  + "反驳，都能打开对应的 .md 找到同一页。"

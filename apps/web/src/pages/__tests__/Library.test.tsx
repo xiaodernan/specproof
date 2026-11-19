@@ -7,7 +7,7 @@ import library from "../library.json";
  * anything between the .md file and the reader's eyes.
  */
 describe("The Library carries the bible, not an abridgement (#1984)", () => {
-  it("ships 183 scrolls in both languages", () => {
+  it("ships 203 scrolls in both languages", () => {
     expect(library.count).toBe(203);
     expect(library.zh).toHaveLength(203);
     expect(library.en).toHaveLength(203);
