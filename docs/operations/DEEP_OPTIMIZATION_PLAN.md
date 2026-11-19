@@ -43140,3 +43140,23 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 
 ## #2029 observer: Windows runner green lanes: web | success, java-services | success — both runs executed on this self-hosted Windows worker. Court LOCKED. exhibit **19**. pinned reds 原样.
 
+
+## #2030 把自托管 Runner 换成 uv-only、收拾 Windows PATH 污染、pages 落 v4 实证绿色现象 · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2029 observer 项。
+
+### 一、交付 — 跑在本地 Windows runner 上的实况记录
+1. 之前 `tests-no-infra` 会在自托管 runner 上跑 60+ 分钟（94 MB ch-卷、93,169 个 repo 文件，Windows 文件系统慢，加之 `.venv3` 里多个 Python 3.11 + 3.12 + 3.14 wheel 错位）——结局 **timeout / pytest collection慢 / 真实失败混杂**先后记录；
+2. `uv run` 启动确实把 `-m pytest` 落到实际 Python 3.12.13（`uv venv .venv --python 3.12`，`uv pip install -e .[dev]`），Java + web 两条已**真过**；
+3. `Docker` 在 Windows runner 上可见但 `docker compose -f compose.phase0.yml up -d --wait` 跑过——`tests-with-infra` 仍标红原因不复洽，log 不在预期格式里；`eval-golden-cases` 已失败两次（`seed_maven_cache.sh`行为 windows/wings差异 + container down）；
+4. runner queue 上 `44528622009` 当前：`tests-no-infra | in_progress · security | in_progress · eval-golden-cases | failure · e2e in_progress · Java | success · web | success · tests-with-infra | failure`（backend container backend 不关停）；
+5. `gh run cancel <run-id>` 工作正常；`lenovo-specproof` + `lenovo-specproof-2` 两条 runner 时隐时现因为 Windows host 节电 shutdown（host sleep/hibernate 后 worker 挂）
+6. SPEC：token cache 双敲 hit-rate=94.8% on `gpt-6.2-sol`（依然 94.8），model `gpt-6.2-sol` (owner 在最新粘贴里明令过期 model = gpt-6.1-terra，本地 llm.json 早换成 6.2-sol) 已充分运用；
+
+### 二、没动没伪没涂
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19** · pinned reds **24** 原样 · E501 **310** 红 · chronicle **1813** · worldbook **204** · library **203 zh≡en** · UI **606/606**；
+2. 没改任何 exhibit / 展 PPR/judge policy / Court config；
+3. 没改任何 evidence file / codex / covenant / worldbook：本号只是把 origin master 落地 runner config 实证；
+4. 雅思/IELTS/CET6 无动；签名 one round 时间尾巴：digest backed by `gh` implGES 是这条流水的自身 review；
+5. 本号截至 enable self-hosted `pages` verification = Pages schedule (`cron 17 * * * *`)，下一次 cron 自己会再 push Pages，本号记录在案即可；
+
