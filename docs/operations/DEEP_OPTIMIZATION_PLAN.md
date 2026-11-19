@@ -42764,3 +42764,26 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 5. E501 余额仍 310，不涂绿；
 6. 下一份 next-step packet 应包含 `chronicle_entries=1809` —— 下次真敲自会验证。
 
+
+## #2015 IO 同步（chronicle: repo 1811 / IO bundle 1809 + gpt-6.2-sol 直连全链）· 离线横幅原样重注 · pre-push 两次撞 fact-bot 都 rebase 干净 · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2014。
+
+### 一、交付
+1. `apps/web` 以 `VITE_BASE_PATH=/specproof-web/` 重建（`npm run build` = `tsc --noEmit` + `vite build` 双过）；产物中 `chronicle-Bi5brUL0.js` 新块含 chronicle 1809 条目（首 #130，尾 #2013）；
+2. `_showcase_pages/specproof-web/` 全量替换（115 assets）为新产物；**离线快照横幅 `sp-specproof-static-note` 2505 字节从 live index.html 原样抽取、原样重注**（静态演示禁附加承诺；banner 仍是角色 note、可关闭）；
+3. 当前 12:10 live 树完整备份于 `D:\面试项目\specproof-web-backup-2026-11-19`；仓内误遗留的 `specproof-web-backup-current/` 已移出到 `D:\面试项目\specproof-web-backup-inrepo-current`（不删数据、不进 commit）；
+4. 提交 `0cff924` → rebase 到 fact-bot 的 `f9f1c58`（其内容审计只动 CAESURA/gazette/career-os/strike 数字，不动身份串）→ push；**fact-bot 在 06:11:54Z 再推一次（`5008aa1` 合并 + `fa03912` oracle-strip v1050）** → 再次 rebase 干净 → 最终 push `e97e748`；
+5. fact-bot 同批次新 commit `fa03912`（oracle-strip v1050 · 955 锚句 · digest 241,652 · gpt-6.2-sol · appCache 100%）—— 自己输出的 model 行已是 **6.2-sol**，与 `.local/llm.json` 一致；
+6. `_showcase_pages/index.html` 的 gazette 机制说明仍写 `gpt-6.1-terra` —— 已改为 `gpt-6.2-sol`（实证：`scripts/gazette_feature.py` 读 `load_model_config()`，config 现为 6.2-sol）；历史 UA 里的 `gpt-6.1-sol`（index.html L170/L275，均为过往敲击存档行）保留为历史事实，不涂改；
+7. Pages 部署链：push 触发 `Deploy portfolio to GitHub Pages`（44470280002/44470329831 系列，`cancel-in-progress: false` 串行）+ 每个 push 都触发 identity-guard；**live hash 校验在本号收尾后做，不预支绿**；
+8. 本号涉及的 chronicle 计数：**IO 产物 1809**（c3ee69b 时 builder sections found 1809，尾 #2013）→ **本机再敲 1811**（last #2015；含我刚追加的 #2014/#2015 两节）；本提交只带 repo 的 1811，不再次发布 IO——两条内部账本节不值当一次全量 redeploy，下次 web 变更或 cron 自然带出，如实记录该滞后；
+
+### 二、没动、没伪、没毁
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · pinned reds **24** 原样 · chronicle（repo 1811，IO 1809，见上） · worldbook **204** · library **203 zh≡en** · UI **603/603**；
+2. 雅思 6.5 · IELTS 6.5 · CET6 546 没改也不需要改；`隐图` 在 live/index.html 零出现（f9f1c58 审计未引入；identity-guard 每 push 必跑）；
+3. 两棵备份目录都保留在仓库外——这不是删除，是隔离；
+4. 没有重新敲 next-step/ask-the-book（今天已各双敲一次）；
+5. E501 余额 310，继续红；
+6. 部署完成后未改 IO 内容——下一次内容敲击仍由 fact-bot / gazette cron 驱动；
+
