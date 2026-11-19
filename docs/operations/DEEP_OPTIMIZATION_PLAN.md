@@ -43479,3 +43479,33 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19**
 1. specproof-web v8 dispatch `44579629935` 已发——self-hosted runner 池 2 条总线，需排队；若无响应，下一 cron 或手动触发；
 2. 下一次 IO 展示将是：head `728fda6`（redeploy v8）— 语言表 32.26/24.66/19.43 入内联 vs 2026-11-20 字节；
 3. chrome tab 的 hero-profile 自定义 resize 响应式已落 styles（950/1180 两档），但当前 live 上 cached `.v=20261120a` 正在被排队取代的这个；
+
+
+## #2044 avatar / languages final live verification · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。衔接 #2043。日期：2026-11-20。
+
+### 一、live `https://xiaodernan.github.io/styles.css?v=20261120b`（54,008 B，本轮实测）
+1. `.site-shell { overflow: visible; }` ✅
+2. `.hero { grid-template-columns: minmax(0, 1.12fr) minmax(380px, 1fr); gap: 4vw; }` ✅（完整替代了 340px 轨道）
+3. `.hero-profile { width: min(100%, 720px); max-width: 720px; }` ✅（≥1500px 时 780px）
+4. `.profile-frame { overflow: visible; }` ✅ · `.profile-frame img { aspect-ratio: 508 / 586; }` ✅
+5. `.profile-stamp { right: 2px; bottom: -12px; }` ✅（不再越出 shell 边缘）
+6. `@media (max-width: 1180px)` 单列居中 580px ✅（中型监视器也不挤）
+
+### 二、live 主页 inline language bars（本轮实读）
+正/EN 两臂：`32.26 / 24.66 / 19.43 / 12.38 / 8.85 / 1.52 / 0.40 / 0.28 / 0.22`（9 项合计 ≈ 100.00%）
+字节标注：`139.56 MiB` ×2（14 非 fork 公开仓 · 18 种语言 · 口径 2026-11-20）
+`31.95/24.85/19.44/...` 旧值出现次数 = **0** · `NaN` 出现次数 = **0**（全量扫描 live home，不是 только 面板）
+profile `assets/languages-2026-11-20.svg` 200 ✅ · profile README line 135 ref 新文件 ✅ · `assets/stats-contrib.svg` (4,012 / 3,997 / 18d streak / 11 12-month repos) 口径 2026-11-19 未动 ✅
+
+### 三、specproof-ci / Pages / 其他
+1. specproof-ci：`44583024885`（FIRST VISIT）与 `44579972521`（stategraph）仍 queued；仅本地 `npm run test` = **622/622** 全绿（91 files）作为变更可观测性
+2. Pages deploys：多个 queue 待 self-hosted ubuntu-latest（WSL tar 间歇）——self-hosted 当值只能做到 identity-guard；cdn 自然是按 master 落把抓取 → 全待 deploy 事件已验证 push → 命中 ✅（home bytes 135484 → 137476 → 137468 → 137484，fresh）
+3. master 与 origin 同步 ✓（本轮每次 rebase/global push 均成功）
+
+### 四、仍未动
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19** · 24 pinned reds · E501 **310** · chronicle **1833** · worldbook **204** · library **203 zh≡en** · 雅思 6.5 / IELTS 6.5 / 六级 546 / CET6 546 / 隐盾 / 法狗狗公司 / 铜牌 / 江西一等二等 / 赵欣曈 全员在场；`隐图` = **0**。
+
+### 五、新
+pocket card 加「第一次进场：三步上手」（doctor 绿 → 任一 exhibit → BLOCKER 判定）bilingual 对仗（`5dd704d`）；UI **622/622** 绿。
