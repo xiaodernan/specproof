@@ -84,6 +84,21 @@ export const MANUAL: ManualPackage = {
       },
     },
     {
+      title: { zh: "三个公开玩法", en: "Three rooms that open to anyone" },
+      rows: {
+        zh: [
+          "「环游」/tour · 三十秒新手教程：沿着真实产品场景走一遍，少读多点；新来者就从这里走，别乱逛",
+          "「猜裁判」/guess · 公开 5 张真题：先读证据包 + spec 锚点，再猜 court 落点（4 阻断 / 1 通过）；猜错也有卷，出处都在 worldbook 里",
+          "「编年史」/chronicle · 铁证宇宙的编年史：1,800+ 篇流水账，最新一卷在最上面——每一篇都是仓库里真实发生过的事，哪页都可以当入口",
+        ],
+        en: [
+          "The Tour, /tour · thirty seconds of on-rails newcomer tutorial: nine stops along the real product — press less, see more; newcomers start here",
+          "Guess the Verdict, /guess · five public cards: read the evidence packet + spec anchor first, then call the court (4 blockers / 1 accept) — a wrong guess still costs you a teach line, anchored in the world bible",
+          "The Chronicle, /chronicle · the ledger of this open world: 1,800+ chapters, newest first — every chapter is a true story from this repository, and any page is a fair door in",
+        ],
+      },
+    },
+    {
       title: { zh: "三个不要", en: "The three don'ts" },
       rows: {
         zh: [
