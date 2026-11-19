@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-11-19T12:02:57+00:00",
-  "head": "5ad4ae91",
-  "total_commits": 2834,
+  "generated_at": "2026-11-19T12:57:02+00:00",
+  "head": "b1923cfe",
+  "total_commits": 2836,
   "tracked_files": 3008,
   "worldbook_scrolls": 204,
-  "chronicle_entries": 1825,
+  "chronicle_entries": 1826,
   "exhibit_entries": 19,
   "latest_strike": "#2029",
   "note": "machine-struck from this repo; not an editorial statement"
