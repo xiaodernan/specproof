@@ -43345,3 +43345,21 @@ pm run test = **618 pass / 618**（90 文件；合成人群 6/6 已计入）。l
 
 ### 三、仍红（没涂）
 specproof-ci：`44559140635` / `44558484073` 入队（lint/eval/security/tests-with-infra 等旧红未动）；weekly stress 2026-11-23T03:00Z 等真跑；`tests-no-infra` 仍在 Windows 自托管队列——Court 仍 LOCKED，fact-bot 节奏仍独立。
+
+
+## #2038 /#/recent《最近敲门》上线 · UI 622/622 · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。衔接 #2037。日期：2026-11-20。
+
+### 一、交付
+1. 新页 `/#/recent`（最近敲门 · Recent Knocks）：把 collate 后的 Chronicle tail **最新 10 卷，最新在前**放到读者的前排——零模型调用、零虚构；条目直接来自 build 产物 `apps/web/src/pages/chronicle.json`；每卡呈现 `#n · 标题 · 一行正文`；
+2. **组件**：`pages/RecentKnocks.tsx` + `styles/recent-knocks.css`（纵向 rail · 金点 · reduce-motion 尊重）；`RecentKnocks.test.tsx` 4 条（newest-first 精确切片 · zh/en 双语标题 · `#/chronicle` 外链 · ledger 总数从数据读）
+3. **i18n**：`nav.recent` = `最近敲门` / `Recent Knocks`；`App.tsx` = 新 lazy route（54 routes @ link audit）+ NAV evidence 组 + renderRoute 守卫
+4. **UI 全量**：**91 文件 · 622/622 全绿**；`tsc --noEmit` clean；死链 audit 复敲 clean
+5. **IO redeploy v7**：`index-BmeIvJ41.js` · 119 资产 · banner `sp-specproof-static-note` 字节保留 · 备份 v10 · Pages `44565637731` dispatched
+
+### 二、没动没伪没涂
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19** · 24 pinned reds 原样 · E501 **310** · chronicle **1833** · worldbook **204** · library **203 zh≡en**；
+2. 没模型调用（本批纯新页面 + 真值）；Gazette 6.2-sol epigraph 不动；
+3. 雅思 6.5 / IELTS 6.5 / 六级 546 / CET6 546 / 隐盾 / 法狗狗公司 / 铜牌 / 赵欣曈 无动；`隐图` = **0**；
+4. 本页不承诺未来、不做推断判词——只是把账本 tail 交给读者，与 chronicle 的关系 = 前台 · 不入 court 车道、不入 covenant。
