@@ -45,6 +45,21 @@ import org.springframework.core.env.Environment;
             "eureka.client.service-url.defaultZone=http://127.0.0.1:9/eureka/",
             // Do not let a dead registry keep a heartbeat thread around after the test.
             "eureka.client.initial-instance-info-replication-interval-seconds=1",
+            // Boot the context against an in-memory H2, exactly like the
+            // sibling context tests do via application-test.yml. Without
+            // this the test loads the production application.yml, points
+            // JDBC at localhost:3306 and dies on CI runners with no MySQL
+            // (Unable to determine Dialect). The @ActiveProfiles("test")
+            // route is not taken here on purpose: that profile pins
+            // job-cache.backend=memory, and this test pins the redis default.
+            "spring.datasource.url=jdbc:h2:mem:offline-resilience;DB_CLOSE_DELAY=-1",
+            "spring.datasource.driver-class-name=org.h2.Driver",
+            "spring.datasource.username=sa",
+            "spring.datasource.password=",
+            "spring.jpa.hibernate.ddl-auto=create-drop",
+            "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
+            "spring.jpa.open-in-view=false",
+            "spring.sql.init.mode=never",
         })
 class ControlPlaneOfflineResilienceTests {
 

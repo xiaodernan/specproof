@@ -42812,3 +42812,23 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 4. 没动 `apps/web`、`index.html`、IO —— 本号纯仓库 + 测试 + 证据链；
 5. 没重新敲 live lane（上一个实敲证据 `#2013`/`#2014` 仍然有效）；
 
+
+## #2017 java-services 红根治了：ControlPlaneOfflineResilienceTests 缺 H2 覆盖 → CI 全副本无 MySQL 直接 Dialect 死 · 本机 137/137 绿 · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2016。
+
+### 一、根因与修法
+1. CI `java-services` 红根因（run 44460730316 实读日志定位，不是猜）：`dev.specproof.controlplane.ControlPlaneOfflineResilienceTests` 下了 `@SpringBootTest(properties=…)` 却**没拿 H2**——没有 `@ActiveProfiles("test")` 也没有数据源覆盖 → 加载生产 `application.yml` → `jdbc:mysql://localhost:3306/specproof_phase0` → `Unable to determine Dialect without JDBC metadata` → `Failed to load ApplicationContext`。CI runner 没有 MySQL，这不是环境事故，是测试写了一半；
+2. 修法（assert 一行没动、门没降、测试没跳）：在该测试的 `properties` 里补 8 条 H2 pin（`jdbc:h2:mem:offline-resilience;DB_CLOSE_DELAY=-1` · `org.h2.Driver` · `none init` · `H2Dialect` · `open-in-view=false` · `sql.init.mode=never`）；**不拿** `@ActiveProfiles("test")` —— 那个档把 `job-cache.backend` 钉成 `memory`，会撞死这个测试的断言（`backend == redis` 是被钉住的产品默认，测试本身就是证明产品默认没漂移）；
+3. 本机实跑（offline `-o`、Maven 3.9.15、pom `<java.version>21</java.version>`）：control-plane **51/51** · gateway **84/84** · config-server **1/1** · discovery-server **1/1** —— **137/137**；原先注释里 "this leg needs neither docker nor a database" 这句话，这下才真正成立；
+4. CI 的红格余下四格（lint-type E501 / tests-no-infra census / openapi-schema-diff / eval-golden-cases）**没动也不涂，本号只是让 java-services 一格变真绿**；
+5. CI 队列目前有 5 个排队中的 specproof-ci（44469358523 起，runner 池拥堵）—— 本号的新 run 到达 Maven 阶段时应见 control-plane 层绿色；队列状态如实报，不预支；
+
+### 二、没动没伪没涂
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样 · chronicle（repo ≥1812）· worldbook **204** · library **203 zh≡en** · UI **603/603**；
+2. 没把 "test profile" 这份文件的语义扩大——`application-test.yml` 一字未改；
+3. 没删测试、没 @Disabled、没 skip、没加 `assume` 兜底；
+4. 没动 Spring Cloud 四服务的宣言性配置（config-server 4.2.0 pin、gateway BOM 对齐、discovery/eureka 契约全部原样）；
+5. E501 余额 310，继续红；
+6. `target/` 目录产物在工作区里有本地构建输出——不进 commit（.gitignore 覆盖，`git status` 干净）；
+
