@@ -43160,3 +43160,25 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 4. 雅思/IELTS/CET6 无动；签名 one round 时间尾巴：digest backed by `gh` implGES 是这条流水的自身 review；
 5. 本号截至 enable self-hosted `pages` verification = Pages schedule (`cron 17 * * * *`)，下一次 cron 自己会再 push Pages，本号记录在案即可；
 
+
+## #2031 《猜裁判 · Guess The Verdict》上线 · 5 真题 dual-locale · 4 block / 1 accept · World Bible anchors biography of court · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2030 observer。
+
+### 一、交付（指这个 diff 摸了什么）
+1. IO + 主 repo 跟进到 specproof-web 的 live bundle：`index-2qhx1UwW.js`（live 实测，含 lazy chunk `GuessTheVerdict-DRele4bp.js`）· banner 留在 · 新页面 `#/guess`；
+2. **内容**（apps/web/src/pages/GuessTheVerdict.tsx · guessCards.ts · styles/guess.css）：5 张法庭题——`#1412` `@PreAuthorize 删除`（block）· `#3 eviction-none`（block）· `#1226 moderator + 老 case 绿`（accept）· `新 finding`（block）· `#1442 安全 surface coverage 跌`（block）；zh / en 双语程序化内嵌；anchor 中文→「卷十二」，英文→「Vol. XII」；每张 question 配 1 条 teach line，至 anchor explanation 卷；
+3. **Tests**：`GuessTheVerdict.test.tsx` 6/6 pass · `routerSmoke.test.tsx` 6/6 pass（PATH `#/guess` 路由在双语都 mount 的孩子）· 其他 pre-existing pinned 3 (`Eval`, `AgentApprovalsInbox`, `Locale.switch`, `Recall`, `AgentDiffViewer`) 仍 3 flaky 3 fail — 它们与本次拉不了皮肤，跨文件 localized fork-pool flaky；
+   * 本地当前工作区 Tests observable：`603` (pre) + `6` (新) = `609` ceiling · `#570` pass at runtime because Windows local-zone maytime out;
+4. **IO deploy**：Pages run `44543357274` completed success + identity-guard `44543357353` completed success · live bytes `bytes 3939` · GuessTheVerdict-DRele4bp.js lazychunk visible in the live doc style sourcemap；
+5. **io live 雅思 6.5** 那条线在 bundle 里已稳定 (counts-readonly sass · 全站 banner 都完整)；
+6. **本号只动了一页**：# guess + 对 Nav 注释 + i18n strings + App.tsx + styles；worldbook · covenant · codex · Court · chronicles · exhibits 一字节不动；
+7. **Stategraph 在悉本 bundle 在 `#/` 首页 `#2020` 已经在坡 banner**（LC `StateGraph-D4_YqJdI.js` visible in the live index）；
+
+### 二、没动没伪没涂
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样 · E501 **310** 红 · chronicle **1813** · worldbook **204** 双语对称 · library **203 zh≡en**；
+2. UI tests decimal state during the local run：570 pass / 3 fail；额外路由本号 routerSmoke 6/6 pass· 不算 fully green· 不涂；
+3. 雅思 6.5 / IELTS 6.5 / CET6 546 / 铜牌 / 江西省一二 / 赵欣曈 等身份串今天没动；
+4. codex 前缀 barcha `42eeeb35…` 一字节不变；
+5. 隐图 = 0 确认 live；
+
