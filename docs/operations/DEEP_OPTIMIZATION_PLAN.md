@@ -43324,3 +43324,24 @@ pm run test = **618 pass / 618**（90 文件；合成人群 6/6 已计入）。l
 3. IO 首页该节锚点文案（"ship 2026-11-18 · #2003"）未动——fact-bot 负责该节的同步节奏；
 4. 雅思 6.5 / IELTS 6.5 / 六级 546 / CET6 546 / 隐盾 / 法狗狗公司 / 赵欣曈 / 铜牌 / 江西省一等・二等奖 身份串未动；`隐图` 全域 **0**；
 5. 前端契约未变：anchor styles `?v=20261119e`、script `?v=202611191k`、banner sp-specproof-static-note 字节级保留。
+
+
+## #2037 specproof-web redeploy v6 · chronicle 1833 live · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。衔接 #2036。日期：2026-11-20。
+
+### 一、交付
+1. `apps/web/src/pages/chronicle.json` 由 `build_chronicle.py` 从账本 tail 重建：**1833 条目（first #130 → last #2036）**；`/#/chronicle` 页面从此可读到最新一批
+2. UI 生产包：`index-D0rHiP9N.js` + `chronicle-DcUkQy5y.js`(331,914 B · SHA-256 c373c1cb…)；
+3. **IO redeploy v6**：`_showcase_pages/specproof-web/` 资产全量替换，banner `sp-specproof-static-note` 字节保留，备份 v9；Pages `44561862699` completed success（identity-guard included）；
+4. live 实测：`index-D0rHiP9N.js` 200 · chronicle chunk SHA-256 与 dist 一致（`"n":2036` 找到 1 处）· banner 原样；
+5. 个人 profile README tile 同步：SpecProof strike `#2036` · UI `618/618` · chronicle `1,833`；commit `2f54559` 已推 main；
+
+### 二、没动没伪没涂
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19** · 24 pinned reds 原样 · E501 **310** · worldbook **204** · library **203 zh≡en**；
+2. 没动 covenant/codex/worldbook/Court/pins — chronicle 仍以账本反推；`#2036` 中文角色正文仅 1 处（`splive-gazette-zh`），不重敲 Gazette epigraph（model 流未消费远程轮询）；
+3. 没模型调用（纯 build + redeploy）；
+4. 雅思 6.5 / IELTS 6.5 / 六级 546 / CET6 546 / 隐盾 / 法狗狗公司 / 铜牌 / 赵欣曈 无动；`隐图` = **0**
+
+### 三、仍红（没涂）
+specproof-ci：`44559140635` / `44558484073` 入队（lint/eval/security/tests-with-infra 等旧红未动）；weekly stress 2026-11-23T03:00Z 等真跑；`tests-no-infra` 仍在 Windows 自托管队列——Court 仍 LOCKED，fact-bot 节奏仍独立。
