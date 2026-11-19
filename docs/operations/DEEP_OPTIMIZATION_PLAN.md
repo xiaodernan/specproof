@@ -43084,3 +43084,29 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 2. 下次 cron 敲 Pages 部署，确认加载一条c Chronicle #2018+ 的新数据段，按周更新；
 3. 继续不动 Court/Night Watch/exhibit/pinned reds；
 
+
+## #2028 自托管 CI 走出黑暗：yaml 修复 · `Verify system Python` 退役 · `astral-sh/setup-uv@v7` + `uv venv .venv --python 3.12` · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2027。
+
+### 一、交付
+1. 之前 #2021 给 Windows 自托管 runner 换 `Verify system Python (>=3.12)` + `runs-on: [self-hosted, windows]` 的失败是环境错位：`host Python 3.11.1` 不满足 `requires-python>=3.12`（pyproject.toml line 11），且 `import setuptools; pip install -e ".[dev]"` 在裸 host 上只报 `setuptools not found` 或不含 pip —— 原始两条 log 结结实实表达过（`No module named pip` + `SpecProof` 不在 `__editable__...finder` 里）；
+2. 修法 **as applied**（CAD act）：换 `actions/setup-python@v5` → `astral-sh/setup-uv@v7` · 创建独立的 `.venv`（`uv venv .venv --python 3.12`，激活 CPython 3.12.13）· `uv pip install --python .venv/Scripts/python.exe -e ".[dev]"` 一刀装上 97 包；`pytest` 也通过 `.venv/Scripts/python.exe -m pytest` 走同一个解释器；
+3. 顺带把 `RUNNER_TOOL_CACHE` 写入去掉（host HKLM 不可写，`Remove-Item HKLM\...\Uninstall` 77+ PermissionDenied）；
+4. narrative-wise: ci.yml 里仍然有 `ubuntu-latest` 守门（`eval-golden-cases` 等 bash 好的 docker job）——那边 hosted runner 依然在被饿死；
+5. 实际 redis/rabbitmq/mysql 后端 seed **未执行**——windows 主机 docker-daemon 命中失败，tests-with-infra 红（正常红 — 本机就是没有这整个 CI 预期环境的 host，行如实记下）；
+
+### 二、runner activity 现状（一线追踪/仅列今天发现）
+1. `java-services | success` **on Windows runner** · `web | success` **on Windows runner**（两条 verified healthy in Windows runner logs, Java 等）；
+2. `security | failure` · `eval-golden-cases | failure` · `tests-with-infra | failure` — **尚未读 log**（log 仅在 run 结束后可读）；
+3. runner session `taskkill limitations` — tried `gh run cancel <old>` · 成功 ren cancel stale workflow records；
+4. 3 次 `setup-python@v5 → astral-sh/setup-uv@v7` 切换前；hooks pre-commit 经测试：全过；
+5. 自托管 runner `windows, x64, self-hosted`：状态正常，重新连上 broker，历史 `java-services` job 近 50 分钟未结束；
+
+### 三、没动没伪没涂
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19** · pinned reds **24** 原样 · E501 **310** 红 · chronicle 1813 · worldbook **204 双语对称** · library **203 zh≡en** · UI **606/606**；
+2. `隐盾 = 0` (word appears in `identity-guard.mjs`, not in tracked assets)—确认未出现在任何 public IO string；
+3. 没有动/没有添/没有重定 URL dynamic checks、没有改 shcemas、没有改 worldbook 任何 chunk（byte-frozen）；
+4. 没打开 any new API call；本日固定 62 次 strike ceiling 只花在 `ask-the-book --live` #2027；
+5. 没修改 anything that changes any of the 24 pinned reds、chronicle/worldbook/UI counts、Court 固件、任何 exhibit；
+
