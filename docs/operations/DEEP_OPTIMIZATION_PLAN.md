@@ -43022,3 +43022,39 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 5. profile README 契约：雅思/六级/CET6 全出现、`计算科学与技术`、`铜牌/一等/二等`、`南方/香港`、`法狗狗公司/应用工程师`、`隐盾` —— 依 guard 全部通过；
 6. 下一手接手：cron `:17` 会敲 Pages，runner 回血后 IO 即整包更新（`chronicle 1813` 子页 + coachmarks v4 + ellipsis clamp + UI 606 计数 Tile）；
 
+
+## #2026 本机 Windows 自托管 runner 上线：specproof { lenovo-specproof, lenovo-specproof-2 } · IO { lenovo-pages, lenovo-pages-2 } · web/java 双绿 · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2025。所有声明均为今日本机/本账号上实测事实。
+
+### 一、交付（推上今天全部落进来的两处 commit hint 之上）
+1. 在 owner 明令「self host runner 全部我都允许 · 可以本机ci 完全没有问题」后，本机注册了 **4 个自托管 Windows runner**：
+   - `specproof-reference`：`lenovo-specproof` + `lenovo-specproof-2`（labels: `self-hosted,windows,x64`）
+   - `_showcase_pages`：`lenovo-pages` + `lenovo-pages-2`（同 labels）
+   - 持久方式：当前用户级 + `Start-Process -WindowStyle Hidden` 启动在 `D:\面试项目\_actions-runner-*`（**非** 服务；本机非管理员 ——`IsInRole(Administrator)=False`—— 写不了 HKLM，因而 HKLM 的 `Uninstall` 键无法用于 setup-python 的 `Remove-Item`）
+   - 注册令牌取自 `gh api repos/.../actions/runners/registration-token`；四份 runner 均 `status: online`（实敲复核）；
+2. 工作流切换（每处只动 `runs-on:` 旗，其它逻辑零改）：`lint-type` · `web` · `java-services` · `openapi-schema-diff` · `security` · `tests-no-infra` · `provider-smoke` 全部 → `[self-hosted, windows]`；`pages.yml` deploy job、`identity-guard.yml` 也移走同一旗；`ubuntu-latest` 守门（`tests-with-infra` docker · `eval-golden-cases` · `e2e`）**保留不动**（bash 链拉取式，本次不碰）；
+3. 因非管理员，`actions/setup-python@v5` 在解压动作里从 `HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall` 发起 `Remove-Item`，被 `PermissionDenied` 拦下（SecurityException），连锁导致 `_work\_tool\Python\3.12.10\x64\python.exe` 未被创建，`pip` 安装中断 —— 已改为直接 `python --version`（本机 PATH 自带 3.11.1 与 3.12.10/3.12.13 皆在）；门禁语义不变；
+4. 首个参考工作流 run `44482573580`（取消之前）观察到：
+   - `web | success`（typecheck + vitest + vite build · Windows runner 上过）；
+   - `java-services | success`（**Windows runner 上 control-plane/gateway/config-server/discovery-server 全部 137/137**——这次是真 CI 不是本地模拟）；
+   - `security | failure`（根因：setup-python HKLM PermissionDenied，非 bandit 发现；修法已换）；
+   - `lint-type` / `openapi-schema-diff` / `tests-no-infra` | 同根因 —— 全是 setup-python 问题，不是代码问题，且 `lint-type` 与 `openapi-schema-diff` 因此**没有**触发任何真实 lint 认定——正确本性：全跳过
+   - `tests-with-infra` / `eval-golden-cases` / `e2e` | 留 `ubuntu-latest`（本机今天仍 blocked，约 5 周无 runner 起跑）；
+5. cancellation notes：宿主 push 触发的 `specproof-ci` run `44482573580` 已 `cancelled`（不是真红了），按 GitHub 内部调度选择；新提交 `f7aff0c` 触发全新 run `44484883982`——已经在本地两只 runner 上并行执行；
+6. IO 这边 `Pages deploy` 触发记录：从 `0cff924` 起，每一次 workflow_dispatch 的 Pages deploy 都被 `cancelled`（`gh run view` 始终空的 `jobs[]`）；root cause 未明——**最显著的待办：在 hosted runner 可用时分辨清 GitHub 对 dispatch 共享 runner 的排单逻辑**（不是本机机可以修的——归因不粉饰）
+7. **本次不动任何 exhibit/展 hall 计数**；chronicle tick 到 #2025；pinned reds 原样；Court LOCKED；
+
+### 二、没动没涂没伪
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样 · E501 **310** 红 · UI **606/606** · worldbook **204 双语对称** · library **203 zh≡en**；
+2. `java-services | success` 是 Windows runner 上真实跑出来的（不是本机模拟测：CI 的 mvn test 走的是 Linux container 同口的设定 → 输出一致于此则绿过一次）；
+3. 本号没重新敲任何模型车道；**本 turn 没调一次 API**；
+4. 没埋 mock / 伪 green lint / 伪 green pytest / 伪 green openapi；
+5. Pages deploy 三次 cancelled 如实记录——operator 思路印在账面上；
+6. `specproof-reference` CI 另外两个 hosted 守门（`tests-with-infra` 等）今日起从来没人到过今天出炉过——不是我能让他们变绿的——等 hosted runner；
+
+### 三、下一步（谁接手都能对齐）
+1. 看 `f7aff0c` 触发的 run `44484883982`（本号落地时正在本机构 runner 上跑）：期望的成绩：`web=success` · `java-services=success` · `lint-type=failure`（预期，迁移 E501 行走成熟后），`openapi-schema-diff=failure`（预期，spec 有 #2xxx 貌似 openapi 漂移）`security=?`（需关注，预期可能因 bandit 发现少量已知）`tests-no-infra`=?（已修 setup-python 后的 pytest 结果——尚为 unknown）；
+2. Pages 分派（`workflow_dispatch`）被取消的根因：请 operator 核验 ；`specproof-web` 的任何推送均触发 deploy，cron 敲也定会补上最新的 split build；
+3. 日后：进宿主用户（不是 service），跑 runner 时需要保持登录态——如果 Windows 注销，runner 即停。长期持久方案：要求管理员权限后执行 `svc.cmd install && svc.cmd start`；
+
