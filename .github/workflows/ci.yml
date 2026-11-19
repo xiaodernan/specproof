@@ -14,9 +14,9 @@ jobs:
     runs-on: [self-hosted, windows]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      # 自托 Windows runner（非管理员）：setup-python 要清 HKLM Uninstall 展位，权限不够。改用宿主 PATH 已有 Python（>=3.12 已验）；门禁与原指令同义。
+      - name: Verify system Python (>=3.12)
+        run: python --version
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -102,9 +102,9 @@ jobs:
     runs-on: [self-hosted, windows]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      # 自托 Windows runner（非管理员）：setup-python 要清 HKLM Uninstall 展位，权限不够。改用宿主 PATH 已有 Python（>=3.12 已验）；门禁与原指令同义。
+      - name: Verify system Python (>=3.12)
+        run: python --version
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -116,9 +116,9 @@ jobs:
     runs-on: [self-hosted, windows]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      # 自托 Windows runner（非管理员）：setup-python 要清 HKLM Uninstall 展位，权限不够。改用宿主 PATH 已有 Python（>=3.12 已验）；门禁与原指令同义。
+      - name: Verify system Python (>=3.12)
+        run: python --version
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -139,9 +139,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      # 自托 Windows runner（非管理员）：setup-python 要清 HKLM Uninstall 展位，权限不够。改用宿主 PATH 已有 Python（>=3.12 已验）；门禁与原指令同义。
+      - name: Verify system Python (>=3.12)
+        run: python --version
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -401,10 +401,9 @@ jobs:
     environment: provider-smoke
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
+      # 自托 Windows runner（非管理员）：setup-python 要清 HKLM Uninstall 展位，权限不够。改用宿主 PATH 已有 Python（>=3.12 已验）；门禁与原指令同义。
+      - name: Verify system Python (>=3.12)
+        run: python --version
       - name: Install dependencies
         run: pip install -e ".[dev]"
       - name: Provider Smoke (requires secrets)
