@@ -43434,3 +43434,26 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19**
 1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19** · 24 pinned reds 原样 · E501 **310** · worldbook **204** · library **203 zh≡en** · chronicle **1833**
 2. 身份串 · 隐图=0 · 16 public repo cards · private 4 仓不动 · profile `main` 最新 `1b7224d` 雅思 6.5 / IELTS 6.5 / 六级 546 / CET6 546 / 铜牌 / 隐盾 / 法狗狗公司 / 赵欣曈 — 原样
 3. 无模型调用（本批纯 CSS + cache-bust）
+
+
+## #2042 GitHub 语言表全换新实测字节 · 2026-11-20 · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。衔接 #2041。日期：2026-11-20。
+
+### 一、数据（2026-11-20 · `gh api user/repos` + `languages_url` 逐仓拉取、求和 wc − lines、14 个非 fork 非归档 public repos）
+1. **16 public repos（14 非 fork + 2 fork）** · 9 stars · **18 languages** · 总量 **146,335,196 B（139.56 MiB）**
+2. 字节份额：**TS 32.26% · Python 24.66% · JavaScript 19.43% · HTML 12.38% · Java 8.85% · CSS 1.52% · Shell 0.40% · PLpgSQL 0.28% · 其余 10 种合共 0.22%**
+3. 字节数 verified raw：`assets/languages-2026-11-20.svg`（GitHub main 已推，NaN 字节扫描 = 0；alt 正文逐字列出数值）
+4. 同步到主页内联 `.gh-panel`（两个 lang-flipped copy 7 行各）；`口径 2026-11-20` / `Measured 2026-11-20`；字节标注 139.56 MiB（18 languages）
+
+### 二、Pages deploy 队列
+push `f3e0573` 触发两条：identity-guard `44574763141` queued · worker dispatch `44574785690` pending；自托管池到目前为止一直按序消化（最近一班 `44574203481`/`44574036517`/`44573972687` 全 PASS）；cron `:17 */3 * * *` 兜底，`cancel-in-progress:false` 保持。**CDN 传播以实际 bytes 数为准；本机 fetch 现在仍看到 v=20261120a → 139.56 尚未生效**——排队时间就这么长；cron 敲过一次后定会校正。
+
+### 三、确认的页面事实（live 本轮最终读取）
+1. `styles.css?v=20261120a` live = overflow-visible 三针都在 ✓（头像修复早已生效）
+2. 16 public repos 在列 ✓ · 4 private 不动 ✓
+3. 英语 EN tower 与中文 ZH tower 这两个 lang-bars 行同时更新（24 行，±两份相同数值）
+4. `隐盾`/`雅思 6.5`/`IELTS 6.5`/`CET6 546`/`六级 546` identity tokens — 平稳；`隐图` = **0**
+
+### 四、没动没伪没涂
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19** · 24 pinned reds · E501 **310** · worldbook **204** · library **203 zh≡en** · chronicle **1833** · latest #2036/#2037/#2038 parked in bundle ✓ · 模型调用 **0**（本批纯静态数据）。
