@@ -42981,3 +42981,25 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 3. 2026-11-23 03:00 UTC weekly-stress 重敲：自动入册；
 4. 4 pre-existing reds 不动；Court 不动；exhibit 不动；
 
+
+## #2024 教学层再加一道防回退门：landing coaching 挂上 registry 断言 · UI **606/606**（3 个新测试）· Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2023。
+
+### 一、交付
+1. 新测试 `apps/web/src/pages/__tests__/CoachLoginMarks.test.tsx`（3 test）：
+   * `hero marks land on the registry`：render `<Login />`，对照 `document.querySelectorAll('[data-coach]')` → 必含 `hero.brand`/`hero.guide`/`hero.connect`；**所有**钩位其值必须存在于 `COACH_MARKS` 注册表（多了/少了任一把都直接红）—— 新 hero CTA 没落册，立刻失败；
+   * `first visit defaults the teaching layer to ON`（无 storage 时 ON）；
+   * `explicit dissent cancels it`（`specproof_coach_marks::0` → OFF）；
+2. `npm run test` 全文复跑：**606 passed (606)**（原 603×603，本号 +3）；`Test Files 88 passed`；
+3. **刻意不重建 IO 子页**（不刷一次 115 assets 的队列压力）：本变更是**测试**而非运行时——产物行为、快照、渲染字节都没变，为测试加三个钩子重打一次 bundle 是浪费 runner；下次任何 `apps/web` runtime diff 出货时顺带合并；
+4. 记账至此 #1：当前计数 **606/606**（在上一轮的 ledger 我写 rows 为 603 — 那几号里的 603/603 是当日落笔时的事实，不改写历史账目文字，加一注明于此）；
+5. 没有向模型发一次请求；
+
+### 二、没动没伪没涂
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样 · chronicle **1813** · worldbook **204 双语对称** · library **203 zh≡en** · E501 **310** 红；
+2. 教学层注册表内容没再扩写（课标在 #2021 标定了 hero.*；本号仅钉住，不改文案）；
+3. 没拍任何 exhibit、没改 Court、没敲模型；
+4. IO 子页未重建（见上）；
+5. CI 队列现状不变（identity-guard / Pages deploy 仍等 hosted runner）；
+
