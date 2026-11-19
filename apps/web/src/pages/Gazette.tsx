@@ -151,7 +151,7 @@ export default function Gazette() {
             {zh ? (gazetteFeature as { zh: string }).zh : (gazetteFeature as { en: string }).en}
           </p>
           <p className="gazette-echo-stamp">
-            {zh ? `— aizzz/gpt-6.1-terra · ${(gazetteFeature as { generated_at: string; anchor: string }).generated_at.slice(0, 10)} · 见证 #1975 原文 · 不是判词` : "— aizzz/gpt-6.1-terra · this cycle · the ledger verbatim · never a verdict"}
+            {zh ? `— aizzz/${(gazetteFeature as { model?: string }).model ?? "izzz"} · ${(gazetteFeature as { generated_at: string; anchor: string }).generated_at.slice(0, 10)} · 见证 #1975 原文 · 不是判词` : "— aizzz/" + ((gazetteFeature as { model?: string }).model ?? "izzz") + " · this cycle · the ledger verbatim · never a verdict"}
           </p>
         </aside>
       </div>

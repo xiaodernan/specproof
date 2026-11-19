@@ -42876,3 +42876,24 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 5. repo 的 chronicle.json 本次也没再敲——它停在 1813；本号要不要顺带穷举，既定纪律是不为账本单个条目反复全量 rebuild，等下一次 web 变更一起带；
 6. CI 队列仍是 6 queued（零自托管 runner）；
 
+
+## #2020 模型卫生清刷：当前态两行 README 切 gpt-6.2-sol · Gazette 铭牌现读 JSON 真值 · Exhibits 铭牌去掉硬编码旧模 · 历史档案零涂改 · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2019。
+
+### 一、交付（只动「当前态」，历史档案一字不加）
+1. `README.md`「模型 |」**仅当前态一行** → `gpt-6.2-sol`（+ 雅思 6.5/IELTS 6.5/CET6 546 等身份串在前面步骤已验证 live）；`README_EN.md` 同一行 → `gpt-6.2-sol`；
+2. `Exhibits.tsx` 铭牌：原硬编码 `izzz/gpt-6.1-terra`（该 strike 的真值 JSON 不含 model 字段，硬编码属于无据复读）→ 铭牌不再假称模型名，只承诺 `aizzz` + 日期 + 缓存/prompt 数字 + "never a verdict"（保留诚实标签 "the machine signs its own wall"）；
+3. `Gazette.tsx` 铭牌：由 `gazette_feature.json` **逐字读** `model` 字段渲染（现为 `gpt-6.1-terra` —— 如实反映 #1975 那次 6.1-terra 敲，**不是**我用嘴编；以后那个证据文件重敲并写上 `gpt-6.2-sol` 时，铭牌自会跟随）；
+4. 如实保留的历史类引用（核对过，未动）：worldbook 双语圣经、epic.copy / errata.copy 里 `#19xx` 时代的所有 `gpt-6.1-terra` 文案、CHANGELOG 里的 #1972–#1976 段、README 137/146/162 行的历史叙述、Engine.tsx 的"2026-11-16 重建的 63 行"叙事 —— 都是当时事实的记录；
+5. web 构建双过；`npm run test` 全文复跑：**603/603** 保持；
+6. `_showcase_pages/specproof-web` 再同步一次（banner 逐字重注 · v3 备份 · 新 index `index-CjUgGmSL.js`）；push `5db4cb4`（rebase 过 fact-bot `723c259`）；Pages `Deploy` pending；
+7. repo `chronicle.json` 未变（仍止于 #2017，1813 条）；`apps/web/src/pages/chronicle-*.js` 内容也没换——**本号不蹭 chronicle 升级**；
+
+### 二、没动没伪没涂
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样 · E501 **310** 红 · chronicle **1813** · worldbook **204** 双语对称 · library **203 zh≡en** · UI **603/603**；
+2. `.local/llm.json` 未进任何 commit；`gazette_feature.json` / `insight_advice_witness.json` 两个见证的 `model='gpt-6.1-terra'` 未被改写——它们是历史；
+3. 没重敲任何车道；没有 live 敲击借本号做成本；
+4. CI 排队依旧（7 queued；Actions 权限/平台均正常，阻塞在账号托管 runner 容量，一待排队放行马上按既定门禁重跑）；
+5. 备份 v2/v3 保留，本号未删除任何文件；
+

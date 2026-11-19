@@ -55,7 +55,7 @@ pwsh scripts/start_local_light.ps1
 | 配置 | 值 | 状态 |
 |---|---|---|
 | 服务地址 | `https://api.aizzz.xyz/v1` | 已实测（HTTP 200 · 9 chunks · 3.7 s · Clash Verge 7897） |
-| 模型 | `gpt-6.1-terra` | 已实测 |
+| 模型 | `gpt-6.2-sol` | 已实测 |
 | 接口协议 | Responses API | 已实测（stream=True + include_usage=True） |
 | 推理强度 | `max` | 已实测 |
 | 补充 | 直连被区域封锁；须走宿主 Clash Verge（mihomo 127.0.0.1:7897）——不带梯子敲全红 | 事实 · R14 |

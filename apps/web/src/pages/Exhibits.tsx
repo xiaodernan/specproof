@@ -205,8 +205,8 @@ export default function Exhibits(): JSX.Element {
         <p className="exhibits-copilot-body">{zh ? exhibitCopilot.answer_zh : exhibitCopilot.answer_en}</p>
         <p className="exhibits-copilot-stamp">
           {zh
-            ? `— aizzz/gpt-6.1-terra · ${(exhibitCopilot.generated_utc ?? "").slice(0, 10)} · 只引 evidence.json 里的数字 · 从不判词 · 缓存命中 ${exhibitCopilot.cached_tokens} / ${exhibitCopilot.prompt_tokens ?? ""} tokens`
-            : `— aizzz/gpt-6.1-terra · ${(exhibitCopilot.generated_utc ?? "").slice(0, 10)} · prints only numbers present in evidence.json · never a verdict · cached_tokens=${exhibitCopilot.cached_tokens}`}
+            ? `— aizzz · ${(exhibitCopilot.generated_utc ?? "").slice(0, 10)} · 只引 evidence.json 里的数字 · 从不判词 · 缓存命中 ${exhibitCopilot.cached_tokens} / ${exhibitCopilot.prompt_tokens ?? ""} tokens`
+            : `— aizzz · ${(exhibitCopilot.generated_utc ?? "").slice(0, 10)} · prints only numbers present in evidence.json · never a verdict · cached_tokens=${exhibitCopilot.cached_tokens}`}
         </p>
       </section>
     </div>

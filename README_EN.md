@@ -54,7 +54,7 @@ Open **Model connection**; enter a base URL for your model provider and a key fo
 | Setting | Value | Status |
 |---|---|---|
 | Model URL | `https://api.aizzz.xyz/v1` | live (HTTP 200 · 9 chunks · 3.7 s · via Clash Verge 127.0.0.1:7897) |
-| Model | `gpt-6.1-terra` | live |
+| Model | `gpt-6.2-sol` | live |
 | Protocol | Responses API | live (stream=True + include_usage=True) |
 | Reasoning effort | `max` | live |
 | Note | Direct TLS is region-blocked — the lane must ride the host's Clash Verge (mihomo, 127.0.0.1:7897); without the ladder every probe stays red | fact · R14 |
