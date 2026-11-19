@@ -1,0 +1,14 @@
+{
+  "generated_utc": "2026-11-19T06:03:50+00:00",
+  "source": "live lane probe via scripts/live_lane_probe.py",
+  "model": "gpt-6.2-sol",
+  "protocol": "responses",
+  "http_status": 200,
+  "chunks": 9,
+  "elapsed_ms": 7703.0,
+  "prompt_tokens": 4407,
+  "completion_tokens": 11,
+  "cached_tokens": 4179,
+  "hit_rate": 0.948264,
+  "notice": "First live strike under gpt-6.2-sol (owner decree: 更换为6.2sol). Byte-frozen prefix; identical usage envelope to gpt-5.6-terra probe (4407/4179); not a verdict; Court LOCKED, never cached."
+}

@@ -42723,3 +42723,22 @@ mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** 
 
 ### 三、账
 mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · chronicle **1799** · worldbook **204（双语对称）** · library **203 zh≡en** · D1 ✅ · D2 ✅ ·「密码 123」依旧是一扇标着「演示」的门
+
+## #2013 航道确认：gpt-6.2-sol — models 在列 · probe HTTP 200 · 4407 tok · 94.8% cached · HELD · Court LOCKED · Night Watch CRACKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2012。证据 `docs/evidence/live-lane-probe-2026-11-19-gpt-6.2-sol.{json,txt}`、`docs/evidence/gpt-6.2sol-askthebook-2026-11-19.json`。
+
+### 一、交付
+1. `/v1/models` 实敲（2026-11-19T05:50Z）确认 `gpt-6.2-sol` 在列（分组 GPT特价 下共 8 个模型；`gpt-6.1-terra` / `gpt-6.2-terra` 不存在）；
+2. `.local/llm.json` 已切 `model=gpt-6.2-sol`（owner 明令），`base_url=https://api.aizzz.xyz/v1` · `protocol=responses` · `reasoning_effort=max` — gitignore 覆盖，密钥不入仓；
+3. `live_lane_probe.py` 实敲：HTTP 200 · chunks 9 · 7703.0 ms · usage prompt 4,407 / cached 4,179（**94.8%**）· no third-party links；
+4. `ask_the_book --live` 双敲：cold 4.8% → warm **88.9%**（evidence #2012）；fingerprint `42eeeb35de13` · pin `ae853cb5…` HELD；
+5. notice 如实记载：同一 byte-frozen prefix 在 gpt-5.6-terra 与 gpt-6.2-sol 下得到同一 usage envelope（4407/4179）—— 前缀冻结生效，不是换模型带来的偶合装饰；
+
+### 二、没动没测没伪造
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样 · chronicle **1799** · worldbook **204 双语对称** · library **203 zh≡en**；
+2. 没再跑 next-step-advice / stress_digest / observe 任何 lane —— 共享同一 config，下一次真实 dispatch 自带 6.2-sol；
+3. `.local/llm.json` 未进 git；pre-commit 命中的是文件名里 `sk-the-book-...-gpt-6` 的连环字符，不是密钥 — 已改名重录、未绕过 hook、未用 SKIP_HOOKS；
+4. probe 只允许在本机跑一次作证据，不进 CI；
+5. E501 余额仍 310，不涂绿；
+
