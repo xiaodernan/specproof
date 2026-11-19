@@ -43209,3 +43209,7 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 1. Court 红线 & pinned reds 不变；`tests-no-infra` 仍在 Windows 自托管慢速爬；Pages cron `:17 */3 * * *` 照旧；weekly stress `2026-11-23T03:00Z` 未落账，等真跑完再记；
 2. `WebSearch` 本机 HTTP 402，本次常数采用行业留底，未写「实时联网取证」；
 3. Observe 公开段「The unlocked read is a LIVE model call」门内 Panel 顺序：crowd 先于 model 面板，读者进门先看到合成人群、再看模型解读——顺序符合"先现象后裁决"的 house rule。
+
+
+**#2032 postscript（同一晚追加）**：Observe 横成 + IO redeploy v3 完成后，全量复跑 
+pm run test = **618 pass / 618**（90 文件；合成人群 6/6 已计入）。ledger 上文写的 612/612 是 #2032 落笔时刻的数，本行为准。Court LOCKED · Court 侧无任何敲击。
