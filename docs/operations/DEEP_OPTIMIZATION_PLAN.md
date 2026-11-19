@@ -43110,3 +43110,30 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 4. 没打开 any new API call；本日固定 62 次 strike ceiling 只花在 `ask-the-book --live` #2027；
 5. 没修改 anything that changes any of the 24 pinned reds、chronicle/worldbook/UI counts、Court 固件、任何 exhibit；
 
+
+## #2029 调用链语改为 `uv run python …` · web 最新一次成功 · 自托管 Windows runner 实跑并返回结果 · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2028。
+
+### 一、交付
+1. `ci.yml` 里所有裸 `python -m …`、`python scripts/X.py` 全部改走 `uv run`——host Python 3.11.1 不匹配 `pyproject.toml` 的 `requires-python = ">=3.12"`（见 `pyproject.toml line 11`），裸调 `python -m ruff check .` 只会触发 "No module named ruff"；真正的 Python 3.12 由 uv venv 提供；
+2. 当前最新 run `44517912833` 中 **web job 跑出来了 `success`**，`tests-no-infra | in_progress`、`security | in_progress` —— 本机 Windows runner 真把 vitest + vite build 跑完一轮；
+3. runner 上 java-services 在前一轮 run `44512879661` 已确认 **`java-services | success`**：本机 venv 上 mvn test 4 services (control-plane 51/gateway 84/config-server 1/discovery-server 1) 真过；
+4. 顺带发现：每条 job 的 `Install dependencies` 自己给 venv 装了 97 个包，每次推送都会把 `.venv/` 装一次（~60s），后续值得 hook (`apps/web/package-lock.json` 该缓存)；本号的适用 `Runner_TOOL_CACHE` 已被自动回补 OK；
+5. 本号修复的根源是今天 Docker 镜像外桌找 host Python 3.11 跑 3.12 requires；不是预料之内的弱点，而是把整个 self-hosted runner 拿来爆敲本地矩阵测试后(装 deps/install/matrix)，把每件 "我本机能跑" 的情景都跑出来的 result；
+6. ledger 补成 `#2029` 的同时，因为未触及 worldbook/codex/exhibit/Court，本号为零递增的 side effect；
+
+### 二、当前正在跑的局面
+1. `44517912833`（HEAD push，workflow #2029）：`web | success · lint-type | failure · security | in_progress · openapi-schema-diff | failure · tests-no-infra | in_progress · eval-golden-cases | failure · e2e | queued · tests-with-infra | queued · provider-smoke | skipped`；cargo: `Lint` gate is `python -m ruff check .` → unkown failure today;
+2. 前两次全红由 setup-python 配置（HKLM 权限）→ `astral-sh/setup-uv@v7 + uv venv` 后解决；改 `uv run python …` 后两 job 现在落到 venv 上，lint/mypy 还没报告结论；
+3. e2e / tests-with-infra 仍空跑——本机 Docker 在 `docker compose` 阶段没成功（Docker 在 Windows runner 上使用 Linux containers 跟 lvm lvm-volume mount 不一样，需要改 host path mapping 或换 Linux runner）；
+4. 仍 pending 的核心诉求：lint-type / openapi-schema-diff / security / tests-no-infra 4 条 Python job 的 failure 需要下一轮 job 完整结束后看 log；
+5. 至于 jobs 排队 — runner concurrency 上只 run 1 job 同时，我该移动这件事；
+
+### 三、没动没伪没涂
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样 · E501 **310** 红 · worldbook **204 双语对称** · library **203 zh≡en** · UI **606/606** 已自测全过；
+2. 没重敲任何 live lane；本号纯 workflow 改动；
+3. 没改任何证据文件 / world bibles / Courts / pins；Court pin 不被这一轮 docker/sube 调试听见；
+4. 隐图 及其本次会话内新增的 commit (ci.yml / ledger) 仍 `0`；
+5. 当前 CI breakage 的具体 root cause 第三方 (Windows vs Linux runner differences) 已记入账；本号结束前没人对 Docker CI semantics 上做承诺绿色——出的结果只是让 CI 在本机跑得起来，遗留 Windows-specific shim 问题以 summary 注明；
+
