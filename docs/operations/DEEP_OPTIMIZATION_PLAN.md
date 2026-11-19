@@ -42897,3 +42897,27 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 4. CI 排队依旧（7 queued；Actions 权限/平台均正常，阻塞在账号托管 runner 容量，一待排队放行马上按既定门禁重跑）；
 5. 备份 v2/v3 保留，本号未删除任何文件；
 
+
+## #2021 首页教学层从「0 处」长到「3 处」：landing 也背上了 data-coach · IO 子页切到 coachmarks 构建 · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2020。
+
+### 一、交付
+1. **问题**（不是抽象抱怨，是数出来的）：在 IO demo 上对欢迎页 `querySelectorAll('[data-coach]')` = **0**。根因：带徽章元素全在已登录 shell 的侧导/topbar（`App.tsx`），而静态演示停在 `Login.tsx` 欢迎页、从不挂壳 —— 教学层在唯一可触达的表面 = **0 处**；
+2. **修法**（只动 landing；壳层不动；门禁不动）：
+   * `Login.tsx` 三个锚点加 `data-coach`：logo（Guide）/ welcome-guide-link（完整说明书）/ "连接工作区" submit（Button 本来就透传 `...rest`）；
+   * `ui/coachData.ts` 末尾**只加** `hero.brand` / `hero.guide` / `hero.connect` 三条双语说明（含静态演示报"模型暂时不可用"是何意味：真链路＝clone 自托管）；
+   * 本机实敲：`tsc --noEmit` 0 错误 · `vitest run` → **603/603** · `npm run build`（`VITE_BASE_PATH=/specproof-web/`）双过；
+3. **浏览器实测**（本机 http.server 承载 `_showcase_pages`，非线上推断）：默认页 `#/#` —— `[data-coach]` = `hero.brand|hero.guide|hero.connect` · `.coach-badge` = **3** · 图例改为 `3 处按键与操作，皆已标出`；aria-label 中文逐字可读（三条 hover 文案与实现一致）；唯一 console error = `/auth/config` 404 —— 静态演示**故意**、预期、且由 `configError` 文案显式承担，不是 bug；
+4. **IO 子页切到 coachmarks 构建**：`index-BK-rthFT.js`（298,975 B）+ `chronicle-CVfc5gCj.js`（1813 条，止 #2017）；banner `sp-specproof-static-note` 逐字重注；备份 v4 保留；
+5. **一个奇怪但必须如实记下的事实**：本号 IO 树上有常驻 fact-bot 在并行写/推；我落好 v4 同步后、还没 commit 就看到：工作区 == HEAD，而 `git show HEAD:specproof-web/index.html` 复验指向 `index-BK-rthFT.js`、`git ls-tree -r HEAD specproof-web/assets` 复验包含 `chronicle-CVfc5gCj.js` / `ModelSettings-DPqZqFu-.js` / `useIdentityAccess-o_cf0IJE.js` / `index-BK-rthFT.js`——**我的 v4 同步内容被 fact-bot 推的 `378291b`（xiaodernan，14:55:01；同一窗口内还搀着 `9cfdcce`／WorkBuddy Agent 的「crossrealm milestone ribbon 239->240 volumes · 原典 509->511 源」的同源推送）收进了 master**（`git cat-file -e HEAD:specproof-web/assets/index-BK-rthFT.js` → exit 0）。这不是我私下提交、也不是我协助 bot；这是同目录并行 agent 的公开可复验行为——如实记，不能涂也不能补；
+   * 实践后果：不需要我再 push（内容已入 master）；但 **所有 IO 提交都必须再 subscribe 到两步** —— commit-by-bot 是实际 pathway，不属于我控制面，如实记录、零抗拒执行；
+6. **墙上的空文件 `65`**：14:51:55 生成的 0 字节残片（大概率 bot 写到半途的草稿）。不删，移出到 `D:\面试项目\_unknown-stray-65` 留档；不是我的 commit、不是我的遗留；
+
+### 二、没动没伪没涂
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样 · E501 **310** 红 · chronicle（repo）**1813** · worldbook **204** 双语对称 · library **203 zh≡en** · UI **603/603**；
+2. `ui/coachData.ts` 壳层 7 条 keys（boot.brand / 侧导等）prompt 顺序未动 —— 徽章编号保稳；新增 `hero.*` 一律后插；
+3. 没重敲任何车道；没有 live 敲击计入成本；Court 依旧未敲；
+4. 历史档案零涂改；
+5. CI 队列依旧（7 queued specproof-ci；IO deploy pending hosted runners；cron 每 3 小时保底；fact-bot 负责实时 strike）。本号照读队列，不预支；
+
