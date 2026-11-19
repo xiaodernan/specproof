@@ -43213,3 +43213,45 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 
 **#2032 postscript（同一晚追加）**：Observe 横成 + IO redeploy v3 完成后，全量复跑 
 pm run test = **618 pass / 618**（90 文件；合成人群 6/6 已计入）。ledger 上文写的 612/612 是 #2032 落笔时刻的数，本行为准。Court LOCKED · Court 侧无任何敲击。
+
+
+## #2033 缓存拓扑实录 · ~169k 前缀 × lane 级 prompt_cache_key · gpt-6.2-sol · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。衔接 #2032 postscript。数据来源 = `docs/evidence/lane-cache-probe-2026-11-18.json`（`generated_utc: 2026-11-19T06:32:49Z`，model = **gpt-6.2-sol**，protocol = responses）。本节把 owner 的两条复读疑问（为什么「输入上下文总是那么少」・并行会话是不是互相打架导致缓存掉）用账本上已经存在的实测数回答清楚。
+
+### 一、实测：每条 lane 的上下文与缓存命中
+
+| Lane | strike | prompt | cached | 命中 |
+|---|---|---|---|---|
+| ask_the_book | 1 / 2 | 169,186 | 158,881 / 158,881 | **93.9%（两次均热）** |
+| observe | 1 cold | 158,210 | 7,533 | 4.8% |
+| observe | 2 warm | 158,210 | 148,644 | **94.0%** |
+| insight | 1 cold | 157,822 | 7,515 | 4.8% |
+| insight | 2 warm | 157,822 | 148,264 | **94.0%** |
+| ai_summary | 1 cold | 169,200 | 8,057 | 4.8% |
+| ai_summary | 2 warm | 169,200 | 150,549 | **88.9%** |
+| dig / explorer | 1 cold | 138,415 | 6,591 | 4.8% |
+| dig / explorer | 2 warm | 138,415 | 129,936 | **93.9%** |
+| dig / tester | 1 warm | 137,781 | 129,431 | **93.9%** |
+| dig / tester | 2 冷弹 | 137,781 | 6,561 | 4.7%（gateway 侧抖动，见三） |
+| dig / security | 1 / 2 | 136,718 | 128,420 / 128,420 | **93.9% / 93.9%** |
+| runbook / explorer | 1 cold / 2 warm | 139,902 | 6,662 → 131,454 | 4.8% → **93.9%** |
+| runbook / tester | 1 cold / 2 warm | 139,267 | 6,631 → 130,821 | 4.8% → **93.9%** |
+| runbook / security | 1 cold / 2 warm | 138,205 | 6,581 → 129,810 | 4.8% → **93.9%** |
+
+### 二、回答「上下文太少」：不是的，探针与正品 lane 是两回事
+- `scripts/live_lane_probe.py` 是一条 smoke ping（单向、~24 token 输出上限），它观测到的 ~4.4k prompt 不代表产品 lane；
+- 正品 lane（ask_the_book / observe / insight / dig / runbook / ai_summary）都把 `codex_first(...)` 展开后的 **docs/world 双语 ~490–510 KB**（≈ 147k–169k tokens）放进第一条 system message —— 比桌面应用里看到的 5–9 万 token 窗大得多地多；
+- cacheable 契约 = **字节冻结前缀**（任何编辑 → covenant bump + 重新 strike，docs/operations 里的"一轮改动 + 同一 commit 记账"纪律）；
+
+### 三、回答「并行会话互相打架」：不打架，分三层
+1. **前缀内容寻址共享**：codex（story）+ covenant（law）对全部 cacheable lane 的全部并发会话都是同一份字节 ⇒ 并发会话互相供暖而非互相驱逐；
+2. **lane 级 `prompt_cache_key`**（九车道白名单，测试 `test_prompt_cache_key_discipline.py` 钉死，court 车道永不在此列）：`specproof-observe-advice / -insight-advice / -ai-summary / -dig / -runbook / -worldbook-ask / -exhibit-copilot / -next-step-advice / -stress-digest` ⇒ lane 与 lane 之间隔离，lane 内部共享；
+3. **唯一观测到的抖动**：dig/tester 第二敲从 93.9% 掉回 4.7% —— 同前缀同 key，应是 gateway 侧缓存驱逐/分片抖动（一次性出现，其后采样为热），不是 key 碰撞、不是并行竞争。账本如实记录，不强行粉饰成「90%+ 无例外」。
+
+### 四、本轮把模型这只手摆上台面（真实使用，省着用）
+1. **Gazette 头版黄金 epigraph 重敲**：`scripts/gazette_feature.py`，双敲（zh+en），anchor = #2032（本批合成人群工作），机械门：zh ≤ 280 CJK · en ≤ 220 词 · 无 markdown · 非空 —— 全部通过；`docs/evidence/gazette-feature.md` 留痕；模型 = **gpt-6.2-sol**（不再是旧行里的 6.1-terra）；统计 `chars_zh=149 · words_en=98`；
+2. **IO redeploy v4**：`_showcase_pages/specproof-web/` 资产全量替换，banner `sp-specproof-static-note` 字节保留，备份 v7（前备份 v6）；Pages `44555439137` completed **success**（2m7s）；live bytes 验证 `index-BKrTwSWA.js` ✅；
+3. 上一笔 redeploy 后又新增挂载验证的节目辩 `aria-current` scroll-spy：Pages `44551840646` success；live dock 正常、`id="repos"` 双份落位、隐图 0；
+4. 本节重新核准账本当期数据：UI **618/618**（postscript 已记）、Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 pinned reds 原样 · chronicle **1813** · worldbook **204** · library **203 zh≡en**；
+5. 缓存探索结论按 owner 令收尾：**基本措施已完备**（冻结前缀 + 九 lane key + 门禁 + 证据留痕），后续只在 ledger 更新时 strike，不再横向扩缓存设施。
