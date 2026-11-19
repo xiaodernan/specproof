@@ -50,7 +50,7 @@ async def worldbook_ask(payload: WorldbookAskRequest) -> dict[str, Any]:
     """Ask the book through the model. Public, cheap, honest — never a verdict."""
     locale = "en" if payload.locale.strip().lower() == "en" else "zh"
     from api.worldbook_ask import (
-        WorldbookAskUnavailable,
+        WorldbookAskError,
         ask_redis,
         fingerprint,
         generate_ask_answer,
@@ -74,7 +74,7 @@ async def worldbook_ask(payload: WorldbookAskRequest) -> dict[str, Any]:
         result = await generate_ask_answer(payload.question, locale)
     except ValueError as exc:
         raise ApiError(status_code=400, code="INVALID_ARGUMENT", detail=str(exc)) from exc
-    except WorldbookAskUnavailable as exc:
+    except WorldbookAskError as exc:
         raise ApiError(
             status_code=503, code=PROVIDER_UNAVAILABLE, detail=str(exc),
         ) from exc

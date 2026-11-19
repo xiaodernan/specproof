@@ -18,9 +18,7 @@ Usage:
 import argparse
 import asyncio
 import json
-import sys
 from datetime import UTC, datetime
-from pathlib import Path
 
 from providers.config import load_model_config
 
@@ -96,8 +94,9 @@ async def main() -> int:
         print(f"model config unreadable: {exc}")
         return 2
 
-    from providers.responses_protocol import normalize_base_url
     from openai import AsyncOpenAI
+
+    from providers.responses_protocol import normalize_base_url
 
     client = AsyncOpenAI(
         api_key=cfg["api_key"],

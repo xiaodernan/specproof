@@ -114,8 +114,9 @@ def intake_node(state: AskTheBookState) -> AskTheBookState:  # noqa: ARG001
         and en_msgs[0].content.startswith("The following is not fiction")
         and msgs[0].content == msgs[0].content.strip()  # codex is byte-frozen, never re-wrapped
     )
+    zh_bytes = len(msgs[0].content.encode("utf-8"))
     notes.append(
-        f"codex_first sandwich {len(msgs)} msgs; zh codex bytes={len(msgs[0].content.encode('utf-8'))}; "
+        f"codex_first sandwich {len(msgs)} msgs; zh codex bytes={zh_bytes}; "
         f"fingerprint={fp1[:12]} (deterministic={fingerprint_ok})"
     )
     if not prefix_identity_ok:  # pragma: no cover - defensive, lane contract holds
@@ -151,7 +152,9 @@ def strike_node(state: AskTheBookState) -> AskTheBookState:
             return {
                 "answer": result.get("answer") or "",
                 "chars": len((result.get("answer") or "").strip()),
-                "cached_tokens": int(usage.get("prompt_cache_hit_tokens") or usage.get("cached_tokens") or 0),
+                "cached_tokens": int(
+                    usage.get("prompt_cache_hit_tokens") or usage.get("cached_tokens") or 0
+                ),
                 "prompt_tokens": int(usage.get("prompt_tokens") or 0),
                 "info_hits": _verdict_word_hits(result.get("answer") or ""),
                 "error": None,
@@ -205,7 +208,8 @@ from agent.graphs._witness import verdict_node  # noqa: E402  (pass-through, one
 
 
 def report_node(state: AskTheBookState) -> AskTheBookState:
-    out_dir = Path(os.environ.get("SPECPROOF_ASK_THE_BOOK_WITNESS_DIR") or ROOT / "docs" / "evidence")
+    env_dir = os.environ.get("SPECPROOF_ASK_THE_BOOK_WITNESS_DIR")
+    out_dir = Path(env_dir) if env_dir else ROOT / "docs" / "evidence"
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(UTC).isoformat(timespec="seconds")
     day = stamp[:10]
@@ -232,6 +236,10 @@ def report_node(state: AskTheBookState) -> AskTheBookState:
     target = out_dir / f"ask-the-book-{day}.json"
     target.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
+    zc = payload['zh_cached_tokens'] if payload['zh_cached_tokens'] is not None else 'not struck'
+    ec = payload['en_cached_tokens'] if payload['en_cached_tokens'] is not None else 'not struck'
+
+    _live_str = 'yes — zh/en, both cache-key `specproof-worldbook-ask`'
     md = [
         "# Ask-the-Book · the public lane, witnessed (no verdicts, one hum)",
         "",
@@ -239,13 +247,17 @@ def report_node(state: AskTheBookState) -> AskTheBookState:
         f"sanitizer_ok={payload['sanitizer_ok']} · fingerprint_ok={payload['fingerprint_ok']} · "
         f"messages_shape_ok={payload['messages_shape_ok']}",
         "",
-        f"- live strike: {'yes — zh/en, both cache-key `specproof-worldbook-ask`' if payload['live_requested'] else 'not struck (offline)'}",
-        f"- zh: {payload['zh_chars'] or 0} chars · cached_tokens={payload['zh_cached_tokens'] if payload['zh_cached_tokens'] is not None else 'not struck'}",
-        f"- en: {payload['en_chars'] or 0} chars · cached_tokens={payload['en_cached_tokens'] if payload['en_cached_tokens'] is not None else 'not struck'}",
+        f"- live strike: {_live_str if payload['live_requested'] else 'not struck (offline)'}",
+        f"- zh: {payload['zh_chars'] or 0} chars · "
+        f"cached_tokens={zc}",
+        f"- en: {payload['en_chars'] or 0} chars · "
+        f"cached_tokens={ec}",
         f"- notes: {payload['notes']}",
-        f"- info-only verdict-word hits (reported, never graded): zh={payload['info_verdict_word_hits_zh']} · en={payload['info_verdict_word_hits_en']}",
+        f"- info-only verdict-word hits (reported, never graded): "
+        f"zh={payload['info_verdict_word_hits_zh']} · en={payload['info_verdict_word_hits_en']}",
         "",
-        "*the witness never decides whether an exhibit is green — it watches the public lane, byte by byte.*",
+        "*the witness never decides whether an exhibit is green — it watches"
+        " the public lane, byte by byte.*",
     ]
     if state.get("sealed_zh"):
         md += ["", "## The zh answer (verbatim, not edited)", "", str(state["sealed_zh"])]

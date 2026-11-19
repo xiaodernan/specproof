@@ -5,7 +5,6 @@ Reads docs/world/APPENDIX_CORRECTIONS.md (zh) + EN sibling and emits
 apps/web/src/pages/corrections.json { version, count, items: [{id, summary_zh}] }.
 Append-only by construction: this script never edits the source files.
 """
-import io
 import json
 import re
 import sys

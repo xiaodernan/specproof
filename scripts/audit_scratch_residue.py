@@ -9,8 +9,6 @@ from git, then names each file's directory of origin.
 
 Read-only. Never deletes. Honest output: report is the product.
 """
-import hashlib
-import io
 import json
 import subprocess
 import sys

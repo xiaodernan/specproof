@@ -15,11 +15,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from api.system_codex import codex_first
-from api.system_covenant import covenant_prefix
-from providers.base import LLMMessage
-from providers.config import load_model_config
-from providers.openai_compatible import OpenAICompatibleProvider
+from api.system_codex import codex_first  # noqa: E402
+from api.system_covenant import covenant_prefix  # noqa: E402
+from providers.base import LLMMessage  # noqa: E402
+from providers.config import load_model_config  # noqa: E402
+from providers.openai_compatible import OpenAICompatibleProvider  # noqa: E402
 
 
 async def main() -> int:

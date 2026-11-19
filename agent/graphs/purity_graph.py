@@ -11,17 +11,15 @@ Fails-closed: any match outside the allowlist flips verdict to CRACKED.
 """
 from __future__ import annotations
 
-import io
 import json
 import re
 import subprocess
-import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from typing_extensions import TypedDict
 from langgraph.graph import END, StateGraph
+from typing_extensions import TypedDict
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -51,7 +49,7 @@ def intake_node(state: PurityState) -> PurityState:
     out = subprocess.run(
         ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, timeout=30, encoding="utf-8", errors="replace",
     ).stdout
-    files = [l for l in out.splitlines() if l]
+    files = [ln for ln in out.splitlines() if ln]
     return {"files": files, "hits": []}
 
 

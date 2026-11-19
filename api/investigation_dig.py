@@ -14,7 +14,6 @@ Same discipline as the /insight AI 解读 lane:
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 from pathlib import Path
@@ -25,7 +24,7 @@ logger = logging.getLogger(__name__)
 LLM_TIMEOUT_SECONDS = 150.0
 
 
-class InvestigationDigUnavailable(RuntimeError):
+class InvestigationDigError(RuntimeError):
     """Raised when the model lane could not produce an answer."""
 
 
@@ -37,7 +36,7 @@ def _workspace_root() -> Path:
 async def generate_investigation_dig(question: str) -> dict[str, Any]:
     """Run the three readonly investigators against the local checkout."""
     if not question.strip():
-        raise InvestigationDigUnavailable("question is empty")
+        raise InvestigationDigError("question is empty")
 
     from craft.investigators import investigate
 
@@ -45,11 +44,11 @@ async def generate_investigation_dig(question: str) -> dict[str, Any]:
         result = await investigate(
             _workspace_root(), question, timeout=LLM_TIMEOUT_SECONDS,
         )
-    except InvestigationDigUnavailable:
+    except InvestigationDigError:
         raise
     except Exception as exc:  # noqa: BLE001 - unknown failure reads as unavailable
         logger.warning("investigation dig failed: %s: %s", type(exc).__name__, exc)
-        raise InvestigationDigUnavailable(
+        raise InvestigationDigError(
             f"the model lane could not be consulted: {type(exc).__name__}",
         ) from exc
 

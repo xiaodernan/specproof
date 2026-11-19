@@ -15,13 +15,11 @@ from __future__ import annotations
 
 import json
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
-
 from fastapi.testclient import TestClient
 
 from api.server import app
@@ -41,7 +39,7 @@ def _headers() -> dict[str, str]:
 
 def _rec(ts: str | None = None, **overrides: Any) -> dict[str, Any]:
     base: dict[str, Any] = {
-        "ts": ts or datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "ts": ts or datetime.now(UTC).isoformat(timespec="seconds"),
         "model": "test-model",
         "kind": "diagnose",
         "lane": "policy",
@@ -167,7 +165,7 @@ class TestSummarize:
         assert out["latency_p50_ms"] == 1500  # 错误调用的耗时也真实计入分位
 
     def test_window_filters_stale_records(self) -> None:
-        old_ts = (datetime.now(timezone.utc) - timedelta(hours=72)).isoformat(
+        old_ts = (datetime.now(UTC) - timedelta(hours=72)).isoformat(
             timespec="seconds")
         records = [_rec(), _rec(ts=old_ts, cached_tokens=None)]
         out = summarize(records, window_hours=24)
@@ -176,8 +174,8 @@ class TestSummarize:
     def test_trend_buckets_are_hourly_and_sorted(self) -> None:
         now = time.time()
         hour0 = int(now // 3600) * 3600
-        cur = datetime.fromtimestamp(hour0, tz=timezone.utc)
-        prev = datetime.fromtimestamp(hour0 - 3600, tz=timezone.utc)
+        cur = datetime.fromtimestamp(hour0, tz=UTC)
+        prev = datetime.fromtimestamp(hour0 - 3600, tz=UTC)
         records = [
             _rec(ts=cur.isoformat(timespec="seconds")),
             _rec(ts=cur.isoformat(timespec="seconds")),
@@ -285,7 +283,7 @@ class TestRoute:
 
 class TestByLaneByProtocol:
     def _windowed_records(self) -> list[dict[str, Any]]:
-        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        now = datetime.now(UTC).isoformat(timespec="seconds")
 
         def mk(**over: Any) -> dict[str, Any]:
             return _rec(now, **over)
@@ -323,7 +321,7 @@ class TestByLaneByProtocol:
         assert protos["(unreported)"]["hit_rate"] == pytest.approx(0.9)
 
     def test_rollups_absent_not_zero_when_no_cache_data(self) -> None:
-        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        now = datetime.now(UTC).isoformat(timespec="seconds")
         out = summarize([_rec(now, lane="direct", protocol="responses",
                               prompt_tokens=10, cached_tokens=None)],
                         window_hours=100.0)

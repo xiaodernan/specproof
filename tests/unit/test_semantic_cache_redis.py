@@ -20,15 +20,14 @@ boundary and a store boundary, so these legs cover exactly those two:
 from __future__ import annotations
 
 import json
-import os
 import warnings
 from typing import Any
 
 import pytest
 
+from providers.client_policy import ClientPolicy, _decode_sdk_response, _encode_sdk_response
 from providers.semantic_cache import SemanticCache
 from providers.semantic_cache_redis import SemanticCacheRedisStore
-from providers.client_policy import ClientPolicy, _decode_sdk_response, _encode_sdk_response
 
 _SDK_PAYLOAD: dict[str, Any] = {
     "id": "chatcmpl-roundtrip",

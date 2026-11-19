@@ -16,9 +16,9 @@ import re
 import sys
 from pathlib import Path
 from typing import Any
-from typing_extensions import TypedDict
 
 from langgraph.graph import END, StateGraph
+from typing_extensions import TypedDict
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -103,12 +103,19 @@ def search_node(state: RecallState) -> RecallState:
     docs_dir = Path(state.get("docs_dir") or "docs")
     docs = _build_idx(docs_dir)["docs"]
     if not docs:
-        return {"verdict": "EVIDENCE-MISSING", "detail": "no ledger lines available; set docs-dir or restore files"}
+        return {
+            "verdict": "EVIDENCE-MISSING",
+            "detail": "no ledger lines available; set docs-dir or restore files",
+        }
     terms = list(dict.fromkeys(_tokenize(_query(state))))
     if not terms:
-        return {"verdict": "MISSING-QUERY", "detail": "query produced zero tokens — nothing to match"}
+        return {
+            "verdict": "MISSING-QUERY",
+            "detail": "query produced zero tokens — nothing to match",
+        }
     n_docs = len(docs)
-    field_lists: list[tuple[list[str], list[str]]] = [(_tokenize(d["title"]), _tokenize(d["body"])) for d in docs]
+    field_lists: list[tuple[list[str], list[str]]] = [
+        (_tokenize(d["title"]), _tokenize(d["body"])) for d in docs]
     doc_len = [len(t) + len(b) or 1 for t, b in field_lists]
     avg_all = sum(doc_len) / n_docs
     avg_title = sum(len(t[0]) for t in field_lists) / n_docs
@@ -149,7 +156,9 @@ def search_node(state: RecallState) -> RecallState:
             "detail": f"{len(hits)} hits above zero (corpus={n_docs} lines, avg_len={avg_all:.1f})"}
 
 
-from agent.graphs._witness import verdict_node  # absolute: same file runs as a script and as a module
+from agent.graphs._witness import (  # noqa: E402
+    verdict_node,  # absolute: same file runs as a script and as a module
+)
 
 
 def build_recall_graph() -> Any:
@@ -166,7 +175,9 @@ def build_recall_graph() -> Any:
 if __name__ == "__main__":
     args = [arg for arg in sys.argv[1:] if not arg.startswith("--")]
     query = " ".join(args).strip()
-    docs = next((arg.split("=", 1)[1] for arg in sys.argv[1:] if arg.startswith("--docs-dir=")), "docs")
+    docs = next(
+        (arg.split("=", 1)[1] for arg in sys.argv[1:] if arg.startswith("--docs-dir=")),
+        "docs")
     top = int(next((arg.split("=", 1)[1] for arg in sys.argv[1:] if arg.startswith("--top=")), "3"))
     result = build_recall_graph().invoke({"query": query, "docs_dir": docs, "top": top})
     print(f"query={query!r} verdict={result.get('verdict')}")

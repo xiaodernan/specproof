@@ -24,7 +24,6 @@ from __future__ import annotations
 import sys
 import time
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -107,7 +106,6 @@ def test_a_clean_end_of_the_loop_is_also_a_reconnect(monkeypatch: pytest.MonkeyP
 
 def test_the_reconnect_counter_is_published(monkeypatch: pytest.MonkeyPatch) -> None:
     """The flapping has to be visible, not just survived."""
-    import agent.worker as worker_module
 
     counted: list[str] = []
     monkeypatch.setattr(time, "sleep", lambda seconds: None)

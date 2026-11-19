@@ -33,7 +33,7 @@ async def next_step_advice(payload: NextStepAdviceRequest) -> dict[str, Any]:
     the next arc — without ruling on anything."""
     locale = "en" if payload.locale.strip().lower() == "en" else "zh"
     from api.next_step_advice import (
-        NextStepAdviceUnavailable,
+        NextStepAdviceError,
         fingerprint,
         generate_next_step_advice,
         next_step_redis,
@@ -55,7 +55,7 @@ async def next_step_advice(payload: NextStepAdviceRequest) -> dict[str, Any]:
     started = time.perf_counter()
     try:
         result = await generate_next_step_advice(locale)
-    except NextStepAdviceUnavailable as exc:
+    except NextStepAdviceError as exc:
         raise ApiError(
             status_code=503, code=PROVIDER_UNAVAILABLE, detail=str(exc),
         ) from exc

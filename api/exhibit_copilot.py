@@ -17,7 +17,8 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from api.system_covenant import covenant_prefix
 from providers.base import LLMMessage, LLMResponse
@@ -95,7 +96,7 @@ async def generate_exhibit_copilot(
         provider_factory = OpenAICompatibleProvider
     from providers.config import load_model_config
 
-    cfg = load_model_config()
+    _cfg = load_model_config()
     provider: OpenAICompatibleProvider | None = None
     compact = json.dumps(packet, ensure_ascii=False)
     messages = covenant_prefix([

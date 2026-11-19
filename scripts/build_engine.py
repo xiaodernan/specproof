@@ -11,10 +11,10 @@ behave in production — but they are true measurements.
 Empty file → emits a sensible "no llamas yet" summary with zero counts. That
 is fine: it tells the truth about the ledger on this host.
 """
-import io, json, sys
-from datetime import UTC, datetime
+import json
+import sys
+from datetime import datetime
 from pathlib import Path
-import statistics
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -24,7 +24,8 @@ OUT = ROOT / "apps" / "web" / "src" / "pages" / "engine.json"
 
 rows: list[dict] = []
 if LEDGER.exists():
-    raw = io.open(LEDGER, "rb").read().decode("utf-8", errors="replace")
+    with open(LEDGER, "rb") as _f:
+        raw = _f.read().decode("utf-8", errors="replace")
     for line in raw.splitlines():
         line = line.strip()
         if not line:
@@ -109,7 +110,8 @@ data = {
 }
 
 OUT.parent.mkdir(parents=True, exist_ok=True)
-io.open(OUT, "w", encoding="utf-8").write(json.dumps(data, ensure_ascii=False, indent=1) + "\n")
+with open(OUT, "w", encoding="utf-8") as _f:
+    _f.write(json.dumps(data, ensure_ascii=False, indent=1) + "\n")
 print(f"wrote {OUT}")
 print(f"calls={n} errors={errors} streamed_ratio={data['streamed_ratio']}")
 print(f"tokens prompt={prompt_total} completion={completion_total} cached={cached_total} (measured on {cached_basis} of {n} calls)")

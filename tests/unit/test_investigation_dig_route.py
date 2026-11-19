@@ -11,7 +11,6 @@ Route + module level coverage:
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -25,10 +24,10 @@ from api.server import app
 
 @pytest.fixture()
 def tenant_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    HMAC_KEY = "a" * 64
+    hmac_key = "a" * 64
     monkeypatch.setenv("SPECPROOF_AUTH_ENABLED", "true")
     monkeypatch.setenv("SPECPROOF_IDENTITY_URL", f"sqlite:{tmp_path / 'identity.db'}")
-    monkeypatch.setenv("SPECPROOF_TOKEN_HMAC_KEY", HMAC_KEY)
+    monkeypatch.setenv("SPECPROOF_TOKEN_HMAC_KEY", hmac_key)
     monkeypatch.setenv("SPECPROOF_BCRYPT_ROUNDS", "4")
     monkeypatch.delenv("SPECPROOF_API_KEY", raising=False)
     monkeypatch.delenv("OIDC_ISSUER", raising=False)
@@ -137,7 +136,7 @@ def test_model_unavailable_answers_503_never_fabricated(
     tenant_env: None, seeded: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     async def _boom(question: str):
-        raise investigation_dig.InvestigationDigUnavailable("模型暂时不可用。")
+        raise investigation_dig.InvestigationDigError("模型暂时不可用。")
 
     monkeypatch.setattr(investigation_dig, "generate_investigation_dig", _boom)
     client = TestClient(app)

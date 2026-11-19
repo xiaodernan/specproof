@@ -7,8 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from agent.graphs import investigation_dig_graph as G
-
+from agent.graphs import investigation_dig_graph
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -38,7 +37,7 @@ def test_workspace_facts_bounded() -> None:
 
 
 def test_graph_compiles_with_expected_nodes() -> None:
-    g = G.build_investigation_dig_graph()
+    g = investigation_dig_graph.build_investigation_dig_graph()
     nodes = set(g.nodes.keys()) if hasattr(g, "nodes") else set()
     assert {"intake", "strike", "verdict", "report"}.issubset(nodes)
 
@@ -65,8 +64,8 @@ def test_strike_node_dates_evidence_gathered(monkeypatch: pytest.MonkeyPatch) ->
             "generation_time_ms": 42,
         }
 
-    monkeypatch.setattr(G, "investigate", _fake, raising=False)
-    out = G.strike_node(G.intake_node({"question": "what is this"}))
+    monkeypatch.setattr(investigation_dig_graph, "investigate", _fake, raising=False)
+    out = investigation_dig_graph.strike_node(investigation_dig_graph.intake_node({"question": "what is this"}))
     assert out["verdict"] == "EVIDENCE-GATHERED"
     assert out["agents"][0]["name"] == "investigate_explorer"
 
@@ -81,8 +80,8 @@ def test_strike_node_insufficient_when_provider_unavailable(monkeypatch: pytest.
             "generation_time_ms": 0,
         }
 
-    monkeypatch.setattr(G, "investigate", _fake, raising=False)
-    out = G.strike_node(G.intake_node({"question": "what is this"}))
+    monkeypatch.setattr(investigation_dig_graph, "investigate", _fake, raising=False)
+    out = investigation_dig_graph.strike_node(investigation_dig_graph.intake_node({"question": "what is this"}))
     assert out["verdict"] == "INSUFFICIENT"
     assert out["agents"] == []
 

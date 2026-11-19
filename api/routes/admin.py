@@ -54,10 +54,10 @@ from api.errors import (
     SIGNING_UNAVAILABLE,
     STATE_CONFLICT,
     TENANT_FORBIDDEN,
+    UNKNOWN_ALERT,
     USER_NOT_FOUND,
     VALIDATION_FAILED,
     ApiError,
-    UNKNOWN_ALERT,
 )
 from api.identity.config import (
     auth_enabled,
@@ -756,13 +756,13 @@ async def investigation_dig(
     _assert_role(principal, frozenset({"admin", "operator"}))
 
     from api.investigation_dig import (
-        InvestigationDigUnavailable,
+        InvestigationDigError,
         generate_investigation_dig,
     )
 
     try:
         result = await generate_investigation_dig(payload.question)
-    except InvestigationDigUnavailable as exc:
+    except InvestigationDigError as exc:
         raise ApiError(
             status_code=503, code=PROVIDER_UNAVAILABLE, detail=str(exc),
         ) from exc
@@ -815,7 +815,7 @@ async def runbook_triage(
     _assert_role(principal, frozenset({"admin", "operator"}))
 
     from api.runbook_triage import (
-        RunbookTriageUnavailable,
+        RunbookTriageError,
         alert_rule_names,
         generate_triage,
     )
@@ -833,7 +833,7 @@ async def runbook_triage(
 
     try:
         result = await generate_triage(payload.alert)
-    except RunbookTriageUnavailable as exc:
+    except RunbookTriageError as exc:
         raise ApiError(
             status_code=503, code=PROVIDER_UNAVAILABLE, detail=str(exc),
         ) from exc
@@ -874,7 +874,7 @@ async def insight_advice(request: Request, payload: InsightAdviceRequest) -> dic
     principal = _principal(request)
     _assert_role(principal, frozenset({"admin", "operator"}))
     from api.insight_advice import (
-        InsightAdviceUnavailable,
+        InsightAdviceError,
         fingerprint,
         generate_insight_advice,
         insight_redis,
@@ -895,7 +895,7 @@ async def insight_advice(request: Request, payload: InsightAdviceRequest) -> dic
 
     try:
         result = await generate_insight_advice(payload.stats)
-    except InsightAdviceUnavailable as exc:
+    except InsightAdviceError as exc:
         raise ApiError(
             status_code=503, code=PROVIDER_UNAVAILABLE, detail=str(exc),
         ) from exc

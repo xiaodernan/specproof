@@ -15,7 +15,7 @@ the reader:
 * live strikes spend zh/en against the configured lane with the byte-frozen
   codex prefix, ``prompt_cache_key=specproof-stress-digest``,
   ``stream=True`` + ``include_usage=True`` — same shape as every other lane;
-* on any honest failure: one ``StressDigestUnavailable`` — never a simulated
+* on any honest failure: one ``StressDigestError`` — never a simulated
   paragraph.
 """
 from __future__ import annotations
@@ -46,7 +46,7 @@ _EVIDENCE_DIR = _ROOT / "docs" / "evidence"
 FLOOR_MS = 5000  # the weekly-stress machine sanity floor; a fact, not an SLO
 
 
-class StressDigestUnavailable(Exception):
+class StressDigestError(Exception):
     """The model could not read the evidence honestly right now."""
 
 
@@ -103,7 +103,7 @@ def build_stress_packet(path: str | Path | None = None) -> dict[str, Any]:
         floor_comparison = "under"
     return {
         "evidence_file": evidence.name,
-        "generated_from": "committed evidence, newest by mtime unless SPECPROOF_STRESS_EVIDENCE/path is set",
+        "generated_from": "committed weekly evidence (SPECPROOF_STRESS_EVIDENCE/arg wins)",
         "started_utc": d.get("started_utc"),
         "note": d.get("note"),
         "concurrency": d.get("concurrency"),
@@ -132,25 +132,36 @@ def fingerprint(locale: str) -> str:
 _PROMPT_ZH = (
     "你是 SpecProof 周压测读数员——读数，不裁判。\n"
     "下面这份 JSON 包是某次周压测的真数字（出自仓里的 docs/evidence/weekly-*.json）：\n"
-    "rounds[].p99_ms / p95_ms / avg_ms / err_rate、concurrency、worst_p99_ms、floor_ms（固定 5000，机器级地板，不是 SLO）。\n"
+    "rounds[].p99_ms / p95_ms / avg_ms / err_rate、concurrency、worst_p99_ms、"
+    "floor_ms（固定 5000，机器级地板，不是 SLO）。\n"
     "用中文写一段不超过 240 字，规则：\n"
-    "1）先引包里的数字——至少引用 3 个（worst_p99_ms、某一轮的 err_rate、p95 或 avg），逐字写，不许换算不许编造；\n"
-    "2）然后读出这轮数据的形状——干净（err_rate 全 0）还是有伤（任一轮 err_rate>0）、p99 离 floor_ms 还有多远；\n"
-    "3）最后给最多 3 个“下一步该做什么”，每一条必须落在包里的数字或现象上；包里没有的依据就直说「包里没有这个证据」；\n"
+    "1）先引包里的数字——至少引用 3 个（worst_p99_ms、某一轮的 err_rate、p95 或 avg），"
+    "逐字写，不许换算不许编造；\n"
+    "2）然后读出这轮数据的形状——干净（err_rate 全 0）还是有伤（任一轮 err_rate>0）、"
+    "p99 离 floor_ms 还有多远；\n"
+    "3）最后给最多 3 个“下一步该做什么”，每一条必须落在包里的数字或现象上；"
+    "包里没有的依据就直说「包里没有这个证据」；\n"
     "4）不许用“通过／未通过／批准／阻断／放行”等词；可以说“这轮数据说明……”；\n"
     "5）纯文本，不写 Markdown 标题，不写时间戳/人名/邮箱/URL。\n"
     "只输出这段回答。"
 )
 
 _PROMPT_EN = (
-    "You are the readings-officer of the SpecProof weekly stress strike — you read, you never rule.\n"
-    "The JSON below is one real weekly-stress measurement, straight from docs/evidence/weekly-*.json:\n"
-    "rounds[].p99_ms / p95_ms / avg_ms / err_rate, concurrency, worst_p99_ms, floor_ms (fixed 5000; a machine floor, not an SLO).\n"
+    "You are the readings-officer of the SpecProof weekly stress strike"
+    " — you read, you never rule.\n"
+    "The JSON below is one real weekly-stress measurement,"
+    " straight from docs/evidence/weekly-*.json:\n"
+    "rounds[].p99_ms / p95_ms / avg_ms / err_rate, concurrency, worst_p99_ms, "
+    "floor_ms (fixed 5000; a machine floor, not an SLO).\n"
     "Write one English paragraph, at most 140 words, hard rules:\n"
-    "1) Quote at least 3 numbers from the packet verbatim — e.g. worst_p99_ms, some round's err_rate, p95 or avg; no re-computed or invented figures;\n"
-    "2) Then read the shape of the strike — clean (all err_rate 0) or wounded (any err_rate>0) — and how much headroom sits between worst_p99_ms and floor_ms;\n"
-    "3) Then at most 3 next actions, each grounded in a number present in the packet; if the packet cannot support one, say “the packet carries no evidence for that”;\n"
-    "4) Never use approved / blocked / passed / failed vocabulary — write “this strike's numbers say …”;\n"
+    "1) Quote at least 3 numbers from the packet verbatim — e.g. worst_p99_ms, "
+        "some round's err_rate, p95 or avg; no re-computed or invented figures;\n"
+    "2) Then read the shape of the strike — clean (all err_rate 0) or wounded"
+    " (any err_rate>0) — and how much headroom sits between worst_p99_ms and floor_ms;\n"
+    "3) Then at most 3 next actions, each grounded in a number present in the packet;"
+    " if the packet cannot support one, say “the packet carries no evidence for that”;\n"
+    "4) Never use approved / blocked / passed / failed vocabulary —"
+    " write “this strike's numbers say …”;\n"
     "5) Plain text, no Markdown headings, no timestamps/people/emails/URLs.\n"
     "Output only the answer."
 )
@@ -173,12 +184,12 @@ async def generate_stress_digest(
     *,
     provider_factory: Callable[..., OpenAICompatibleProvider] | None = None,
 ) -> dict[str, Any]:
-    """Call the model; raise StressDigestUnavailable on any honest failure."""
+    """Call the model; raise StressDigestError on any honest failure."""
     if provider_factory is None:
         provider_factory = OpenAICompatibleProvider
     packet_obj = build_stress_packet()
     if packet_obj.get("error"):
-        raise StressDigestUnavailable(
+        raise StressDigestError(
             "没有找到本周压力测试的证据文件（docs/evidence/weekly-*.json）。\n"
             "跑一次 scripts/stress_smoke.py 再来。"
             if locale != "en"
@@ -200,7 +211,7 @@ async def generate_stress_digest(
         )
     except Exception as exc:  # noqa: BLE001 - any provider failure becomes one honest error
         logger.info("stress-digest provider failure: %s", type(exc).__name__)
-        raise StressDigestUnavailable(
+        raise StressDigestError(
             "模型暂时不可用，无法读出这份压测证据。稍后再试，或直接读表格。"
             if locale != "en"
             else "The model is unavailable right now; no reading of this strike. "
@@ -212,7 +223,7 @@ async def generate_stress_digest(
                 await provider.close()
     text = (response.content or "").strip()
     if not text:
-        raise StressDigestUnavailable(
+        raise StressDigestError(
             "模型返回了空读法。与其误导你，这里什么都不显示。"
             if locale != "en"
             else "The model returned an empty reading. Nothing is shown rather than mislead."
@@ -233,19 +244,26 @@ def offline_reading(packet: dict[str, Any]) -> list[str]:
     if packet.get("error"):
         return [f"- {packet['error']}"]
     if packet["err_rate_any"]:
-        lines.append("- Errors occurred in at least one round — this strike was not clean; investigate before shipping, not via a label.")
+        lines.append(
+            "- Errors occurred in at least one round — this strike was not clean;"
+            " investigate before shipping, not via a label.")
     else:
-        lines.append("- Every round finished with err_rate 0 — the static lane delivered, byte after byte.")
+        lines.append(
+            "- Every round finished with err_rate 0 — the static lane delivered,"
+            " byte after byte.")
     worst = packet["worst_p99_ms"]
     if worst is None:
         lines.append("- No p99 figures in the packet — nothing can be said about tail latency.")
     elif packet["floor_comparison"] == "over":
         lines.append(
-            f"- worst_p99_ms = {worst:.1f} is OVER the {FLOOR_MS} ms machine floor — on this host the floor is information to act on, not a scoreboard."
+            f"- worst_p99_ms = {worst:.1f} is OVER the {FLOOR_MS} ms machine floor —"
+            " on this host the floor is information to act on, not a scoreboard."
         )
     else:
         headroom = FLOOR_MS - worst
-        lines.append(f"- worst_p99_ms = {worst:.1f}, which sits {headroom:.1f} ms UNDER the {FLOOR_MS} ms machine floor on this host.")
+        lines.append(
+            f"- worst_p99_ms = {worst:.1f}, which sits {headroom:.1f} ms UNDER"
+            f" the {FLOOR_MS} ms machine floor on this host.")
     lines.append(f"- honest note from the strike, verbatim: “{packet.get('honesty')}”")
     return lines
 
@@ -268,11 +286,14 @@ def render_digest_md(
         "",
         f"- mode: {mode}",
         f"- evidence: {packet.get('evidence_file')} (packet {packet.get('packet_bytes')} bytes)",
-        f"- started_utc: {packet.get('started_utc')} · concurrency={packet.get('concurrency')} · per_thread={packet.get('per_thread')} · warmup_rounds={packet.get('warmup_rounds')}",
+        f"- started_utc: {packet.get('started_utc')} · concurrency={packet.get('concurrency')} · "
+        f"per_thread={packet.get('per_thread')} · warmup_rounds={packet.get('warmup_rounds')}",
         f"- note from the strike: {packet.get('note')}",
         f"- floor_ms: {FLOOR_MS} (machine sanity floor — not an SLO, not a verdict on this repo)",
-        f"- floor_comparison: {packet.get('floor_comparison')} · worst_p99_ms={packet.get('worst_p99_ms')} · best_p99_ms={packet.get('best_p99_ms')}",
-        f"- the strike's machine label, verbatim (never re-graded): {packet.get('packet_verdict_echo')}",
+        f"- floor_comparison: {packet.get('floor_comparison')} · "
+        f"worst_p99_ms={packet.get('worst_p99_ms')} · best_p99_ms={packet.get('best_p99_ms')}",
+        f"- the strike's machine label, verbatim (never re-graded): "
+        f"{packet.get('packet_verdict_echo')}",
         "",
         "## Rounds",
         "",
@@ -290,7 +311,8 @@ def render_digest_md(
         out += ["", "## The model's reading (en)", "", reading_en]
     out += [
         "",
-        "*This is a reading of one strike on one host. It is never a release decision; the court is never in this room.*",
+        "*This is a reading of one strike on one host. It is never a release decision;"
+        " the court is never in this room.*",
     ]
     return "\n".join(out) + "\n"
 

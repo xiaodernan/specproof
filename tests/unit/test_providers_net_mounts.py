@@ -3,7 +3,7 @@ work only after Clash Verge: a fresh test file, not a rewrite of net.py.
 
 Tests cover:
   proxy_mounts_for — the contract between httpx and the environment
-  bracket_repair/param round-trips — IPv6 brackets (#602's fix) 
+  bracket_repair/param round-trips — IPv6 brackets (#602's fix)
   outbound_client / outbound_async_client — mounts actually reach the client
   _routable — unparseable entries raise (never silently dropped)
 """
@@ -52,7 +52,7 @@ def test_proxy_mounts_for_empty_proxy_info_is_valid() -> None:
 
 
 def test_proxy_mounts_for_garbage_entry_raises() -> None:
-    with pytest.raises(Exception):
+    with pytest.raises(net.UnusableProxyEnv):
         # a syntactically invalid proxy entry must raise instead of being silently dropped
         net.proxy_mounts_for({"https": "http://[invalid::address]:example.com:7897"})
 

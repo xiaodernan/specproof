@@ -4,9 +4,9 @@ The night-watch composes three StateGraphs (evidence → purity → audit) and a
 verdict node. The tests stub the three lane builders; everything else is real:
 the compiled graph, the verdict logic, the report files written under tmp_path.
 """
-from pathlib import Path
 import sys
 import types
+from pathlib import Path
 
 import pytest
 

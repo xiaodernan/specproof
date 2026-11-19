@@ -26,7 +26,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import hashlib
-import json
 import logging
 import time
 from collections.abc import Callable
@@ -43,7 +42,7 @@ MAX_QUESTION_CHARS = 480
 LLM_TIMEOUT_SECONDS = 150.0
 
 
-class WorldbookAskUnavailable(Exception):
+class WorldbookAskError(Exception):
     """The model could not answer honestly right now."""
 
 
@@ -100,7 +99,7 @@ def build_ask_messages(locale: str, question: str) -> list[LLMMessage]:
 
 def fingerprint(locale: str, question: str) -> str:
     return hashlib.sha256(
-        f"{locale}|{_sanitize_question(question)}".encode("utf-8")
+        f"{locale}|{_sanitize_question(question)}".encode()
     ).hexdigest()
 
 
@@ -110,7 +109,7 @@ async def generate_ask_answer(
     *,
     provider_factory: Callable[..., OpenAICompatibleProvider] | None = None,
 ) -> dict[str, Any]:
-    """Ask the bible through the model. Raise WorldbookAskUnavailable on any honest failure."""
+    """Ask the bible through the model. Raise WorldbookAskError on any honest failure."""
     if provider_factory is None:
         provider_factory = OpenAICompatibleProvider
     clean = _sanitize_question(question)
@@ -130,7 +129,7 @@ async def generate_ask_answer(
         )
     except Exception as exc:  # noqa: BLE001 - provider failure becomes one honest error
         logger.info("worldbook-ask provider failure: %s", type(exc).__name__)
-        raise WorldbookAskUnavailable(
+        raise WorldbookAskError(
             "the model is unavailable right now — the book is intact; try again later or read it yourself."
             if locale == "en"
             else "模型暂时不可用——书还在；稍后再试，或者自己翻。"
@@ -141,7 +140,7 @@ async def generate_ask_answer(
                 await provider.close()
     text = (response.content or "").strip()
     if not text:
-        raise WorldbookAskUnavailable(
+        raise WorldbookAskError(
             "the model returned an empty answer — nothing is shown rather than something "
             "misleading; read the book."
             if locale == "en"

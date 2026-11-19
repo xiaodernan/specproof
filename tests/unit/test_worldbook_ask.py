@@ -7,7 +7,7 @@ from __future__ import annotations
 import pytest
 
 from api.worldbook_ask import (
-    WorldbookAskUnavailable,
+    WorldbookAskError,
     build_ask_messages,
     fingerprint,
     generate_ask_answer,
@@ -87,7 +87,7 @@ async def test_provider_failure_is_one_honest_error() -> None:
     def boom(*_: object, **__: object):  # noqa: ANN001
         raise RuntimeError("provider unreachable")
 
-    with pytest.raises(WorldbookAskUnavailable):
+    with pytest.raises(WorldbookAskError):
         await generate_ask_answer("你好", "zh", provider_factory=boom)
 
 
@@ -97,7 +97,7 @@ async def test_empty_answer_is_one_honest_error() -> None:
         async def chat(self, _messages, timeout: float | None = None, opts: dict | None = None, **kwargs):  # noqa: ANN001
             return LLMResponse(content="   ", model="gpt-6.1-terra")
 
-    with pytest.raises(WorldbookAskUnavailable):
+    with pytest.raises(WorldbookAskError):
         await generate_ask_answer(
             "你好",
             "zh",

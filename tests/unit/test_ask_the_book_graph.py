@@ -60,7 +60,7 @@ def test_offline_report_never_claims_content_pass(witness: Path) -> None:
     assert payload["live_requested"] is False
     assert payload["verdict"] == "HELD"
     assert "the witness never decides whether an exhibit is green" in md
-    assert _EXPECTED_PIN_SHA256 == payload["pinned_sha256"]
+    assert payload["pinned_sha256"] == _EXPECTED_PIN_SHA256
 
 
 def test_intake_sanitizer_and_fingerprint(witness: Path) -> None:

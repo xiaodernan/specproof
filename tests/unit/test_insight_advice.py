@@ -8,7 +8,7 @@ on the wire), never a fabricated paragraph. Covered:
     hostile extra keys dropped, junk coerced safely;
   * fingerprint: stable on identical packet, changes on data change;
   * generate_insight_advice: returns model text + usage; ANY provider
-    failure (raise, empty content) becomes InsightAdviceUnavailable;
+    failure (raise, empty content) becomes InsightAdviceError;
   * the endpoint: admin and operator get the advice (cached round-trip on
     the identical packet), viewer/auditor are refused (403), an unavailable
     model answers 503 PROVIDER_UNAVAILABLE, never fabricated text.
@@ -29,7 +29,7 @@ from fastapi.testclient import TestClient
 import api.insight_advice as insight
 from api.identity.tokens import mint_token
 from api.insight_advice import (
-    InsightAdviceUnavailable,
+    InsightAdviceError,
     build_insight_packet,
     fingerprint,
     generate_insight_advice,
@@ -138,7 +138,7 @@ def test_generate_converts_any_provider_failure_into_unavailable() -> None:
         async def close(self):
             return None
 
-    with pytest.raises(InsightAdviceUnavailable):
+    with pytest.raises(InsightAdviceError):
         __import__("asyncio").run(
             generate_insight_advice(_stats(), provider_factory=_Boom),
         )
@@ -153,7 +153,7 @@ def test_generate_converts_any_provider_failure_into_unavailable() -> None:
         async def close(self):
             return None
 
-    with pytest.raises(InsightAdviceUnavailable):
+    with pytest.raises(InsightAdviceError):
         __import__("asyncio").run(
             generate_insight_advice(_stats(), provider_factory=_Empty),
         )
@@ -266,7 +266,7 @@ def test_unavailable_model_answers_503_never_fabricated(
     tenant_env: None, seeded: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     async def _boom(stats: dict[str, Any], **_: Any):
-        raise insight.InsightAdviceUnavailable("模型暂时不可用，无法生成 AI 解读。")
+        raise insight.InsightAdviceError("模型暂时不可用，无法生成 AI 解读。")
 
     monkeypatch.setattr(insight, "generate_insight_advice", _boom)
     monkeypatch.setattr(insight, "insight_redis", lambda: None)

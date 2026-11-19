@@ -11,8 +11,7 @@ import json
 import pytest
 
 from api.next_step_advice import (
-    NextStepAdviceUnavailable,
-    _PROMPT_ZH,
+    NextStepAdviceError,
     build_next_step_packet,
     fingerprint,
     generate_next_step_advice,
@@ -105,7 +104,7 @@ class _Boom:
 
 @pytest.mark.asyncio
 async def test_provider_failure_raises_one_honest_exception() -> None:
-    with pytest.raises(NextStepAdviceUnavailable):
+    with pytest.raises(NextStepAdviceError):
         await generate_next_step_advice("en", provider_factory=lambda timeout, max_retries: _Boom())
 
 
@@ -122,5 +121,5 @@ class _Empty:
 
 @pytest.mark.asyncio
 async def test_empty_model_answer_is_refused() -> None:
-    with pytest.raises(NextStepAdviceUnavailable):
+    with pytest.raises(NextStepAdviceError):
         await generate_next_step_advice("zh", provider_factory=lambda timeout, max_retries: _Empty())

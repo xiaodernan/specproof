@@ -24,6 +24,7 @@ This module owns the protocol objects; the route lives in
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import json
 import logging
@@ -31,8 +32,8 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from api.system_covenant import covenant_prefix
 from api.system_codex import codex_first
+from api.system_covenant import covenant_prefix
 from providers.base import LLMMessage, LLMResponse
 from providers.openai_compatible import OpenAICompatibleProvider
 
@@ -66,7 +67,7 @@ _LIST_MAX = 8
 _ENTRY_KEY_MAX = 60
 
 
-class InsightAdviceUnavailable(Exception):
+class InsightAdviceError(Exception):
     """The model could not produce an honest reading right now."""
 
 
@@ -160,7 +161,7 @@ async def generate_insight_advice(
     *,
     provider_factory: Callable[..., OpenAICompatibleProvider] | None = None,
 ) -> dict[str, Any]:
-    """Call the model; raise InsightAdviceUnavailable on any honest failure."""
+    """Call the model; raise InsightAdviceError on any honest failure."""
     if provider_factory is None:
         provider_factory = OpenAICompatibleProvider
     packet = build_insight_packet(stats)
@@ -178,18 +179,16 @@ async def generate_insight_advice(
         )
     except Exception as exc:  # noqa: BLE001 - any provider failure becomes one honest error
         logger.info("insight-advice provider failure: %s", type(exc).__name__)
-        raise InsightAdviceUnavailable(
+        raise InsightAdviceError(
             "模型暂时不可用，无法生成 AI 解读。可以稍后重试，或直接阅读本页的数字面板。"
         ) from exc
     finally:
         if provider is not None:
-            try:
+            with contextlib.suppress(Exception):
                 await provider.close()
-            except Exception:  # noqa: BLE001 - close is best-effort
-                pass
     text = (response.content or "").strip()
     if not text:
-        raise InsightAdviceUnavailable(
+        raise InsightAdviceError(
             "模型返回了空解读。为避免误导，这里不显示任何内容；请直接阅读本页的数字面板。"
         )
     return {

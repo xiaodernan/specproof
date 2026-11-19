@@ -13,7 +13,6 @@ Checks (each named, each re-run on demand):
 
 Writes docs/evidence/audit-evidence.json. Exit 0 only if every check passes.
 """
-import io
 import json
 import re
 import sys
@@ -25,44 +24,45 @@ ROOT = Path(__file__).resolve().parents[1]
 PAGES = ROOT / "apps" / "web" / "src"
 CHDIR = PAGES / "pages"
 
-def J(name: str):
+def load_json(name: str):
     return json.loads((CHDIR / name).read_text(encoding="utf-8"))
 
 checks = []
 
 # A. chronicle count == repoStats.ledger_sections
-chron = J("chronicle.json")
-stats = J("repoStats.json")
+chron = load_json("chronicle.json")
+stats = load_json("repoStats.json")
 ok_a = len(chron) == stats["ledger_sections"]
 checks.append({"id": "chronicle_vs_repoStats", "ok": ok_a,
                "detail": f"chronicle entries={len(chron)} repoStats ledger_sections={stats['ledger_sections']}"})
 
 # B. worldbook zh==en volumes
-w = J("worldbook.json")
-zh = len(w["locales"]["zh"]["volumes"]); en = len(w["locales"]["en"]["volumes"])
+w = load_json("worldbook.json")
+zh = len(w["locales"]["zh"]["volumes"])
+en = len(w["locales"]["en"]["volumes"])
 ok_b = zh == en
 checks.append({"id": "worldbook_zh_en_symmetric", "ok": ok_b, "detail": f"zh={zh} en={en}"})
 
 # C. evidence latest present and verdict set
-ev = J("evidence.json")
+ev = load_json("evidence.json")
 latest = ev.get("latest") or {}
 ok_c = bool(latest.get("verdict"))
 checks.append({"id": "evidence_verdict_present", "ok": ok_c,
                "detail": f"latest={latest.get('file')} verdict={latest.get('verdict')}"})
 
 # D. exactly 4 unique unsigned checks
-un = J("unsigned.json")
+un = load_json("unsigned.json")
 ids = [c["id"] for c in un.get("checks", [])]
 ok_d = len(ids) == 4 and len(set(ids)) == 4
 checks.append({"id": "unsigned_four_unique_lamps", "ok": ok_d, "detail": f"ids={ids}"})
 
 # E. courtLock locked
-cl = J("courtLock.json")
+cl = load_json("courtLock.json")
 ok_e = cl.get("verdict") == "LOCKED" and len(cl.get("lock", "") or "") == 16
 checks.append({"id": "courtLock_locked_16hex", "ok": ok_e, "detail": f"verdict={cl.get('verdict')} lock={cl.get('lock')}"})
 
 # F. engine present
-eng = J("engine.json")
+eng = load_json("engine.json")
 ok_f = eng.get("calls", 0) > 0
 checks.append({"id": "engine_calls_positive", "ok": ok_f,
                "detail": f"calls={eng.get('calls')} kinds={eng.get('kinds')} lanes={eng.get('lanes')}"})

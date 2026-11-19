@@ -98,7 +98,9 @@ def intake_node(state: NextStepState) -> NextStepState:  # noqa: ARG001
             zh_msgs[0].role == "system" and en_msgs[0].role == "system"
             and zh_msgs[-1].role == "user" and en_msgs[-1].role == "user"
         )
-        notes.append(f"codex bytes zh={len(zh_msgs[0].content.encode('utf-8'))} en={len(en_msgs[0].content.encode('utf-8'))}")
+        zb = len((zh_msgs[0].content or "").encode("utf-8"))
+        eb = len((en_msgs[0].content or "").encode("utf-8"))
+        notes.append(f"codex bytes zh={zb} en={eb}")
     except Exception as exc:  # noqa: BLE001
         notes.append(f"messages unreadable: {type(exc).__name__}: {exc}")
 
@@ -130,7 +132,9 @@ def strike_node(state: NextStepState) -> NextStepState:
             return {
                 "answer": result.get("advice") or "",
                 "chars": len((result.get("advice") or "").strip()),
-                "cached_tokens": int(usage.get("prompt_cache_hit_tokens") or usage.get("cached_tokens") or 0),
+                "cached_tokens": int(
+                    usage.get("prompt_cache_hit_tokens") or usage.get("cached_tokens") or 0
+                ),
                 "prompt_tokens": int(usage.get("prompt_tokens") or 0),
                 "info_hits": _verdict_word_hits(result.get("advice") or ""),
                 "error": None,
@@ -209,25 +213,35 @@ def report_node(state: NextStepState) -> NextStepState:
     target = out_dir / f"next-step-advice-{day}.json"
     target.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
+    zc = payload['zh_cached_tokens'] if payload['zh_cached_tokens'] is not None else 'not struck'
+    ec = payload['en_cached_tokens'] if payload['en_cached_tokens'] is not None else 'not struck'
+
+    _live_str = 'yes — zh/en, cache-key `specproof-next-step-advice`'
     md = [
         "# Next-Step Advice · the book reads its own ledger (no verdicts, one hum)",
         "",
         f"**verdict: {payload['verdict']}** · pinned={payload['pinned']} · "
-        f"packet_identical={payload['packet_identical']} · messages_shape_ok={payload['messages_shape_ok']}",
+        f"packet_identical={payload['packet_identical']} · "
+        f"messages_shape_ok={payload['messages_shape_ok']}",
         "",
-        f"- live strike: {'yes — zh/en, cache-key `specproof-next-step-advice`' if payload['live_requested'] else 'not struck (offline)'}",
-        f"- zh: {payload['zh_chars'] or 0} chars · cached_tokens={payload['zh_cached_tokens'] if payload['zh_cached_tokens'] is not None else 'not struck'}",
-        f"- en: {payload['en_chars'] or 0} chars · cached_tokens={payload['en_cached_tokens'] if payload['en_cached_tokens'] is not None else 'not struck'}",
+        f"- live strike: {_live_str if payload['live_requested'] else 'not struck (offline)'}",
+        f"- zh: {payload['zh_chars'] or 0} chars · "
+        f"cached_tokens={zc}",
+        f"- en: {payload['en_chars'] or 0} chars · "
+        f"cached_tokens={ec}",
         f"- notes: {payload['notes']}",
-        f"- info-only verdict-word hits (reported, never graded): zh={payload['info_verdict_word_hits_zh']} · en={payload['info_verdict_word_hits_en']}",
+        f"- info-only verdict-word hits (reported, never graded): "
+        f"zh={payload['info_verdict_word_hits_zh']} · en={payload['info_verdict_word_hits_en']}",
         "",
-        "*the witness never decides whether an exhibit is green — it watches the public lane, byte by byte.*",
+        "*the witness never decides whether an exhibit is green — it watches"
+        " the public lane, byte by byte.*",
     ]
     if state.get("sealed_zh"):
         md += ["", "## The zh answer (verbatim, not edited)", "", str(state["sealed_zh"])]
     if state.get("sealed_en"):
         md += ["", "## The en answer (verbatim, not edited)", "", str(state["sealed_en"])]
-    (out_dir / f"next-step-advice-witness-{day}.md").write_text("\n".join(md) + "\n", encoding="utf-8")
+    (out_dir / f"next-step-advice-witness-{day}.md").write_text(
+        "\n".join(md) + "\n", encoding="utf-8")
     return {"report_path": str(target)}
 
 

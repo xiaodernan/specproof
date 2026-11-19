@@ -7,8 +7,7 @@ compilation, end-to-end invoke via the real StateGraph.
 from __future__ import annotations
 
 import json
-import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -27,7 +26,7 @@ def _seed(path: Path, rows: list[dict]) -> None:
 
 def _row(age_hours: float, **over):
     base = {
-        "ts": (datetime.now(timezone.utc) - timedelta(hours=age_hours)).isoformat(timespec="seconds"),
+        "ts": (datetime.now(UTC) - timedelta(hours=age_hours)).isoformat(timespec="seconds"),
         "model": "test-model",
         "kind": "diagnose",
         "lane": "direct",
@@ -98,7 +97,7 @@ def test_by_lane_is_honest_under_the_graph(seeded: Path) -> None:
 
 
 def test_report_files_are_written(seeded: Path, tmp_path: Path) -> None:
-    result = build_usage_ledger_graph().invoke({})
+    build_usage_ledger_graph().invoke({})
     report = Path(tmp_path / "witness" / "usage-ledger-witness.md")
     data = Path(tmp_path / "witness" / "usage-ledger-witness.json")
     assert report.is_file()

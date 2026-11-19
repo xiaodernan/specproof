@@ -954,7 +954,7 @@ async def ai_summary(job_id: str) -> dict[str, Any]:
     * Redis 不可达时按"未命中"继续（fail-open），绝不因为缓存问题把功能关掉；
     * 模型不可用/返回空时如实报错，绝不补一段假摘要。
     """
-    from api.ai_summary import AiSummaryUnavailable, fingerprint, generate_ai_summary
+    from api.ai_summary import AiSummaryError, fingerprint, generate_ai_summary
     from api.services.verification_service import VerificationApplicationService
 
     service = VerificationApplicationService()
@@ -999,7 +999,7 @@ async def ai_summary(job_id: str) -> dict[str, Any]:
 
     try:
         result = await generate_ai_summary(summary, findings)
-    except AiSummaryUnavailable as exc:
+    except AiSummaryError as exc:
         raise ApiError(
             status_code=503,
             code=PROVIDER_UNAVAILABLE,

@@ -10,9 +10,7 @@ fitness. It only pins the targeted lane's URL composition.
 
 from __future__ import annotations
 
-import json
 import os
-import socket
 import subprocess
 import sys
 import time

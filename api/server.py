@@ -61,9 +61,9 @@ from api.routes.llm_usage import router as llm_usage_router  # noqa: E402
 from api.routes.model_settings import router as model_settings_router  # noqa: E402
 from api.routes.next_step import router as next_step_router  # noqa: E402
 from api.routes.observe import router as observe_router  # noqa: E402
-from api.routes.worldbook_ask import router as worldbook_ask_router  # noqa: E402
 from api.routes.web import router as web_router  # noqa: E402
 from api.routes.webhooks import router as webhooks_router  # noqa: E402
+from api.routes.worldbook_ask import router as worldbook_ask_router  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -260,7 +260,7 @@ async def metrics() -> Any:
 # storm (thousands of pollers) cannot open a fresh MySQL connection per inbound
 # request. Measured 2026-11-18/19: a single-worker probe each call collapses at
 # ~25 rps with MYSQL_POOL_SIZE=8 (94% timeout failure at 100 rps). 0 disables.
-import threading as _threading
+import threading as _threading  # noqa: E402
 
 _HEALTH_CACHE: dict[str, Any] = {"at": 0.0, "payload": None}
 _HEALTH_CACHE_LOCK = _threading.Lock()

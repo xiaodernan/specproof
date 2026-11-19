@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -27,9 +26,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from providers.base import LLMMessage
-from providers.config import load_model_config
-from providers.openai_compatible import OpenAICompatibleProvider
+from providers.base import LLMMessage  # noqa: E402
+from providers.config import load_model_config  # noqa: E402
+from providers.openai_compatible import OpenAICompatibleProvider  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 LEDGER = ROOT / "docs" / "operations" / "DEEP_OPTIMIZATION_PLAN.md"

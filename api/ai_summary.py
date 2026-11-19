@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import json
 import logging
@@ -21,8 +22,8 @@ import time
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 
-from api.system_covenant import covenant_prefix
 from api.system_codex import codex_first
+from api.system_covenant import covenant_prefix
 from providers.base import LLMMessage, LLMResponse
 from providers.openai_compatible import OpenAICompatibleProvider
 
@@ -36,7 +37,7 @@ MAX_FINDINGS = 8
 LLM_TIMEOUT_SECONDS = 150.0  # codex era: byte-identical ~100K-token prefix; 45s predates the bible
 
 
-class AiSummaryUnavailable(Exception):
+class AiSummaryError(Exception):
     """The model could not produce an honest summary right now."""
 
 
@@ -141,7 +142,7 @@ async def generate_ai_summary(
     *,
     provider_factory: Callable[..., OpenAICompatibleProvider] | None = None,
 ) -> dict[str, Any]:
-    """Call the model; raise AiSummaryUnavailable on any honest failure."""
+    """Call the model; raise AiSummaryError on any honest failure."""
     if provider_factory is None:
         provider_factory = OpenAICompatibleProvider
     packet = build_evidence_packet(summary, findings=findings)
@@ -159,18 +160,16 @@ async def generate_ai_summary(
         )
     except Exception as exc:  # noqa: BLE001 - any provider failure becomes one honest error
         logger.info("ai-summary provider failure: %s", type(exc).__name__)
-        raise AiSummaryUnavailable(
+        raise AiSummaryError(
             "模型暂时不可用，无法生成 AI 解读。可以稍后重试，或直接阅读上方证据。"
         ) from exc
     finally:
         if provider is not None:
-            try:
+            with contextlib.suppress(Exception):
                 await provider.close()
-            except Exception:  # noqa: BLE001 - close is best-effort
-                pass
     text = (response.content or "").strip()
     if not text:
-        raise AiSummaryUnavailable(
+        raise AiSummaryError(
             "模型返回了空解读。为避免误导，这里不显示任何内容；请直接阅读上方证据。"
         )
     return {
@@ -223,7 +222,7 @@ async def generate_ai_summary_stream(
                 yield {"type": "delta", "text": piece}
         text = "".join(pieces).strip()
         if not text:
-            raise AiSummaryUnavailable(
+            raise AiSummaryError(
                 "模型返回了空解读。为避免误导，这里不显示任何内容；请直接阅读上方证据。"
             )
         yield {
@@ -233,7 +232,7 @@ async def generate_ai_summary_stream(
             "usage": last_usage,
             "evidence_packet_chars": len(packet),
         }
-    except AiSummaryUnavailable as exc:
+    except AiSummaryError as exc:
         yield {"type": "error", "detail": str(exc), "partial": "".join(pieces)}
     except asyncio.CancelledError:
         raise
@@ -246,7 +245,5 @@ async def generate_ai_summary_stream(
         }
     finally:
         if provider is not None:
-            try:
+            with contextlib.suppress(Exception):
                 await provider.close()
-            except Exception:  # noqa: BLE001 - close is best-effort
-                pass

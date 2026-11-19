@@ -8,7 +8,7 @@ re-spend tokens on identical evidence. Covered:
     stays bounded on adversarial row counts;
   * fingerprint is row-order-insensitive and verdict-sensitive;
   * generate_ai_summary returns model text + usage, and converts ANY provider
-    failure (raise, empty content) into AiSummaryUnavailable;
+    failure (raise, empty content) into AiSummaryError;
   * the endpoint: cached on identical evidence, regenerates on changed
     evidence, echoes 503 on an unavailable model, 404/401/503 on the job read.
 """
@@ -16,23 +16,20 @@ re-spend tokens on identical evidence. Covered:
 from __future__ import annotations
 
 import json
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
-from integrations.notify.protocol import SendStatus
-
 import api.ai_summary as ai_summary
-from tests._mysql_gate import requires_mysql
 from api.ai_summary import (
-    AiSummaryUnavailable,
+    AiSummaryError,
     build_evidence_packet,
     fingerprint,
 )
 from api.server import app
-
+from integrations.notify.protocol import SendStatus
+from tests._mysql_gate import requires_mysql
 
 API_KEY = "ai-summary-test-key"
 
@@ -136,7 +133,7 @@ async def test_generate_provider_raise_maps_to_unavailable(monkeypatch: pytest.M
             return None
 
     monkeypatch.setattr(ai_summary, "OpenAICompatibleProvider", lambda **_kw: _Boom())
-    with pytest.raises(AiSummaryUnavailable):
+    with pytest.raises(AiSummaryError):
         await ai_summary.generate_ai_summary(_summary(), [])
 
 
@@ -149,7 +146,7 @@ async def test_generate_provider_empty_content_maps_to_unavailable(
         "OpenAICompatibleProvider",
         lambda **_kw: _FakeProvider(content=""),
     )
-    with pytest.raises(AiSummaryUnavailable):
+    with pytest.raises(AiSummaryError):
         await ai_summary.generate_ai_summary(_summary(), [])
 
 

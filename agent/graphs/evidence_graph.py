@@ -28,8 +28,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from typing_extensions import TypedDict
 from langgraph.graph import END, StateGraph
+from typing_extensions import TypedDict
 
 
 class EvidenceState(TypedDict, total=False):

@@ -12,7 +12,7 @@ import json
 import subprocess
 import sys
 from collections import Counter
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]

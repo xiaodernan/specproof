@@ -22,9 +22,9 @@ from __future__ import annotations
 
 import json
 import re
-import sys
 import subprocess
-from datetime import datetime, timezone
+import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -160,7 +160,7 @@ def _e2e_passed_at() -> str:
 def main() -> None:
     latest_tag = _git("describe", "--tags", "--abbrev=7", "--always", "HEAD") or _git("describe", "--al ---abbrev=7", "--always", "HEAD")
     latest_branch = _git("branch", "--show-current")
-    latest_day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    latest_day = datetime.now(UTC).strftime("%Y-%m-%d")
     facts = _fact_pack()
     payload = {
         "schema": 1,
@@ -170,7 +170,7 @@ def main() -> None:
         "latest_strike": facts["latest_strike"],
         "total_commits": facts["total_commits"],
         "tracked_files": facts["tracked_files"],
-        "last_synced": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "last_synced": datetime.now(UTC).isoformat(timespec="seconds"),
         "branch": latest_branch,
         "head": _git("rev-parse", "--short", "HEAD"),
         "latest_day": latest_day,
@@ -229,7 +229,7 @@ def main() -> None:
 
     products = {
         "schema": 1,
-        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "pages": payload["pages"],
     }
     (OUT / "products.json").write_text(

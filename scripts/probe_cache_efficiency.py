@@ -22,7 +22,6 @@ are not contractual and the cache behavior can change at any time.
 """
 
 import asyncio
-import io
 import json
 import sys
 import time
@@ -31,9 +30,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from agent.nodes.generate_counterexamples import _JUNIT_GENERATION_PROMPT
-from providers.base import LLMMessage
-from providers.openai_compatible import OpenAICompatibleProvider
+from agent.nodes.generate_counterexamples import _JUNIT_GENERATION_PROMPT  # noqa: E402
+from providers.base import LLMMessage  # noqa: E402
+from providers.openai_compatible import OpenAICompatibleProvider  # noqa: E402
 
 SUFFIXES = {
     "AUTH": (

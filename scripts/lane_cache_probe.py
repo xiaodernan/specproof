@@ -36,7 +36,10 @@ PROBE_SUMMARY = {
     "matrix_failed": 0,
     "matrix_unverified": 0,
     "matrix_results": [
-        {"contract_id": "PROBE-1", "result": "PASS", "severity": "low", "evidence_type": "cache-probe"}
+        {
+            "contract_id": "PROBE-1", "result": "PASS",
+            "severity": "low", "evidence_type": "cache-probe",
+        }
     ],
     "coverage_reason": "lane cache probe — not an acceptance verdict",
     "retrieval_note": "synthetic probe input, byte-identical across strikes",
@@ -70,28 +73,44 @@ async def _strike(lane: str, i: int, call) -> dict:
 
 async def strike_observe(n: int) -> list[dict]:
     from api.observe_advice import generate_observe_advice
-    return [await _strike("observe", i, lambda: generate_observe_advice("zh")) for i in range(1, n + 1)]
+    return [
+        await _strike("observe", i, lambda: generate_observe_advice("zh"))
+        for i in range(1, n + 1)
+    ]
 
 
 async def strike_insight(n: int) -> list[dict]:
     from api.insight_advice import generate_insight_advice
-    stats = json.loads((ROOT / "apps" / "web" / "src" / "pages" / "repoStats.json").read_text(encoding="utf-8"))
-    return [await _strike("insight", i, lambda: generate_insight_advice(stats)) for i in range(1, n + 1)]
+    stats_path = ROOT / "apps" / "web" / "src" / "pages" / "repoStats.json"
+    stats = json.loads(stats_path.read_text(encoding="utf-8"))
+    return [
+        await _strike("insight", i, lambda: generate_insight_advice(stats))
+        for i in range(1, n + 1)
+    ]
 
 
 async def strike_ai_summary(n: int) -> list[dict]:
     from api.ai_summary import generate_ai_summary
-    return [await _strike("ai_summary", i, lambda: generate_ai_summary(PROBE_SUMMARY)) for i in range(1, n + 1)]
+    return [
+        await _strike("ai_summary", i, lambda: generate_ai_summary(PROBE_SUMMARY))
+        for i in range(1, n + 1)
+    ]
 
 
 async def strike_dig(n: int) -> list[dict]:
     from craft.investigators import investigate
-    return [await _strike("dig", i, lambda: investigate(ROOT, PROBE_QUESTION)) for i in range(1, n + 1)]
+    return [
+        await _strike("dig", i, lambda: investigate(ROOT, PROBE_QUESTION))
+        for i in range(1, n + 1)
+    ]
 
 
 async def strike_runbook(n: int) -> list[dict]:
     from api.runbook_triage import generate_triage
-    return [await _strike("runbook", i, lambda: generate_triage("SpecproofApiHigh5xxRate")) for i in range(1, n + 1)]
+    return [
+        await _strike("runbook", i, lambda: generate_triage("SpecproofApiHigh5xxRate"))
+        for i in range(1, n + 1)
+    ]
 
 
 async def strike_ask_the_book(n: int) -> list[dict]:
@@ -150,11 +169,15 @@ async def main() -> int:
             usage = row.get("usage") or {}
             agents = row.get("agents") or []
             if agents:
-                hits = sum(int((a.get("usage") or {}).get("prompt_cache_hit_tokens") or 0) for a in agents)
-                print(f"{lane} #{row['strike']} {row['outcome']} {row.get('elapsed_s')}s agents={len(agents)} cache_hit_tokens={hits}", flush=True)
+                hits = sum(
+                    int((a.get("usage") or {}).get("prompt_cache_hit_tokens") or 0)
+                    for a in agents)
+                print(f"{lane} #{row['strike']} {row['outcome']} {row.get('elapsed_s')}s "
+                      f"agents={len(agents)} cache_hit_tokens={hits}", flush=True)
             else:
                 print(f"{lane} #{row['strike']} {row['outcome']} {row.get('elapsed_s')}s "
-                      f"prompt={usage.get('prompt_tokens')} cached={usage.get('prompt_cache_hit_tokens')} "
+                      f"prompt={usage.get('prompt_tokens')} "
+                      f"cached={usage.get('prompt_cache_hit_tokens')} "
                       f"reasoning={usage.get('reasoning_tokens')}", flush=True)
     if EVIDENCE.is_file():
         try:
@@ -169,7 +192,8 @@ async def main() -> int:
         "model": "gpt-6.1-terra",
         "protocol": "responses",
         "prompt_cache_key_per_lane": PROMPT_CACHE_KEYS,
-        "note": "live probes; the two strikes per lane are byte-identical on the prefix; no verdicts minted; numbers recorded as returned",
+        "note": "live probes; the two strikes per lane are byte-identical on the prefix;"
+        " no verdicts minted; numbers recorded as returned",
     })
     EVIDENCE.write_text(json.dumps(evidence, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {EVIDENCE}")

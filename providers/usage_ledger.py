@@ -29,7 +29,7 @@ import json
 import os
 import threading
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -94,7 +94,7 @@ def record_llm_call(
     """
     usage = usage or {}
     record: dict[str, Any] = {
-        "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "ts": datetime.now(UTC).isoformat(timespec="seconds"),
         "model": str(model or ""),
         "kind": str(kind) if kind else None,
         "lane": str(lane),
@@ -151,7 +151,7 @@ def read_records(path: Path | None = None) -> list[dict[str, Any]]:
         if not candidate.exists():
             continue
         try:
-            with open(candidate, "r", encoding="utf-8", errors="replace") as fh:
+            with open(candidate, encoding="utf-8", errors="replace") as fh:
                 for raw_line in fh:
                     line = raw_line.strip()
                     if not line:
@@ -180,7 +180,7 @@ def _parse_ts(value: Any) -> float | None:
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
     return parsed.timestamp()
 
 
@@ -335,7 +335,7 @@ def summarize(
                     bucket["prompt_reported"] += int(p)
         for hour in sorted(bucket_hours):
             bucket = bucket_hours[hour]
-            bucket_start = datetime.fromtimestamp(hour * 3600, tz=timezone.utc)
+            bucket_start = datetime.fromtimestamp(hour * 3600, tz=UTC)
             trend.append({
                 "bucket_start": bucket_start.isoformat(timespec="seconds"),
                 "calls": bucket["calls"],
@@ -349,7 +349,7 @@ def summarize(
 
     return {
         "window_hours": window_hours,
-        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "calls": calls,
         "errors": errors,
         "error_rate": _rate(errors, calls),

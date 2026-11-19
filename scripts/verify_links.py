@@ -68,16 +68,15 @@ def check_file(path: Path) -> list[dict]:
             continue
         if not resolvable(base, t):
             out.append({"kind": "md-link", "target": target, "text": m.group(1)[:80]})
-    ANNOTATED_PLANNED = {
+    annotated_planned = {
         "MUTATION_PLAN.md": {"mutants/manifest.json"},
     }
     if skip_code_refs:
         pass  # code-ref scan intentionally off for the ledger; md-links above still enforced
-    elif path.name in ANNOTATED_PLANNED:
-        planned = {"annotated_planned": []}
+    elif path.name in annotated_planned:
         for m in re.finditer(r'`([A-Za-z0-9_./@-]+/[A-Za-z0-9_./@-]+)`', text):
             tok = m.group(1)
-            if tok in ANNOTATED_PLANNED[path.name] and not (ROOT / tok).exists():
+            if tok in annotated_planned[path.name] and not (ROOT / tok).exists():
                 out.append({"kind": "annotated-planned", "target": tok,
                             "note": "doc explicitly labels the file as not-yet-existing / to-be-generated"})
         return out
@@ -86,9 +85,12 @@ def check_file(path: Path) -> list[dict]:
             tok = m.group(1)
             if any(tok.startswith(p) for p in ("http", "https", "git@", "@types", "node_modules")):
                 continue
-            if tok.count("/") >= 1 and any(tok.endswith(s) for s in (".sh", ".py", ".md", ".json", ".yml", ".yaml", ".toml", ".ps1", ".ts", ".tsx", ".js", ".go", ".java", ".svg", ".sql", ".proto", ".xml", ".html", ".css", ".lock")):
-                if not resolvable(base, tok):
-                    out.append({"kind": "code-ref", "target": tok})
+            if (
+                tok.count("/") >= 1
+                and any(tok.endswith(s) for s in (".sh", ".py", ".md", ".json", ".yml", ".yaml", ".toml", ".ps1", ".ts", ".tsx", ".js", ".go", ".java", ".svg", ".sql", ".proto", ".xml", ".html", ".css", ".lock"))
+                and not resolvable(base, tok)
+            ):
+                out.append({"kind": "code-ref", "target": tok})
     return out
 
 files = sorted(DOCS.rglob("*.md")) + [p for p in EXTRA if p.exists()]

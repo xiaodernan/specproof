@@ -6,10 +6,12 @@ counts, spans, streaks, quiet spells, hour-of-day and prefix histograms.
 No author names or addresses are ever emitted — this page is about the
 repository's rhythm, never about who wrote which line.
 """
-import io, json, re, sys
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
+import json
+import re
 import subprocess
+import sys
+from datetime import datetime, timedelta
+from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -61,7 +63,7 @@ assert sum(weeks) <= total
 # streaks over calendar days (committer-local)
 day_set = sorted({dt.date() for dt, _ in rows})
 streak = best_streak = 1
-for prev, curr in zip(day_set, day_set[1:]):
+for prev, curr in zip(day_set, day_set[1:], strict=False):
     if (curr - prev).days == 1:
         streak += 1
         best_streak = max(best_streak, streak)
@@ -70,7 +72,7 @@ for prev, curr in zip(day_set, day_set[1:]):
 
 # longest quiet gap between consecutive commits (hours)
 quiet = 0.0
-for a, b in zip(rows, rows[1:]):
+for a, b in zip(rows, rows[1:], strict=False):
     quiet = max(quiet, (b[0] - a[0]).total_seconds())
 quiet_days = round(quiet / 86400, 1)
 

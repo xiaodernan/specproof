@@ -43,7 +43,7 @@ def least_squares(y):
     mx = sum(xs) / n
     my = sum(y) / n
     sxx = sum((x - mx) ** 2 for x in xs)
-    sxy = sum((x - mx) * (v - my) for x, v in zip(xs, y))
+    sxy = sum((x - mx) * (v - my) for x, v in zip(xs, y, strict=False))
     syy = sum((v - my) ** 2 for v in y)
     slope = 0 if sxx == 0 else sxy / sxx
     intercept = my - slope * mx

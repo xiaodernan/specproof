@@ -19,9 +19,7 @@ Same discipline as the `/dig` lane and the `/insight` AI advice lane:
 """
 from __future__ import annotations
 
-import asyncio
 import logging
-import os
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +30,7 @@ LLM_TIMEOUT_SECONDS = 150.0
 ROOT = Path(__file__).resolve().parents[1]
 
 
-class RunbookTriageUnavailable(RuntimeError):
+class RunbookTriageError(RuntimeError):
     """Raised when the model lane could not produce anything."""
 
 

@@ -26,11 +26,10 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from typing_extensions import TypedDict
+from langgraph.graph import END, StateGraph  # noqa: E402
+from typing_extensions import TypedDict  # noqa: E402
 
-from langgraph.graph import END, StateGraph
-
-from craft.investigators import investigate
+from craft.investigators import investigate  # noqa: E402
 
 
 class InvestigationDigState(TypedDict, total=False):
@@ -73,7 +72,9 @@ def strike_node(state: InvestigationDigState) -> InvestigationDigState:
         }
 
 
-from agent.graphs._witness import verdict_node  # absolute: same file runs as a script and as a module
+from agent.graphs._witness import (  # noqa: E402
+    verdict_node,  # absolute: same file runs as a script and as a module
+)
 
 
 def report_node(state: InvestigationDigState) -> InvestigationDigState:

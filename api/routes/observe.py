@@ -51,7 +51,7 @@ async def observe_advice(payload: ObserveAdviceRequest) -> dict[str, Any]:
     """
     locale = "en" if payload.locale.strip().lower() == "en" else "zh"
     from api.observe_advice import (
-        ObserveAdviceUnavailable,
+        ObserveAdviceError,
         fingerprint,
         generate_observe_advice,
         observe_redis,
@@ -73,7 +73,7 @@ async def observe_advice(payload: ObserveAdviceRequest) -> dict[str, Any]:
     started = time.perf_counter()
     try:
         result = await generate_observe_advice(locale)
-    except ObserveAdviceUnavailable as exc:
+    except ObserveAdviceError as exc:
         raise ApiError(
             status_code=503, code=PROVIDER_UNAVAILABLE, detail=str(exc),
         ) from exc

@@ -8,16 +8,15 @@ strikes (was cached_tokens reported? did it climb?).
 Never prints api_key material. Cost: two small calls.
 """
 import asyncio
-import io
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from providers.base import LLMMessage
-from providers.config import load_model_config
-from providers.openai_compatible import OpenAICompatibleProvider
+from providers.base import LLMMessage  # noqa: E402
+from providers.config import load_model_config  # noqa: E402
+from providers.openai_compatible import OpenAICompatibleProvider  # noqa: E402
 
 cfg = load_model_config()
 print(f"source {cfg['source']} | protocol {cfg['protocol']} | model {cfg['model']}", flush=True)

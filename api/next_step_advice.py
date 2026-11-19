@@ -42,7 +42,7 @@ LLM_TIMEOUT_SECONDS = 150.0
 _ROOT = Path(__file__).resolve().parents[1]
 
 
-class NextStepAdviceUnavailable(Exception):
+class NextStepAdviceError(Exception):
     """The model could not answer honestly right now."""
 
 
@@ -123,7 +123,7 @@ async def generate_next_step_advice(
     *,
     provider_factory: Callable[..., OpenAICompatibleProvider] | None = None,
 ) -> dict[str, Any]:
-    """Call the model; raise NextStepAdviceUnavailable on any honest failure."""
+    """Call the model; raise NextStepAdviceError on any honest failure."""
     if provider_factory is None:
         provider_factory = OpenAICompatibleProvider
     packet = json.dumps(build_next_step_packet(), ensure_ascii=False, sort_keys=True)
@@ -141,7 +141,7 @@ async def generate_next_step_advice(
         )
     except Exception as exc:  # noqa: BLE001 - any provider failure becomes one honest error
         logger.info("next-step-advice provider failure: %s", type(exc).__name__)
-        raise NextStepAdviceUnavailable(
+        raise NextStepAdviceError(
             "模型暂时不可用，无法生成下一步读法。稍后再试，或直接读账吧。"
             if locale != "en"
             else "The model is unavailable right now; no next-step reading. "
@@ -153,7 +153,7 @@ async def generate_next_step_advice(
                 await provider.close()
     text = (response.content or "").strip()
     if not text:
-        raise NextStepAdviceUnavailable(
+        raise NextStepAdviceError(
             "模型返回了空解读。为避免误导，这里不显示任何内容。"
             if locale != "en"
             else "The model returned an empty reading. Nothing is shown rather than mislead."

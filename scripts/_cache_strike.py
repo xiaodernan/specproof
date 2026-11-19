@@ -1,13 +1,16 @@
 import asyncio
-import io, sys
+import sys
+
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-from pathlib import Path
+from pathlib import Path  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from providers.config import load_model_config
-from providers.openai_compatible import OpenAICompatibleProvider
-from providers.base import LLMMessage
+from providers.base import LLMMessage  # noqa: E402
+from providers.config import load_model_config  # noqa: E402
+from providers.openai_compatible import OpenAICompatibleProvider  # noqa: E402
+
 
 async def main():
     cfg = load_model_config()

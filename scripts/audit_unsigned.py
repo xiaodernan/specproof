@@ -20,11 +20,10 @@ Checks:
 
 Exit code: 0 always (the report is the product; a failing host does not crash it).
 """
-import io
 import json
 import re
-import sys
 import subprocess
+import sys
 import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path

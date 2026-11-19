@@ -19,8 +19,13 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 
-from api.system_codex import SPECROOF_CODEX_EN, SPECROOF_CODEX_ZH, codex_first, codex_for
-from providers.base import LLMMessage
+from api.system_codex import (  # noqa: E402
+    SPECROOF_CODEX_EN,
+    SPECROOF_CODEX_ZH,
+    codex_first,
+    codex_for,
+)
+from providers.base import LLMMessage  # noqa: E402
 
 
 def test_codex_bodies_are_the_real_bibles() -> None:

@@ -9,10 +9,9 @@ Writes: docs/crewcard.md, docs/crewcard-en.md
 
 The card carries only git-tracked facts. No signature is pressed.
 """
-import io
 import json
 import sys
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")

@@ -33,12 +33,11 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from typing_extensions import TypedDict
+from langgraph.graph import END, StateGraph  # noqa: E402
+from typing_extensions import TypedDict  # noqa: E402
 
-from langgraph.graph import END, StateGraph
-
-from api.insight_advice import (
-    InsightAdviceUnavailable,
+from api.insight_advice import (  # noqa: E402
+    InsightAdviceError,
     build_insight_packet,
     fingerprint,
     generate_insight_advice,
@@ -89,7 +88,7 @@ def _synthetic_cohort() -> dict[str, Any]:
         mx = sum(xs) / n
         my = sum(y) / n
         sxx = sum((x - mx) ** 2 for x in xs)
-        sxy = sum((x - mx) * (v - my) for x, v in zip(xs, y))
+        sxy = sum((x - mx) * (v - my) for x, v in zip(xs, y, strict=False))
         syy = sum((v - my) ** 2 for v in y)
         slope = 0.0 if sxx == 0 else sxy / sxx
         intercept = my - slope * mx
@@ -150,7 +149,7 @@ def intake_node(state: AdviceWitnessState) -> AdviceWitnessState:
 def strike_node(state: AdviceWitnessState) -> AdviceWitnessState:
     try:
         out = asyncio.run(generate_insight_advice(_synthetic_cohort()))
-    except InsightAdviceUnavailable:
+    except InsightAdviceError:
         return {"verdict": "UNAVAILABLE"}
     usage = out.get("usage") or {}
 

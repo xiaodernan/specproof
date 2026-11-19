@@ -20,8 +20,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from api.system_covenant import covenant_prefix
 from api.system_codex import codex_first
+from api.system_covenant import covenant_prefix
 from providers.base import LLMMessage
 from providers.config import load_model_config
 from providers.openai_compatible import OpenAICompatibleProvider

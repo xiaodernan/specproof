@@ -13,12 +13,12 @@ Usage:
 """
 
 import asyncio
-import io
 import sys
+
+from openai import AsyncOpenAI
 
 from providers.config import load_model_config
 from providers.responses_protocol import normalize_base_url
-from openai import AsyncOpenAI
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 

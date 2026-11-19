@@ -20,7 +20,6 @@ string-detection holds; otherwise prints the failing slice and exits 2.
 Read-only; never modifies anything.
 """
 import hashlib
-import io
 import json
 import re
 import sys

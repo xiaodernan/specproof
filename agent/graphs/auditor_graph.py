@@ -18,15 +18,14 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from typing_extensions import TypedDict
 from langgraph.graph import END, StateGraph
+from typing_extensions import TypedDict
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = ROOT / "scripts"

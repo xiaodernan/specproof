@@ -19,7 +19,6 @@ Every volume is one `## ` section. Everything before the first `## ` heading
 (book frontispiece / 序章) becomes volume id "front".
 """
 
-import io
 import json
 import re
 import sys

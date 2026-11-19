@@ -10,7 +10,6 @@ Checks:
   E. Which workflows would run on master push (portfolio-sync.yml present?).
   F. Artifacts/data/ folder exists at build time?
 """
-import io
 import json
 import sys
 import urllib.request

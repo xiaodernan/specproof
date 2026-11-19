@@ -67,7 +67,7 @@ def _ts_record_keys(source: str, name: str) -> set[str]:
     match = re.search(rf"const {name}[^=]*=\s*\{{(.*?)\n\}};", source, re.S)
     if match:
         return set(re.findall(r"^\s*([A-Z_][A-Z0-9_]*):", match.group(1), re.M))
-    helper = re.search(rf"function buildStatusHelp\b.*?return\s*\{{(.*?)\n  \}};", source, re.S)
+    helper = re.search(r"function buildStatusHelp\b.*?return\s*\{(.*?)\n  \};", source, re.S)
     assert helper, f"{name} not found — the gate would pass vacuously"
     return set(re.findall(r"^\s*([A-Z_][A-Z0-9_]*):", helper.group(1), re.M))
 

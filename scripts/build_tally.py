@@ -24,7 +24,7 @@ def main() -> int:
     e = j(PAGES / "evidence.json")
     c = j(PAGES / "courtLock.json")
     p = j(PAGES / "purity_sift.json")
-    ch = j(PAGES / "chronicle.json")
+    _ch = j(PAGES / "chronicle.json")
     rs = j(PAGES / "repoStats.json")
     wb = j(PAGES / "worldbook.json")
     a = j(PAGES / "audit_chain.json")

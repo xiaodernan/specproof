@@ -1,8 +1,6 @@
 import json
 from pathlib import Path
 
-import pytest
-
 from agent.graphs.evidence_graph import build_evidence_review_graph
 
 

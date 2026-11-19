@@ -43,10 +43,10 @@ def test_lanes_carry_codex_then_covenant_exactly_once() -> None:
     always this order, never duplicated. Before #1977 the covenant stood alone
     at the head; the prefix sandwich changed deliberately and this pin moved
     with it (see `api/system_codex.py`)."""
-    from api.system_codex import codex_for
     from api.ai_summary import _prompt as ai_prompt
     from api.insight_advice import _prompt as insight_prompt
     from api.observe_advice import _prompt as observe_prompt
+    from api.system_codex import codex_for
 
     codex_zh = codex_for("zh")
     codex_en = codex_for("en")

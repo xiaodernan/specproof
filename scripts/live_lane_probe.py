@@ -14,14 +14,19 @@ The api_key is NEVER printed or written anywhere. Cost: ~1 small call to the
 configured endpoint. Not a load test; run it once if you need to re-verify
 the lane; do NOT run in CI.
 """
-import io, json, re, sys, time
+import json
+import re
+import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from providers.config import load_model_config  # noqa: E402
-from providers.net import outbound_client  # noqa: E402  (env-proxy mounts; bare httpx misroutes through the Clash Verge egress)
+from providers.net import (  # noqa: E402
+    outbound_client,  # noqa: E402  (env-proxy mounts; bare httpx misroutes through the Clash Verge egress)
+)
 
 cfg = load_model_config()
 print("source", cfg["source"], "| protocol", cfg["protocol"], "| model", cfg["model"], "| base_url", cfg["base_url"])
@@ -65,7 +70,7 @@ try:
                 text_parts.append(piece)
 except Exception as exc:
     print("PROBE_ERROR:", type(exc).__name__, str(exc)[:200])
-    raise SystemExit(1)
+    raise SystemExit(1) from exc
 
 elapsed_ms = round((time.monotonic() - timer_start) * 1000, 1)
 print(f"HTTP 200 | chunks {chunks} | {elapsed_ms} ms")

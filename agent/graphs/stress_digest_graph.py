@@ -100,7 +100,9 @@ def intake_node(state: StressDigestState) -> StressDigestState:  # noqa: ARG001
             zh_msgs[0].role == "system" and en_msgs[0].role == "system"
             and zh_msgs[-1].role == "user" and en_msgs[-1].role == "user"
         )
-        notes.append(f"codex bytes zh={len(zh_msgs[0].content.encode('utf-8'))} en={len(en_msgs[0].content.encode('utf-8'))}")
+        zh_bytes = len((zh_msgs[0].content or "").encode("utf-8"))
+        en_bytes = len((en_msgs[0].content or "").encode("utf-8"))
+        notes.append(f"codex bytes zh={zh_bytes} en={en_bytes}")
     except Exception as exc:  # noqa: BLE001
         notes.append(f"messages unreadable: {type(exc).__name__}: {exc}")
 
@@ -132,7 +134,9 @@ def strike_node(state: StressDigestState) -> StressDigestState:
             return {
                 "answer": result.get("digest") or "",
                 "chars": len((result.get("digest") or "").strip()),
-                "cached_tokens": int(usage.get("prompt_cache_hit_tokens") or usage.get("cached_tokens") or 0),
+                "cached_tokens": int(
+                    usage.get("prompt_cache_hit_tokens") or usage.get("cached_tokens") or 0
+                ),
                 "prompt_tokens": int(usage.get("prompt_tokens") or 0),
                 "info_hits": _verdict_word_hits(result.get("digest") or ""),
                 "error": None,
@@ -201,7 +205,11 @@ def report_node(state: StressDigestState) -> StressDigestState:
     base = base or f"stress-digest-{day}"
 
     packet = mod.build_stress_packet(evidence)
-    mode = "live strike zh+en (aizzz gateway)" if state.get("live_requested") else "offline · deterministic table, no model"
+    mode = (
+        "live strike zh+en (aizzz gateway)"
+        if state.get("live_requested")
+        else "offline · deterministic table, no model"
+    )
     md_text = mod.render_digest_md(
         packet,
         reading_zh=state.get("sealed_zh") or None,

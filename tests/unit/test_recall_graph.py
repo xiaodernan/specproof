@@ -4,8 +4,6 @@ The graph reads the REAL chronicle.json + corrections.json (they are committed).
 A broken ranking, a drift in title-weight, a nondeterministic ordering — any
 of those would fail this file.
 """
-import sys
-from pathlib import Path
 
 import pytest
 

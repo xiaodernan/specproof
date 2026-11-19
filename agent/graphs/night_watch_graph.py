@@ -1,8 +1,10 @@
 """night_watch_graph.py — the vow in one compiled line: evidence + purity + audit.
 
 Composes the three existing StateGraphs into one end-to-end night's watch.
-Each lane is struck independently and in sequence, and the watch closes only when all three are green.
-A lane that throws, a lane that degrades, a lane that cannot find its art is CRACKED — never a quiet degradation.
+Each lane is struck independently and in sequence, and the watch closes only
+when all three are green.
+A lane that throws, a lane that degrades, a lane that cannot find its art is
+CRACKED — never a quiet degradation.
 
 Usage:
     python agent/graphs/night_watch_graph.py [evidence_dir]
@@ -17,17 +19,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-from datetime import UTC, datetime
-from typing import Any
+from datetime import UTC, datetime  # noqa: E402
+from typing import Any  # noqa: E402
 
-from typing_extensions import TypedDict
-
-from langgraph.graph import END, StateGraph
+from langgraph.graph import END, StateGraph  # noqa: E402
+from typing_extensions import TypedDict  # noqa: E402
 
 EVID = ROOT / "docs" / "evidence"
 
 
-def _evidence_dir(state: "NightWatchState") -> Path:
+def _evidence_dir(state: NightWatchState) -> Path:
     value: object = state.get("evidence_dir")
     return Path(value) if isinstance(value, str) and value else EVID
 
@@ -54,14 +55,21 @@ def _veto(verdict: str, ok_value: str) -> bool:
 def evidence_node(state: NightWatchState) -> NightWatchState:
     from agent.graphs.evidence_graph import build_evidence_review_graph
     try:
-        result = build_evidence_review_graph().invoke({"evidence_dir": str(_evidence_dir(state))}) or {}
+        result = build_evidence_review_graph().invoke(
+            {"evidence_dir": str(_evidence_dir(state))}) or {}
     except Exception as exc:  # noqa: BLE001 - a lane that throws is a cracked watch
-        return {"evidence_verdict": "CRACKED", "evidence_summary": f"evidence graph raised: {type(exc).__name__}: {exc}", "findings": (state.get("findings") or []) + ["evidence lane: unhandled error"]}
+        return {
+            "evidence_verdict": "CRACKED",
+            "evidence_summary": f"evidence graph raised: {type(exc).__name__}: {exc}",
+            "findings": (state.get("findings") or [])
+                        + ["evidence lane: unhandled error"],
+        }
     verdict = str(result.get("verdict") or "CRACKED").upper()
     return {
         "evidence_verdict": verdict,
         "evidence_summary": str(result.get("summary", f"verdict={verdict}")),
-        "findings": (state.get("findings") or []) + (["evidence lane reported no verdict"] if verdict == "OK" else []),
+        "findings": (state.get("findings") or [])
+                    + (["evidence lane reported no verdict"] if verdict == "OK" else []),
     }
 
 
@@ -70,13 +78,20 @@ def purity_node(state: NightWatchState) -> NightWatchState:
     try:
         result = build_purity_graph().invoke({}) or {}
     except Exception as exc:  # noqa: BLE001
-        return {"purity_verdict": "CRACKED", "purity_summary": f"purity graph raised: {type(exc).__name__}: {exc}", "findings": (state.get("findings") or []) + ["purity lane: unhandled error"]}
+        return {
+            "purity_verdict": "CRACKED",
+            "purity_summary": f"purity graph raised: {type(exc).__name__}: {exc}",
+            "findings": (state.get("findings") or [])
+                        + ["purity lane: unhandled error"],
+        }
     summary = str(result.get("summary") or "")
-    verdict = "CLEAR" if "CLEAR" in summary.upper() else ("CRACKED" if "CRACKED" in summary.upper() else "CRACKED")
+    verdict = ("CLEAR" if "CLEAR" in summary.upper()
+               else ("CRACKED" if "CRACKED" in summary.upper() else "CRACKED"))
     return {
         "purity_verdict": verdict,
         "purity_summary": summary or f"purity verdict={verdict}",
-        "findings": (state.get("findings") or []) + (["purity lane reported nothing"] if not summary.strip() else []),
+        "findings": (state.get("findings") or [])
+                    + (["purity lane reported nothing"] if not summary.strip() else []),
     }
 
 
@@ -85,13 +100,19 @@ def audit_node(state: NightWatchState) -> NightWatchState:
     try:
         result = build_audit_chain_graph().invoke({}) or {}
     except Exception as exc:  # noqa: BLE001
-        return {"audit_verdict": "CRACKED", "audit_summary": f"audit chain raised: {type(exc).__name__}: {exc}", "findings": (state.get("findings") or []) + ["audit lane: unhandled error"]}
+        return {
+            "audit_verdict": "CRACKED",
+            "audit_summary": f"audit chain raised: {type(exc).__name__}: {exc}",
+            "findings": (state.get("findings") or [])
+                        + ["audit lane: unhandled error"],
+        }
     summary = str(result.get("summary") or "")
     verdict = "CLEAR" if "CLEAR" in summary.upper() else "CRACKED"
     return {
         "audit_verdict": verdict,
         "audit_summary": summary or f"audit chain verdict={verdict}",
-        "findings": (state.get("findings") or []) + (["audit lane reported no verdict"] if not summary.strip() else []),
+        "findings": (state.get("findings") or [])
+                    + (["audit lane reported no verdict"] if not summary.strip() else []),
     }
 
 
@@ -127,7 +148,8 @@ def report_node(state: NightWatchState) -> NightWatchState:
         f"| purity   | {state.get('purity_summary', '—')} |",
         f"| audit    | {state.get('audit_summary', '—')} |",
         "",
-        "CLAR rules: evidence must be OK · purity must be CLEAR · audit must be CLEAR. Anything else is CRACKED — and CRACKED is printed, not hidden.",
+        "CLAR rules: evidence must be OK · purity must be CLEAR · audit must be CLEAR."
+        " Anything else is CRACKED — and CRACKED is printed, not hidden.",
     ]
     if state.get("findings"):
         rows += ["", "findings:"]
@@ -146,7 +168,10 @@ def report_node(state: NightWatchState) -> NightWatchState:
     }, ensure_ascii=False, indent=1), encoding="utf-8")
     return {
         "report_path": str(report),
-        "summary": f"verdict={state.get('verdict', 'CRACKED')} evidence={state.get('evidence_verdict')} purity={state.get('purity_verdict')} audit={state.get('audit_verdict')}",
+        "summary": f"verdict={state.get('verdict', 'CRACKED')} "
+                   f"evidence={state.get('evidence_verdict')} "
+                   f"purity={state.get('purity_verdict')} "
+                   f"audit={state.get('audit_verdict')}",
     }
 
 

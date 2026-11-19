@@ -156,7 +156,8 @@ def load_corpus() -> list[dict[str, str]]:
             if cached is not None:
                 # mtime+size fingerprint pins content; stale vectors are unreachable
                 docs.append({"id": fp.split(":", 1)[0], "text": None, "tv": cached})  # type: ignore[arg-type]
-                # text must still be readable for the final context window — read it cheaply without re-tokenizing
+                # text must still be readable for the final context window — read it cheaply
+                # without re-tokenizing
                 try:
                     docs[-1]["text"] = path.read_text(encoding="utf-8", errors="ignore")[:MAX_DOC_CHARS]
                 except OSError:
@@ -224,15 +225,16 @@ async def ask(question: str, retrieve_only: bool = False, show_stats: bool = Fal
 
     cached_answer = _CACHE.get(question_key(question))
     if cached_answer is not None:
-        print(f"[cache hit — answer reused; rerun with SPECPROOF_RAG_CACHE=0 to force a fresh call]\n")
+        print("[cache hit — answer reused; rerun with SPECPROOF_RAG_CACHE=0 to force a fresh call]\n")
         print(cached_answer)
         if show_stats:
             print(f"\n[{_CACHE.snapshot()}]")
         return 0
 
+    from openai import AsyncOpenAI
+
     from providers.config import load_model_config
     from providers.responses_protocol import normalize_base_url
-    from openai import AsyncOpenAI
 
     try:
         cfg = load_model_config()

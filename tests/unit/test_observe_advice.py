@@ -8,7 +8,7 @@ import json
 import pytest
 
 from api.observe_advice import (
-    ObserveAdviceUnavailable,
+    ObserveAdviceError,
     build_observe_packet,
     fingerprint,
     generate_observe_advice,
@@ -95,7 +95,7 @@ async def test_provider_failure_is_one_honest_error() -> None:
     def boom(*_: object, **__: object):  # noqa: ANN001
         raise RuntimeError("provider unreachable")
 
-    with pytest.raises(ObserveAdviceUnavailable):
+    with pytest.raises(ObserveAdviceError):
         await generate_observe_advice("en", provider_factory=boom)
 
 
@@ -105,7 +105,7 @@ async def test_empty_answer_is_one_honest_error() -> None:
         async def chat(self, _messages, timeout: float | None = None, opts: dict | None = None):  # noqa: ANN001
             return LLMResponse(content="   ", model="gpt-6.1-terra")
 
-    with pytest.raises(ObserveAdviceUnavailable):
+    with pytest.raises(ObserveAdviceError):
         await generate_observe_advice(
             "zh", provider_factory=lambda timeout, max_retries: _EmptyProvider(),
         )

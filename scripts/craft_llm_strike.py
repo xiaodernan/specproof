@@ -21,9 +21,6 @@ Run through the local proxy:
 """
 from __future__ import annotations
 
-import json
-import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -103,14 +100,14 @@ def main() -> int:
     print(diff or "(no diff produced)")
 
     stat = _run(["git", "status", "--porcelain"], cwd=repo).stdout.strip()
-    committed = False
+    _committed = False
     if stat:
         _run(["git", "add", "."], cwd=repo)
         _run(
             ["git", "-c", "user.email=strike@example.com", "-c", "user.name=strike", "commit", "-qm", "model fix"],
             cwd=repo,
         )
-        committed = True
+        _committed = True
     head_sha = _run(["git", "rev-parse", "HEAD"], cwd=repo).stdout.strip()
 
     llm_stats = client.stats_report() if client else {}

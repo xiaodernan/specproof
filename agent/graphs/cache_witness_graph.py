@@ -26,9 +26,8 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from typing_extensions import TypedDict
-
-from langgraph.graph import END, StateGraph
+from langgraph.graph import END, StateGraph  # noqa: E402
+from typing_extensions import TypedDict  # noqa: E402
 
 
 class CacheWitnessState(TypedDict, total=False):
@@ -94,21 +93,20 @@ def _http_strike(cfg: dict[str, Any]) -> dict[str, Any]:
                 self.usage = obj["usage"]
 
     sink = _Sink()
-    with outbound_client(timeout=90.0) as client:
-        with client.stream(
-            "POST",
-            cfg["base_url"].rstrip("/") + "/chat/completions",
-            headers={
-                "Authorization": f"Bearer {cfg['api_key']}",
-                "Accept": "text/event-stream",
-                "Content-Type": "application/json",
-            },
-            json=body,
-        ) as resp:
-            resp.raise_for_status()
-            for line in resp.iter_lines():
-                if line:
-                    sink.feed(line)
+    with outbound_client(timeout=90.0) as client, client.stream(
+        "POST",
+        cfg["base_url"].rstrip("/") + "/chat/completions",
+        headers={
+            "Authorization": f"Bearer {cfg['api_key']}",
+            "Accept": "text/event-stream",
+            "Content-Type": "application/json",
+        },
+        json=body,
+    ) as resp:
+        resp.raise_for_status()
+        for line in resp.iter_lines():
+            if line:
+                sink.feed(line)
     u: dict[str, Any] = sink.usage or {}
     return {
         "prompt_tokens": u.get("prompt_tokens"),

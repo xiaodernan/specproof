@@ -1,8 +1,5 @@
 import subprocess
-import sys
 from pathlib import Path
-
-import pytest
 
 from agent.graphs.purity_graph import build_purity_graph
 

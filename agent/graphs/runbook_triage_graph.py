@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -27,9 +26,8 @@ if str(ROOT) not in sys.path:
 import json  # noqa: E402  (long-lived narrow imports, avoid the guard being mis-parsed)
 from typing import Any  # noqa: E402
 
-from typing_extensions import TypedDict  # noqa: E402
-
 from langgraph.graph import END, StateGraph  # noqa: E402
+from typing_extensions import TypedDict  # noqa: E402
 
 from api.runbook_triage import generate_triage  # noqa: E402
 
@@ -52,7 +50,6 @@ def intake_node(state: RunbookTriageState) -> RunbookTriageState:
 
 def strike_node(state: RunbookTriageState) -> RunbookTriageState:
     alert = state.get("alert") or "SpecproofApiDown"
-    from api.runbook_triage import RunbookTriageUnavailable
     try:
         result = asyncio.run(generate_triage(alert))
     except Exception as exc:  # noqa: BLE001 — the lane is witnessed, never faked green
@@ -73,7 +70,9 @@ def strike_node(state: RunbookTriageState) -> RunbookTriageState:
     }
 
 
-from agent.graphs._witness import verdict_node  # shared pass-through, one identity per repo
+from agent.graphs._witness import (  # noqa: E402
+    verdict_node,  # shared pass-through, one identity per repo
+)
 
 
 def report_node(state: RunbookTriageState) -> RunbookTriageState:

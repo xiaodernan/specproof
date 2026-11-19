@@ -6,7 +6,6 @@ the three data-drop files, their byte sizes and their intended consumers
 (xiaodernan.github.io via portfolio-sync.yml when PORTFOLIO_TOKEN is set).
 No network, no key, no push. Exits 0.
 """
-import io
 import json
 import subprocess
 import sys
@@ -21,7 +20,7 @@ OUT = ROOT / "artifacts" / "portfolio-data-dryrun"
 
 def run():
     OUT.mkdir(parents=True, exist_ok=True)
-    out = OUT.parent / "portfolio-data-scratch"
+    _out = OUT.parent / "portfolio-data-scratch"
     # sync_portfolio.py writes into artifacts/portfolio-data; relocate by monkey-flag if supported,
     # otherwise just read whatever it writes.
     proc = subprocess.run(
@@ -44,7 +43,7 @@ def summarize(files):
 
 
 def main() -> int:
-    proc = run()
+    _proc = run()
     src_dir = ROOT / "artifacts" / "portfolio-data"
     if not src_dir.is_dir():
         print("sync_portfolio.py produced no artifacts — nothing to preview.")

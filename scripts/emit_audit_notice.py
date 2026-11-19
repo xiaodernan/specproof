@@ -4,7 +4,6 @@
 Writes apps/web/src/pages/audit_chain.json. The frontend reads it as ink,
 not as data plumbing; nothing here calls a network.
 """
-import io
 import json
 import re
 import sys

@@ -36,8 +36,8 @@ from collections.abc import Callable
 from typing import Any
 
 from api.synthetic_cohort import cohort
-from api.system_covenant import covenant_prefix
 from api.system_codex import codex_first
+from api.system_covenant import covenant_prefix
 from providers.base import LLMMessage, LLMResponse
 from providers.openai_compatible import OpenAICompatibleProvider
 
@@ -48,7 +48,7 @@ MAX_PACKET_CHARS = 2_000
 LLM_TIMEOUT_SECONDS = 150.0  # codex era: byte-identical ~100K-token prefix; 45s predates the bible
 
 
-class ObserveAdviceUnavailable(Exception):
+class ObserveAdviceError(Exception):
     """The model could not produce an honest reading right now."""
 
 
@@ -141,7 +141,7 @@ async def generate_observe_advice(
     *,
     provider_factory: Callable[..., OpenAICompatibleProvider] | None = None,
 ) -> dict[str, Any]:
-    """Call the model; raise ObserveAdviceUnavailable on any honest failure."""
+    """Call the model; raise ObserveAdviceError on any honest failure."""
     if provider_factory is None:
         provider_factory = OpenAICompatibleProvider
     packet = build_observe_packet(locale)
@@ -164,7 +164,7 @@ async def generate_observe_advice(
         )
     except Exception as exc:  # noqa: BLE001 - any provider failure becomes one honest error
         logger.info("observe-advice provider failure: %s", type(exc).__name__)
-        raise ObserveAdviceUnavailable(
+        raise ObserveAdviceError(
             "模型暂时不可用，无法生成观察舱解读。稍后再试，或直接阅读本页数字面板。"
             if locale != "en"
             else "The model is unavailable right now; the Observatory read cannot be generated. "
@@ -176,7 +176,7 @@ async def generate_observe_advice(
                 await provider.close()
     text = (response.content or "").strip()
     if not text:
-        raise ObserveAdviceUnavailable(
+        raise ObserveAdviceError(
             "模型返回了空解读。为避免误导，这里不显示任何内容；请直接阅读本页的数字面板。"
             if locale != "en"
             else ("The model returned an empty reading. Nothing is shown rather than "

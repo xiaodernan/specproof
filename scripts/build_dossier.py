@@ -18,7 +18,9 @@ golden-cases-crosslang. Each case contributes:
 Everything is derived from files committed to this repository; nothing is
 pulled over the network, nothing invented.
 """
-import io, json, re, sys
+import json
+import re
+import sys
 from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")

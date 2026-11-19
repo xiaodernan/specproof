@@ -14,9 +14,6 @@ Sealed here, not somewhere else:
 from __future__ import annotations
 
 import re
-from typing import Any
-
-import pytest
 
 import api.exhibit_copilot as mod
 

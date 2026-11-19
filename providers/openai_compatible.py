@@ -62,8 +62,6 @@ from tenacity import (
 
 from contracts.retry_after import wait_retry_after_or_exponential
 from observability.metrics import incr, observe_duration
-from .usage_ledger import record_llm_call
-from .semantic_cache import cacheable
 
 from .base import LLMMessage, LLMResponse, ModelProvider
 from .capability_probe import CapabilityProbe
@@ -72,6 +70,8 @@ from .probe_result import ProbeResult
 from .prompt_templates import JSON_ACTION_ENVELOPE_BLOCK
 from .responses_protocol import field as response_field
 from .responses_protocol import normalize_base_url, parse_response, request_kwargs, tool_call
+from .semantic_cache import cacheable
+from .usage_ledger import record_llm_call
 
 
 def _redact_key(key: str) -> str:

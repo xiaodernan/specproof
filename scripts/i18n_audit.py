@@ -24,7 +24,7 @@ Exit code is always 0 — this is an advisory report for humans, never a
 blocking gate (its false-positive rate is too high for CI).
 """
 
-import io
+import contextlib
 import re
 import sys
 from collections import Counter, defaultdict
@@ -32,10 +32,8 @@ from pathlib import Path
 
 # The report contains CJK + symbols; Windows consoles default to GBK and
 # UnicodeEncodeError mid-print would truncate it. Force UTF-8 output.
-try:
+with contextlib.suppress(Exception):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-except Exception:  # noqa: BLE001 - best-effort console fix only
-    pass
 
 REPO = Path(__file__).resolve().parents[1] / "apps" / "web" / "src"
 # Dispositioned by inspection (2026-11-15, round 2): the whole ui-kit/ directory

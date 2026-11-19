@@ -48,7 +48,7 @@ def _java_body(n: int) -> list[str]:
     for i in range(n):
         lines.append(f"class Widget{i:04d} {{")
         lines.append(f"    int field{i:04d};")
-        lines.append(f"}}")
+        lines.append("}")
     return lines
 
 
