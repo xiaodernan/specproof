@@ -43273,3 +43273,34 @@ pm run test = **618 pass / 618**（90 文件；合成人群 6/6 已计入）。l
 3. 雅思 6.5 / IELTS 6.5 / 六级 546 / CET6 546 / 隐盾 / 法狗狗公司 / 赵欣曈 / 铜牌 / 江西省一等・二等奖 等身份串无动；
 4. Private 仓可见性未做任何改动（隐盾源码继续私有）——只核对、不改变；
 5. IO 首页"4 个私有仓未列公开"文案与实测一致，未改。
+
+
+## #2035 体检三件 · 死链全仓 0 · repo 覆盖 16/16 · 视觉 1000px 无溢出无交叠 · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。衔接 #2034。
+
+### 一、死链扫描（web 全量 .tsx/.ts）
+1. 抽取范围 = `href="#/…"` + 反引号模板 href + `/#/…` 出现在任意字符串字面量，共 53 条路由（NAV + lazy `seg[0] === "…"`）；结论：**所有站内链接都解析到已定义路由**，DEAD_LINK 0；
+   - 初版扫描报出 7 个 `guide` 假阳性 → 已把 lazy route 纳入集合，复核 clean；
+
+### 二、repo 覆盖对账（§十 · 全部项目列入 IO 主页）
+1. `gh api user/repos` 实测：xiaodernan 名下 20 仓 = **16 public / 4 private**（private = `fagougou-desensitize` 隐盾源码 + `teedy-assign`/`teedyas`/`teedyassi`）；
+2. IO 首页"全部仓库"格的 16 个 public 仓 **grep 16/16 命中**（ai-career-os / caesura / crossrealm-chronicles / docs / football-os / football-os-web / linuxdo-scripts / main / minicc-codex / nexus-content-platform / nexus-platform / specproof / ted / teedyyyy / xiaodernan / xiaodernan.github.io）；
+3. private 4 仓按 IO 首页既有声明"4 个私有仓未列公开"处理——不枚举、不链接、不曝光源码；
+
+### 三、视觉体检（live IO · 1000px 视窗）
+1. `document.documentElement.scrollWidth = 985 ≤ 1000`：**水平溢出 0**；
+2. 命中但属设计层的「交叠」：`.hero-grid` × `hero-orbit ×2` × `hero-profile`（100%）——为 hero 签名环/头像的绝对定位装饰构图；另 hero-orbit 自身互相交叠为刻意层级，不是布局挤压；
+3. `/specproof-web/#/dashboard` 同视窗同结论（溢出 0）；
+4. 字体栈未出现 Georgia/Noto Serif 之外的歪斜替换（Noto Sans SC / Inter 栈 / ui-monospace 系），无 `overflow:hidden` 裁切文本迹象；
+5. 注：owner 口头反映的「实体块互相重叠、挤压、遮盖」在 live 1000px 上复现不出；先前两处（头像被网格轨道压小 / 滚轮方向）已由 fact-bot（网格 minmax）与 invert wheel 修复链处理；保留观察。
+
+### 四、本轮推进
+1. Manual 三个公开门（tour/guess/chronicle）上 Line release · IO redeploy v5（`index-CKKfzn5-.js`）· Pages `44558343637` success · live bytes 验证 banner + 新 js ✅；
+2. 死链零 · 覆盖零 · 泄密零（private 未列外）
+
+### 五、没动没伪没涂
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19** · 24 pinned reds 原样 · chronicle **1813** · worldbook **204** · library **203 zh≡en**；
+2. 模型 0 调用（本批纯审计/体检）；
+3. 雅思 6.5 / IELTS 6.5 / 六级 546 / CET6 546 / 隐盾 / 法狗狗公司 / 赵欣曈 / 铜牌 / 江西省一等・二等奖 等身份串无动；隐图 **0**；
+4. private 仓可见性未动，不新增任何外链指向隐盾源码。
