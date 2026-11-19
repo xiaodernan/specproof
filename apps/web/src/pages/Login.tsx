@@ -103,7 +103,7 @@ export default function Login(props: { onConnected?: () => void }) {
     <div className="login-wrap onboarding-login">
       <main className="welcome-layout">
         <section className="welcome-story" aria-labelledby="welcome-title">
-          <a className="welcome-brand" href="#/guide"><span aria-hidden="true">S</span>{c.brandSuffix}</a>
+          <a className="welcome-brand" href="#/guide" data-coach="hero.brand"><span aria-hidden="true">S</span>{c.brandSuffix}</a>
           <div className="welcome-eyebrow">{c.eyebrow}</div>
           <h1 id="welcome-title">{c.welcomeH1[0]}<br /><span>{c.welcomeH1[1]}</span></h1>
           <p className="welcome-description">{c.welcomeDescription}</p>
@@ -122,7 +122,7 @@ export default function Login(props: { onConnected?: () => void }) {
             <p>{c.exampleText}</p>
             <div className="welcome-example-result"><span aria-hidden="true">!</span><div><strong>{c.exampleFindingStrong}</strong><small>{c.exampleFindingSmall}</small></div></div>
           </div>
-          <a className="welcome-guide-link" href="#/guide" title={c.guideTip}>{c.guideLink}<span aria-hidden="true">→</span></a>
+          <a className="welcome-guide-link" href="#/guide" title={c.guideTip} data-coach="hero.guide">{c.guideLink}<span aria-hidden="true">→</span></a>
         </section>
 
         <section className="login-card welcome-connect" aria-labelledby="connect-title">
@@ -143,7 +143,7 @@ export default function Login(props: { onConnected?: () => void }) {
             </div>
             <p className="welcome-input-hint" id="credential-hint">{mode === "key" ? c.hintKey : c.hintToken}</p>
             <ErrorBox error={error} />
-            <Button type="submit" variant="primary" size="lg" fullWidth loading={connecting} title={c.connectTip}>{connecting ? c.connecting : c.connect}</Button>
+            <Button type="submit" variant="primary" size="lg" fullWidth loading={connecting} title={c.connectTip} data-coach="hero.connect">{connecting ? c.connecting : c.connect}</Button>
           </form>
           {config?.oidc.enabled ? (
             <div className="welcome-sso"><span>{c.oidcNote}</span><Button fullWidth disabled={connecting} onClick={() => { window.location.href = apiBase() + "/auth/oidc/login?return_to=" + encodeURIComponent("#/dashboard"); }}>{c.oidcButton}</Button></div>

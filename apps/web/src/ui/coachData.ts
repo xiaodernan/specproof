@@ -130,6 +130,24 @@ export const COACH_MARKS: readonly CoachMark[] = [
       zh: "点这回工作台——验收的航迹都从这里出发和收档。",
       en: "Back to the dashboard — where every trail starts and lands.",
     } },
+  { key: "hero.brand",
+    title: { zh: "先读说明书", en: "Read the guide first" },
+    body: {
+      zh: "点 logo 直接进入新手指南：30 秒口袋卡 → 六盖印巡览 → 六个端到端案例。第一次来，先走一遍。",
+      en: "The logo jumps straight into the guide: the 30-second pocket card → the six-stamp tour → six end-to-end cases. First visit? Walk through it once.",
+    } },
+  { key: "hero.guide",
+    title: { zh: "不会玩？先看这里", en: "Not sure? Start here" },
+    body: {
+      zh: "这是完整的简明说明书：怎么连工作区、怎么握令牌、第一轮体验建议、出问题时去哪里查。",
+      en: "The full friendly manual: how to connect a workspace, how to hold a token, a first-session plan, and where to look when things break.",
+    } },
+  { key: "hero.connect",
+    title: { zh: "连接工作区", en: "Connect your workspace" },
+    body: {
+      zh: "填管理员发来的凭据（本地 sp_* API key 或访问令牌）。静态演示包里按钮会报“模型暂时不可用”——那正是故意的：真链路＝clone 下来跑这个仓库（npm run dev + uvicorn api.server:app）。",
+      en: "Paste your administrator's credential (a local sp_* key or a bearer token). On the static demo the button reports model-unavailable - deliberate: the real loop is clone-and-run (npm run dev + uvicorn api.server:app).",
+    } },
 ];
 
 const STORAGE_KEY = "specproof_coach_marks";
