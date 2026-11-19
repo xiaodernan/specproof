@@ -42787,3 +42787,28 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 5. E501 余额 310，继续红；
 6. 部署完成后未改 IO 内容——下一次内容敲击仍由 fact-bot / gazette cron 驱动；
 
+
+## #2016 并行会话不再用乱缓存：注册表 6→9 · 证据里的模型名改由 config 直读 · 六条漂移门测试落库 · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2015。
+
+### 一、交付（直接回应 owner 的 "几个并行会话同时打这个 API，缓存用乱了" 这个观察）
+1. owner 的直觉成立一半：问题**不在**「并行会话」本身，而在于网关按 `prompt_cache_key` 分片——此前六条匿名车道各自一把 sticky key 已经对齐（#1977 已敲实 93.9–94.0%），但 `scripts/lane_cache_probe.py` 的注册表只登记了其中 **6 把**，另外三把（`specproof-exhibit-copilot` / `specproof-next-step-advice` / `specproof-stress-digest`）没有进 registry，`docs/evidence/lane-cache-probe-*.json` 的 `prompt_cache_key_per_lane` 会少报三条——本号补齐注册表为 **9 把**（strike set 保持六条不变，没有多烧一分 token）；
+2. `lane_cache_probe.py` 的 evidence 里硬编码 `"model": "gpt-6.1-terra"` —— **再次实锤的一次偷懒字面量**。已改为读 `load_model_config()["model"]`（config 现为 gpt-6.2-sol，与 `.local/llm.json` 一致），并加 `test_lane_cache_probe_reads_model_from_config` 门；
+3. 新漂移门 `tests/unit/test_prompt_cache_key_discipline.py`（6 tests）：
+   - `test_sticky_keys_are_well_formed`（小写、kebab、≤63 字符）；
+   - `test_the_nine_lane_registry_is_exact`（缺一即红、多一新 key 也红——必须有意识地改测试）；
+   - `test_each_lane_key_is_unique_across_files`（跨文件不共享）；
+   - `test_the_review_court_never_carries_a_cache_key`（court 树全文扫 `prompt_cache_key` = 0 处）；
+   - `test_lane_cache_probe_registers_all_nine_lanes` + `test_lane_cache_probe_reads_model_from_config`；
+   - 本机实跑：`pytest tests/unit/test_prompt_cache_key_discipline.py tests/unit/test_system_codex.py` → **11 passed**；
+4. **并行会话的最终口径**（写清楚免得又被怀疑）：六条匿名车道 + exhibit_copilot + next_step_advice + stress_digest，一条车道一把粘性 key（lowercase、≤64 字符、永不随机）；同一 lane 的所有匿名并发都落进同一分片 → 第一次冷敲必输、之后热敲 93.9%+；Court `4117d2b0ca5fb23a` 永无 key（本号没动它）；
+5. 世界书 `specproof_codex sandwich`（zh ~490 KB / en ~503 KB）字节恒定不谈本号——没动 wordbook 一字节；
+
+### 二、没动没伪没涂
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样 · E501 **310** 红 · chronicle（repo 1811）· worldbook **204** · library **203 zh≡en** · UI **603/603**；
+2. `scripts/lane_cache_probe.py` 的 strike 集合**没扩大**（大模型实投成本不变）；只在注册表 + 证据元数据里补全真相；
+3. Court 没加 key、没开缓存；CI 的红格（census/E501/for-each-ref/java-services）一行没涂；
+4. 没动 `apps/web`、`index.html`、IO —— 本号纯仓库 + 测试 + 证据链；
+5. 没重新敲 live lane（上一个实敲证据 `#2013`/`#2014` 仍然有效）；
+

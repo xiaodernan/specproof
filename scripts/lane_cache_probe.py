@@ -138,12 +138,20 @@ LANES = {
 }
 
 PROMPT_CACHE_KEYS = {
+    # the nine sticky per-lane keys used by the product lanes; the probe
+    # strikes only the six anonymous lanes in LANES above, but this registry
+    # documents the full set for the evidence file. admin/operator lanes
+    # (next_step_advice / stress_digest) and exhibit_copilot share the same
+    # one-key-per-lane discipline; they are not personally struck here.
     "observe": "specproof-observe-advice",
     "insight": "specproof-insight-advice",
     "ai_summary": "specproof-ai-summary",
     "dig": "specproof-dig",
     "runbook": "specproof-runbook",
     "ask_the_book": "specproof-worldbook-ask",
+    "exhibit_copilot": "specproof-exhibit-copilot",
+    "next_step_advice": "specproof-next-step-advice",
+    "stress_digest": "specproof-stress-digest",
 }
 
 
@@ -187,9 +195,11 @@ async def main() -> int:
     else:
         prior = {}
     evidence = _merge(prior, results)
+    from providers.config import load_model_config  # noqa: E402
+
     evidence.update({
         "generated_utc": datetime.now(UTC).isoformat(timespec="seconds"),
-        "model": "gpt-6.1-terra",
+        "model": load_model_config().get("model") or "unknown",
         "protocol": "responses",
         "prompt_cache_key_per_lane": PROMPT_CACHE_KEYS,
         "note": "live probes; the two strikes per lane are byte-identical on the prefix;"
