@@ -54,6 +54,7 @@ const Calendar = lazy(() => import("./pages/Calendar"));
 const Manual = lazy(() => import("./pages/Manual"));
 const Observe = lazy(() => import("./pages/Observe"));
 const Chronicle = lazy(() => import("./pages/Chronicle"));
+const RecentKnocks = lazy(() => import("./pages/RecentKnocks"));
 const Insight = lazy(() => import("./pages/Insight"));
 const Dig = lazy(() => import("./pages/Dig"));
 const Runbook = lazy(() => import("./pages/Runbook"));
@@ -105,6 +106,7 @@ export const NAV: NavItem[] = [
   { path: "graph", labelKey: "nav.graph", icon: "matrix", groupKey: "group.evidence" },
   { path: "library", labelKey: "nav.library", icon: "book", groupKey: "group.evidence" },
   { path: "chronicle", labelKey: "nav.chronicle", icon: "scroll", groupKey: "group.evidence" },
+  { path: "recent", labelKey: "nav.recent", icon: "scroll", groupKey: "group.evidence" },
   { path: "dossier", labelKey: "nav.dossier", icon: "scroll", groupKey: "group.evidence" },
   { path: "mint", labelKey: "nav.mint", icon: "seal", groupKey: "group.evidence" },
   { path: "last-call", labelKey: "nav.lastCall", icon: "lantern", groupKey: "group.evidence" },
@@ -174,6 +176,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "ide") return <Ide />;
   if (seg[0] === "graph") return <Graph />;
   if (seg[0] === "chronicle") return <Chronicle />;
+  if (seg[0] === "recent") return <RecentKnocks />;
   if (seg[0] === "dossier") return <Dossier />;
   if (seg[0] === "mint") return <Mint />;
   if (seg[0] === "last-call") return <LastCall />;
