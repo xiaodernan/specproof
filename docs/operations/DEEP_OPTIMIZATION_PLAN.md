@@ -42921,3 +42921,21 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 4. 历史档案零涂改；
 5. CI 队列依旧（7 queued specproof-ci；IO deploy pending hosted runners；cron 每 3 小时保底；fact-bot 负责实时 strike）。本号照读队列，不预支；
 
+
+## #2022 IO 前端审计 #1：minicc-codex 最新提交列表换真省略号两行截断 + title 悬浮全文 · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2021。属小修、非颠覆。
+
+### 一、交付
+1. 用内置浏览器直接查线上主页：水平溢出 **0**（scrollWidth == clientWidth == 985）· broken images **0** · clipped `span` ×3（`.minicc-latest-commit span`，停在 minicc-codex 最近提交板块）—— 长文案被 `height:33px; overflow:hidden` 硬生生切了，尾部无省略号，患者是每 3 行一次的主列表；
+2. 修法：`styles.css` 的 `.minicc-latest-commit span` 补成**标准 last-2-line 省略号 clamp**（`-webkit-box` + `-webkit-line-clamp: 2` + `-webkit-box-orient: vertical` + `text-overflow: ellipsis` + `word-break: break-word`）；
+3. `index.html` 的 dynamic 渲染补 `subject.title = c.subject` —— 悬停即显完整 commit body；
+4. 提交 `9efd6bb`（`fix(ui): honest 2-line ellipsis clamp…`）；identity-guard 已触发（`44476386716`）；pages deploy `44476325133` 等 hosted runner 排队谥；本次纯前端 DOM，没动任何路由/门禁/网关；
+
+### 二、没动没伪没涂
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样 · chronicle 1813 · worldbook **204** · library **203 zh≡en** · UI 603/603；
+2. live 样式未变（deploy 排队）——本号不 pre-claim：线上样式未改，等 Pages deploy drain 后才见效；
+3. fact-bot 的整段卡片结构没动（内容从它自己的 latest.json 拉的，本号只加了它用得上的 tooltip 和省略号）；
+4. 没敲模型、没动 Court、没动 pinned reds；
+5. 3 小时 cron 保底敲 Pages；queued 的 hosted runner 恢复就会放出全部 pending 部署（chronicle 1813 子页、coachmarks v4、本号 clamp）；
+
