@@ -42832,3 +42832,25 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 5. E501 余额 310，继续红；
 6. `target/` 目录产物在工作区里有本地构建输出——不进 commit（.gitignore 覆盖，`git status` 干净）；
 
+
+## #2018 第三车道实测：ai_summary 6.2-sol cold 4.8% → warm **89.0%** · 三个车道已被打穿（ask-the-book / next-step / ai_summary）· Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2017。证据文件（合并后覆盖 ai_summary 两行，其它车道行原样保留）：`docs/evidence/lane-cache-probe-2026-11-18.json`（文件名沿袭首航日期，行按 `(lane, strike)` 覆盖——脚本自带语义；新行 `generated_utc 2026-11-19T06:32:49Z` · `model: gpt-6.2-sol`）。
+
+### 一、交付
+1. 实敲 `ai_summary`（本机，Clash Verge 7897，`gpt-6.2-sol` · protocol `responses`）：
+   - strike #1（ok · 26.93 s）：prompt 169,200 · cached 8,057（**4.8%**）· miss 161,143 · reasoning 423；
+   - strike #2（ok · 24.02 s）：prompt 169,200 · cached 150,549（**89.0%**）· miss 18,651 · reasoning 516；
+   - 与 ask-the-book（4.8 → 88.9%）、next-step（4.8 → 88.9%）同一条 cold→warm 曲线 —— **前缀字节冻结在 3 个车道上都复现**；
+2. probe 脚本读 `load_model_config()` 而非硬编码这件事在本次实敲里被实证：合并后的证据 `model` 字段自动显示 **gpt-6.2-sol**，不再是 6.1-terra（#2016 修复见成效）；
+3. 今天未敲的车道（observe / insight / dig / runbook / exhibit_copilot / stress_digest）共享同一 config —— 下一次真实 dispatch 自带 6.2-sol；Court 依旧没敲；
+4. `generation` 今天 = 0：没动任何 exhibit、没动 Court、没动 pinned reds、没动 worldbook 一字节（本号纯补充证据）；
+5. CI 现状如实报：specproof-ci `queued` ×6 无 runner 起跑（仓内零自托管 runner，全靠 GitHub-hosted ubuntu-latest），java-services 的修复等真正拿到 runner 的那一轮才算数；本地 offline `-o` 137/137（#2017）仍是当前最强证据；
+
+### 二、没动没伪没涂
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样 · E501 **310** 红 · chronicle 1813 · worldbook **204** · library **203 zh≡en** · UI **603/603**；
+2. 没改 probe 的 strike 集合（只有 ai_summary）—— 没为了"看起来更全"多烧 token；
+3. 没改 evidence 文件名（2026-11-18 开航名按原样；内容以上面两行为准）；
+4. 没动 worldbook/codex（byte-frozen 前缀依旧 `42eeeb35…`）；
+5. 没动 IO 与 apps/web；
+

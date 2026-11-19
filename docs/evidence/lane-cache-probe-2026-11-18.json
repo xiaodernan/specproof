@@ -1,6 +1,6 @@
 {
-  "generated_utc": "2026-11-18T19:18:29+00:00",
-  "model": "gpt-6.1-terra",
+  "generated_utc": "2026-11-19T06:32:49+00:00",
+  "model": "gpt-6.2-sol",
   "protocol": "responses",
   "prompt_cache_key_per_lane": {
     "observe": "specproof-observe-advice",
@@ -8,7 +8,10 @@
     "ai_summary": "specproof-ai-summary",
     "dig": "specproof-dig",
     "runbook": "specproof-runbook",
-    "ask_the_book": "specproof-worldbook-ask"
+    "ask_the_book": "specproof-worldbook-ask",
+    "exhibit_copilot": "specproof-exhibit-copilot",
+    "next_step_advice": "specproof-next-step-advice",
+    "stress_digest": "specproof-stress-digest"
   },
   "note": "live probes; the two strikes per lane are byte-identical on the prefix; no verdicts minted; numbers recorded as returned",
   "results": [
@@ -16,28 +19,28 @@
       "lane": "ai_summary",
       "strike": 1,
       "outcome": "ok",
-      "elapsed_s": 23.31,
+      "elapsed_s": 26.93,
       "usage": {
-        "prompt_tokens": 157808,
-        "completion_tokens": 965,
-        "total_tokens": 158773,
-        "prompt_cache_hit_tokens": 7514,
-        "prompt_cache_miss_tokens": 150294,
-        "reasoning_tokens": 831
+        "prompt_tokens": 169200,
+        "completion_tokens": 550,
+        "total_tokens": 169750,
+        "prompt_cache_hit_tokens": 8057,
+        "prompt_cache_miss_tokens": 161143,
+        "reasoning_tokens": 423
       }
     },
     {
       "lane": "ai_summary",
       "strike": 2,
       "outcome": "ok",
-      "elapsed_s": 16.12,
+      "elapsed_s": 24.02,
       "usage": {
-        "prompt_tokens": 157808,
-        "completion_tokens": 463,
-        "total_tokens": 158271,
-        "prompt_cache_hit_tokens": 148265,
-        "prompt_cache_miss_tokens": 9543,
-        "reasoning_tokens": 347
+        "prompt_tokens": 169200,
+        "completion_tokens": 662,
+        "total_tokens": 169862,
+        "prompt_cache_hit_tokens": 150549,
+        "prompt_cache_miss_tokens": 18651,
+        "reasoning_tokens": 516
       }
     },
     {
