@@ -150,7 +150,7 @@ jobs:
         run: python -m pytest tests/unit tests/security tests/fault -q
 
   tests-with-infra:
-runs-on: [self-hosted, windows]
+    runs-on: [self-hosted, windows]
     # #529: name the volume the runner mounts, so the seeding script and the
     # sandbox read one knob instead of agreeing by matching defaults.
     # #375: the compose services need credentials, and the test harness strips
@@ -255,7 +255,7 @@ runs-on: [self-hosted, windows]
         run: docker compose -f compose.phase0.yml down -v
 
   eval-golden-cases:
-runs-on: [self-hosted, windows]
+    runs-on: [self-hosted, windows]
     timeout-minutes: 60
     env:
       SPECPROOF_SANDBOX_M2_VOLUME: specproof-maven-cache-1000
@@ -432,7 +432,7 @@ runs-on: [self-hosted, windows]
   # The degradation project runs too: it starts NO backend on purpose and
   # asserts the SPA degrades gracefully (no white screen).
   e2e:
-runs-on: [self-hosted, windows]
+    runs-on: [self-hosted, windows]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
