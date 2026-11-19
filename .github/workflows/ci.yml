@@ -15,12 +15,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # 自托 Windows runner（非管理员）：setup-python 要清 HKLM Uninstall 展位，权限不够。改用宿主 PATH 已有 Python（>=3.12 已验）；门禁与原指令同义。
-      - name: Verify system Python (>=3.12)
-        run: python --version
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          uv pip install --python .venv/Scripts/python.exe -e ".[dev]"
+
       - name: Ruff
         run: python -m ruff check .
       - name: Mypy (strict)
@@ -103,12 +101,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # 自托 Windows runner（非管理员）：setup-python 要清 HKLM Uninstall 展位，权限不够。改用宿主 PATH 已有 Python（>=3.12 已验）；门禁与原指令同义。
-      - name: Verify system Python (>=3.12)
-        run: python --version
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          uv pip install --python .venv/Scripts/python.exe -e ".[dev]"
+
       - name: OpenAPI schema diff gate
         run: python scripts/openapi_diff.py docs/openapi/baseline.json
 
@@ -117,12 +113,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # 自托 Windows runner（非管理员）：setup-python 要清 HKLM Uninstall 展位，权限不够。改用宿主 PATH 已有 Python（>=3.12 已验）；门禁与原指令同义。
-      - name: Verify system Python (>=3.12)
-        run: python --version
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          uv pip install --python .venv/Scripts/python.exe -e ".[dev]"
+
       - name: Bandit scan (shipped packages, medium severity and above = zero)
         run: |
           python -m bandit -r agent api cli storage providers evidence \
@@ -140,12 +134,10 @@ jobs:
         with:
           fetch-depth: 0
       # 自托 Windows runner（非管理员）：setup-python 要清 HKLM Uninstall 展位，权限不够。改用宿主 PATH 已有 Python（>=3.12 已验）；门禁与原指令同义。
-      - name: Verify system Python (>=3.12)
-        run: python --version
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          uv pip install --python .venv/Scripts/python.exe -e ".[dev]"
+
       - name: Unit + security + fault tests
         run: python -m pytest tests/unit tests/security tests/fault -q
 
@@ -163,13 +155,15 @@ jobs:
       MYSQL_URL: mysql://specproof:specproof_pass@localhost:3306/specproof_test
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v7
         with:
-          python-version: "3.12"
+          version: "0.11.19"
+      - name: Create uv venv (Python 3.12)
+        run: uv venv .venv --python 3.12
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          uv pip install --python .venv/Scripts/python.exe -e ".[dev]"
+
       - name: Start infrastructure
         run: docker compose -f compose.phase0.yml up -d --wait
       - name: Create the isolated test schema (the isolation contract refuses to run without it)
@@ -263,17 +257,19 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v7
         with:
-          python-version: "3.12"
+          version: "0.11.19"
+      - name: Create uv venv (Python 3.12)
+        run: uv venv .venv --python 3.12
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "21"
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          uv pip install --python .venv/Scripts/python.exe -e ".[dev]"
+
       - name: Seed sandbox Maven cache (non-root, --network none)
         # #529: one owner — scripts/seed_maven_cache.sh. This block, the eval
         # job's copy and nightly's were byte-identical sequences kept in step
@@ -402,10 +398,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # 自托 Windows runner（非管理员）：setup-python 要清 HKLM Uninstall 展位，权限不够。改用宿主 PATH 已有 Python（>=3.12 已验）；门禁与原指令同义。
-      - name: Verify system Python (>=3.12)
-        run: python --version
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: uv pip install --python .venv/Scripts/python.exe -e ".[dev]"
       - name: Provider Smoke (requires secrets)
         env:
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
@@ -441,14 +435,15 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v7
         with:
-          python-version: "3.12"
-          cache: pip
+          version: "0.11.19"
+      - name: Create uv venv (Python 3.12)
+        run: uv venv .venv --python 3.12
       - name: Install Python dependencies (the fixture server imports the real API)
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          uv pip install --python .venv/Scripts/python.exe -e ".[dev]"
+
       - name: Install npm dependencies
         working-directory: apps/web
         run: npm ci
