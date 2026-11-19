@@ -42670,3 +42670,29 @@ mvn untouched · `test_ask_the_book_snapshot_honesty.py` **3/3**（git add 77）
 
 ### 三、账
 mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · chronicle **1799** · worldbook **204（双语对称）** · library **203 zh≡en** · D1 ✅ · D2 ✅ ·「密码 123」依旧是一扇标着「演示」的门
+
+## #2011 《换没换？真敲一遍》：live lane probe · gpt-5.6-terra · 200 OK · 4,407 prompt tokens · 4,179 cached · **94.8%** · Court LOCKED · Night Watch CRACKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2010。证据 `docs/evidence/live-lane-probe-2026-11-19.{txt,json}`。
+
+### 一、交付
+1. **实敲（非 stub）**：`scripts/live_lane_probe.py` 在显式配置 `model=gpt-5.6-terra` 下跑通：
+   * `source local_file | protocol responses | model gpt-5.6-terra | base_url https://api.aizzz.xyz/v1`
+   * `HTTP 200 | chunks 11 | 3953.0 ms`
+   * `reply: 确认：铁证不伪造; 不涂绿。`
+   * `usage.prompt_tokens=4407 · usage.completion_tokens=13 · usage.total_tokens=4420`
+   * `prompt_tokens_details.cached_tokens=4179 · hit_rate=4179/4407=94.8%`
+2. **本次输注型命中类别**：这是 warm prefix cache hit 的样本——**不是**冷缓存，因为本机 `.local/llm.json` 已在上次 cache_probe / ask_the_book --live 跑过若干次。把它写下来不是夸耀，是把测试口径跟下次样本对齐（下次 codex prefix 变动或者换 key 之后就要再敲一次做 ledger）；
+3. **不出逃本机**：`scripts/live_lane_probe.py` 从 `providers.config` 读 `.local/llm.json` —— 从 `_rekey.py` 来的同一个值，模型 gpt-5.6-terra · base_url `https://api.aizzz.xyz/v1`（含 v1）· `protocol=responses` · `reasoning_effort=max`——本次 490 KB codex prefix 不在此脚本（unhandled），不动它；
+4. **信息校验**：`cached_tokens` 字段 — yes · `no third-party links` — yes · `no key material logged` — yes · `exit=0`，`done=no key material on this page, ever.`
+5. **cache 命中型别**：本次是 `non-stream` 调用的回写缓存命中。两种口径都如实敲：若要再测流式，可以再跑一枪（`--stream`）打 entry；本文只录本次这一程。
+
+### 二、没涂没动没碰
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样 —— 没有 exhibit 改裁决；
+2. 没有人以 `94.8%` 自封 SLO；本行只说本次敲击，不动任何拓扑、任何 pin、任何 `.local/llm.json` 的公开面；
+3. `_local/llm.json` 未进 git · `purity sift` 在 #2009 中落成 **CLEAR** · 此次 strike 不改变 sift；
+4. `token used this strike ≈ 4,420`，网关免费梯度可接受 — 不烧；
+5. `pinned_sha256=db498ac7…` 未动；`stress-digest-2026-11-19.json` 与 `weekly-44457744166.*` 在 #2010 当天入账；chronicle **1799** · worldbook **204（双语对称）** · library **203 zh≡en** · `Library.test.tsx` 钉页 203。
+
+### 三、账
+mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · chronicle **1799** · worldbook **204（双语对称）** · library **203 zh≡en** · D1 ✅ · D2 ✅ ·「密码 123」依旧是一扇标着「演示」的门

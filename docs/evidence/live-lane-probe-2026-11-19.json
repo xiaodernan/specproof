@@ -1,0 +1,11 @@
+{
+  "generated_utc": "2026-11-19T04:25:00+00:00",
+  "source": "live lane probe via scripts/live_lane_probe.py",
+  "model": "gpt-5.6-terra",
+  "protocol": "responses",
+  "http_status": 200,
+  "prompt_tokens": 4407,
+  "cached_tokens": 4179,
+  "hit_rate": 0.9482206574347264,
+  "notice": "Warm prefix cache hit; first probe after switching from gpt-6.1-terra (distributor reject: model_not_found 分组 GPT特价 下模型 gpt-6.1-terra 无可用渠道) to gpt-5.6-terra; not a verdict; court never cached"
+}
