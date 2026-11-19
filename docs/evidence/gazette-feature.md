@@ -1,9 +1,9 @@
-# Gazette Feature — 2026-11-18T13:05:51+00:00
+# Gazette Feature — 2026-11-19T15:27:31+00:00
 
-**anchor:** #2003 《数字不陪我们做梦》：今天早晨五关同根——数字没敲就不存在 · io page LIVE SHIP 自敲 · chronicle **1799** · worldbook **204 卷（双语对称）** · library **203 zh≡en** · UI **598/598**  ·  **model:** gpt-6.1-terra
+**anchor:** #2032 《合成人群 · Synthetic Crowd》上线观测台 123 门内 · b939273 · Court LOCKED · exhibit **19** · pinned reds 原样  ·  **model:** gpt-6.2-sol
 
-## 中文 · 一闪 \n\n今晨，三件事落在可核对之处：新敲的 artifact 自动计入 Exhibits，证据由 18 段增至 19 段，差分存入 narratives；io 的 49 枚 chips 从 App.tsx 的八条真实路由生成，live-data 则从 HEAD 逐项核算；第 204 卷中英对称入册，chronicle 记至 1799，library 记至 203。这个世界只让敲出的东西成为数字：不涂绿，不改判词，账与证据各有落点。\n\n## English
+## 中文 · 一闪 \n\n这一节把秒退、游走与完成，落成可重放的合成人群：新模块用固定种子生成六种画像，事件可直接用于热图推导；123 门内的观察台新增 240 人面板，呈现秒退、急躁、rage 与完成者，并列出三项改进优先级。612 项测试通过，静态页资产已替换，Pages 运行仍在 dispatch。合成人群不进公开段或模型包，不作真实归因，也不承诺趋势外推；Court 仍 LOCKED，exhibit 19 与 pinned reds 原样。它不是线上用户证词，而是有校准说明、离线可重放的模拟。\n\n## English
 
-Exhibits 的证据段由 18 增至 19：`build_evidence.py` 扩展静态 artifact 匹配，`Exhibits.tsx` 现展示 19；io chips 从 60 变为 49：`scripts/sync_portfolio.py` 改从 `App.tsx` 的八条 `NAV[]` 路由生成真实可敲路径；live-data fact pack 在 `scripts/sync_portfolio.py` 按 HEAD 的书目、账本与 Git 记录计算，不再等待 latest-json re-strike。这个世界沿着可抵达的路由铺开，也把计数系在可追溯的文件与记录上。它容得下浅克隆的边界，却不把旧缓存、未敲出的数字或标着「演示」的门误认成已证成的事实。
+A reproducible crowd enters the ledger: `mulberry32(20261119)` shapes six personas into `HeatEvent`-compatible records in `apps/web/src/telemetry/syntheticCohort.ts`. Six tests pass, covering deterministic replay, persona shares, funnel direction, rage ownership, bouncers with no clicks, and impatient sessions (`syntheticCohort.test.ts`). In `pages/Observe.tsx`, a panel counts “240 visitors, nobody really exists”; its synthetic observations stay out of the public section, model packet, and real attribution. Around these entries, the open world is a map of doors, glances, wandering, and exits, not a claim about actual crowds. Its edges remain legible because each path is seeded, replayable, and kept apart from evidence about real people.
 
 *model printed from the ledger; not a verdict.*
