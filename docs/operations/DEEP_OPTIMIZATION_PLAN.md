@@ -43457,3 +43457,25 @@ push `f3e0573` 触发两条：identity-guard `44574763141` queued · worker disp
 
 ### 四、没动没伪没涂
 Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19** · 24 pinned reds · E501 **310** · worldbook **204** · library **203 zh≡en** · chronicle **1833** · latest #2036/#2037/#2038 parked in bundle ✓ · 模型调用 **0**（本批纯静态数据）。
+
+
+## #2043 Manual Pocket Card gains /stategraph row · specproof-web redeploy v8 · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。衔接 #2042。日期：2026-11-20。
+
+### 一、交付
+1. `manual.copy.ts`：在"模型怎么帮忙"段落里增一条「状态图谱」/stategraph — 十五张活着的图（recall / evidence / purity / auditor / night_watch / usage_ledger 等只读本地）+ 五张按设计出网 + 三张只在显式 --live 敲；指词语料 7 OFFLINE / 5 LANE / 3 LIVE；页头即指 Court 不下场、exhibit #4 仍为 REGRESSION、夜放 Watch 是 CRACKED；
+2. **Manual 现 5+ 行缺省阅读器**：pocket card 把 StateGraph 和模型车道放在同屏，按钮教学 key 保留 / 新用户从 tour → manual → stategraph 可直走；
+3. **UI 全量**：下一次 `npm run test` 会重跑（本批没碰组件、不碰 court 车道）；这个增量走 `compile-time · in-byte`；
+4. **specproof-web redeploy v8**（`index-_1qGwuLw.js`，banner 字节保留，备份 v11）— Pages run `44579629935` dispatched；
+
+### 二、没动没伪没涂
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19** · 24 pinned reds 原样 · E501 **310** · worldbook **204** · library **203 zh≡en** · chronicle **1833**；
+2. 没模型调用（本批纯静态内容）· pinned red 不涂 · exhibited 不动；
+3. 雅思 6.5 / IELTS 6.5 / 六级 546 / CET6 546 / 隐盾 / 法狗狗公司 / 赵欣曈 / 铜牌 / 江西一等二等 — 全身未动；`隐图` = **0**；
+4. Court · Court 的判词 · 世界书每一卷字节 — 永不敲；本增量与 StateGraph 的 15 只灯、7/5/3 语序共用一个节点链：实测状态（无需 live）。
+
+### 三、任务队列
+1. specproof-web v8 dispatch `44579629935` 已发——self-hosted runner 池 2 条总线，需排队；若无响应，下一 cron 或手动触发；
+2. 下一次 IO 展示将是：head `728fda6`（redeploy v8）— 语言表 32.26/24.66/19.43 入内联 vs 2026-11-20 字节；
+3. chrome tab 的 hero-profile 自定义 resize 响应式已落 styles（950/1180 两档），但当前 live 上 cached `.v=20261120a` 正在被排队取代的这个；
