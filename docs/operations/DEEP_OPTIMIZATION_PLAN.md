@@ -43390,3 +43390,30 @@ specproof-ci：`44559140635` / `44558484073` 入队（lint/eval/security/tests-w
 1. Pages deploy `44569576754` 本轮还在队列（runner 忙）；ID 公开可查；
 2. 旧 cache `v=20261119e` → `v=20261120a` 已切换；若 CDN 还没追上，cron 会再推；**不是**内网 stale，是 CDN 未过期——本机 curl 现在还看不到新 CSS；
 3. `assets/languages-2026-11-20.svg` 已 push 到 `main`（`1b7224d`），原始 raw 链接可直接核对。
+
+
+## #2040 身份徽章全语料复核 · 雅思 6.5 / IELTS 6.5 / 六级 546 / CET6 546 / 隐盾 / SUSTech · CUHK · 铜牌全在 · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。衔接 #2039。日期：2026-11-20（下午复核）。
+
+### 一、徽章逐件复读
+1. `badge-agent.svg` → `AGENT · Minicc · Codex` ✓
+2. `badge-cuhk.svg` → `CUHK · 香港中文大学硕士 · 计算机科学与技术` ✓
+3. `badge-ielts.svg` → `IELTS 6.5 · 雅思 6.5 · 六级 546 · CET6 546` ✓（两值并存，符合用户授权）
+4. `badge-physics.svg` → `物理竞赛 · 全国铜牌 · 江西省一等奖 · 江西省二等奖` ✓（隐盾/物理竞赛的铜牌字样在此徽章内自洽）
+5. `badge-product.svg` → `PRODUCT · 隐盾 · 法律文书智能脱敏` ✓（不是「隐图」）
+6. `badge-sustech.svg` → `SUSTech · 南方科技大学本科 · 计算机科学与技术` ✓
+7. `badge-world.svg` → `WORLD · CÆSURA · 止音纪元` ✓
+
+### 二、IO live 本轮复核
+1. `styles.css?v=20261120a` live = **53,584 B·含 `.site-shell{overflow:visible}` + `.profile-frame{overflow:visible}` + `.hero{minmax(380px,1fr)} + minmax(0,1.12fr)` + `aspect-ratio:508/586`** ✓ avatar 不再被压扁、不再被裁
+2. live 主页 137,485 B · `隐盾` 26 · `隐图` **0** · `雅思 6.5`×4 · `IELTS 6.5`×9 · `CET6 546`×9
+3. 16 public repo cards 在列 ✓（`#2035` 已审计）· 4 private 不动 ✓
+
+### 三、identity-guard & 个人主页
+1. Pages deploy 预检 / live doublecheck: 最新 `44570666108` completed success（本轮含 hero CSS 修复）
+2. profile `main`：`languages-2026-11-20.svg` 已在 README 引述（raw 200 · NaN = 0 · 146,177,795 B）
+3. specproof-reference `master`、`_showcase_pages` `master`、profile `main` — 全部 `0 ahead`（fact-bot 在这三处各自的节奏照旧）
+
+### 四、没动没伪没涂
+Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19** · 24 pinned reds · E501 **310** · 世界书 **204** · library **203 zh≡en** · chronicle **1833** · 隐盾/雅思/IELTS/CET6/铜牌/物理竞赛/SUSTech/CUHK全部存续；E2E/egress 保持。`隐图` = **0**。无模型调用（复核轮不用 burn tokens）。
