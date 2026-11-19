@@ -237,3 +237,11 @@ SQL 假占比 7.8% → 7.7%。
 - 总数 302 → **306**；钉脚本 `PIN_COMMIT` 改为 `fed3c0b4ca3d4efefe8f8938f4a2e160feda615f`，`PIN_COUNTS = {"sql-fake": 22, "store-duck-type": 44, "plain-double": 240}`；
 - 同一棵树双核实：`classify_test_fakes()` 实测 `{'sql-fake': 22, 'store-duck-type': 44, 'plain-double': 240}` · `total 306`，字面照录在这一节；`explain-drift 3ebfc5f…` 输出逐字入账（4 位入场替身、来源提交可追）；
 - 诚实边界：本轮无任何契约改动，只是测试族变厚了；本页只记账不判词。
+
+## 再次入册 · 2026-11-19 · 钉刀重钉至 `1e5a78e`
+
+背景：lint arc 曾在一笔 rebase 重放中被挪成新的 commit，`fed3c0b` 依然包含同样内容却不再成为 HEAD 的祖先，`test_the_drift_base_is_a_commit_this_history_reaches` 按预期翻红。本次以历史可达的同组兄弟 commit `1e5a78e4932df09b4781e19505c93f732cea11c1`（本次 lint repair artifact，计数口径与 `fed3c0b` 所含 tree 完全一致）重钉：
+
+- `PIN_COMMIT` `1e5a78e4932df09b4781e19505c93f732cea11c1`（`git merge-base --is-ancestor` 确认 0）；`PIN_COUNTS` **未变**：`{sql-fake:22, store-duck-type:44, plain-double:240}`，总计 **306**；
+- Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19** · 24 pinned reds 原样；
+- 本节全是重钉，不是更新 —— 没有因为「换 SHA」就把任何数字举上展品层。
