@@ -1,20 +1,22 @@
 {
-  "generated_utc": "2026-11-19T02:59:31+00:00",
+  "generated_utc": "2026-11-19T03:35:12+00:00",
   "lane": "ask_the_book",
   "pinned_sha256": "ae853cb5ea0870fa2537495aa6b6105908824834bc2ad004a944d321aaa9cd4e",
   "pinned": true,
   "sanitizer_ok": true,
   "fingerprint_ok": true,
   "messages_shape_ok": true,
-  "verdict": "DRIFTED",
+  "verdict": "HELD",
   "live_requested": true,
-  "zh_chars": 0,
-  "en_chars": 0,
-  "zh_prompt_tokens": 0,
-  "zh_cached_tokens": 0,
-  "en_prompt_tokens": 0,
-  "en_cached_tokens": 0,
+  "zh_chars": 64,
+  "en_chars": 229,
+  "zh_prompt_tokens": 169186,
+  "zh_cached_tokens": 153806,
+  "en_prompt_tokens": 147273,
+  "en_cached_tokens": 133861,
   "info_verdict_word_hits_zh": [],
-  "info_verdict_word_hits_en": [],
-  "notes": "codex_first sandwich 4 msgs; zh codex bytes=490782; fingerprint=42eeeb35de13 (deterministic=True); zh strike errored: WorldbookAskError: 模型暂时不可用——书还在；稍后再试，或者自己翻。; en strike errored: WorldbookAskError: the model is unavailable right now — the book is intact; try again later or read it yourself."
+  "info_verdict_word_hits_en": [
+    " verdict "
+  ],
+  "notes": "codex_first sandwich 4 msgs; zh codex bytes=490782; fingerprint=42eeeb35de13 (deterministic=True); zh strike ok chars=64 prompt_tokens=169186 cached_tokens=153806 info_hits=[]; en strike ok chars=229 prompt_tokens=147273 cached_tokens=133861 info_hits=[' verdict ']"
 }

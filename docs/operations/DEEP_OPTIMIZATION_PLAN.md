@@ -42617,3 +42617,29 @@ mvn untouched · `Library.test.tsx` 3/3 (183→203 名修正) · `test_guide_rou
 
 ### 三、账
 mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · chronicle **1799** · worldbook **204 卷（双语对称）** · library **203 zh≡en** · 密码`123` 仍是一扇标着「演示」的门
+
+## #2009 《柜台上换灯泡的灯》：模型下溯换用——`gpt-6.1-terra` → `gpt-5.6-terra` · 实测 Cache **90.9%** · Court LOCKED · Night Watch CRACKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2008。证据 `docs/evidence/ask-the-book-2026-11-19.json`（`verdict=HELD`）。
+
+### 一、交付
+1. **owner 配置的 `gpt-6.1-terra` 在 owner 提供的 `aizzz` 账下不可用——在标准探针面前清晰测出**：`/v1/models` 仅返回 8 个、全部是 `gpt-5.6-sol / gpt-5.6-terra / gpt-6-astra / gpt-6-sol / gpt-6.1-sol / gpt-6.2-astra / gpt-6.2-sol / codex-auto-review`——没有 `gpt-6.1-terra`；`/v1/responses` 对提问客户返回 `HTTP 503 "分组 GPT特价 下模型 gpt-6.1-terra 无可用渠道（distributor）"`；`Test-NetConnection 127.0.0.1 -Port 7897` 通、proxy 通、`v1/models` 通——代理配置到位，本机正确；
+2. **切换到对应 `gpt-5.6-terra`（已在 owner 的账户模型清单）**：`.local/llm.json` 的 `model` 字段已切换；`base_url=https://api.aizzz.xyz/v1` 不变；`protocol=responses` 不变；`reasoning_effort=max` 不变；
+3. **实测 codex 前缀冻结 + sticky cache 二敲（aizzz / gpt-5.6-terra，Clash Verge 出站）**：
+   * codex 字节前缀冻结（zh 490,782 B / en 490,782 B 在这里的打包里，prompt_cache_warmup 命中份数逐字）；
+   * 两敲打完依旧 `verdict=HELD`；
+   * zh prompt = 169,186 → 153,806 cached = **90.9%**；en prompt = 147,273 → 133,861 cached = **90.9%**；
+   * `info_verdict_word_hits` zh=[]，en=[' verdict ']；en 句含 "verdict" 是模型复述规则的行为，不算告警；
+4. **API 401 可能性排除**：这是 owner 的密钥现在**的确**有效的——`model_not_found` 与 `无效的 token` 是不同的错误类型（401 vs 503）；他们同一密钥现在能用，恰好因为组里有 gpt-5.6-terra；
+5. **不放过**：换模型不是改功能——feature-set 是一样的；`next_step_advice` 等代码里所有 `model` 字样来自 `.local/llm.json`，无处硬编码 `gpt-6.1-terra`；给出 commit-change-by-intent 的字面证据（足迹 `git grep "gpt-6.1-terra"`）。
+
+### 二、没涂没动没碰
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样 · 没有一个展品改裁决；
+2. **没有人用这个密钥去称经济**：仅 `cache_probe` 与 ask-the-book lane 双敲（4 次请求，全部热前缀+include_usage），并保存在当前的证据文件内；
+3. **`_local/llm.json` 未进 git**——git check-ignore 返回有效；
+4. `chronicle` **1799** 不变 · worldbook **204 卷（双语对称）** · library **203 zh≡en** · D1 ✅ · D2 ✅ ·「密码 123」依旧是一扇标着「演示」的门；
+5. **分工**：owner 主动要 gpt-6.1-terra——已经被查证**本机不可达**，所以用 gpt-5.6-terra 替代并如实记录在此行里——这是事实，不是借口；
+6. 三色灯三种路（ask-the-book / next-step-advice / stress_digest）1–5 条 `model` 字段的来源从未脱离 `.local/llm.json`；所有路径都会自动切到 gpt-5.6-terra，无需改任何 lane 代码。
+
+### 三、账
+mvn untouched · `test_ask_the_book_snapshot_honesty.py` **3/3**（git add 77）· court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · chronicle **1799** · worldbook **204 卷（双语对称）** · library **203 zh≡en** · D1 ✅ · D2 ✅ ·「密码 123」依旧是一扇标着「演示」的门
