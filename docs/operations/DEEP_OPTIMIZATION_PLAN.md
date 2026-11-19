@@ -42854,3 +42854,25 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 4. 没动 worldbook/codex（byte-frozen 前缀依旧 `42eeeb35…`）；
 5. 没动 IO 与 apps/web；
 
+
+## #2019 IO 子页二次重建：chronicle 1813（#130–#2017）· 横幅原样 · #2018 沉淀进下一个 web 构建 · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2018。
+
+### 一、交付
+1. `apps/web`（`VITE_BASE_PATH=/specproof-web/`）重建 —— `tsc --noEmit`（build 脚本自带门）+ `vite build` 双过；
+2. 产物 `chronicle-CVfc5gCj.js`（327,484 B）含 chronicle **1813 条，尾 #2017**（`\"n\":2016`/`2017` 实见；`#2018` 不在本包，因为 repo chronicle 在 `sections found: 1813 … last: #2017` 那一轮就停下了；#2018 会在下一个 web 变更构建时自然带出——如实记录这个差值，谁想查全额要看本仓 master 的 DEEP_OPTIMIZATION_PLAN.md，不用脑补）；
+3. `_showcase_pages/specproof-web/` 全量替换（115 assets）；**离线快照横幅 `sp-specproof-static-note` 2505 字节与 live 逐字一致重注**；
+4. 当前 IO 树二次备份 → `D:\面试项目\specproof-web-backup-2026-11-19-v2`（旧备份保留，未删任何文件）；
+5. 首推被 fact-bot 抵消 → rebase 干净（其 HEAD 带了 `27a4bd2 chore(football): §376 … gpt-6.2-sol`——football-os 门打印计数门全线切换 6.2-sol，与本仓口径一致）→ 最终 push `abaacf7`；
+6. Pages 部署由 push 触发（cancel-in-progress: false）；live hash 遵循部署节奏——本号不抢断队列，也不假装它已完成；
+7. `chronicle-Bi5brUL0.js` → `chronicle-CVfc5gCj.js`；index.html 引用 `index-C2HmnLQm.js`；
+
+### 二、没动没伪没涂
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样 · E501 **310** 红 · worldbook **204** 双语对称 · library **203 zh≡en** · UI **603/603**；
+2. worldbook / codex / covenant 一字节未动（byte-frozen 前缀依旧 `42eeeb35…`）；
+3. 雅思 6.5 / IELTS 6.5 / CET6 546 / 隐盾 / 赵欣曈 等身份串不受本次构建影响（sub-app 不含主页身份，主页 index.html 本号未动）；
+4. 没重新敲任何 lane（实测集 `#2012`–`#2018` 已收）；
+5. repo 的 chronicle.json 本次也没再敲——它停在 1813；本号要不要顺带穷举，既定纪律是不为账本单个条目反复全量 rebuild，等下一次 web 变更一起带；
+6. CI 队列仍是 6 queued（零自托管 runner）；
+
