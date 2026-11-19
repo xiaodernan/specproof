@@ -61,6 +61,21 @@ export const MANUAL: ManualPackage = {
       },
     },
     {
+      title: { zh: "第一次进场 · 三步上手", en: "First visit — three steps" },
+      rows: {
+        zh: [
+          "第 1 步 · 把『localhost:8787 的 /health』敲绿——6 项全绿，doctor 报到再谈别的；",
+          "第 2 步 · 挑一张 exhibit 打开——任何一段证据，它只顺着 BASE..HEAD 的 diff 走；",
+          "第 3 步 · 看 Judge 给你投进卷宗的 verdict——BLOCKER 就是 BLOCKER，UNVERIFIED 不是 PASS。",
+        ],
+        en: [
+          "Step 1 — `python scripts/demo_doctor.py` — six checks, all green; doctor's word before anything else.",
+          "Step 2 — open any exhibit; the evidence follows this BASE→HEAD diff, nothing else is read;",
+          "Step 3 — read the verdict the judge files: BLOCKER means BLOCKER, and UNVERIFIED is never PASS.",
+        ],
+      },
+    },
+    {
       title: { zh: "模型怎么帮忙（不是替代你）", en: "What the model does — and doesn't do for you" },
       rows: {
         zh: [
