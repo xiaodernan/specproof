@@ -43255,3 +43255,21 @@ pm run test = **618 pass / 618**（90 文件；合成人群 6/6 已计入）。l
 3. 上一笔 redeploy 后又新增挂载验证的节目辩 `aria-current` scroll-spy：Pages `44551840646` success；live dock 正常、`id="repos"` 双份落位、隐图 0；
 4. 本节重新核准账本当期数据：UI **618/618**（postscript 已记）、Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 pinned reds 原样 · chronicle **1813** · worldbook **204** · library **203 zh≡en**；
 5. 缓存探索结论按 owner 令收尾：**基本措施已完备**（冻结前缀 + 九 lane key + 门禁 + 证据留痕），后续只在 ledger 更新时 strike，不再横向扩缓存设施。
+
+
+## #2034 in-app 说明书补齐三个公开门 · tour / guess / chronicle · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。衔接 #2033。
+
+### 一、交付
+1. `apps/web/src/pages/manual.copy.ts`：新增 section「三个公开玩法 / Three rooms that open to anyone」— `/tour` 三十秒新手教程 · `/guess` 猜裁判 5 张（4 BLOCK / 1 ACCEPT，worldbook 出处） · `/chronicle` 编年史入口（1,800+ 章）；zh/en 双语镜像；机械检查：`typecheck` clean、`Manual.test.tsx` + `i18n` 14/14 pass；
+2. **IO redeploy v5**：`index-CKKfzn5-.js` 全量替换 117 资产；banner `sp-specproof-static-note` 字节保留；备份 v8；Pages dispatch `44558343637`；specproof-web + ledger 随 cron 节奏自动刷新；
+3. **repo 覆盖度对账**：GitHub `user/repos` 全量 24 个 → xiaodernan 名下 20 个（16 public / 4 private）；private = `fagougou-desensitize`（隐盾源码）+ `teedy-assign` + `teedyas` + `teedyassi`；**16 public 仓在 IO 首页"全部仓库"格全部在场**（grep 验证 16/16 OK）—— §十覆盖度成立，IO 首页文案「ALL REPOS / 16 · +隐盾在线」不变；
+4. `隐图` 全域 `0`；Pages 侧 identity-guard 本次随 #2034 的双 push 都会复核。
+
+### 二、没动没伪没涂
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19** · 24 pinned reds 原样 · E501 **310** · chronicle **1813** · worldbook **204** · library **203 zh≡en**；
+2. 没模型调用（本批纯内容补齐）；gazette epigraph（#2033 敲的是 gpt-6.2-sol 那版）不动；
+3. 雅思 6.5 / IELTS 6.5 / 六级 546 / CET6 546 / 隐盾 / 法狗狗公司 / 赵欣曈 / 铜牌 / 江西省一等・二等奖 等身份串无动；
+4. Private 仓可见性未做任何改动（隐盾源码继续私有）——只核对、不改变；
+5. IO 首页"4 个私有仓未列公开"文案与实测一致，未改。
