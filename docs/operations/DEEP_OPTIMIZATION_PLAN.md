@@ -43417,3 +43417,20 @@ specproof-ci：`44559140635` / `44558484073` 入队（lint/eval/security/tests-w
 
 ### 四、没动没伪没涂
 Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19** · 24 pinned reds · E501 **310** · 世界书 **204** · library **203 zh≡en** · chronicle **1833** · 隐盾/雅思/IELTS/CET6/铜牌/物理竞赛/SUSTech/CUHK全部存续；E2E/egress 保持。`隐图` = **0**。无模型调用（复核轮不用 burn tokens）。
+
+
+## #2041 Hero ≤1180px 单列立栅上线《屋外的山坡》 · 最窄 monitors 立放全身像 · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。衔接 #2040。日期：2026-11-20。
+
+### 一、交付
+1. `styles.css` 增 `@media (max-width: 1180px)`：`.hero` 翻单列（`grid-template-columns:1fr; gap:40px; min-height:auto`）；`.hero-profile{justify-self:center; width:min(100%,580px)}`；stamp 保持外侧 `bottom:-12px`；
+2. `index.html`：cache-bust `styles.css?v=20261120a` → `?v=20261120b`；
+3. commit `199245c` master；
+4. Pages run `44572791899` dispatched —— status **queued**（self-hosted runner 池积压，池 busy）；`cancel-in-progress:false` 保持；cron `:17 */3` 兜底；
+5. 今天前一版 `da190ea`（加 aspect-ratio:508/586 + profile-frame/site-shell overflow visible + minmax(380px,1fr)）已 live（53,584 B @ v=20261120a）。
+
+### 二、没动没伪没涂
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19** · 24 pinned reds 原样 · E501 **310** · worldbook **204** · library **203 zh≡en** · chronicle **1833**
+2. 身份串 · 隐图=0 · 16 public repo cards · private 4 仓不动 · profile `main` 最新 `1b7224d` 雅思 6.5 / IELTS 6.5 / 六级 546 / CET6 546 / 铜牌 / 隐盾 / 法狗狗公司 / 赵欣曈 — 原样
+3. 无模型调用（本批纯 CSS + cache-bust）
