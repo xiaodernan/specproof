@@ -43003,3 +43003,22 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 4. IO 子页未重建（见上）；
 5. CI 队列现状不变（identity-guard / Pages deploy 仍等 hosted runner）；
 
+
+## #2025 个人主页 tile 追上数字 · UI 606/606（本机实跑）· strike #2024 · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2024。
+
+### 一、交付
+1. `xiaodernan` profile README（`536e991`）：SpecProof tile 里的三个数字追上实状——
+   `latest strike #2003 → #2024`（七次 push 的账本位置）、`UI 603/603 → 606/606`（上一 #2024 就是实测；此处如实登记本机为准）、`chronicle 1,799 → 1,813`（git 原生 sync，apps/web repo tree 现值）；banner.svg 已核：`赵欣曈×2 · 雅思×1 · 铜牌×1 · 隐图 = 0`；
+2. profile 全貌最终核验（本文）：隐盾×4 · 法狗狗公司×3 · 法狗狗×4 · 赵欣曈×2 · 南方科技大学×3 · 香港中文大学×4 · 铜牌×3 · 全国中学生物理竞赛×3 · 江西省一等奖×3 · 江西省二等奖×3 · 雅思 6.5/IELTS 6.5/CET6 546/六级 546（README 内合计 4）· 计算机科学与技术×6 · 应用工程师×3 · **隐图 = 0** ✓；commit `536e991` push → 本仓 `main -> main`；
+3. specproof-reference 与 _showcase_pages 均不受影响——本号不动任何 pin；走了 `git pull --rebase` 处理 fact-bot 波动（`5572227` 参照 `7c62770` 私仓移除）后贴入；
+
+### 二、没动没伪没涂
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样 · chronicle（repo）**1813** · worldbook **204** 双语对称 · library **203 zh≡en** · UI(repo 本地) **606/606** · E501 **310** 红；
+2. UI 606/606 的数字尚未被 hosted runner 服务器实跑——如实记为**本机构建的证据**（`npm run test` 606 passed），不 claim CI green；
+3. IO Pages starvation 仍恶：本段提交视为正常 push（不是越过 runner）；
+4. 没有重敲任何 lane、没有 API 调用、`.local/llm.json` 未进 git；
+5. profile README 契约：雅思/六级/CET6 全出现、`计算科学与技术`、`铜牌/一等/二等`、`南方/香港`、`法狗狗公司/应用工程师`、`隐盾` —— 依 guard 全部通过；
+6. 下一手接手：cron `:17` 会敲 Pages，runner 回血后 IO 即整包更新（`chronicle 1813` 子页 + coachmarks v4 + ellipsis clamp + UI 606 计数 Tile）；
+
