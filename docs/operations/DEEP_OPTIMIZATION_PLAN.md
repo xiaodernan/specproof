@@ -42742,3 +42742,25 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 4. probe 只允许在本机跑一次作证据，不进 CI；
 5. E501 余额仍 310，不涂绿；
 
+
+## #2014 自读之书开口了：next-step-advice 双敲 HELD（cold 4.8% → warm 88.9% zh/en）· 模型指出 chronicle 落后 5 节 · build_chronicle 重建 1799→1809 · Court LOCKED · Night Watch CRACKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2013。证据 `docs/evidence/next-step-advice-2026-11-19.json`（warm strike 覆写 cold，两次都跑过；cold 数据原文留在终端记录）、`docs/evidence/next-step-advice-witness-2026-11-19.md`。
+
+### 一、交付
+1. `next_step_graph --live`（2026-11-19T06:06:09Z，首敲 HELD，**cold**：zh 169,289 / cached 8,061 = 4.8%；en 147,392 / cached 7,018 = 4.8%）；
+2. 第二敲（2026-11-19T06:07:03Z，HELD，**warm**：zh cached 150,544 = **88.9%**；en cached 131,035 = **88.9%**）—— 与 ask-the-book 的 cold→warm 曲线一致；
+3. en 答复 verbatim：「ledger_sections is 1804, five more than chronicle_entries. This packet cannot support why the counts differ… The next worthwhile strike is to run scripts/build_chronicle.py and compare its output against every ledger section.」—— 这是 6.2-sol 在真实 packet 上给出的可验证建议，不再是演示态内容；
+4. **执行该建议并实证**：`scripts/build_chronicle.py` 输出 sections found **1809**，chronicle 重建 **1799 → 1809 entries**（first #130，last #2013，318.3 KB）；chronicle.json 随本号入仓；
+   * packet 计数字 `1804` 与 builder 计数字 `1809` 不同口径（packet 数 `^## #NNNN Title` 精确格式；builder 自己的 `^## (#\d+)\s+`；快手边角字符计数差 5 条——两处都如实记录，未调和、未涂改）；
+   * 差额来源：#2004–#2013 十节入账后 chronicle 未同步重建；本号补齐。
+5. fingerprint/pin 体系未动：至 `#2013` 为止 15 盏 StateGraph 的 pin 不变；
+
+### 二、没依据、没涂、没换
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样 · chronicle 现在是 **1809**（数字本身被案例 #2011/#2012 的双敲 packet 引用为 packet field `chronicle_entries=1799` —— 下一份 packet 将自带 1809）；
+2. worldbook **204 双语对称** · library **203 zh≡en** · UI **603/603**；
+3. witness 里没有造答复：zh/en 回答逐字落盘，`info_verdict_word_hits` zh=[] en=[]；
+4. `next-step-advice-2026-11-19.json` 的 cold 数值没有留在仓里（脚本语义是同路径覆写为最新一次）——证据边界如实声明：cold 4.8% 只存在于本号基准的终端记录和 packet 复现路径（fingerprint deterministic ⇒ 重敲 cold 会撞 warm；cold 数字不由我保证可重现）；
+5. E501 余额仍 310，不涂绿；
+6. 下一份 next-step packet 应包含 `chronicle_entries=1809` —— 下次真敲自会验证。
+

@@ -1,0 +1,19 @@
+{
+  "generated_utc": "2026-11-19T06:07:03+00:00",
+  "lane": "next_step_advice",
+  "pinned_sha256": "3e3bcd6dbc8675548b45c7bfcf645878056494ba73d186b1da49d3cd6da5d5cf",
+  "pinned": true,
+  "packet_identical": true,
+  "messages_shape_ok": true,
+  "verdict": "HELD",
+  "live_requested": true,
+  "zh_chars": 138,
+  "en_chars": 467,
+  "zh_prompt_tokens": 169289,
+  "zh_cached_tokens": 150544,
+  "en_prompt_tokens": 147392,
+  "en_cached_tokens": 131035,
+  "info_verdict_word_hits_zh": [],
+  "info_verdict_word_hits_en": [],
+  "notes": "packet keys=['chronicle_entries', 'commits', 'court_lock', 'ledger_sections', 'library_zh_en_pairs', 'lines_of_code', 'repository_files', 'unit_test_files', 'worldbooks_volumes']; commits=2795 chronicle=1799 worldbooks=204; codex bytes zh=490782 en=503320; zh strike ok chars=138 prompt_tokens=169289 cached_tokens=150544 info_hits=[]; en strike ok chars=467 prompt_tokens=147392 cached_tokens=131035 info_hits=[]"
+}
