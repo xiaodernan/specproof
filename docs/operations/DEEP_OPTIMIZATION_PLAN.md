@@ -42696,3 +42696,30 @@ mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** 
 
 ### 三、账
 mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · chronicle **1799** · worldbook **204（双语对称）** · library **203 zh≡en** · D1 ✅ · D2 ✅ ·「密码 123」依旧是一扇标着「演示」的门
+
+## #2012 《直通甲方》：模型名实敲 — `gpt-6.2-sol` · cold 4.8% / warm **88.9%** · HELD · Court LOCKED · Night Watch CRACKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2011。证据 `docs/evidence/gpt-6.2sol-askthebook-2026-11-19.json`。
+
+### 一、交付
+1. **模型刷新**：`.local/llm.json` `model` `gpt-5.6-terra` → **`gpt-6.2-sol`**（owner 2026-11-19 "注意 我已经更换模型名了 更换为6.2sol了" 明令）—— `base_url` 仍是 `https://api.aizzz.xyz/v1`（含 v1）· `protocol=responses` · `reasoning_effort=max` · `.local/llm.json` gitignore 有效，**密钥不入仓**；
+2. **探测**：`/v1/models` 返回（2026-11-19T05:50Z）`gpt-5.6-sol · gpt-5.6-terra · gpt-6-astra · gpt-6-sol · gpt-6.1-sol · gpt-6.2-astra · gpt-6.2-sol · codex-auto-review` —— `gpt-6.2-sol` 确在列；
+3. **实测**（同一 `specproof ask-the-book` lane，含 byte-frozen codex prefix + sticky `prompt_cache_key`）：
+   * **cold strike 1**：zh prompt 169,186 · cached 8,056 (**4.8%**) · en 147,273 · cached 7,013 (**4.8%**) · HELD；
+   * **warm strike 2**：zh cached 150,422 (**88.9%**) · en cached 130,915 (**88.9%**) · **HELD verdict**；
+   * `info_verdict_word_hits` zh=[] en=[" verdict "]；en 句中含 "verdict" 为模型复述规则的行为，不算告警；
+   * `fingerprint=42eeeb35de13 (deterministic=True)` · `pinned_sha256=ae853cb5…` **HELD · pinning in-tact**；
+4. **`.local/llm.json` 未进 git**，purity sift 仍为 CLEAR（2276 files scanned 2026-11-19T03:15Z）；
+5. **实现位置**：StateGraph `agent/graphs/ask_the_book_graph.py` · `api/worldbook_ask.py`（sys.path `providers.config` 读 `.local/llm.json`）· live-cache-probe 走同路径。
+
+### 二、没涂没动没碰
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样 · 没有 exhibit 改裁决；
+2. 展 hall 的内存探测截面没动；chronicle **1799** · worldbook **204 卷（双语对称）** · library **203 zh≡en**；
+3. `pinned_sha256` `ae853cb5d5…` 仍然是 `/stategraph` 15 盏灯的 pin 之一、来自上一版（没换）；若要改 pin，必须 roll 入本 section 否则机器会 DRIFTED；
+4. `.local/llm.json` 本身被 #2009 同一批机制隐藏，本 section 不再 ripetere 它（gate test 已固化）；
+5. cache 命中从 cold 4.8% → warm 88.9% 是同口径折现，没人伪造一个更高的值；
+6. 没有重新敲 ask-the-book 之外的 lane（next-step-advice、stress_digest 等也共享相同 config — 下一次 gateway dispatch 自带 gpt-6.2-sol）；
+7. E501 余额 310 行，门禁继续红、不涂绿；#2011 之后还没人补。
+
+### 三、账
+mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · chronicle **1799** · worldbook **204（双语对称）** · library **203 zh≡en** · D1 ✅ · D2 ✅ ·「密码 123」依旧是一扇标着「演示」的门
