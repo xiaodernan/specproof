@@ -43509,3 +43509,34 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19**
 
 ### 五、新
 pocket card 加「第一次进场：三步上手」（doctor 绿 → 任一 exhibit → BLOCKER 判定）bilingual 对仗（`5dd704d`）；UI **622/622** 绿。
+
+
+## #2045 Pages deploy SUCCESS + v1095 portrait convergence · avatar & languages 全绿 live · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。衔接 #2044。日期：2026-11-20。
+
+### 一、部署队列终局（#2043/#2044 里 pending 的那批）
+1. `workflow_dispatch 44583758633` → **completed / success**（16m19s，2026-11-19T18:03 起跑）——积压的 pages deploy 出队并落地；
+2. 早前 pending 的 `44579629935` 结局 = cancelled（`cancel-in-progress:false` 下被后来的串行排挤，如实记）；
+3. live `specproof-web/` = `index-_1qGwuLw.js`（v8 redeploy bundle）+ banner `sp-specproof-static-note` 在位 ✅；
+4. identity-guard 连续绿：`44584447987` / `44584169134` / `44583706363` 全 success。
+
+### 二、头像修复 · 与并行线收敛（重要）
+1. 本轮实测读到 live css 版本链 `?v=20261120b → c → d`——`c`（54,310 B）与 `d`（54,310 B）**四条主修全部在**：`.site-shell{overflow:visible}` / `.hero grid-template(380px,1fr)` / `.hero-profile{min(100%,720px)}` / `aspect-ratio:508/586` / `@media(max-width:1180px)` 单列；
+2. `853fdfb`（fact-bot v1095）自报：它早先的 `415×492` srcset 覆盖把肖像拉伸了，本轮**恢复 508×586 srcset + aspect-ratio 对齐真 PNG**，cache-bust `?v=20261120d` ——与本线 `da190ea/199245c` 的修复**同向收敛、无冲突**，两条并行线在同一事实上握手；
+3. live 主页实读：`styles.css?v=20261120d` 在列。
+
+### 三、语言面板 live 终检
+`139.56` ×2 · `32.26%` ×4 · `NaN` **0** · `隐图` **0**（全页字节扫描，非抽样）。
+
+### 四、身份全量复核（live 单页计数）
+赵欣曈 14 · 南方科技大学 8 · 香港中文大学 8 · 计算机科学与技术 8 · 全国中学生物理竞赛 4 · 铜牌 4 · 江西省一等奖 3 · 江西省二等奖 2 · 法狗狗公司 4 · 隐盾 26 · 应用工程师 9 · 雅思 6.5 4 · IELTS 6.5 9 · CET6 546 9 · 六级 546 2 —— **全部在场**。
+
+### 五、滚轮指令复核（第五节「往上滑往上看」）
+`apps/web/src/test/naturalScroll.test.ts` 守卫在册：产品源码 **SHALL NOT** cancel/invert wheel semantics（`WheelEvent|onWheel|preventDefault|stopPropagation|addEventListener('wheel')` 全模式扫描）；`App.tsx:220` 记录 owner 裁定「滚轮按标准方向，句号」。**非本轮新修，复核通过。**
+
+### 六、如实未完成
+specproof-ci 队列积压：`44584409201`(#2044) / `44583024885`(FIRST VISIT) / `44579972521`(#2043) 均 queued ≥36min——self-hosted 池被 Python 车道占满，**不涂不抢跑**，本地 `npm run test` 622/622 是变更的可观测性。
+
+### 七、未动（原样）
+Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 pinned reds · E501 **310** · chronicle **1833** · worldbook **204** · library **203 zh≡en** · 隐图 **0**。
