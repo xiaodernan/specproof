@@ -24,9 +24,9 @@ jobs:
           uv pip install --python .venv/Scripts/python.exe -e ".[dev]"
 
       - name: Ruff
-        run: python -m ruff check .
+        run: uv run python -m ruff check .
       - name: Mypy (strict)
-        run: python -m mypy .
+        run: uv run python -m mypy .
 
   # The dashboard/Agent UI is a user-facing surface with its own gate suite
   # (tsc + vitest + vite build). Before #507 nothing in the automated path ran
@@ -114,7 +114,7 @@ jobs:
           uv pip install --python .venv/Scripts/python.exe -e ".[dev]"
 
       - name: OpenAPI schema diff gate
-        run: python scripts/openapi_diff.py docs/openapi/baseline.json
+        run: uv run python scripts/openapi_diff.py docs/openapi/baseline.json
 
   security:
     runs-on: [self-hosted, windows]
@@ -131,7 +131,7 @@ jobs:
 
       - name: Bandit scan (shipped packages, medium severity and above = zero)
         run: |
-          python -m bandit -r agent api cli storage providers evidence \
+          uv run python -m bandit -r agent api cli storage providers evidence \
             observability sandbox experiments integrations -ll -q --skip B101
 
   tests-no-infra:
@@ -155,7 +155,7 @@ jobs:
           uv pip install --python .venv/Scripts/python.exe -e ".[dev]"
 
       - name: Unit + security + fault tests
-        run: python -m pytest tests/unit tests/security tests/fault -q
+        run: uv run python -m pytest tests/unit tests/security tests/fault -q
 
   tests-with-infra:
     runs-on: [self-hosted, windows]
@@ -222,7 +222,7 @@ jobs:
         run: |
           git config user.name "specproof-ci"
           git config user.email "specproof-ci@users.noreply.github.com"
-          python scripts/build_golden_scenarios.py --refs-only \
+          uv run python scripts/build_golden_scenarios.py --refs-only \
             --only case-01,case-10,case-12,case-17,case-21,case-56
       - name: Kernel integration tests + the contract CLI cases (real MySQL/Redis/RabbitMQ/Mongo)
         # #499: the contract compiler's CLI cases reach MySQL through
@@ -259,7 +259,7 @@ jobs:
         # on every push. The marker name is bound to the test's own marker by
         # tests/unit/test_ci_materializes_the_golden_refs.py — renaming one
         # without the other reds that gate instead of silently re-running it.
-        run: python -m pytest tests/integration tests/unit/test_job_state_machine.py tests/unit/test_outbox.py tests/unit/test_migrations.py tests/unit/test_contract_compiler.py tests/unit/test_the_aggregate_plane_answers_the_demo_question.py tests/unit/test_agent_jobs_migration_parity.py tests/unit/test_audit_action_parity.py tests/unit/test_data_dictionary_covers_migrations.py tests/unit/test_feedback_store_read.py tests/unit/test_job_list_cursor_paging.py tests/unit/test_mysql_connection_pool_is_bounded_and_reused.py tests/unit/test_the_job_list_the_frontend_asks_for_actually_answers.py tests/unit/test_ai_summary.py -q -m "not slow_eval"
+        run: uv run python -m pytest tests/integration tests/unit/test_job_state_machine.py tests/unit/test_outbox.py tests/unit/test_migrations.py tests/unit/test_contract_compiler.py tests/unit/test_the_aggregate_plane_answers_the_demo_question.py tests/unit/test_agent_jobs_migration_parity.py tests/unit/test_audit_action_parity.py tests/unit/test_data_dictionary_covers_migrations.py tests/unit/test_feedback_store_read.py tests/unit/test_job_list_cursor_paging.py tests/unit/test_mysql_connection_pool_is_bounded_and_reused.py tests/unit/test_the_job_list_the_frontend_asks_for_actually_answers.py tests/unit/test_ai_summary.py -q -m "not slow_eval"
       - name: Stop infrastructure
         if: always()
         run: docker compose -f compose.phase0.yml down -v
@@ -310,7 +310,7 @@ jobs:
         run: |
           git config user.name "specproof-ci"
           git config user.email "specproof-ci@users.noreply.github.com"
-          python scripts/build_golden_scenarios.py --refs-only \
+          uv run python scripts/build_golden_scenarios.py --refs-only \
             --only case-01,case-10,case-12,case-17,case-21,case-56
       - name: Evaluate representative golden-case subset (deterministic)
         run: |
@@ -347,7 +347,7 @@ jobs:
           # metric ("recall 66.7 低于下限 100") instead of "substring missing".
           # The greps stay as an independent second assertion (bound to the
           # tool's own renderer by test_ci_acceptance_greps_match_the_eval_summary).
-          python -m cli.specproof.main eval \
+          uv run python -m cli.specproof.main eval \
             --cases eval-subset --repo . --no-llm \
             --gate --min-recall 100 --min-precision 100 --max-false-positives 0 \
             --min-positive-cases 3 --min-negative-cases 1 \
@@ -421,7 +421,7 @@ jobs:
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
-        run: python scripts/provider_smoke.py
+        run: uv run python scripts/provider_smoke.py
 
 
   # ── e2e ───────────────────────────────────────────────────────────────
