@@ -1,0 +1,232 @@
+/* guess-verdict — the court seen from the audience seats */
+.guess-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 20px 64px;
+  color: var(--ink, #1a1f26);
+}
+
+.guess-eyebrow {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: #0e141b;
+  color: #c9a258;
+  letter-spacing: 0.06em;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+.guess-title {
+  font-size: clamp(26px, 4.4vw, 40px);
+  line-height: 1.2;
+  margin: 6px 0 10px;
+  color: #0e141b;
+}
+
+.guess-prompt {
+  font-size: clamp(20px, 3vw, 26px);
+  line-height: 1.35;
+  margin: 14px 0;
+  padding: 0 4px;
+  border-left: 4px solid #ee8052;
+  padding-left: 12px;
+}
+
+.guess-lead {
+  font-size: 17px;
+  line-height: 1.6;
+  color: #3a4148;
+  max-width: 720px;
+}
+
+.guess-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  margin: 14px 0;
+  border-left: 4px solid #ee8052;
+  background: #fff4e6;
+  color: #4a2c02;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 13px;
+  border-radius: 4px;
+}
+
+.guess-stats {
+  display: flex;
+  gap: 18px;
+  margin: 18px 0 14px;
+  flex-wrap: wrap;
+}
+.guess-stats > div {
+  background: #f4f2eb;
+  padding: 14px 20px;
+  border-radius: 8px;
+  min-width: 120px;
+}
+.guess-stats > div strong {
+  display: block;
+  font-size: 22px;
+  color: #0e141b;
+}
+.guess-stats > div span {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.guess-start {
+  margin-top: 8px;
+  font-size: 17px;
+  padding: 12px 24px;
+}
+
+.guess-palms {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 18px;
+  max-width: 720px;
+}
+.guess-palms-block {
+  background: #fff;
+  border: 1px solid #d7d3c6;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.guess-palms-block strong {
+  display: block;
+  color: #0e141b;
+}
+.guess-palms-block span {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.guess-round {
+  background: linear-gradient(180deg, #0e141b 0%, #16202b 100%);
+  color: #e8e3d3;
+  padding: 24px 28px 28px;
+  border-radius: 14px;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.35);
+}
+.guess-round .guess-eyebrow { background: #c9a258; color: #0e141b; }
+.guess-round .guess-prompt { color: #f0e9d3; border-left-color: #ee8052; }
+
+.guess-evidence {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin: 12px 0 14px;
+}
+.guess-evidence-block {
+  background: #1a2530;
+  border: 1px solid #2a3644;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.guess-evidence-kicker {
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #8a8d92;
+  margin-bottom: 6px;
+}
+.guess-evidence-body {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px;
+  color: #f4f0e0;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.guess-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 14px 0 8px;
+}
+.guess-verdict {
+  cursor: pointer;
+  border: 2px solid transparent;
+  padding: 16px 10px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.guess-verdict-accept {
+  background: #1e7a3e;
+  color: #f2f2ea;
+}
+.guess-verdict-accept:hover { background: #238848; }
+.guess-verdict-block {
+  background: #9b3624;
+  color: #fbe7d6;
+}
+.guess-verdict-block:hover { background: #ac4434; }
+.guess-verdict-picked {
+  border-color: #c9a258;
+  box-shadow: 0 0 0 2px rgba(201, 162, 88, 0.5);
+}
+
+.guess-teach {
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin: 14px 0 8px;
+  font-size: 15px;
+  line-height: 1.55;
+}
+.guess-teach-right {
+  background: #14341e;
+  color: #bdf3cf;
+  border: 1px solid #2a6642;
+}
+.guess-teach-wrong {
+  background: #3a1914;
+  color: #f5b9a6;
+  border: 1px solid #6b3020;
+}
+.guess-teach-head strong {
+  display: block;
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.guess-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid #2a3644;
+  padding-top: 12px;
+  margin-top: 12px;
+}
+.guess-counter {
+  font-family: ui-monospace, Consolas, monospace;
+  color: #c9a258;
+  font-size: 14px;
+}
+
+.guess-done-score {
+  font-size: clamp(48px, 10vw, 84px);
+  color: #c9a258;
+  line-height: 1;
+  margin: 18px 0;
+}
+
+.guess-done-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.guess-hero {
+  padding: 10px 20px 28px;
+}
+.guess-hero.guess-round { padding: 24px 26px; }
+.guess-hero h1, .guess-hero h2 { color: #f4f0e0; }
+
+@media (max-width: 720px) {
+  .guess-palms { grid-template-columns: 1fr; }
+  .guess-buttons { grid-template-columns: 1fr; }
+}

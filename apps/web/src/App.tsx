@@ -38,6 +38,7 @@ const Errata = lazy(() => import("./pages/Errata"));
 const StateGraph = lazy(() => import("./pages/StateGraph"));
 const Gestures = lazy(() => import("./pages/Gestures"));
 const Drill = lazy(() => import("./pages/Drill"));
+const GuessTheVerdict = lazy(() => import("./pages/GuessTheVerdict"));
 const Explorer = lazy(() => import("./pages/Explorer"));
 const Ide = lazy(() => import("./pages/Ide"));
 const Graph = lazy(() => import("./pages/Graph"));
@@ -99,6 +100,7 @@ export const NAV: NavItem[] = [
   { path: "contracts", labelKey: "nav.contracts", icon: "contracts", groupKey: "group.evidence" },
   { path: "eval", labelKey: "nav.eval", icon: "chart", groupKey: "group.evidence" },
   { path: "drill", labelKey: "nav.drill", icon: "verify", groupKey: "group.evidence" },
+  { path: "guess", labelKey: "nav.guess", icon: "seal", groupKey: "group.evidence" },
   { path: "ide", labelKey: "nav.ide", icon: "hammer", groupKey: "group.evidence" },
   { path: "graph", labelKey: "nav.graph", icon: "matrix", groupKey: "group.evidence" },
   { path: "library", labelKey: "nav.library", icon: "book", groupKey: "group.evidence" },
@@ -168,6 +170,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "contracts") return <Contracts />;
   if (seg[0] === "eval") return <Eval />;
   if (seg[0] === "drill") return <Drill />;
+  if (seg[0] === "guess") return <GuessTheVerdict />;
   if (seg[0] === "ide") return <Ide />;
   if (seg[0] === "graph") return <Graph />;
   if (seg[0] === "chronicle") return <Chronicle />;

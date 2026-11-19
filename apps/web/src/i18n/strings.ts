@@ -61,6 +61,7 @@ const zh = {
   "nav.gestures": "验收官十四式",
   "nav.guide": "上手指南",
   "nav.drill": "验收快问",
+"nav.guess": "猜裁判",
 
   // ── IDE · 铁匠工坊 ─────────────────────────────────
   "ide.title": "铁匠工坊",
@@ -579,6 +580,7 @@ const en: Record<keyof typeof zh, string> = {
   "nav.gestures": "Fourteen Gestures",
   "nav.guide": "Onboarding Guide",
   "nav.drill": "Verify Drill",
+"nav.guess": "Guess the Verdict",
 
   // ── IDE · 铁匠工坊 ─────────────────────────────────
   "ide.title": "The Forge",
