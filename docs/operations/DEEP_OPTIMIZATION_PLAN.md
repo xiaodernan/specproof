@@ -43058,3 +43058,29 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 2. Pages 分派（`workflow_dispatch`）被取消的根因：请 operator 核验 ；`specproof-web` 的任何推送均触发 deploy，cron 敲也定会补上最新的 split build；
 3. 日后：进宿主用户（不是 service），跑 runner 时需要保持登录态——如果 Windows 注销，runner 即停。长期持久方案：要求管理员权限后执行 `svc.cmd install && svc.cmd start`；
 
+
+## #2027 自托管 runner 双落地 · Pages 部署成功 · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2026。
+
+### 一、交付（今天落地的真实清单）
+1. owner 明示允许（"self host runner 全部我都允许 · 可以本机ci 完全没有问题"）：`specproof-reference` 挂 `lenovo-specproof` + `lenovo-specproof-2`；`xiaodernan.github.io` 挂 `lenovo-pages` + `lenovo-pages-2`（labels `self-hosted,windows,x64` 同款对称）——4 个 runner 全部 `status: online`；
+2. `pages.yml` deploy job + `identity-guard.yml` 两套 runs-on 切换后Pages立刻可跑——包含"Deploy portfolio to GitHub Pages"两次 success（`44492319308` / `44492560745`），identity-guard 在 master 的每个 push 上都被执行；
+3. `specproof-ci.yml`：先修 YAML block-mapping（`runs-on:`从 col 0 被纠正到 col 4），再开 `env: RUNNER_TOOL_CACHE: C:\Users\18414\AppData\Local\toolcache`（——GH 官方给 self-hosted Windows 提供的可读路径；`C:\hostedtoolcache` 非管理员不可写）；`actions/setup-python@v5` 在 `HKLM\…\Uninstall` 上被拒（SecurityException），所以整个 setup-python 被替换为你 host PATH 带来的 Python（即 `python --version`），门禁同语义；
+4. 本机自托管 runner 上的真 CI：**web 一次 `web | success`** · **java-services 白跑一趟成功（137/137）** · Bandit/tests-no-infra/e2e 暂时运行中；整体 run 还在 in_progress（`44489731889`）；
+5. cron 3h 调度没有变动，还是 `":17 */3 * * *"`；
+6. 账本#2026 之前记的非管理员（unprivileged user）陷阱点本号落笔确认：C:\Program Files\Java、 non-writable directories, installer attempted `Remove-Item HKLM` —— 都是非管理员真实世界的考验，解决方案在 #2025–2027 里已落回全链路；
+7. 两个 IO 项目今天的实际兑现：`/specproof-web/` `index-BK-rthFT.js` 上线，chronicle 资产加载至 `#2017`；`/` 主页维持身份全链一致；在这里 **`隐图 = 0`** 没有上天花板；
+
+### 二、本周/今天的限制（诚实标注）
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19** · pinned reds **24** unchanged · worldbook **204**（双语对称）· library **203 zh≡en** · chronicle **1813→2017篇运行时数据表述上陈**；
+2. E501 余额仍 **310**；没给它涂；
+3. `specproof-ci` 整体结尾**尚未呈 success**——web / java-services 是绿的，其余 job 仍是 in_progress/queued；在 runner 队列里有 hosted runner panic 等待先解封（`|status=in_progress` 允许 run 继续 drain）；
+4. `周一 cron`（2026-11-23 03:00 UTC）照跑，artifact 到时自动入册；
+5. 每条经手的代码 / workflow 修改记录到镜像（mirror of the repo's own commits）；
+
+### 三、下一步接手清单
+1. 等 runner 跑某个 job 的目标看 `gh api repos/.../actions/jobs/<id>` 定位每个 jobstep 的 status；
+2. 下次 cron 敲 Pages 部署，确认加载一条c Chronicle #2018+ 的新数据段，按周更新；
+3. 继续不动 Court/Night Watch/exhibit/pinned reds；
+
