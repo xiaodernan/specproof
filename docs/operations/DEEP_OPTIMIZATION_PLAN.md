@@ -43182,3 +43182,30 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 4. codex 前缀 barcha `42eeeb35…` 一字节不变；
 5. 隐图 = 0 确认 live；
 
+
+
+## #2032 《合成人群 · Synthetic Crowd》上线观测台 123 门内 · b939273 · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。衔接 #2031。主题 = 用户需求「模拟真实用户的行为：真实用户可能打开一个页面没耐心就关掉，可能不知道去哪就在页面上瞎点——把这些真实行为模拟出来」。
+
+### 一、交付
+1. **新模块** `apps/web/src/telemetry/syntheticCohort.ts`：`mulberry32(20261119)` 确定性 PRNG· 6 种人格画像：`bouncer 0.44 / skimmer 0.20 / rager 0.08 / wanderer 0.12 / scanner 0.09 / finisher 0.07`；产物字段与 `behavior.ts` 的 `HeatEvent`（view / dwell / rage）同构，可直接喂 `deriveHeat()`；
+2. **校准常数说明**（文件内联）：博客/GA4 级内容站弹回率公开区间 ≈ 40–60%（本机 WebSearch 返回 HTTP 402，无法联网取证；常数以行业公布值留底，未自称实测来源）；`finisher` 有意压低到 7%，呼应「开放世界稀有完成者」设定；
+3. **测试** `syntheticCohort.test.ts`：6 个 — 同种子逐字节一致 · 2000 样本人格份额 ±4% · 漏斗单调不增 · rage 只属 rager · bouncer 零点触 · impatient 30–65% 带；全部 pass（6/6）；
+4. **接入观察台** `pages/Observe.tsx`：123 门内新增 Panel「合成人群 · 240 个访客，没人真的存在 / The synthetic crowd」— 6 张 StatCard（样本 / 秒退+急躁占比 / 秒退人数 / rage 事件 / 带急躁会话 / 完成者）+ 人格分布条 + 合成说明 + 下一步优先级三条（首屏价值一眼看懂 / 删掉需要猜的按钮 / 先演示再解释）；zh/en 双语内联；**不进公开段、不进 model packet、不做任何真实归因**；
+5. **UI 全量**：`npm run test` 612/612 过（含本批 6+6）；`tsc --noEmit` clean；vite build OK；`VITE_BASE_PATH=/specproof-web/ npm run build` 产物 `index-arvAo6jR.js`；
+6. **IO redeploy v3**：`_showcase_pages/specproof-web/` 资产全量替换；banner `sp-specproof-static-note` **字节保留**（2727 B，从 live 提取再注入）；备份 `D:\面试项目\specproof-web-backup-2026-11-19-v6`；identity/隐图 无动；Pages run `44550740374` dispatch 中；
+7. **参考仓全部工作分支**：`feature/interview-hardening · feature/p1-reliability-kernel · fix/payload-census-ai-summary-stream-register · fix/verdict-channel-witness · release/p0.5-verified-v1` 与 master 距离 **0 ahead** — §二「分支收拢入主」实况为已归并，无残留分支内容可补；
+8. ledger 本次更新本身即条目 #2032。
+
+### 二、没动没伪没涂
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19** · 24 pinned reds 原样 · E501 **310** 不动 · chronicle **1813** · worldbook **204** · library **203 zh≡en**；
+2. 没敲 llm.json、没敲 prompt 缓存车道、没改 `cache_witness`；model 侧本号零调用；
+3. 没碰世界书 / exhibits / snapshot 证据 / Court rulings；
+4. 雅思 6.5 / IELTS 6.5 / 六级 546 / CET6 546 / 隐盾 / 法狗狗公司 / 赵欣曈 等身份串无动；`隐图` 全域 `0`；
+5. 本号不做合成人群的「趋势线外推承诺」— 漏斗与人格份额都带种子号与校准注释，离线可重放，非线上估计。
+
+### 三、仍挂着的问题
+1. Court 红线 & pinned reds 不变；`tests-no-infra` 仍在 Windows 自托管慢速爬；Pages cron `:17 */3 * * *` 照旧；weekly stress `2026-11-23T03:00Z` 未落账，等真跑完再记；
+2. `WebSearch` 本机 HTTP 402，本次常数采用行业留底，未写「实时联网取证」；
+3. Observe 公开段「The unlocked read is a LIVE model call」门内 Panel 顺序：crowd 先于 model 面板，读者进门先看到合成人群、再看模型解读——顺序符合"先现象后裁决"的 house rule。
