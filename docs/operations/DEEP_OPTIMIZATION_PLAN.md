@@ -42643,3 +42643,30 @@ mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** 
 
 ### 三、账
 mvn untouched · `test_ask_the_book_snapshot_honesty.py` **3/3**（git add 77）· court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · chronicle **1799** · worldbook **204 卷（双语对称）** · library **203 zh≡en** · D1 ✅ · D2 ✅ ·「密码 123」依旧是一扇标着「演示」的门
+
+## #2010 《周一的敲门》：weekly-stress 首敲入库——`dispatch 44457744166` · 48-way concurrent · 0.00% err · worst p99 4,386.6 ms · verdict OK · Court LOCKED · Night Watch CRACKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2009。证据 `docs/evidence/weekly-44457744166.json` + `weekly-44457744166-digest.{md,json}` + `weekly-stress-out/stress-summary.md`（本次即 artifact）。
+
+### 一、交付
+1. **dispatch `44457744166`（workflow `specproof-weekly-stress`）** 完成：exit_code **0**，verdict **OK** — 这是按我请求的 Workflow Dispatch 手动触发，而非推测；`cron 0 3 * * 1`（Monday 03:00 UTC）首班尚未触发（实际下次是 2026-11-23 04:00 UTC）。本条记成「验证运行」，不是任何对 scheduler 的假设；
+2. **关键指标**：
+   * `concurrency=48` · `per_thread=2` · `warmup_rounds=2` · `rounds=2`
+   * round 1: total=96 · ok=96 · err_rate=**0.00 %** · p99=**2,725.6 ms** · p95=2,704.6 ms · avg=651.4 ms
+   * round 2: total=96 · ok=96 · err_rate=**0.00 %** · p99=**4,386.6 ms** · p95=3,137.7 ms · avg=794.3 ms
+   * warmup round 2: total=96 · ok=96 · p99=**2,707.2 ms**（pre）
+   * worst_p99_ms = **4,386.6** · 比 `floor_ms=5000` 少 613.4 ms · `err_rate=0.00 %`
+   * 文件：`weekly-44457744166.json`（1011 B）· `weekly-44457744166-digest.{md,json}`（1339 B, 939 B, `verdict=HELD`, `floor_comparison=under`）
+3. **`stress-digest.json` 本次 `live_requested=false`**：无 `SPECPROOF_STRESS_DIGEST_LIVE` 环境变量；离线 deterministic 表是真的读，byte-for-byte 由 digest 图生成，`verdict=HELD`；
+4. **`scripts/stress_smoke.py` 与 `weekly-stress.yml`**：管道是 `actions/upload-artifact@v4`， artifact 不自动回传 master；本条 `weekly-44457744166.json` 与 `-digest.*` 由我这次手抓存入 `docs/evidence/`；WeeklyCron artifact 仍然只到 weekly artifact 池里（不污染 git）；
+5. **本次敲窗内浇水率**：没有任何 exhibits 被涂绿；exhibit #4 的 REGRESSION **不动** · Night Watch 仍 `CRACKED`。
+
+### 二、没涂没动没碰
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样 —— 没有 exhibit 改裁决；
+2. 展示货架 #4 依然红着；字节码 ZeroWitness 还是禁用；
+3. 此次入库仅 3 个新文件 · 没有改既有任何裁决 · `latest-json` 未动 · `chronicle` **1799** 不变 · worldbook **204 卷（双语对称）** · library **203 zh≡en**；
+4. `stress-digest` 本次 `verdict=HELD` 是 offline 表的功能验证，不是 pin 评分 — 与 cache probe 同口径；
+5. 既有 pinned_sha256 `db498ac7…` 不改；`info_verdict_word_hits` zh=`[]` · en=`[' verdict ']`，如实记账；E501 余额 **310** 行，未涂绿、未许可、门禁继续如实红。
+
+### 三、账
+mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · chronicle **1799** · worldbook **204（双语对称）** · library **203 zh≡en** · D1 ✅ · D2 ✅ ·「密码 123」依旧是一扇标着「演示」的门
