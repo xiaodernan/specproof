@@ -43304,3 +43304,23 @@ pm run test = **618 pass / 618**（90 文件；合成人群 6/6 已计入）。l
 2. 模型 0 调用（本批纯审计/体检）；
 3. 雅思 6.5 / IELTS 6.5 / 六级 546 / CET6 546 / 隐盾 / 法狗狗公司 / 赵欣曈 / 铜牌 / 江西省一等・二等奖 等身份串无动；隐图 **0**；
 4. private 仓可见性未动，不新增任何外链指向隐盾源码。
+
+
+## #2036 IO 首页 zh 模式《铁证日报》语言角色对调修复 · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。衔接 #2035。日期：2026-11-20。
+
+### 一、起因与修复
+1. live IO 首页 zh 模式审计：`<blockquote class="splive-gazette-zh" lang="zh-CN">` 承载的是英文段落（"Three things can be checked this morning…"）——违反总指令第八条「中文模式统一中文、英文模式统一英文」；该串见于 1 处（zh live block）；
+2. 修复 = 恢复 v#2003 epigraph 的中文版本逐字 ("今晨，三件事落在可核对之处：新敲的 artifact 自动计入 Exhibits…")；EN 模板一侧未触碰（EN copy 本来就是原生英文，且 EN copy 里同名的 zh-CN 标记 block 保留了同一条中文行，属于《铁证日报》双语并置设计，非泄漏）；
+3. live 刷新后复核：'Three things' count = **0**；中文正文 = **2** 处（zh 块的 zh-CN blockquote + EN 模板内 zh-CN 标记块）；
+4. Pages `44560560896` completed success；live bytes 137,491；
+5. 全仓 ASCII 英文长句扫描：除真·专名/代码/脚本注释（repo 名、commit subject、fetcher JS、时间戳等）与《铁证日报》EN copy 内 zh-CN 标记的中文行以外，**无中文块里再夹英文正文**；
+6. 同时确认之前 flag 出的 3 个"pre-existing flaky"测试文件在隔离单跑时 **15/15 pass**——之前 full-suite 失败与本轮无因果，全部是 host load 问题，已记录在 #2032；全套 618/618 不变。
+
+### 二、没动没伪没涂
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19** · 24 pinned reds 原样 · E501 **310** · chronicle **1813** · worldbook **204** · library **203 zh≡en**；
+2. 账本数字（exhibit 18→19、chronicle 1799、library 203）原样未动——本轮只是语言角色对调，不是内容修订；
+3. IO 首页该节锚点文案（"ship 2026-11-18 · #2003"）未动——fact-bot 负责该节的同步节奏；
+4. 雅思 6.5 / IELTS 6.5 / 六级 546 / CET6 546 / 隐盾 / 法狗狗公司 / 赵欣曈 / 铜牌 / 江西省一等・二等奖 身份串未动；`隐图` 全域 **0**；
+5. 前端契约未变：anchor styles `?v=20261119e`、script `?v=202611191k`、banner sp-specproof-static-note 字节级保留。
