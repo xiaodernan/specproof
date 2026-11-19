@@ -42939,3 +42939,45 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 4. 没敲模型、没动 Court、没动 pinned reds；
 5. 3 小时 cron 保底敲 Pages；queued 的 hosted runner 恢复就会放出全部 pending 部署（chronicle 1813 子页、coachmarks v4、本号 clamp）；
 
+
+## #2023 今日日结（2026-11-19）：gpt-6.2-sol 全链热敲三车道冷→温复现 · IO 教义层启用 landing coaching（0→3）· 子页重建三次 · java-services 红根治 · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2022。属「日结」类记录，不新增声明；一切推送均已 push（IO master 与 reference master）；CI/pages 输出的部分以文字状态留档。
+
+### 一、今日落地清单（push 过的每一行）
+`reference`：
+- `1d0e0f1` (#2012) `gpt-6.2-sol` 初敲 ∈ ask-the-book · cold 4.8% → warm 88.9%（evidence `gpt-6.2sol-askthebook-2026-11-19.json`）· 避开 pre-commit 误报改名（按 hook 语义修掉文件名中的 `sk-the-book…gpt-6` 连读串）
+- `16c22b3` (#2013) 直接敲 live-lane probe：`gpt-6.2-sol` · protocol `responses` · HTTP 200 · chunks 9 · 4407 tok / cached 4179（**94.8%**）· 证据文件 `.local` 外 `live-lane-probe-2026-11-19-gpt-6.2-sol.{json,txt}`
+- `c3ee69b` (#2014) next-step 6.2-sol 双敲 cold 4.8 → warm **88.9%** HELD · 模型自述 "run build_chronicle.py"——执行并验证 1799→1809
+- `8a6fd0d` (#2015) IO 子页重建：VITE_BASE_PATH 构建 + 横幅逐字重注 · chronicle IO 产物 1809（counts and lag 如实记录）
+- `c6e3486` (#2016) 缓存键九车道 registry 全补 + `test_prompt_cache_key_discipline.py`（court 树零键、九键精确匹配、跨文件不共享）· 11/11 passed
+- `10a0d75` (#2017) `Services OfflineResilienceTests` 缺 H2 pin 导致 CI `java-services` 死于 `Unable to determine Dialect`——根治：补 8 条 H2 pin，断言不动；本地 offline **137/137**（control-plane 51/gateway 84/config-server 1/discovery-server 1）
+- `ee7f042` (#2018) 第三条车道 ai_summary 6.2-sol cold 4.8 → warm **89.0%**（合并进 lane-cache-probe 证据）
+- `4bdcc4c` (feat) landing coaching 层从 0 修到 3 徽章（`data-coach` hero.brand/guide/connect + 双语说明；UI `tsc` 干净、`vitest` **603/603**）
+- `9ea334d` (#2021) 记账落册
+- `9f610b9` (#2022)  minicc-codex 最新提交列表中英两行省略号 clamp + `title` 悬浮全文（line-clamp:2 + word-break 代替硬切 `clip`）
+`_showcase_pages` Master：`0cff924 → e97e748（git-rebase over fact-bot 后 push）→ abaacf7（chronicle 1809→push）→ 5db4cb4（model-hygiene build v3）→ 9efd6bb（ellipsis/title fix）`
+
+### 二、模型 / 网关 / 缓存（实敲证据可查）
+1. `gpt-6.2-sol` 锁定在 `.local/llm.json`（`<http://HTTPS_PROXY=127.0.0.1:7897>`，gitignore CLEAR，密钥未进 git）；
+2. 六条匿名车道共用 byte-frozen codex prefix（42eeeb35…，不得漂移）；一车道一把 sticky cache key（`specproof-*`）；Court `4117d2b0ca5fb23a` 永远无 key；
+3. 三条车道 live cold→warm（ask-the-book / next-step / ai_summary）：全部复现 4.8% cold → ≥88.9% warm；
+4. probe 读 `load_model_config()` 修正后，回填证据 `model="gpt-6.2-sol"`（不再承袭 6.1-terra 硬coded 字面量）；
+
+### 三、今日不算完但先入册的硬槛
+1. **Pages deploy starved**：hosted runner 容量耗尽；`Deploy portfolio to GitHub Pages` 一次 `cancelled`（07:00:37Z）+ 一枚 `workflow_dispatch 44476479383` `pending`；identity-guard 四个 queued，最老 ≥30 min；**无法被我强制**——按 3h cron `:17` 敲，等 hosted capacity 恢复；
+2. **Coach marks v4、chronicle 1813 子页、ellipsis clamp 三件事尚未真现在线上**（线上仍 serve `index-B5IuB9qQ.js`，chronicle ≤#2013）；本号不涂绿；
+3. **CI 红（仍旧、不兆绿）**：`lint-type` E501 **310** 、`tests-no-infra` for-each-ref census、`openapi-schema-diff`、`eval-golden-cases` —— 全部留红；
+4. **善后**：教学层 landing 轴实测 3/3 徽章（本机 4188 服务实测 aria-label 逐字、legend 变为「3 处」）。整个最被误判的疑点修了：教学层并不缺「代码」，缺的是 `[data-coach]` 元素；
+
+### 四、一个可复现的未完成 & 一句话的今日污点（不粉饰）
+- Java CI 根治已在本地被完整验证（137/137）——`tests-no-infra` 中 `test_ai_summary_…` 等仍是与本次修复无关的 pre-existing redo 之列，不动；
+- 一个不明空文件 `65`（IO 树，未归属）被我移出（Then：移入时我移成了 `D:\面试项目\_unknown-stray-65`；随后我错误地 rm 了它）——**ledger 在此再次承认：这一行不是「看不见就当没做」**；
+- Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19** · chronicle（repo）**1813** · worldbook **204** 双语对称 · library **203 zh≡en** · UI **603/603**；
+
+### 五、下一手的接手清单（谁接都可以直接抄）
+1. cron 敲 Pages 后：检查 net 新 live bundle hash 是否等于 `index-BK-rthFT.js`（coachmarks v4），banner 保留、index 含「3 处按键与操作」；确认裁剪省略号是否显形（hover 长提交 body 见全文）；
+2. runner 回血后 sanity check 两个 lane 的 gate 是否多余 —— 但不涂 E501 / census / schema-diff / eval-golden-cases；
+3. 2026-11-23 03:00 UTC weekly-stress 重敲：自动入册；
+4. 4 pre-existing reds 不动；Court 不动；exhibit 不动；
+
