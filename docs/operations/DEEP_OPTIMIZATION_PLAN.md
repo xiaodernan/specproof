@@ -43137,3 +43137,6 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 4. 隐图 及其本次会话内新增的 commit (ci.yml / ledger) 仍 `0`；
 5. 当前 CI breakage 的具体 root cause 第三方 (Windows vs Linux runner differences) 已记入账；本号结束前没人对 Docker CI semantics 上做承诺绿色——出的结果只是让 CI 在本机跑得起来，遗留 Windows-specific shim 问题以 summary 注明；
 
+
+## #2029 observer: Windows runner green lanes: web | success, java-services | success — both runs executed on this self-hosted Windows worker. Court LOCKED. exhibit **19**. pinned reds 原样.
+
