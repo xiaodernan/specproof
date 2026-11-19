@@ -42596,3 +42596,24 @@ mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** 
 
 ### 三、账
 mvn untouched · `Library.test.tsx` 3/3 (183→203 名修正) · `test_guide_route_catalog.py` **6/6** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · chronicle **1799** · worldbook **204 卷（双语对称）** · library **203 zh≡en** · D1 ✅ · D2 ✅ ·「密码 123」依旧是一扇标着「演示」的门
+
+## #2008 《门外的门》：API 网关 401 排查 · 不是门坏了，是门外的水没了 — Court LOCKED · Night Watch CRACKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2007。证据 `docs/evidence/ask-the-book-2026-11-19.json`。
+
+### 一、交付
+1. **双鉴**：主请求 `https://api.aizzz.xyz/v1/responses` 与 `…/models` 端点在任何一跳探针都回 `HTTP/1.1 401 Unauthorized`，响应体 `{ "error": { "code": "", "message": "无效的令牌 (request id: …)", "type": "new_api_error" } }`；`X-New-Api-Version: newapi-official-rc46…` 官网鉴别层；统一鉴权判失败（`/v1/responses` 四种 model 名均被拒，绝非模型名/protocol 错误）；
+2. **代理侧确认**：`Test-NetConnection 127.0.0.1 -Port 7897` = **True**；`HTTP_PROXY=HTTPS_PROXY=http://127.0.0.1:7897` 时直连与走代理返回相同 `HTTP/1.1 401`；Clash Verge 网关可达且无任何干扰性拦截；
+3. **文件合法性确认**：`.local/llm.json` 密钥 `sk-BDR…FRwdP`（中间部分已隐藏，完整原文从作者消息中核对一致）；`len=51`；`starts with sk-`=True；`sha256=9a744eadfe7b50e4…`；key 全部在 `[A-Za-z0-9-_]` 内、无非可见字符、无 JSON 解析错误、`base_url=https://api.aizzz.xyz/v1`（含 v1）；**`_local/llm.json` 未提交进仓库**，`git check-ignore .local/llm.json` 返回有效忽略；
+4. **门禁走得通**：StateGraph `wake → strike → verify → report` 在 `--live` 下忠实发现 `zh` 与 `en` strike 均返回 `WorldbookAskError`，**判词即为 DRIFTED**，**从未被写成 HELD 或任何绿色**——本条证据 `docs/evidence/ask-the-book-2026-11-19.json` 中鱼肉两掂皆败（`zh_chars=0, en_chars=0, prompt_tokens=0, cached_tokens=0`)；
+5. **purity sift**：master 上 `audit_unsigned.py` 重扫 3,000+ tracked files，`unexpected hits = 0`，`.local/llm.json` 未泄露；
+
+### 二、没涂没动没碰
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样；
+2. 没有展品被涂绿：没有 exhibit 改裁决；
+3. 没动 Court 缓存约束；没动展品的结果；没扩大或缩小缓存条目、模型名、发布配置；
+4. 没尝试“自救”密钥：未替换密钥、未伪造 key、未把 SLACK 网关提升为“新出口”；
+5. 旧账保留：ask书 / next-step / stress_digest 三条线均按相同纪律报告，没有偷偷降级为「可用」。
+
+### 三、账
+mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · chronicle **1799** · worldbook **204 卷（双语对称）** · library **203 zh≡en** · 密码`123` 仍是一扇标着「演示」的门
