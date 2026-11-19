@@ -1,5 +1,8 @@
 name: specproof-ci
 
+env:
+  RUNNER_TOOL_CACHE: C:\Users\18414\AppData\Local\toolcache
+
 on:
   push:
     branches: [main, master, "feature/**"]
