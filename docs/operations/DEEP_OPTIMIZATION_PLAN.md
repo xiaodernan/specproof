@@ -43363,3 +43363,30 @@ specproof-ci：`44559140635` / `44558484073` 入队（lint/eval/security/tests-w
 2. 没模型调用（本批纯新页面 + 真值）；Gazette 6.2-sol epigraph 不动；
 3. 雅思 6.5 / IELTS 6.5 / 六级 546 / CET6 546 / 隐盾 / 法狗狗公司 / 铜牌 / 赵欣曈 无动；`隐图` = **0**；
 4. 本页不承诺未来、不做推断判词——只是把账本 tail 交给读者，与 chronicle 的关系 = 前台 · 不入 court 车道、不入 covenant。
+
+
+## #2039 真人头像解封装 · 语言表换算真字节 · Court LOCKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。衔接 #2038。日期：2026-11-20。
+
+### 一、头像修好了（owner 直接报告）
+1. **现象**：仓库首页正中间的大头照被压成很小的一块，「边缘都被删掉了」——根因三条叠加：`.hero{minmax(340px,.95fr)} + .hero-profile{width:min(100%,680px)}` + `.site-shell{overflow:hidden}` 裁掉 `profile-stamp`（它挂在 frame 外侧 right:-12px）+ `.profile-frame` 隐式 clipping → 合并修复 `d7f2b88` → 翻车（提交竟然为空）→ 重新落为 `da190ea`（styles.css + index.html cache-bust `?v=20261120a`，26+1 行）；
+2. **修复**：右轨 `minmax(380px,1fr)`；`profile-frame{overflow:visible}`；`profile-frame img{aspect-ratio:508/586}`（匹配原图 508×586，不出 letterbox）；`profile-stamp{right:2px;bottom:-14px}`（不再悬出 shell）；`.site-shell{overflow:visible}`；`≥1500px`/`≤900px` 断点各自放宽；
+3. **首轮提交是空的**：`d7f2b88`（0 文件），根因是当轮 rebase 后工作树未被 git 摄取；真实形态 `da190ea`；本条账目明确登记这次形态错误（不算 commit 数糊弄人）；Pages deploy `44569576754` dispatched；cron `:17 */3` 兜底。
+
+### 二、语言表换成「真字节」a.k.a. 检查期真数值
+1. `assets/languages-2026-11-20.svg` 现由脚本现敲生成：`gh api user/repos` → 14 个 public 非 fork 非归档仓 `languages_url` **逐仓拉取**，求和方式与之前报告一致；
+2. 实值：**TS 32.25% · Py 24.66% · JS 19.45% · HTML 12.37% · Java 8.86% · CSS 1.52% · Shell 0.40% · PLpgSQL 0.28% · rest 0.22%**；总量 146,177,795 B（139.37 MB→更精确的是 146.18 MB）；生成时间 2026-11-20；
+3. alt 文案重读：`byte share 2026-11-20 · TypeScript 32.25% Python 24.66% ... Java 8.86% ... (146.18 MB, 14 repos)`——即使 SVG 被画布吞掉，文字即是可机读证据；`NaN` 字节级扫描 = 0；
+4. 个人 README 指向新文件 `assets/languages-2026-11-20.svg`；旧文件 `languages-2026-11-19.svg` / `languages.svg` 保留原样不删（历史注脚权）；stats-contrib=(4012 贡献 · 3,997 提交 · 18 天 streak · 12 月 11 新仓 · 14 repos/18 lang/144.79 MB/10 stars · 2026-11-19) 原样不修（当期数字，不漂移）。
+
+### 三、没动没伪没涂
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19** · 24 pinned reds 原样 · E501 **310** · worldbook **204** · library **203 zh≡en** · chronicle **1833**；
+2. 没模型调用（本批纯静态资产 + CSS 手术）；Gazette 6.2-sol epigraph 不动；
+3. 雅思 6.5 / IELTS 6.5 / 六级 546 / CET6 546 / 隐盾 / 法狗狗公司 / 赵欣曈 / 铜牌 / 江西一等二等奖 等；`隐图` = **0**；
+4. IO 首页「16 public + 4 private」声明未动；私有 4 仓（隐盾源码 `fagougou-desensitize` 等）可见性未动。
+
+### 四、卡住但没掩盖
+1. Pages deploy `44569576754` 本轮还在队列（runner 忙）；ID 公开可查；
+2. 旧 cache `v=20261119e` → `v=20261120a` 已切换；若 CDN 还没追上，cron 会再推；**不是**内网 stale，是 CDN 未过期——本机 curl 现在还看不到新 CSS；
+3. `assets/languages-2026-11-20.svg` 已 push 到 `main`（`1b7224d`），原始 raw 链接可直接核对。
