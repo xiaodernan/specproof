@@ -42576,3 +42576,23 @@ mvn untouched · vitest **603/603**（两次全量复跑）· `tc --noEmit` 0 er
 
 ### 三、账
 mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · chronicle **1799** · worldbook **204 卷（双语对称）** · library **203 zh≡en** · D1 ✅ · D2 ✅ ·「密码 123」依旧是一扇标着「演示」的门
+
+## #2007 《账本认错、指南补洞》：了结 lint arc，修了两处指南漏掉的路由 · Court LOCKED · Night Watch CRACKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2006。
+
+### 一、交付
+1. **一次「滑倒」、一次完整回滚**（本弧中间）：为还清 E501 余额写的自动包装脚本把 36 个文件的中文/长字面量错切，`python-ast` 直接抓出；**没有涂绿、没有 force-push、没有用 `--skip-hooks`**，直接 `git checkout HEAD -- …` 清零回 HEAD（`83e9ab4`），把受损的 36 个文件原样恢复；之后逐个 `ast.parse` 验证零坏——这一轮的「失败」变成了可复原的记录，而不是一笔糊涂账；
+2. **指南补洞 `docs(operations/USER_GUIDE.md` 与 `EN/USER_GUIDE_EN.md`）**：guide 路由门 `tests/unit/test_guide_route_catalog.py` 六条全部通过——`test_every_real_route_is_listed[zh|en]` 与 `test_guide_catalogues_are_symmetric` 此前一直红，因为 `/library` 与 `/ask-the-book` 两个 NAV 真实路由从未进手册；本次在 zh/en 手册对称补入这两行，指南与 App.tsx 的真路由对齐。新人手册从「引导少两条真实页面」修成全量在线；
+3. **Library 自认卷数修正**：`Library.tsx` 的注释与 h1 eyebrow `SPECROOF BIBLE · 183 SCROLLS` → `203 SCROLLS`，`Library.test.tsx` 名字同步；`library.json` count=203（204 卷 worldbook、203 卷 library 双语一一对应）先前指南里忽略了这一层，本次补上，没改 json 没涂绿；
+4. **IO 仍在线**：`UI 603/603`、`/specproof-web/` 壳切换到 2026-11-19 构建产物（`index-WBVJjAEo.js`）；本 arc 修的两点不动双语对称拼写、不动任何身份字段。
+
+### 二、没涂没动没碰
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样——没有一个 exhibit 改裁决；
+2. E501 余额仍在账上（详见 #2006），没涂绿、没放行；
+3. 没有付出任何无法退回的代价：36 个文件的错切全部用 HEAD 覆盖复原，不改写 commit 真相；
+4. 指南加两条 = 与事实对齐；commit `7fac58f` 已推 master；新人从头到尾看到的路线图与真实部署同一个宇宙；
+5. 没有 secret 进 git；`.local/llm.json` 未动；`.env*` 未提交；weekend pins 不动、Court 不缓存。
+
+### 三、账
+mvn untouched · `Library.test.tsx` 3/3 (183→203 名修正) · `test_guide_route_catalog.py` **6/6** · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · chronicle **1799** · worldbook **204 卷（双语对称）** · library **203 zh≡en** · D1 ✅ · D2 ✅ ·「密码 123」依旧是一扇标着「演示」的门
