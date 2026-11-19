@@ -42553,3 +42553,26 @@ mvn untouched · vitest **603/603** · court `4117d2b0ca5fb23a` **LOCKED** · Ni
 
 ### 三、账
 mvn untouched · vitest **603/603**（两次全量复跑）· `tc --noEmit` 0 errors · vite build ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · chronicle **1799** · worldbook **204 卷（双语对称）** · library **203 zh≡en** · D1 ✅ · D2 ✅ ·「密码 123」依旧是一扇标着「演示」的门
+
+## #2006 《561 个红字不躲不涂》：lint 欠债机械偿还一次——剩 310 个 E501，一个都没赖账 · Court LOCKED · Night Watch CRACKED · exhibit **19** · pinned reds 原样
+
+**记录基准**：本节只追加。本号衔接 #2005。
+
+### 一、交付
+1. **`ruff --fix` 143 处机械修**：F401 ×70、I001 ×42、UP017/UP020/UP015/UP012/UP035/UP037/SIM117/SIM300/F541/E401 等——全部逐文件目检 diff；没有语义变化（`io.open→open`、`datetime import UTC→UTC,datetime`、`io/.py`→Python 3.12 语法均在门禁内核对）；
+2. **40 个 E402 全部登记为有意的 sys.path-boot import**（`insert` 起手再引 `langgraph`/`typing_extensions` 等）——文件头注释，`# noqa: E402` 全部是“在该文件 bootstrap 后 import，这是意图”——不是涂绿，而是显式登记；
+3. **N818 ×7 异常全部改名 `Error` 后缀**（AiSummary→AiSummaryError、InsightAdvice、InvestigationDig、NextStepAdvice、ObserveAdvice、RunbookTriage、WorldbookAsk、StressDigest）——全站替换、零语义变化、所有 raise-site 与测试同步；
+4. **E501 字节零变化**（ask_the_book/next_step 见证 markdown 重新分行花括号串 concatenation ——sha256 pins 逐字未动，三盏 StateGraph 灯全部保持 **HELD**；stress-digest/next_step/recall/ask_the_book 四灯测试集 **25/25** 绿）；
+5. **night_watch/lane_cache_probe/漂移换行全部魔术重排**——内容逐字节一致；nightly 证据清洗语义零变化；
+6. **purity sift 复扫 CLEAR @ 2993 tracked files**（`docs/evidence/purity-sift.md` 更新，`unexpected hits = 0`）；CLAUDE.md 标准 full pytest gate 需 MySQL —— 本轮 unit(not slow) 全量后台运行中，通知即结果，不代宣绿；
+7. **commit `1e5a78e`**（基于 `6e83fbc`）已推 master：`specproof-ci` 按惯例已排队等待 sibling-repo runner 空位；Pages deploy 同样排队——**本弧的 CI/CD 红灯状态没有变绿，E501 的 310 个红字如实存在**；IO 上次抓取点 `UI 603/603` 仍有效。
+
+### 二、没涂没动没碰
+1. Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · 24 pinned reds 原样 —— 19 件展品没有一件被改写裁决；exhibit #4 的 REGRESSION 原样留账；
+2. **E501 ×310 没有一行被注释掉/放宽门禁**——它们全部是原生长代码行/长字符串中文/JSON——没有一行“这么长没办法”的备注被加过；CI 在 E501 上**继续红**，直到逐行 wrap完毕；
+3. 两个可疑失败：`test_audit_graph::test_audit_chain_runs_all_five_lanes_and_writes_report`（单独复跑 1/1 passed）与 `test_ai_summary.py::test_stream_endpoint_dead_letter_then_replay_delivers`（单独复跑 _skipped_）——批量内容竞争下抽风，未能钉住因果；**如实登记**：两条在隔离复跑中都是好的/跳过的，不能改账成“修好了”；
+4. 没有动 `.env*`、没有 bypass 任何全局暗门；`.local/llm.json` 未进 git；
+5. `for-each-ref` ref-population 不足 20 这个红**仍然在**：仓库人口本来就是这个数，降门 = 弱化门，不动；e2e / eval-golden-cases / tests-with-infra 的既定红保持不动——#2005 已点名、本 arc 也没给它们涂绿。
+
+### 三、账
+mvn untouched · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entries **19** · chronicle **1799** · worldbook **204 卷（双语对称）** · library **203 zh≡en** · D1 ✅ · D2 ✅ ·「密码 123」依旧是一扇标着「演示」的门
