@@ -397,4 +397,20 @@ export const GRAPHS: GraphCard[] = [
     fields: ["pinned", "packet_identical", "messages_shape_ok", "verdict", "report_path", "live_requested", "zh_cached_tokens", "en_cached_tokens"],
     live: null,
   },
+  {
+    id: "model_router",
+    file: "agent/graphs/model_router_graph.py",
+    stateName: "ModelRouterState(TypedDict, total=False)",
+    chain: ["intake", "route", "route→evidence|worldbook|nextstep", "guard", "report", "END"],
+    verdicts: { zh: "HELD / ROUTE-DRIFT / VERDICT-LEAK / MODEL-FAILURE", en: "HELD / ROUTE-DRIFT / VERDICT-LEAK / MODEL-FAILURE" },
+    role: {
+      zh: "择路——这一盏和别的见证图不同：模型本身就是路由。它用严格 JSON 选出 evidence / worldbook / nextstep 一条车道，条件边照它的选择跳到下一状态，分支节点再由模型写出中英文内容。三条护栏不让幻觉路由越图、不让模型替展品下判决、失败就诚实报 DRIFT。默认离线见证零 token；LIVE=1 才真敲模型，复用冻结前缀与缓存键，实测一次 168,616 上下文 token、模型判 route=evidence、HELD。",
+      en: "The router — unlike the witness graphs, here the MODEL is the router. Strict JSON picks evidence / worldbook / nextstep; a conditional edge follows that choice to the next state, and the branch node writes the Chinese/English content. Three guards: a hallucinated route cannot escape, the model never rules on an exhibit, failure is an honest DRIFT. Offline witness by default (zero token); LIVE=1 strikes the real model on the frozen prefix — one measured run: 168,616 context tokens, model chose route=evidence, HELD.",
+    },
+    fields: ["route", "route_source", "route_raw", "rationale", "content", "model", "usage", "verdict", "detail", "report_path", "live"],
+    live: {
+      zh: "实测：prompt 168,616 · completion 77 · 模型判 route=evidence（allowlist 内）· 内容落地 · HELD · 缓存命中读双形状 usage",
+      en: "Measured: prompt 168,616 · completion 77 · model chose route=evidence (allowlisted) · content written · HELD · cache read from both usage shapes",
+    },
+  },
 ];

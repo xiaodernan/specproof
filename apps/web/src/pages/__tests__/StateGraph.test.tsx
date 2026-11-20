@@ -22,6 +22,19 @@ import StateGraph from "../StateGraph";
  * witness's name.
  */
 describe("StateGraph — LangGraph as wired in this repository", () => {
+  it("documents the model-driven router's conditional edges (the LLM chooses the next state)", () => {
+    const router = GRAPHS.find((g) => g.id === "model_router");
+    expect(router).toBeTruthy();
+    expect(router?.file).toBe("agent/graphs/model_router_graph.py");
+    // The distinguishing feature: a conditional edge whose branch is the model's route label.
+    expect(router?.chain).toContain("route");
+    expect(router?.chain.some((n) => n.includes("evidence") && n.includes("nextstep"))).toBe(true);
+    for (const locale of ["zh", "en"] as const) {
+      expect(router?.role[locale].length).toBeGreaterThan(40);
+      expect(router?.live?.[locale]).toBeTruthy();
+    }
+  });
+
   it("renders both locales with all eight concept terms and fifteen graphs", () => {
     for (const locale of ["zh", "en"] as const) {
       window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
