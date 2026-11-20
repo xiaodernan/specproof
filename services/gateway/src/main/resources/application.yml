@@ -316,6 +316,12 @@ specproof:
     #       failMode: open               # open=admit on Redis error, closed=429
     distributed-ratelimit:
       enabled: false
+    # Opt-in edge response cache (#1637): single-flight coalescing + bounded
+    # LRU + TTL. When on, GET routes opt in with metadata `cacheable: true`
+    # (and optionally `cache-ttl: <seconds>`). Concurrent identical GETs share
+    # one upstream call; memory is capped so a hot edge cannot OOM itself.
+    response-cache:
+      enabled: false
     # Dual-route-table isomorphism gate (#1635): the curated path table and the
     # service registry must agree. Every route that names a `service-id` (route
     # metadata, set above) must exist in the registry; the gate also rejects any
