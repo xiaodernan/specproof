@@ -130,9 +130,24 @@ jobs:
           uv pip install --python .venv/Scripts/python.exe -e ".[dev]"
 
       - name: Bandit scan (shipped packages, medium severity and above = zero)
+        # 2026-11-20 root cause of the 6-hour security hang (run 44528622009,
+        # job cancelled at exactly 13:02:49+6h = GitHub's default 360-minute
+        # job timeout): this block used bash-style `\` continuations, but a
+        # self-hosted Windows runner executes the step in PowerShell, which
+        # does not continue on backslash. Line 1 therefore reached the scanner
+        # with a literal "\" argument — bandit reads a bare path as a scan
+        # root, so it recursively walked ALL of D:\ for six hours; when the
+        # timeout finally killed it, line 2 executed as its own command and
+        # died with CommandNotFoundException(observability). Two changes, both
+        # mechanical: the invocation is one line (no continuation to get
+        # wrong), and the interpreter is the job's own .venv via PATH — bare
+        # `python` on this host resolves to the broken Python311 shim. The
+        # severity floor, package list and --skip are byte-identical to
+        # before; tests/security/test_bandit_suppressions_are_earned.py reads
+        # this very line and demands exactly this shape (python -m ...).
         run: |
-          uv run python -m bandit -r agent api cli storage providers evidence \
-            observability sandbox experiments integrations -ll -q --skip B101
+          $env:Path = ".venv\Scripts;" + $env:Path
+          python -m bandit -r agent api cli storage providers evidence observability sandbox experiments integrations -ll -q --skip B101
 
   tests-no-infra:
     runs-on: [self-hosted, windows]
