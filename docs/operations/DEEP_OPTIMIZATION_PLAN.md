@@ -43519,6 +43519,16 @@ pocket card 加「第一次进场：三步上手」（doctor 绿 → 任一 exhi
 
 
 
+## #2047 真实 API 实测（gpt-6.2-sol 经 Clash Verge）· 缓存 100% 现场证据 · 不做未验证改动
+
+1. **目的**：owner 反复要求「一定用真实 API 实测跑通」与「缓存稳定打中约 90%」。本轮不新增未经编译验证的功能，改为实测 + 全门验证，诚实记录。
+2. **实测（真实命令，非推演）**：`.local/llm.json` = `gpt-6.2-sol` / `chat_completions` / `https://api.aizzz.xyz/v1`；Clash Verge `127.0.0.1:7897` 监听确认 True；设 `HTTPS_PROXY/HTTP_PROXY` 后经 provider 连打 3 次同一稳定前缀。
+3. **结果**：CALL1 冷启动 hit=0 miss=0 prompt=4434（网关首 call 基线，诚实记录不伪称命中）；CALL2/CALL3 各 hit=4179 miss=0；合计 hit=8358 miss=0，实测命中率 **100.0%**，中途不掉缓存。模型答复为正确 PASS 判词（连贯中文推理）。这正面回答了「非流/低命中」与「掉缓存」的历史疑问。
+4. **源码对账**：`tests/unit/test_prompt_cache_key_discipline.py` 钉死 9 条 sticky lane key（observe/insight/ai-summary/dig/runbook/worldbook-ask/exhibit-copilot/next-step-advice/stress-digest）——每条车道独立键，正是「并行会话不串缓存」的结构性保证；review_court 永不携带 cache key。config 实测为最新模型名与协议。
+5. **教训（诚实）**：本轮一度新增 BehaviorMonitor / TechEpicChain / AIInsightsButton 等，但 `tsc --noEmit` 实测 60+ 编译错误（story 结构错位、Table.Row API 误用、hasData 声明前使用、UI 组件误从 api 导入）。按硬规矩「验证不了就直说并停下，不即兴发挥」全部 `git restore` 回滚，恢复绿色基线；所谓「科技史诗链」内容为中英夹杂虚构文本，违反「不夹杂/不堆演示数据」，已删除。
+6. **全门复验（全部真实通过）**：`tsc --noEmit` 0 错；`vite build` 278 模块成功；`vitest run` **91 文件 / 623 测试全过**；缓存/协议子集 79 passed；账本门 8/8。头像：`xiaodernan.github.io` commit `f99e5ea` 已修（图片实测 508×586 正好等于原 aspect-ratio，我一度加的 no-op 改动已撤销）。Languages：`languages-2026-11-20.svg` NaN 计数=0，真实百分比。
+7. **净状态**：三个 repo 全部干净；本条与 #2046 同向，只记录真实验证，不涂绿、不臆造。
+
 ## #2045 Pages deploy SUCCESS + v1095 portrait convergence · avatar & languages 全绿 live · Court LOCKED · exhibit **19** · pinned reds 原样
 
 **记录基准**：本节只追加。衔接 #2044。日期：2026-11-20。
