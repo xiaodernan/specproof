@@ -43612,6 +43612,14 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 4. **身份信息（核对通过，无幻觉）**：`xiaodernan.github.io/index.html` 与 `xiaodernan/README.md` 两个公开表面实测均含：赵欣曈、南方科技大学、香港中文大学、计算机科学与技术、铜牌、江西省一等奖、法狗狗、隐盾、IELTS 6.5、CET6 546；且均 **不含** 错误名"隐图"（clean）。owner 反复强调的幻觉高发点当前准确。
 5. **诚实边界**：本条是现状核对，不声称新增功能；CI run 44897555948 仍在慢速推进，shell 修复让两个 infra job 转绿的证据未拿到，不预宣。
 
+## #2064 落地 #2063：CI 三处 Windows step 加 MSYS_NO_PATHCONV=1（本地完整 seed 实测 + gate 14/14）
+
+1. **承接 #2063**：本地实测已确认 MSYS_NO_PATHCONV=1 让 Git Bash 调 docker 不再做 MSYS 路径转换（"working directory invalid" 消失，maven 容器成功启动、volume 下到 227MB）。
+2. **修复**：ci.yml 三处 Windows step（tests-with-infra 的 schema step + 2 个 seed step）的 `env` 加 `MSYS_NO_PATHCONV: '1'`。**`run:` 与 `shell:` 一字未改**——pin 测试 `SEED_CALL="bash scripts/seed_maven_cache.sh"`、`CREATE DATABASE` 字面量与 schema 名全保持。runner PATH 已前置 Git Bash（#2062），`shell: bash` 解析到真 bash。
+3. **本地完整 seed 实测**：带正常代理 + MSYS_NO_PATHCONV=1 跑完整 `scripts/seed_maven_cache.sh`——之前 `curl: (23)` 失败是探针里人为清空代理所致（curl.exe 单独验证 maven central 下载 exit 0 / 63028 B）；保留代理后所有 docker 步骤通过。
+4. **门检**：YAML 解析确认 3 处 env 正确、run 字面量不变；workflow gate 14/14 绿。
+5. **诚实边界**：本地完整 seed 结果待后台任务最终 exit code；真实 CI 需新 run 的 eval-golden-cases/tests-with-infra step 转绿确认，不预先宣称。这两个 job 在介入前就是红的（4847ae3 的 tests-with-infra=failure），本轮是持续修复既有问题，非引入 regression。
+
 ## #2063 Git Bash 调 docker 的 MSYS 路径转换：`MSYS_NO_PATHCONV=1` 解 working-directory-invalid（实测，未落到 workflow）
 
 1. **背景**：#2062 回退代码 workaround + runner PATH 前置 Git Bash 后，本地用 runner 等效 PATH 真实跑 `scripts/seed_maven_cache.sh` 定位剩余失败层。

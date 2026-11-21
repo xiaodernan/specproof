@@ -207,6 +207,12 @@ jobs:
         # scripts/create_test_database.ps1 runs; the schema name is pinned
         # against the conftest's own default by
         # tests/unit/test_ci_jobs_can_run_the_repo_gates.py.
+        # 2026-11-21: on the Windows self-hosted runner, Git Bash auto-converts
+        # POSIX-looking docker args (e.g. /m2) to bogus Windows paths, producing
+        # "working directory ... is invalid". MSYS_NO_PATHCONV=1 disables that
+        # conversion; the runner's PATH already points `bash` at real Git Bash.
+        env:
+          MSYS_NO_PATHCONV: '1'
         run: |
           docker compose -f compose.phase0.yml exec -T \
             -e MYSQL_PWD="${MYSQL_ROOT_PASSWORD:-specproof_root}" mysql \
@@ -220,6 +226,10 @@ jobs:
         # by hand; the #499 and #521 comment-swallow notes each had to be
         # fixed once per copy. The volume comes from
         # SPECPROOF_SANDBOX_M2_VOLUME, the same knob sandbox/runner.py reads.
+        # 2026-11-21: MSYS_NO_PATHCONV=1 stops Git Bash mangling docker paths
+        # on the Windows self-hosted runner (measured: fixes working-dir error).
+        env:
+          MSYS_NO_PATHCONV: '1'
         run: bash scripts/seed_maven_cache.sh
       - name: Materialize the golden-scenario refs the eval cases resolve
         # #521: the golden refs are built by scripts/build_golden_scenarios.py
@@ -307,6 +317,10 @@ jobs:
         # by hand; the #499 and #521 comment-swallow notes each had to be
         # fixed once per copy. The volume comes from
         # SPECPROOF_SANDBOX_M2_VOLUME, the same knob sandbox/runner.py reads.
+        # 2026-11-21: MSYS_NO_PATHCONV=1 stops Git Bash mangling docker paths
+        # on the Windows self-hosted runner (measured: fixes working-dir error).
+        env:
+          MSYS_NO_PATHCONV: '1'
         run: bash scripts/seed_maven_cache.sh
       - name: Materialize the golden-scenario refs this job evaluates
         # #521: the golden refs are built by scripts/build_golden_scenarios.py
