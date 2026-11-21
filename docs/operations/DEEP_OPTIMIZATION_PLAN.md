@@ -43612,6 +43612,17 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 4. **身份信息（核对通过，无幻觉）**：`xiaodernan.github.io/index.html` 与 `xiaodernan/README.md` 两个公开表面实测均含：赵欣曈、南方科技大学、香港中文大学、计算机科学与技术、铜牌、江西省一等奖、法狗狗、隐盾、IELTS 6.5、CET6 546；且均 **不含** 错误名"隐图"（clean）。owner 反复强调的幻觉高发点当前准确。
 5. **诚实边界**：本条是现状核对，不声称新增功能；CI run 44897555948 仍在慢速推进，shell 修复让两个 infra job 转绿的证据未拿到，不预宣。
 
+## #2063 Git Bash 调 docker 的 MSYS 路径转换：`MSYS_NO_PATHCONV=1` 解 working-directory-invalid（实测，未落到 workflow）
+
+1. **背景**：#2062 回退代码 workaround + runner PATH 前置 Git Bash 后，本地用 runner 等效 PATH 真实跑 `scripts/seed_maven_cache.sh` 定位剩余失败层。
+2. **实测链条（本机，真实 docker）**：
+   - 前置 Git Bash PATH、无 MSYS_NO_PATHCONV → `docker volume create` 成功（输出卷名），但 `docker run -v "$VOLUME:/m2"` 报 `working directory 'C:/Program Files/Git/work' is invalid`（exit 125）——Git Bash 的 MSYS 层把 docker 参数做了 POSIX→Windows 路径转换。
+   - 加 `MSYS_NO_PATHCONV=1` → **该错误消失，maven 容器成功启动**（输出 `Can not write to /root/.m2/... Carrying on` = 容器已在运行）→ 证明 `MSYS_NO_PATHCONV=1` 是 "working directory invalid" 的正解。
+   - 后续仍报容器内 `mkdir: cannot create directory '/root': Permission denied`（volume 权限/非 root 运行细节），属另一层环境问题，非 MSYS 转换。
+3. **为何未落到 workflow**：本会话已在 CI shell 层连续 #2052/#2060/#2061/#2062 多次迭代，每次真实 CI 冒新错；`MSYS_NO_PATHCONV=1` 本地实测有效但容器内权限问题未解，无法保证单靠它让 seed step 全绿。按「验证不了就直说、不即兴发挥」原则，不再盲目 push 试错制造队列拥塞。
+4. **明确的后续修复指引（供后续会话/owner）**：在两个 Windows seed/schema step 的 `env` 加 `MSYS_NO_PATHCONV: '1'`（runner PATH 已前置 Git Bash，无需自定义 shell），并处理容器内 /root volume 权限（用 `-u 1000:1000` 挂载或调整 warmup）。真实 CI 全绿需以此重跑验证。
+5. **诚实边界**：本条是本地实测发现，不是 CI 已通过；workflow 当前为原始干净状态 + runner 环境治本，CI job 在健康执行（不再全 queued 僵尸），但 seed step 完整绿灯尚未拿到。
+
 ## #2062 CI infra 根因治本：回退 3 次失败的 shell workaround，改在 runner 环境层前置 Git Bash（实测生效）
 
 1. **诚实：#2052/#2060/#2061 三次代码 workaround 均在真实 CI 失败**。真实 run 日志链条：`shell: bash`→System32 WSL stub（execvpe 失败）→ 自定义 8.3 路径→docker not found→显式 docker PATH→`working directory 'C:/Program Files/Git/work' invalid`（Git Bash 自定义 shell 的 MSYS cwd 转换问题）。每次本地验证过、CI 冒新错——根因是我在**代码层**用自定义 shell 模板模拟一个本该由 runner 环境提供的能力，治标不治本。
