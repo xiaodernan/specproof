@@ -30,6 +30,8 @@ jobs:
         # #529: one owner — scripts/seed_maven_cache.sh (the same script
         # ci.yml runs). The #159/#203 exec-bit note and #521's swallowed-
         # comment note live there now, once.
+        # 2026-11-21: shell: bash so the inner `bash` is Git Bash, not the WSL stub.
+        shell: bash
         run: bash scripts/seed_maven_cache.sh
       - name: Materialize every golden-scenario ref from this checkout
         # #521: the refs the nightly evaluation resolves are LOCAL tags built

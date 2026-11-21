@@ -43519,6 +43519,15 @@ pocket card 加「第一次进场：三步上手」（doctor 绿 → 任一 exhi
 
 
 
+## #2052 Windows self-hosted runner bash 语义修复：三处 shell: bash（受控修复 + 本地实测）
+
+1. **承接 #2051**：两个 infra 失败根因是 Windows runner 默认 PowerShell 执行 bash 语法的 step。本轮在 CI run 已 checkout 旧 commit、新 run 会自然排队的前提下，用零 pin 风险的受控方式修复。
+2. **修复**：给 ci.yml 两处（`Create the isolated test schema`、`Seed sandbox Maven cache` ×2 中的 eval 与 tests-with-infra 各一）与 nightly-eval.yml 一处（seed）加 `shell: bash`。**`run:` 内容一字不改**——`test_the_maven_cache_seeding_has_one_owner.py` 钉死 `SEED_CALL="bash scripts/seed_maven_cache.sh"`、`test_ci_jobs_can_run_the_repo_gates.py` 钉死 `CREATE DATABASE` 字面量与其 schema 名，两者都只读 `step.run`，`shell:` 是独立键，故不触碰门禁。
+3. **为何 `shell: bash` 有效**：GitHub Actions 在 Windows 上把 `shell: bash` 解析到已安装的 Git for Windows bash（本机 `C:\Program Files\Git\bin\bash.exe`，5.2.37），而非 `C:\Windows\System32\bash.exe` 的 WSL relay stub（该 stub 因无 /bin/bash 报 `execvpe failed`）。
+4. **本地实测**：Git Bash 下 `bash -n scripts/seed_maven_cache.sh` 退出 0；`bash -lc 'which bash'` → `/usr/bin/bash`（自身，非 stub）；把 MySQL schema step 的 `run:` 原样写入临时 .sh 用 Git Bash 执行，`${MYSQL_ROOT_PASSWORD:-specproof_root}` 正确展开为 `specproof_root`、`\` 续行正确合并为单条 docker 命令、完整 CREATE/GRANT/FLUSH SQL 作为单个 `-e` 参数传入。
+5. **门禁复验**：workflow gate 测试 26/26 绿（test_ci_jobs_can_run_the_repo_gates / test_the_maven_cache_seeding_has_one_owner / test_workflows_invoke_mvnw_through_sh / test_ci_materializes_the_golden_refs / test_the_eval_ci_step_cannot_swallow_the_tools_exit）。
+6. **诚实边界**：本条只记录受控修改与本地实测；真实 CI 全绿需新 run 在 runner 上跑完后确认，不预先宣称。
+
 ## #2051 CI run 44895222531 两个 infra job 失败的真实根因（诊断，未在本轮改动，诚实记录）
 
 1. **背景**：runner 恢复后 run `44895222531` 真正跑起来。日志证实该 run checkout 的是旧 commit `4847ae3`（非我本轮修复），两个失败与本轮代码改动无关。

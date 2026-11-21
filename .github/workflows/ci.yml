@@ -207,6 +207,12 @@ jobs:
         # scripts/create_test_database.ps1 runs; the schema name is pinned
         # against the conftest's own default by
         # tests/unit/test_ci_jobs_can_run_the_repo_gates.py.
+        # 2026-11-21: this block is bash syntax (${VAR:-default}, `\` continuations).
+        # On a Windows self-hosted runner the default shell is PowerShell, which
+        # splits `-e` into a bogus command (CommandNotFoundException). `shell: bash`
+        # makes GitHub Actions use Git Bash (the runner resolves it to the installed
+        # Git for Windows bash, NOT the WSL relay stub at System32\bash.exe).
+        shell: bash
         run: |
           docker compose -f compose.phase0.yml exec -T \
             -e MYSQL_PWD="${MYSQL_ROOT_PASSWORD:-specproof_root}" mysql \
@@ -220,6 +226,9 @@ jobs:
         # by hand; the #499 and #521 comment-swallow notes each had to be
         # fixed once per copy. The volume comes from
         # SPECPROOF_SANDBOX_M2_VOLUME, the same knob sandbox/runner.py reads.
+        # 2026-11-21: bare `bash` resolves to the WSL relay stub on this runner;
+        # shell: bash makes GitHub Actions pick Git Bash so the inner `bash` works.
+        shell: bash
         run: bash scripts/seed_maven_cache.sh
       - name: Materialize the golden-scenario refs the eval cases resolve
         # #521: the golden refs are built by scripts/build_golden_scenarios.py
@@ -307,6 +316,8 @@ jobs:
         # by hand; the #499 and #521 comment-swallow notes each had to be
         # fixed once per copy. The volume comes from
         # SPECPROOF_SANDBOX_M2_VOLUME, the same knob sandbox/runner.py reads.
+        # 2026-11-21: shell: bash so the inner `bash` is Git Bash, not the WSL stub.
+        shell: bash
         run: bash scripts/seed_maven_cache.sh
       - name: Materialize the golden-scenario refs this job evaluates
         # #521: the golden refs are built by scripts/build_golden_scenarios.py
