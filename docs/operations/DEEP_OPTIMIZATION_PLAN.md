@@ -43612,6 +43612,13 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 4. **身份信息（核对通过，无幻觉）**：`xiaodernan.github.io/index.html` 与 `xiaodernan/README.md` 两个公开表面实测均含：赵欣曈、南方科技大学、香港中文大学、计算机科学与技术、铜牌、江西省一等奖、法狗狗、隐盾、IELTS 6.5、CET6 546；且均 **不含** 错误名"隐图"（clean）。owner 反复强调的幻觉高发点当前准确。
 5. **诚实边界**：本条是现状核对，不声称新增功能；CI run 44897555948 仍在慢速推进，shell 修复让两个 infra job 转绿的证据未拿到，不预宣。
 
+## #2057 队列恢复 #3：取消 4 个跑在旧 commit 上、卡住 1 小时+ 的 CI run，让最终代码 run 获得 runner
+
+1. **实测诊断**：连续 push 累积 5 个 specproof-ci run。队列头 44897555948（headSha b24e9b3，旧 shell 修复提交）的 tests-no-infra 从 11:10Z 跑到 12:14Z（1 小时+），远超正常。进程链 50520→40224→(反复替换的子 pytest) 且父 CPU 停滞——#75 隔离契约测试的子 pytest 在 host 负载下反复 spawn/重试，卡住 runner。
+2. **为何安全取消**：卡住的 run 及随后 3 个（b24e9b3/b1ace33/933794f/227557f）都是旧 commit，其失败/卡住不代表我最终代码。我的最终修复在 ffb08bd（run 44901333729）排在最后，被前面卡住的 run 阻塞。
+3. **动作与复验**：取消 4 个旧 run（44897555948/44898092462/44899961441/44900406253），3 个已 completed/cancelled、1 个取消中；随后 ffb08bd run 的 java-services 进入 in_progress——runner 转向最终代码。含 #2052 shell 修复的 eval-golden-cases / tests-with-infra 仍 queued，待其跑完确认是否转绿，不预宣。
+4. **诚实边界**：#75 契约测试反复 spawn 子 pytest 是测试设计（模拟无库环境），改动会损害验证效力，不为此改测试；这是 host 负载下的性能限制，非产品 bug。
+
 ## #2056 真实发现的同步数据 bug：账本条目乱序 + #2046 缺标题，导致 live portfolio 显示滞后 strike（已修复并实测）
 
 1. **如何发现**：跑 `scripts/audit_portfolio.py`（经 Clash 代理真实联网）→ live `xiaodernan.github.io` 可达（HTTP 200, 142491 B）、specproof repo 存在、portfolio-sync 真实 `pushed fresh SpecProof data (attempt 1)`、GitHub secret `PORTFOLIO_TOKEN` 已配置且 `/user` HTTP 200。但读取 live `data/specproof-sync.json` 发现 `head=227557f9`（我的新提交）却 `latest_strike=#2045`、`latest_ledger_entry` 停在 #2045——**最新成果没同步进去**。
