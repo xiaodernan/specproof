@@ -43612,6 +43612,14 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 4. **身份信息（核对通过，无幻觉）**：`xiaodernan.github.io/index.html` 与 `xiaodernan/README.md` 两个公开表面实测均含：赵欣曈、南方科技大学、香港中文大学、计算机科学与技术、铜牌、江西省一等奖、法狗狗、隐盾、IELTS 6.5、CET6 546；且均 **不含** 错误名"隐图"（clean）。owner 反复强调的幻觉高发点当前准确。
 5. **诚实边界**：本条是现状核对，不声称新增功能；CI run 44897555948 仍在慢速推进，shell 修复让两个 infra job 转绿的证据未拿到，不预宣。
 
+## #2058 压力测试新增撞库压测 lane：stress_smoke 支持 POST/header/body + expect-status（实测判别 401 vs 5xx）
+
+1. **owner 要求**（原则十一）：「模拟海量用户、高并发、撞库之类的场景冲击系统，看会不会崩溃」。原有 targeted lane 只 GET，无法打认证端点（需 POST + header + 把错误的 401 视为预期结果）。
+2. **改动（向后兼容）**：`stress_smoke.py` 新增可选参数 `--method` / `--header`(可重复) / `--body` / `--expect-status`（'2xx'/'any'/字面量如 '401'）。`fetch()` 用 `urllib.request.Request(method, headers, body)`；关键修正——urllib 对非 2xx 抛 `HTTPError`，必须提取 `exc.code` 作为**实测响应**而非当网络错误（否则 401 风暴全被误记为 harness 错误）。`run_round` 用 `_is_expected()` 计 ok。所有参数默认保持旧行为（GET/2xx），静态车道逐字不变。
+3. **实测判别（mock auth server，全部真实运行）**：全部 401（错误 key 的预期结果）→ err=0.00% / verdict=**OK**；全部 500（服务端崩溃）→ err=100% / verdict=**BUDGET-BLOWN**。证明工具能区分「预期认证拒绝」与「真实服务失败」——正是撞库压测要看系统会不会崩的核心。
+4. **门检/质量**：`py_compile` exit 0；集成测试 `test_stress_smoke_target.py` + `test_stress_digest_graph.py` 9/9 绿；ruff 无净新增错误（当前 4 条 E501 < HEAD 的 5 条，SIM105 已用 contextlib.suppress 消除）。
+5. **诚实边界**：这是 bounded 本机探针，非生产容量评级；mock server 的 10053 客户端中断是 Windows socket 高并发现象，非工具缺陷。真实 API 端点压测需独立在受控环境做。
+
 ## #2057 队列恢复 #3：取消 4 个跑在旧 commit 上、卡住 1 小时+ 的 CI run，让最终代码 run 获得 runner
 
 1. **实测诊断**：连续 push 累积 5 个 specproof-ci run。队列头 44897555948（headSha b24e9b3，旧 shell 修复提交）的 tests-no-infra 从 11:10Z 跑到 12:14Z（1 小时+），远超正常。进程链 50520→40224→(反复替换的子 pytest) 且父 CPU 停滞——#75 隔离契约测试的子 pytest 在 host 负载下反复 spawn/重试，卡住 runner。

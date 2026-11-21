@@ -21,11 +21,13 @@ Exit codes: 0 = healthy bounds observed, 1 = an error budget was blown,
 
 import argparse
 import concurrent.futures as cf
+import contextlib
 import json
 import statistics
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 from datetime import UTC, datetime
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -44,24 +46,51 @@ def percentile(sorted_vals, p):
     return sorted_vals[f] + (sorted_vals[c] - sorted_vals[f]) * (k - f)
 
 
-def fetch(url: str, timeout: float):
+def fetch(url: str, timeout: float, method: str = "GET",
+          headers: dict | None = None, body: bytes | None = None):
     t0 = time.perf_counter()
+    req = urllib.request.Request(url, data=body, method=method, headers=headers or {})
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as resp:
-            body = resp.read()
-            return resp.status, len(body), (time.perf_counter() - t0) * 1000, None
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            payload = resp.read()
+            return resp.status, len(payload), (time.perf_counter() - t0) * 1000, None
+    except urllib.error.HTTPError as exc:
+        # A non-2xx IS a measured response (e.g. a 401 from a wrong-key storm),
+        # not a harness failure. Surface its code so the verdict can score it.
+        with contextlib.suppress(Exception):  # draining the body is best-effort
+            exc.read()
+        return exc.code, 0, (time.perf_counter() - t0) * 1000, None
     except Exception as exc:  # noqa: BLE001 - the harness must record, not raise
         return 0, 0, (time.perf_counter() - t0) * 1000, f"{type(exc).__name__}: {exc}"
 
 
-def run_round(base_url: str, paths: list[str], concurrency: int, requests_per_thread: int, timeout: float):
+def _is_expected(status: int, expect: str) -> bool:
+    """Whether a measured status counts as the intended outcome."""
+    if status <= 0:
+        return False
+    if expect == "2xx":
+        return 200 <= status < 300
+    if expect == "any":
+        return True
+    try:
+        return status == int(expect)
+    except ValueError:
+        return 200 <= status < 300
+
+
+def run_round(base_url: str, paths: list[str], concurrency: int,
+              requests_per_thread: int, timeout: float,
+              method: str = "GET", headers: dict | None = None,
+              body: bytes | None = None, expect: str = "2xx"):
     urls = []
     per_round = concurrency * requests_per_thread
     for i in range(per_round):
         urls.append(f"{base_url}{paths[i % len(paths)]}")
     latencies, statuses, bytes_read, errors = [], [], 0, []
     with cf.ThreadPoolExecutor(max_workers=concurrency) as pool:
-        for status, size, ms, err in pool.map(lambda u: fetch(u, timeout), urls):
+        for status, size, ms, err in pool.map(
+            lambda u: fetch(u, timeout, method, headers, body), urls
+        ):
             latencies.append(ms)
             statuses.append(status)
             bytes_read += size
@@ -69,7 +98,7 @@ def run_round(base_url: str, paths: list[str], concurrency: int, requests_per_th
                 errors.append(err)
     latencies.sort()
     total = len(latencies)
-    ok = sum(1 for s in statuses if 200 <= s < 300)
+    ok = sum(1 for s in statuses if _is_expected(s, expect))
     return {
         "total": total,
         "ok": ok,
@@ -126,11 +155,33 @@ def main() -> int:
     parser.add_argument("--warmup", type=int, default=0,
                         help="untimed warm-up rounds before the measured rounds (not counted in any verdict)")
     parser.add_argument("--json-report", default="")
+    # Targeted abuse lane (e.g. credential-stuffing): POST + headers + body, where
+    # a wrong-key 401 is the EXPECTED outcome, not a harness error. All optional;
+    # default behaviour (GET static asset, 2xx = ok) is byte-identical to before.
+    parser.add_argument("--method", default="GET",
+                        help="HTTP method for the targeted lane (default: GET)")
+    parser.add_argument("--header", action="append", default=[], metavar="K:V",
+                        help="repeatable request header, e.g. 'X-API-Key: bad'. Never a real credential.")
+    parser.add_argument("--body", default="",
+                        help="request body string for the targeted lane")
+    parser.add_argument("--expect-status", default="2xx",
+                        help="success status: '2xx', 'any', or a literal like '401' (default 2xx)")
     args = parser.parse_args()
+
+    req_headers: dict[str, str] = {}
+    for item in args.header:
+        if ":" in item:
+            k, v = item.split(":", 1)
+            req_headers[k.strip()] = v.strip()
+    req_body = args.body.encode("utf-8") if args.body else None
+    lane_note = (
+        f"targeted {args.method} lane, expect-status={args.expect_status}"
+        if args.target else "static lane"
+    )
 
     started = datetime.now(UTC).isoformat()
     if args.target:
-        base, paths, server, note = (args.target.rstrip("/"), [""], None, "targeted lane")
+        base, paths, server, note = (args.target.rstrip("/"), [""], None, lane_note)
     else:
         if not DIST.is_dir():
             print(f"dist missing at {DIST} — run `npm run build` first")
@@ -143,13 +194,15 @@ def main() -> int:
 
     if args.warmup:
         for w in range(args.warmup):
-            warm = run_round(base, paths, args.concurrency, args.per_thread, args.timeout)
+            warm = run_round(base, paths, args.concurrency, args.per_thread, args.timeout,
+                             args.method, req_headers, req_body, args.expect_status)
             print(f"warmup {w + 1}/{args.warmup}: total={warm['total']} ok={warm['ok']} "
                   f"p99={warm['p99_ms']:.1f}ms (not counted)")
 
     rounds_out = []
     for r in range(args.rounds):
-        stats = run_round(base, paths, args.concurrency, args.per_thread, args.timeout)
+        stats = run_round(base, paths, args.concurrency, args.per_thread, args.timeout,
+                          args.method, req_headers, req_body, args.expect_status)
         rounds_out.append(stats)
         print(f"round {r + 1}/{args.rounds}: total={stats['total']} ok={stats['ok']} "
               f"err={stats['err_rate'] * 100:.2f}% p50={stats['p50_ms']:.1f}ms "
@@ -170,7 +223,10 @@ def main() -> int:
         "warmup_rounds": args.warmup,
         "rounds": rounds_out,
         "verdict": "OK" if worst_err <= 0.01 and worst_p99 < 5000 else "BUDGET-BLOWN",
-        "honesty": "This is a static-asset delivery probe on this host; it is not a FastAPI/MySQL/Redis rating.",
+        "honesty": (
+            f"Bounded {lane_note} probe on this host — ok means status matched "
+            f"expect-status={args.expect_status}; not a production capacity rating."
+        ),
     }
     text = json.dumps(summary, ensure_ascii=False, indent=2)
     if args.json_report:
