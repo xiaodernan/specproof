@@ -43519,6 +43519,12 @@ pocket card 加「第一次进场：三步上手」（doctor 绿 → 任一 exhi
 
 
 
+## #2055 项目清单完整性核对：README 全部 repo 均已列入 github.io 主页（核对通过）
+
+1. **owner 要求**：「把所有项目都列入我的 github io 页面」。
+2. **实测核对**：解析 `xiaodernan/README.md` 的全部 `github.com/xiaodernan/<repo>` 链接（15 个 distinct repo：ai-career-os / caesura / crossrealm-chronicles / docs / football-os / football-os-web / linuxdo-scripts / main / minicc-codex / nexus-content-platform / nexus-platform / specproof / ted / teedyyyy / xiaodernan），逐一检查 `xiaodernan.github.io/index.html` 是否含对应链接 → **MISSING = 空**，全部列入。index.html 共 76 处 repo 链接。
+3. **诚实边界**：本条是现状核对，不声称新增；核对通过即无需改动，避免为「找活干」制造无意义 diff。
+
 ## #2054 关键要求实测核对：LLM 深度嵌入 / 教学说明 / 身份信息准确性（核对通过，未新增代码）
 
 1. **背景**：owner 反复强调三条关键要求且担心幻觉。本轮不盲目新增有风险的代码，改为对 HEAD 现状做端到端实测核对。
