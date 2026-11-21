@@ -43519,6 +43519,15 @@ pocket card 加「第一次进场：三步上手」（doctor 绿 → 任一 exhi
 
 
 
+## #2049 nightly-eval 真实回归修复：case-100 变异被误烘焙进 base，破坏 case-72/100 锚点（已修复并实测）
+
+1. **真实 CI 失败（远程 master 4847ae3）**：`nightly-eval` run `44714139390` 的 step 7「Materialize every golden-scenario ref from this checkout」失败，导致 step 8「Nightly 100 golden-case evaluation」被整体跳过。报错：`Expected exactly 1 occurrence in demo/spring-backend/.../UserService.java, found 0 for: EmailChangedEvent event = new EmailChangedEvent(user`。
+2. **根因**：commit `9efb93b`（#1633 真实 gpt-6-sol 端到端 + RabbitMQ 探针并轨）把 case-100 的 **head 变异** `event.setTimestamp(null);`（连同 3 行注释）烘焙进了 master 的 demo `UserService.java`。但 `--refs-only` 模式下 `base` = checkout HEAD，于是 base 不再纯净：case-72 与 case-100 共用的两行锚点 `EmailChangedEvent event = ...;\n rabbitTemplate.convertAndSend(` 之间被插入了 setTimestamp，锚点匹配数变 0 → 物化失败。
+3. **为何确定这是错的**：`case-100-rel-event-timestamp-nulled/ground-truth.json` 明写 `base.payload_timestamp_non_null=true`、`evidence_type=base_pass_head_fail`——base 必须无 setTimestamp（干净侧），head 才注入。把变异烘焙进 base 会同时毁掉 case-100 自己的差分语义和 case-72 的锚点。git history 证实 `9efb93b^` 的该文件是纯净两行锚点。
+4. **修复**：commit `dd56010` 从 demo `UserService.java` 移除误烘焙的 4 行（3 注释 + 1 setTimestamp），恢复纯净 base。无测试 pin 那几行。`probe` 期望结构测试 14/14 绿。
+5. **实测复验（本地跑真实 CI 步骤）**：修复后 `git show base:...UserService.java` 锚点计数=1、无 setTimestamp；`build_golden_scenarios.py --refs-only` 重建 101 个 ref 过程中，`case-100-head` diff 正确为 `+ event.setTimestamp(null);`、`case-72-head` diff 正确为 `+ event.setNewEmail(oldEmail);`——两个曾失败的锚点均成功物化（直接证据）。本条记录基于这些已验证事实，不涂绿、不外推。
+6. **binding 覆盖缺口（诚实记录）**：`test_ci_materializes_the_golden_refs.py` 5/5 绿，但它只校验 workflow 步骤存在，不校验 101 个 case 锚点能否真正物化——因此本地全绿未能拦住这次 CI 失败，是 nightly 独有的多小时链路才暴露。
+
 ## #2048 压力测试工具根因修复：静态车道监听 backlog 太小导致自身拒绝连接（已修复并实测）
 
 1. **实测发现**：`scripts/stress_smoke.py` 静态车道 concurrency=120 时 err=35–42%、`BUDGET-BLOWN`。诊断 sample_errors 全为 `WinError 10061`（目标主动拒绝连接）——这是 Python `ThreadingHTTPServer` 默认 `request_queue_size=5` 的**测试服务器自身**监听队列饱和，不是产品缺陷。对照实验：concurrency=24 时 0% err / OK，证明是 harness 瓶颈。
