@@ -43519,6 +43519,13 @@ pocket card 加「第一次进场：三步上手」（doctor 绿 → 任一 exhi
 
 
 
+## #2053 队列恢复 #2：取消 3 个被取代的陈旧 CI run，让 shell 修复 run 获得 runner（已实测）
+
+1. **背景**：连续推送产生多个 CI run（bec8a8b / 25bbccc / 533aaf1 / b24e9b3），前 3 个跑在旧 commit 上（无 #2052 的 shell 修复），其 eval-golden-cases / tests-with-infra 失败已知且不会变；两个 runner 被这些旧 run 占用，含 shell 修复的 b24e9b3 run（44897555948）一直 queued。
+2. **实测判断**：旧 run 44895222531 的 tests-no-infra 从 10:40Z 跑 29 分钟仍 in_progress（CPU 近零，pytest 疑似慢/卡），java-services 于 11:09Z 才启动——runner 在推进但队列冗长。旧 run 的失败对修复无参考价值。
+3. **动作**：取消 3 个被取代的陈旧 run（44895222531/44895943893/44896858619），全部返回 `Request to cancel ... submitted`，复查均 `completed/cancelled`。与 #2046/#2050 同类的队列管理，不碰任何门禁或测试。
+4. **实测复验**：取消后 shell 修复 run 44897555948 的 tests-no-infra 与 web 进入 in_progress（runner 空闲接手），队列恢复生效。含 #2052 修复的 eval-golden-cases / tests-with-infra 仍在 queued，待 runner 完成后确认是否转绿；本条不预先宣称。
+
 ## #2052 Windows self-hosted runner bash 语义修复：三处 shell: bash（受控修复 + 本地实测）
 
 1. **承接 #2051**：两个 infra 失败根因是 Windows runner 默认 PowerShell 执行 bash 语法的 step。本轮在 CI run 已 checkout 旧 commit、新 run 会自然排队的前提下，用零 pin 风险的受控方式修复。
