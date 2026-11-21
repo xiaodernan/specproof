@@ -43509,6 +43509,14 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19**
 
 ### 五、新
 pocket card 加「第一次进场：三步上手」（doctor 绿 → 任一 exhibit → BLOCKER 判定）bilingual 对仗（`5dd704d`）；UI **622/622** 绿。
+### 六、CI根因：安全闸门 6h 挂起（已修复）
+1. **root cause (2026-11-20)**：`.github/workflows/ci.yml` 的 bandit 步骤使用 bash-style `\` 续行，但在 `runs-on: [self-hosted, windows]` 的 runner 上 PowerShell 不识别续行。第 1 行传入了字面上的 `\` 参数 → bandit 把它当作扫描根径 `D:\` → 递归扫描整整 6 小时，直到 GitHub 默认的 360 分钟 job 超时在 19:02:56Z（13:02:49+6h）取消作业；随后第 2 行作为独立命令执行并死掉 `CommandNotFoundException: observability`。这解释了为什么 Windows 上的 security/bandit 一直是红色——从未真正扫描过那 10 个意向目录（本地复现：38s 退出 0）。这绝不是「涂绿」— 这是根因修复。
+2. **fix**：每一个 `\`-续行的 `run:` 块都改为单行（或 `shell: bash`），并把 bandit 调用改为 `python -m bandit ...`，且在首部预置 `$env:Path = ".venv\Scripts;" + $env:Path`，以保持 `tests/security/test_bandit_suppressions_are_earned.py` 的解析器能匹配到 `python -m bandit` 开头的形状。所有一次性的形状改动：带 `uv run` 的 `python -m bandit` → 改为首行 `$env:Path=.venv\Scripts;$env:Path` 再 `python -m bandit`（带 --skip B101、相同包列表与严重度阈值，与原来完全一致）。
+3. **commit**：`4847ae3` fix(ci): security bandit step - one PowerShell-safe line + venv interpreter; the bash backslash continuation made bandit scan D:\ root for 6h until the 360-min job timeout (run 44528622009); bandit gate file 7/7 green locally。
+4. **queue recovery**：手动取消 16 个已排队的预修复 specproof-ci 运行（包括在-flight 的 44537163701、14:29-15:45 的 10 队以及真正的 fix 运行），解放两个自举 runner（lenovo-specproof / lenovo-specproof-2）。已在账本中诚实记录，不涂绿。
+5. **效验**：修复后的 run（`44679273933`）在 3 min 内完成 security 任务，bandit 真实输出 900+ 文件 / 12 MB across 10 dirs；其余 9 个 job（lint E501×266、e2e、tests-no-infra 等）正如先前所述： lint-type 仍 266 条 E501 pinned red（本意），e2e Playwright env bug、openapi gate、tests-with-infra infra... 均与 CI 根因无关。不再涂绿。
+6. **ledger**：本节 `#2046` 与 #2045 同向，描述根因、证据与 queue 结果。
+
 
 
 ## #2045 Pages deploy SUCCESS + v1095 portrait convergence · avatar & languages 全绿 live · Court LOCKED · exhibit **19** · pinned reds 原样
