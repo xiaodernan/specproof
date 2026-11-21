@@ -215,7 +215,10 @@ jobs:
         # the real bash, not the stub. Verified locally: inner bash -> /usr/bin/bash.
         shell: C:\Progra~1\Git\usr\bin\bash.exe --noprofile --norc -eo pipefail {0}
         env:
-          PATH: C:\Program Files\Git\usr\bin;C:\Program Files\Git\bin;${{ env.PATH }}
+          # Git Bash bins for the inner `bash`; Docker bin explicitly because the
+          # GitHub-injected PATH may omit the machine-level Docker location on this
+          # self-hosted runner (measured failure: seed script `docker: command not found`).
+          PATH: C:\Program Files\Git\usr\bin;C:\Program Files\Git\bin;C:\Program Files\Docker\Docker\resources\bin;${{ env.PATH }}
         run: |
           docker compose -f compose.phase0.yml exec -T \
             -e MYSQL_PWD="${MYSQL_ROOT_PASSWORD:-specproof_root}" mysql \
@@ -234,7 +237,10 @@ jobs:
         # prepend so the run's inner `bash` is real Git Bash (locally verified).
         shell: C:\Progra~1\Git\usr\bin\bash.exe --noprofile --norc -eo pipefail {0}
         env:
-          PATH: C:\Program Files\Git\usr\bin;C:\Program Files\Git\bin;${{ env.PATH }}
+          # Git Bash bins for the inner `bash`; Docker bin explicitly because the
+          # GitHub-injected PATH may omit the machine-level Docker location on this
+          # self-hosted runner (measured failure: seed script `docker: command not found`).
+          PATH: C:\Program Files\Git\usr\bin;C:\Program Files\Git\bin;C:\Program Files\Docker\Docker\resources\bin;${{ env.PATH }}
         run: bash scripts/seed_maven_cache.sh
       - name: Materialize the golden-scenario refs the eval cases resolve
         # #521: the golden refs are built by scripts/build_golden_scenarios.py
@@ -327,7 +333,10 @@ jobs:
         # prepend so the run's inner `bash` is real Git Bash (locally verified).
         shell: C:\Progra~1\Git\usr\bin\bash.exe --noprofile --norc -eo pipefail {0}
         env:
-          PATH: C:\Program Files\Git\usr\bin;C:\Program Files\Git\bin;${{ env.PATH }}
+          # Git Bash bins for the inner `bash`; Docker bin explicitly because the
+          # GitHub-injected PATH may omit the machine-level Docker location on this
+          # self-hosted runner (measured failure: seed script `docker: command not found`).
+          PATH: C:\Program Files\Git\usr\bin;C:\Program Files\Git\bin;C:\Program Files\Docker\Docker\resources\bin;${{ env.PATH }}
         run: bash scripts/seed_maven_cache.sh
       - name: Materialize the golden-scenario refs this job evaluates
         # #521: the golden refs are built by scripts/build_golden_scenarios.py

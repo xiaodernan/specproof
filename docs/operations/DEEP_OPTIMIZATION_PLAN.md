@@ -43612,6 +43612,14 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 4. **身份信息（核对通过，无幻觉）**：`xiaodernan.github.io/index.html` 与 `xiaodernan/README.md` 两个公开表面实测均含：赵欣曈、南方科技大学、香港中文大学、计算机科学与技术、铜牌、江西省一等奖、法狗狗、隐盾、IELTS 6.5、CET6 546；且均 **不含** 错误名"隐图"（clean）。owner 反复强调的幻觉高发点当前准确。
 5. **诚实边界**：本条是现状核对，不声称新增功能；CI run 44897555948 仍在慢速推进，shell 修复让两个 infra job 转绿的证据未拿到，不预宣。
 
+## #2061 CI seed 第二层失败：`docker: command not found`（#2060 shell 修复生效后暴露的新根因）
+
+1. **诚实：#2060 的 shell 部分生效了，但 seed step 仍失败**。真 CI run 44906033231 的 eval-golden-cases step 7 日志：shell 已是 `C:\Progra~1\Git\usr\bin\bash.exe`（WSL stub 错误消失，#2060 的 shell 修复正确），PATH 前置也生效；但新错误 `scripts/seed_maven_cache.sh: line 21: docker: command not found` / exit 127。
+2. **根因**：GitHub-injected `${{ env.PATH }}` 在这台 self-hosted Windows runner 上未包含 Machine 级 Docker 路径（`C:\Program Files\Docker\Docker\resources\bin`，本机 Machine PATH 实测确认存在）。#2060 前置的 PATH 只有 Git bins，故脚本里 `docker volume create` 找不到 docker。
+3. **修复**：3 处 Windows seed/schema step 的 PATH 前置显式加入 `C:\Program Files\Docker\Docker\resources\bin`（不再依赖 `${{ env.PATH }}` 含它）。`run:` 与 shell 模板不变。
+4. **本地实测（cmd.exe 模拟 GitHub shell 执行）**：精确 PATH 配置下 `command -v docker` → `/c/Program Files/Docker/Docker/resources/bin/docker`、内层 `bash` → `/usr/bin/bash`、版本 GNU bash 5.2.37，rc=0。workflow gate 14/14 绿、YAML 解析确认 3 处 PATH 均含 Git 与 Docker。
+5. **诚实边界**：仍需下一次真实 CI run 的 step 7 结果确认——这是 #2052/#2060 两次"本地验证后 CI 仍失败"的教训，不预先宣称转绿。
+
 ## #2060 CI Windows shell 真根因：`shell: bash` 解析到 WSL stub，改用 Git Bash 8.3 路径 + PATH 前置（上次 #2052 修复失败后的诚实纠正）
 
 1. **诚实：上次 #2052 修复失败**。真 CI run 44901333729 的 tests-with-infra 仍失败在 step 7「Create the isolated test schema」，日志铁证：`shell: C:\WINDOWS\system32\bash.EXE --noprofile --norc -e -o pipefail {0}` → `<3>WSL ERROR: execvpe(/bin/bash) failed: No such file or directory`。即 `shell: bash` 在这台 self-hosted Windows runner 上被解析到 **System32 的 WSL relay stub**，不是 Git Bash。#2052 的假设（"GitHub 会选 Git Bash"）是错的。openapi-schema-diff 的失败属另一路，不在本条范围。
