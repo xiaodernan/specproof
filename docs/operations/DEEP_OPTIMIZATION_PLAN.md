@@ -43519,6 +43519,13 @@ pocket card 加「第一次进场：三步上手」（doctor 绿 → 任一 exhi
 
 
 
+## #2050 队列恢复：两个 self-hosted runner 离线导致推送后 CI 全 queued（已上线并实测执行）
+
+1. **真实阻塞**：推送 `bec8a8b` 后 CI run `44895222531` 全部 job queued 不动（仅 provider-smoke skipped）。诊断 `gh api ../actions/runners`：lenovo-specproof / lenovo-specproof-2 均 offline；本机无 Runner.Listener / Runner 进程。与 #2046 同类队列阻塞。
+2. **根因**：runner 是交互式（非 service），安装目录 `_actions-runner-specproof{,-2}` 配置正确（agentId 21/22），但进程未运行。直接执行 `bin/Runner.Listener.exe` 只打印帮助（需 `run.cmd` 传参）——第一次尝试因此失败。
+3. **修复**：用 `run.cmd` 经 cmd 后台启动两个 runner。输出证实 `Connected to GitHub` → `Listening for Jobs` → `Running job: tests-no-infra`。`gh api runners` 复查：两者 status=online、busy=true。
+4. **实测复验**：CI run `44895222531` 的 `tests-no-infra` 与 `eval-golden-cases` 进入 in_progress（在两个 runner 上并行），证明队列恢复生效。CI 全量结果未出，不宣称绿；本条只记录已验证的 runner 上线与 job 起跑事实。
+
 ## #2049 nightly-eval 真实回归修复：case-100 变异被误烘焙进 base，破坏 case-72/100 锚点（已修复并实测）
 
 1. **真实 CI 失败（远程 master 4847ae3）**：`nightly-eval` run `44714139390` 的 step 7「Materialize every golden-scenario ref from this checkout」失败，导致 step 8「Nightly 100 golden-case evaluation」被整体跳过。报错：`Expected exactly 1 occurrence in demo/spring-backend/.../UserService.java, found 0 for: EmailChangedEvent event = new EmailChangedEvent(user`。
