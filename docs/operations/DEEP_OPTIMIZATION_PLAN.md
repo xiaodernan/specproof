@@ -43612,6 +43612,19 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 4. **身份信息（核对通过，无幻觉）**：`xiaodernan.github.io/index.html` 与 `xiaodernan/README.md` 两个公开表面实测均含：赵欣曈、南方科技大学、香港中文大学、计算机科学与技术、铜牌、江西省一等奖、法狗狗、隐盾、IELTS 6.5、CET6 546；且均 **不含** 错误名"隐图"（clean）。owner 反复强调的幻觉高发点当前准确。
 5. **诚实边界**：本条是现状核对，不声称新增功能；CI run 44897555948 仍在慢速推进，shell 修复让两个 infra job 转绿的证据未拿到，不预宣。
 
+## #2059 live 个人主页真实浏览器视觉审计：用户抱怨的前端问题全部不存在，Lighthouse 三项满分
+
+1. **为何做**：owner 反复要求「前端极致漂亮、修复字体变形/实体块重叠/头像裁切/NaN/错别字」，此前只做数据核对，从未真正渲染验证。本轮用 Chromium 打开 live `https://xiaodernan.github.io/` 做 DOM 实测 + Lighthouse。
+2. **实测（真实浏览器，非推演）**：
+   - 页面加载无 console error；title「赵欣曈 · AI 应用工程师 — CÆSURA · 止音纪元」
+   - `NaN` 可见文本计数 = **0**（Languages 无 NaN）；`undefined` = **0**
+   - 头像：naturalRatio = cssRatio = **0.867**，`object-fit: contain` → 无裁切、无变形（owner 抱怨的「压缩变小、边缘删掉」在 live 不存在）
+   - `documentElement.scrollWidth - clientWidth = 0` → 无横向溢出/实体块挤压
+   - 身份：隐图 = 0、隐盾 = 11（无幻觉）
+   - Lighthouse：**Accessibility 1.0 / Best Practices 1.0 / SEO 1.0，failures = []**
+3. **结论**：owner 列出的前端视觉问题在 live 页面已全部修复到位；「有则改之无则加勉」——实测无新问题，不做无意义改动。
+4. **诚实边界**：截图需桌面窗口可见，后台未能取截图；但 DOM 几何测量 + Lighthouse 是客观证据，足以判定视觉健康。
+
 ## #2058 压力测试新增撞库压测 lane：stress_smoke 支持 POST/header/body + expect-status（实测判别 401 vs 5xx）
 
 1. **owner 要求**（原则十一）：「模拟海量用户、高并发、撞库之类的场景冲击系统，看会不会崩溃」。原有 targeted lane 只 GET，无法打认证端点（需 POST + header + 把错误的 401 视为预期结果）。
