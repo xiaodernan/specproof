@@ -43509,87 +43509,6 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit **19**
 
 ### 五、新
 pocket card 加「第一次进场：三步上手」（doctor 绿 → 任一 exhibit → BLOCKER 判定）bilingual 对仗（`5dd704d`）；UI **622/622** 绿。
-### 六、CI根因：安全闸门 6h 挂起（已修复）
-1. **root cause (2026-11-20)**：`.github/workflows/ci.yml` 的 bandit 步骤使用 bash-style `\` 续行，但在 `runs-on: [self-hosted, windows]` 的 runner 上 PowerShell 不识别续行。第 1 行传入了字面上的 `\` 参数 → bandit 把它当作扫描根径 `D:\` → 递归扫描整整 6 小时，直到 GitHub 默认的 360 分钟 job 超时在 19:02:56Z（13:02:49+6h）取消作业；随后第 2 行作为独立命令执行并死掉 `CommandNotFoundException: observability`。这解释了为什么 Windows 上的 security/bandit 一直是红色——从未真正扫描过那 10 个意向目录（本地复现：38s 退出 0）。这绝不是「涂绿」— 这是根因修复。
-2. **fix**：每一个 `\`-续行的 `run:` 块都改为单行（或 `shell: bash`），并把 bandit 调用改为 `python -m bandit ...`，且在首部预置 `$env:Path = ".venv\Scripts;" + $env:Path`，以保持 `tests/security/test_bandit_suppressions_are_earned.py` 的解析器能匹配到 `python -m bandit` 开头的形状。所有一次性的形状改动：带 `uv run` 的 `python -m bandit` → 改为首行 `$env:Path=.venv\Scripts;$env:Path` 再 `python -m bandit`（带 --skip B101、相同包列表与严重度阈值，与原来完全一致）。
-3. **commit**：`4847ae3` fix(ci): security bandit step - one PowerShell-safe line + venv interpreter; the bash backslash continuation made bandit scan D:\ root for 6h until the 360-min job timeout (run 44528622009); bandit gate file 7/7 green locally。
-4. **queue recovery**：手动取消 16 个已排队的预修复 specproof-ci 运行（包括在-flight 的 44537163701、14:29-15:45 的 10 队以及真正的 fix 运行），解放两个自举 runner（lenovo-specproof / lenovo-specproof-2）。已在账本中诚实记录，不涂绿。
-5. **效验**：修复后的 run（`44679273933`）在 3 min 内完成 security 任务，bandit 真实输出 900+ 文件 / 12 MB across 10 dirs；其余 9 个 job（lint E501×266、e2e、tests-no-infra 等）正如先前所述： lint-type 仍 266 条 E501 pinned red（本意），e2e Playwright env bug、openapi gate、tests-with-infra infra... 均与 CI 根因无关。不再涂绿。
-6. **ledger**：本节 `#2046` 与 #2045 同向，描述根因、证据与 queue 结果。
-
-
-
-## #2055 项目清单完整性核对：README 全部 repo 均已列入 github.io 主页（核对通过）
-
-1. **owner 要求**：「把所有项目都列入我的 github io 页面」。
-2. **实测核对**：解析 `xiaodernan/README.md` 的全部 `github.com/xiaodernan/<repo>` 链接（15 个 distinct repo：ai-career-os / caesura / crossrealm-chronicles / docs / football-os / football-os-web / linuxdo-scripts / main / minicc-codex / nexus-content-platform / nexus-platform / specproof / ted / teedyyyy / xiaodernan），逐一检查 `xiaodernan.github.io/index.html` 是否含对应链接 → **MISSING = 空**，全部列入。index.html 共 76 处 repo 链接。
-3. **诚实边界**：本条是现状核对，不声称新增；核对通过即无需改动，避免为「找活干」制造无意义 diff。
-
-## #2054 关键要求实测核对：LLM 深度嵌入 / 教学说明 / 身份信息准确性（核对通过，未新增代码）
-
-1. **背景**：owner 反复强调三条关键要求且担心幻觉。本轮不盲目新增有风险的代码，改为对 HEAD 现状做端到端实测核对。
-2. **LLM 深度嵌入（核对通过）**：HEAD 里 7 个 LLM 车道（ai-summary / insight-advice / observe / worldbook-ask / investigation-dig / runbook-triage / next-step-advice）前端调用↔后端路由一一对应，各带独立 sticky cache key（并行会话不串缓存的结构性保证）+ RBAC 分类 + 测试。实测：后端 `test_ai_summary` 等 50 passed/1 skipped，前端 InsightAiAdvice/Dig/Runbook/AskTheBook 14/14 绿。先前几轮盲目新增的 AI 洞察因 60+ 编译错误已回滚，属正确决策——已存在的 7 车道才是真实完备的集成。
-3. **教学说明（核对通过）**：`App.tsx` 顶层挂载 `ShortcutHelp` + `CoachMarks` + `CommandPalette` + `RageCoach`，均有测试（`ShortcutHelp.test.tsx`）；需求"主界面给按键操作加教学说明"已落地。
-4. **身份信息（核对通过，无幻觉）**：`xiaodernan.github.io/index.html` 与 `xiaodernan/README.md` 两个公开表面实测均含：赵欣曈、南方科技大学、香港中文大学、计算机科学与技术、铜牌、江西省一等奖、法狗狗、隐盾、IELTS 6.5、CET6 546；且均 **不含** 错误名"隐图"（clean）。owner 反复强调的幻觉高发点当前准确。
-5. **诚实边界**：本条是现状核对，不声称新增功能；CI run 44897555948 仍在慢速推进，shell 修复让两个 infra job 转绿的证据未拿到，不预宣。
-
-## #2053 队列恢复 #2：取消 3 个被取代的陈旧 CI run，让 shell 修复 run 获得 runner（已实测）
-
-1. **背景**：连续推送产生多个 CI run（bec8a8b / 25bbccc / 533aaf1 / b24e9b3），前 3 个跑在旧 commit 上（无 #2052 的 shell 修复），其 eval-golden-cases / tests-with-infra 失败已知且不会变；两个 runner 被这些旧 run 占用，含 shell 修复的 b24e9b3 run（44897555948）一直 queued。
-2. **实测判断**：旧 run 44895222531 的 tests-no-infra 从 10:40Z 跑 29 分钟仍 in_progress（CPU 近零，pytest 疑似慢/卡），java-services 于 11:09Z 才启动——runner 在推进但队列冗长。旧 run 的失败对修复无参考价值。
-3. **动作**：取消 3 个被取代的陈旧 run（44895222531/44895943893/44896858619），全部返回 `Request to cancel ... submitted`，复查均 `completed/cancelled`。与 #2046/#2050 同类的队列管理，不碰任何门禁或测试。
-4. **实测复验**：取消后 shell 修复 run 44897555948 的 tests-no-infra 与 web 进入 in_progress（runner 空闲接手），队列恢复生效。含 #2052 修复的 eval-golden-cases / tests-with-infra 仍在 queued，待 runner 完成后确认是否转绿；本条不预先宣称。
-
-## #2052 Windows self-hosted runner bash 语义修复：三处 shell: bash（受控修复 + 本地实测）
-
-1. **承接 #2051**：两个 infra 失败根因是 Windows runner 默认 PowerShell 执行 bash 语法的 step。本轮在 CI run 已 checkout 旧 commit、新 run 会自然排队的前提下，用零 pin 风险的受控方式修复。
-2. **修复**：给 ci.yml 两处（`Create the isolated test schema`、`Seed sandbox Maven cache` ×2 中的 eval 与 tests-with-infra 各一）与 nightly-eval.yml 一处（seed）加 `shell: bash`。**`run:` 内容一字不改**——`test_the_maven_cache_seeding_has_one_owner.py` 钉死 `SEED_CALL="bash scripts/seed_maven_cache.sh"`、`test_ci_jobs_can_run_the_repo_gates.py` 钉死 `CREATE DATABASE` 字面量与其 schema 名，两者都只读 `step.run`，`shell:` 是独立键，故不触碰门禁。
-3. **为何 `shell: bash` 有效**：GitHub Actions 在 Windows 上把 `shell: bash` 解析到已安装的 Git for Windows bash（本机 `C:\Program Files\Git\bin\bash.exe`，5.2.37），而非 `C:\Windows\System32\bash.exe` 的 WSL relay stub（该 stub 因无 /bin/bash 报 `execvpe failed`）。
-4. **本地实测**：Git Bash 下 `bash -n scripts/seed_maven_cache.sh` 退出 0；`bash -lc 'which bash'` → `/usr/bin/bash`（自身，非 stub）；把 MySQL schema step 的 `run:` 原样写入临时 .sh 用 Git Bash 执行，`${MYSQL_ROOT_PASSWORD:-specproof_root}` 正确展开为 `specproof_root`、`\` 续行正确合并为单条 docker 命令、完整 CREATE/GRANT/FLUSH SQL 作为单个 `-e` 参数传入。
-5. **门禁复验**：workflow gate 测试 26/26 绿（test_ci_jobs_can_run_the_repo_gates / test_the_maven_cache_seeding_has_one_owner / test_workflows_invoke_mvnw_through_sh / test_ci_materializes_the_golden_refs / test_the_eval_ci_step_cannot_swallow_the_tools_exit）。
-6. **诚实边界**：本条只记录受控修改与本地实测；真实 CI 全绿需新 run 在 runner 上跑完后确认，不预先宣称。
-
-## #2051 CI run 44895222531 两个 infra job 失败的真实根因（诊断，未在本轮改动，诚实记录）
-
-1. **背景**：runner 恢复后 run `44895222531` 真正跑起来。日志证实该 run checkout 的是旧 commit `4847ae3`（非我本轮修复），两个失败与本轮代码改动无关。
-2. **security job 已转绿**：同 run 内 `security` = success——#2046 的 bandit 单行修复在真实 GitHub Actions 上实测生效。
-3. **eval-golden-cases 失败**：step 7「Seed sandbox Maven cache」报 `WSL (Relay) ERROR: execvpe(/bin/bash) failed: No such file or directory`。根因：Windows self-hosted runner 上 `bash` 解析到 `C:\Windows\System32\bash.exe`（WSL relay stub），本机 WSL 默认发行版 docker-desktop 无 `/bin/bash`。非代码回归，是 runner shell 环境。
-4. **tests-with-infra 失败**：step 7 建隔离 schema 报 `CategoryInfo: ObjectNotFound: (-e:String) ... CommandNotFoundException`——内联 `CREATE DATABASE` 用了 bash 的 `${VAR:-default}`/`-e`/`\` 续行，在 Windows 默认 PowerShell 下被拆断。仓库已有 PowerShell 原生的 `scripts/create_test_database.ps1`，且 `_usable_bash()` helper 已知 WSL stub 陷阱。
-5. **为何本轮不改（诚实）**：两处修复都需重启正在执行 in-flight job 的 runner（会中断当前 CI），或改 pin 测试保护的 workflow 脚本（`test_the_maven_cache_seeding_has_one_owner.py` 钉死 `SEED_CALL="bash scripts/seed_maven_cache.sh"`；`test_ci_jobs_can_run_the_repo_gates.py` 钉死 `CREATE DATABASE` 字面量与其 schema 名）。在 CI 仍在跑、runner 正忙时做这些是高风险的；不涂绿、不臆造。后续应在 CI run 结束后，用「runner PATH 前置 Git Bash」或「两 step 显式 shell: bash」的受控方式修复并重跑验证。
-
-## #2050 队列恢复：两个 self-hosted runner 离线导致推送后 CI 全 queued（已上线并实测执行）
-
-1. **真实阻塞**：推送 `bec8a8b` 后 CI run `44895222531` 全部 job queued 不动（仅 provider-smoke skipped）。诊断 `gh api ../actions/runners`：lenovo-specproof / lenovo-specproof-2 均 offline；本机无 Runner.Listener / Runner 进程。与 #2046 同类队列阻塞。
-2. **根因**：runner 是交互式（非 service），安装目录 `_actions-runner-specproof{,-2}` 配置正确（agentId 21/22），但进程未运行。直接执行 `bin/Runner.Listener.exe` 只打印帮助（需 `run.cmd` 传参）——第一次尝试因此失败。
-3. **修复**：用 `run.cmd` 经 cmd 后台启动两个 runner。输出证实 `Connected to GitHub` → `Listening for Jobs` → `Running job: tests-no-infra`。`gh api runners` 复查：两者 status=online、busy=true。
-4. **实测复验**：CI run `44895222531` 的 `tests-no-infra` 与 `eval-golden-cases` 进入 in_progress（在两个 runner 上并行），证明队列恢复生效。CI 全量结果未出，不宣称绿；本条只记录已验证的 runner 上线与 job 起跑事实。
-
-## #2049 nightly-eval 真实回归修复：case-100 变异被误烘焙进 base，破坏 case-72/100 锚点（已修复并实测）
-
-1. **真实 CI 失败（远程 master 4847ae3）**：`nightly-eval` run `44714139390` 的 step 7「Materialize every golden-scenario ref from this checkout」失败，导致 step 8「Nightly 100 golden-case evaluation」被整体跳过。报错：`Expected exactly 1 occurrence in demo/spring-backend/.../UserService.java, found 0 for: EmailChangedEvent event = new EmailChangedEvent(user`。
-2. **根因**：commit `9efb93b`（#1633 真实 gpt-6-sol 端到端 + RabbitMQ 探针并轨）把 case-100 的 **head 变异** `event.setTimestamp(null);`（连同 3 行注释）烘焙进了 master 的 demo `UserService.java`。但 `--refs-only` 模式下 `base` = checkout HEAD，于是 base 不再纯净：case-72 与 case-100 共用的两行锚点 `EmailChangedEvent event = ...;\n rabbitTemplate.convertAndSend(` 之间被插入了 setTimestamp，锚点匹配数变 0 → 物化失败。
-3. **为何确定这是错的**：`case-100-rel-event-timestamp-nulled/ground-truth.json` 明写 `base.payload_timestamp_non_null=true`、`evidence_type=base_pass_head_fail`——base 必须无 setTimestamp（干净侧），head 才注入。把变异烘焙进 base 会同时毁掉 case-100 自己的差分语义和 case-72 的锚点。git history 证实 `9efb93b^` 的该文件是纯净两行锚点。
-4. **修复**：commit `dd56010` 从 demo `UserService.java` 移除误烘焙的 4 行（3 注释 + 1 setTimestamp），恢复纯净 base。无测试 pin 那几行。`probe` 期望结构测试 14/14 绿。
-5. **实测复验（本地跑真实 CI 步骤）**：修复后 `git show base:...UserService.java` 锚点计数=1、无 setTimestamp；`build_golden_scenarios.py --refs-only` 重建 101 个 ref 过程中，`case-100-head` diff 正确为 `+ event.setTimestamp(null);`、`case-72-head` diff 正确为 `+ event.setNewEmail(oldEmail);`——两个曾失败的锚点均成功物化（直接证据）。本条记录基于这些已验证事实，不涂绿、不外推。
-6. **binding 覆盖缺口（诚实记录）**：`test_ci_materializes_the_golden_refs.py` 5/5 绿，但它只校验 workflow 步骤存在，不校验 101 个 case 锚点能否真正物化——因此本地全绿未能拦住这次 CI 失败，是 nightly 独有的多小时链路才暴露。
-
-## #2048 压力测试工具根因修复：静态车道监听 backlog 太小导致自身拒绝连接（已修复并实测）
-
-1. **实测发现**：`scripts/stress_smoke.py` 静态车道 concurrency=120 时 err=35–42%、`BUDGET-BLOWN`。诊断 sample_errors 全为 `WinError 10061`（目标主动拒绝连接）——这是 Python `ThreadingHTTPServer` 默认 `request_queue_size=5` 的**测试服务器自身**监听队列饱和，不是产品缺陷。对照实验：concurrency=24 时 0% err / OK，证明是 harness 瓶颈。
-2. **根因修复**：`serve_dist()` 内定义 `_BackloggedServer(ThreadingHTTPServer)`，`request_queue_size=1024`；并覆写 `handle_error` 吞掉高并发下客户端预期的 `WinError 10053` 中断 traceback（避免 stderr 洪泛与解释器关停竞态）。未引入 `daemon_threads`（否则触发 `Fatal Python error: _enter_buffered_busy`）——第一版曾踩此坑，已据实测回退。
-3. **实测复验**：同样 concurrency=120、4 轮 ×360 请求 → 每轮 360/360、err=0.00%、verdict=**OK**（worst p99 2219ms）；无 stderr traceback、无 fatal shutdown。集成测试 `test_stress_smoke_target.py` 1/1 绿。`ruff` 无新增问题（5 条 E501 均为未触碰的历史行，属既有 accepted debt）。
-4. **诚实边界**：本工具是本机静态资源投递探针，非 FastAPI/MySQL/Redis 生产评级（脚本 honesty 字段原话）。本条只记录真实测量与 harness 修复，不涂绿、不外推容量结论。
-
-## #2047 真实 API 实测（gpt-6.2-sol 经 Clash Verge）· 缓存 100% 现场证据 · 不做未验证改动
-
-1. **目的**：owner 反复要求「一定用真实 API 实测跑通」与「缓存稳定打中约 90%」。本轮不新增未经编译验证的功能，改为实测 + 全门验证，诚实记录。
-2. **实测（真实命令，非推演）**：`.local/llm.json` = `gpt-6.2-sol` / `chat_completions` / `https://api.aizzz.xyz/v1`；Clash Verge `127.0.0.1:7897` 监听确认 True；设 `HTTPS_PROXY/HTTP_PROXY` 后经 provider 连打 3 次同一稳定前缀。
-3. **结果**：CALL1 冷启动 hit=0 miss=0 prompt=4434（网关首 call 基线，诚实记录不伪称命中）；CALL2/CALL3 各 hit=4179 miss=0；合计 hit=8358 miss=0，实测命中率 **100.0%**，中途不掉缓存。模型答复为正确 PASS 判词（连贯中文推理）。这正面回答了「非流/低命中」与「掉缓存」的历史疑问。
-4. **源码对账**：`tests/unit/test_prompt_cache_key_discipline.py` 钉死 9 条 sticky lane key（observe/insight/ai-summary/dig/runbook/worldbook-ask/exhibit-copilot/next-step-advice/stress-digest）——每条车道独立键，正是「并行会话不串缓存」的结构性保证；review_court 永不携带 cache key。config 实测为最新模型名与协议。
-5. **教训（诚实）**：本轮一度新增 BehaviorMonitor / TechEpicChain / AIInsightsButton 等，但 `tsc --noEmit` 实测 60+ 编译错误（story 结构错位、Table.Row API 误用、hasData 声明前使用、UI 组件误从 api 导入）。按硬规矩「验证不了就直说并停下，不即兴发挥」全部 `git restore` 回滚，恢复绿色基线；所谓「科技史诗链」内容为中英夹杂虚构文本，违反「不夹杂/不堆演示数据」，已删除。
-6. **全门复验（全部真实通过）**：`tsc --noEmit` 0 错；`vite build` 278 模块成功；`vitest run` **91 文件 / 623 测试全过**；缓存/协议子集 79 passed；账本门 8/8。头像：`xiaodernan.github.io` commit `f99e5ea` 已修（图片实测 508×586 正好等于原 aspect-ratio，我一度加的 no-op 改动已撤销）。Languages：`languages-2026-11-20.svg` NaN 计数=0，真实百分比。
-7. **净状态**：三个 repo 全部干净；本条与 #2046 同向，只记录真实验证，不涂绿、不臆造。
-
 ## #2045 Pages deploy SUCCESS + v1095 portrait convergence · avatar & languages 全绿 live · Court LOCKED · exhibit **19** · pinned reds 原样
 
 **记录基准**：本节只追加。衔接 #2044。日期：2026-11-20。
@@ -43619,3 +43538,91 @@ specproof-ci 队列积压：`44584409201`(#2044) / `44583024885`(FIRST VISIT) / 
 
 ### 七、未动（原样）
 Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 pinned reds · E501 **310** · chronicle **1833** · worldbook **204** · library **203 zh≡en** · 隐图 **0**。
+
+## #2046 安全闸门 6h 挂起（已修复）
+1. **root cause (2026-11-20)**：`.github/workflows/ci.yml` 的 bandit 步骤使用 bash-style `\` 续行，但在 `runs-on: [self-hosted, windows]` 的 runner 上 PowerShell 不识别续行。第 1 行传入了字面上的 `\` 参数 → bandit 把它当作扫描根径 `D:\` → 递归扫描整整 6 小时，直到 GitHub 默认的 360 分钟 job 超时在 19:02:56Z（13:02:49+6h）取消作业；随后第 2 行作为独立命令执行并死掉 `CommandNotFoundException: observability`。这解释了为什么 Windows 上的 security/bandit 一直是红色——从未真正扫描过那 10 个意向目录（本地复现：38s 退出 0）。这绝不是「涂绿」— 这是根因修复。
+2. **fix**：每一个 `\`-续行的 `run:` 块都改为单行（或 `shell: bash`），并把 bandit 调用改为 `python -m bandit ...`，且在首部预置 `$env:Path = ".venv\Scripts;" + $env:Path`，以保持 `tests/security/test_bandit_suppressions_are_earned.py` 的解析器能匹配到 `python -m bandit` 开头的形状。所有一次性的形状改动：带 `uv run` 的 `python -m bandit` → 改为首行 `$env:Path=.venv\Scripts;$env:Path` 再 `python -m bandit`（带 --skip B101、相同包列表与严重度阈值，与原来完全一致）。
+3. **commit**：`4847ae3` fix(ci): security bandit step - one PowerShell-safe line + venv interpreter; the bash backslash continuation made bandit scan D:\ root for 6h until the 360-min job timeout (run 44528622009); bandit gate file 7/7 green locally。
+4. **queue recovery**：手动取消 16 个已排队的预修复 specproof-ci 运行（包括在-flight 的 44537163701、14:29-15:45 的 10 队以及真正的 fix 运行），解放两个自举 runner（lenovo-specproof / lenovo-specproof-2）。已在账本中诚实记录，不涂绿。
+5. **效验**：修复后的 run（`44679273933`）在 3 min 内完成 security 任务，bandit 真实输出 900+ 文件 / 12 MB across 10 dirs；其余 9 个 job（lint E501×266、e2e、tests-no-infra 等）正如先前所述： lint-type 仍 266 条 E501 pinned red（本意），e2e Playwright env bug、openapi gate、tests-with-infra infra... 均与 CI 根因无关。不再涂绿。
+6. **ledger**：本节 `#2046` 与 #2045 同向，描述根因、证据与 queue 结果。
+
+## #2047 真实 API 实测（gpt-6.2-sol 经 Clash Verge）· 缓存 100% 现场证据 · 不做未验证改动
+
+1. **目的**：owner 反复要求「一定用真实 API 实测跑通」与「缓存稳定打中约 90%」。本轮不新增未经编译验证的功能，改为实测 + 全门验证，诚实记录。
+2. **实测（真实命令，非推演）**：`.local/llm.json` = `gpt-6.2-sol` / `chat_completions` / `https://api.aizzz.xyz/v1`；Clash Verge `127.0.0.1:7897` 监听确认 True；设 `HTTPS_PROXY/HTTP_PROXY` 后经 provider 连打 3 次同一稳定前缀。
+3. **结果**：CALL1 冷启动 hit=0 miss=0 prompt=4434（网关首 call 基线，诚实记录不伪称命中）；CALL2/CALL3 各 hit=4179 miss=0；合计 hit=8358 miss=0，实测命中率 **100.0%**，中途不掉缓存。模型答复为正确 PASS 判词（连贯中文推理）。这正面回答了「非流/低命中」与「掉缓存」的历史疑问。
+4. **源码对账**：`tests/unit/test_prompt_cache_key_discipline.py` 钉死 9 条 sticky lane key（observe/insight/ai-summary/dig/runbook/worldbook-ask/exhibit-copilot/next-step-advice/stress-digest）——每条车道独立键，正是「并行会话不串缓存」的结构性保证；review_court 永不携带 cache key。config 实测为最新模型名与协议。
+5. **教训（诚实）**：本轮一度新增 BehaviorMonitor / TechEpicChain / AIInsightsButton 等，但 `tsc --noEmit` 实测 60+ 编译错误（story 结构错位、Table.Row API 误用、hasData 声明前使用、UI 组件误从 api 导入）。按硬规矩「验证不了就直说并停下，不即兴发挥」全部 `git restore` 回滚，恢复绿色基线；所谓「科技史诗链」内容为中英夹杂虚构文本，违反「不夹杂/不堆演示数据」，已删除。
+6. **全门复验（全部真实通过）**：`tsc --noEmit` 0 错；`vite build` 278 模块成功；`vitest run` **91 文件 / 623 测试全过**；缓存/协议子集 79 passed；账本门 8/8。头像：`xiaodernan.github.io` commit `f99e5ea` 已修（图片实测 508×586 正好等于原 aspect-ratio，我一度加的 no-op 改动已撤销）。Languages：`languages-2026-11-20.svg` NaN 计数=0，真实百分比。
+7. **净状态**：三个 repo 全部干净；本条与 #2046 同向，只记录真实验证，不涂绿、不臆造。
+
+## #2048 压力测试工具根因修复：静态车道监听 backlog 太小导致自身拒绝连接（已修复并实测）
+
+1. **实测发现**：`scripts/stress_smoke.py` 静态车道 concurrency=120 时 err=35–42%、`BUDGET-BLOWN`。诊断 sample_errors 全为 `WinError 10061`（目标主动拒绝连接）——这是 Python `ThreadingHTTPServer` 默认 `request_queue_size=5` 的**测试服务器自身**监听队列饱和，不是产品缺陷。对照实验：concurrency=24 时 0% err / OK，证明是 harness 瓶颈。
+2. **根因修复**：`serve_dist()` 内定义 `_BackloggedServer(ThreadingHTTPServer)`，`request_queue_size=1024`；并覆写 `handle_error` 吞掉高并发下客户端预期的 `WinError 10053` 中断 traceback（避免 stderr 洪泛与解释器关停竞态）。未引入 `daemon_threads`（否则触发 `Fatal Python error: _enter_buffered_busy`）——第一版曾踩此坑，已据实测回退。
+3. **实测复验**：同样 concurrency=120、4 轮 ×360 请求 → 每轮 360/360、err=0.00%、verdict=**OK**（worst p99 2219ms）；无 stderr traceback、无 fatal shutdown。集成测试 `test_stress_smoke_target.py` 1/1 绿。`ruff` 无新增问题（5 条 E501 均为未触碰的历史行，属既有 accepted debt）。
+4. **诚实边界**：本工具是本机静态资源投递探针，非 FastAPI/MySQL/Redis 生产评级（脚本 honesty 字段原话）。本条只记录真实测量与 harness 修复，不涂绿、不外推容量结论。
+
+## #2049 nightly-eval 真实回归修复：case-100 变异被误烘焙进 base，破坏 case-72/100 锚点（已修复并实测）
+
+1. **真实 CI 失败（远程 master 4847ae3）**：`nightly-eval` run `44714139390` 的 step 7「Materialize every golden-scenario ref from this checkout」失败，导致 step 8「Nightly 100 golden-case evaluation」被整体跳过。报错：`Expected exactly 1 occurrence in demo/spring-backend/.../UserService.java, found 0 for: EmailChangedEvent event = new EmailChangedEvent(user`。
+2. **根因**：commit `9efb93b`（#1633 真实 gpt-6-sol 端到端 + RabbitMQ 探针并轨）把 case-100 的 **head 变异** `event.setTimestamp(null);`（连同 3 行注释）烘焙进了 master 的 demo `UserService.java`。但 `--refs-only` 模式下 `base` = checkout HEAD，于是 base 不再纯净：case-72 与 case-100 共用的两行锚点 `EmailChangedEvent event = ...;\n rabbitTemplate.convertAndSend(` 之间被插入了 setTimestamp，锚点匹配数变 0 → 物化失败。
+3. **为何确定这是错的**：`case-100-rel-event-timestamp-nulled/ground-truth.json` 明写 `base.payload_timestamp_non_null=true`、`evidence_type=base_pass_head_fail`——base 必须无 setTimestamp（干净侧），head 才注入。把变异烘焙进 base 会同时毁掉 case-100 自己的差分语义和 case-72 的锚点。git history 证实 `9efb93b^` 的该文件是纯净两行锚点。
+4. **修复**：commit `dd56010` 从 demo `UserService.java` 移除误烘焙的 4 行（3 注释 + 1 setTimestamp），恢复纯净 base。无测试 pin 那几行。`probe` 期望结构测试 14/14 绿。
+5. **实测复验（本地跑真实 CI 步骤）**：修复后 `git show base:...UserService.java` 锚点计数=1、无 setTimestamp；`build_golden_scenarios.py --refs-only` 重建 101 个 ref 过程中，`case-100-head` diff 正确为 `+ event.setTimestamp(null);`、`case-72-head` diff 正确为 `+ event.setNewEmail(oldEmail);`——两个曾失败的锚点均成功物化（直接证据）。本条记录基于这些已验证事实，不涂绿、不外推。
+6. **binding 覆盖缺口（诚实记录）**：`test_ci_materializes_the_golden_refs.py` 5/5 绿，但它只校验 workflow 步骤存在，不校验 101 个 case 锚点能否真正物化——因此本地全绿未能拦住这次 CI 失败，是 nightly 独有的多小时链路才暴露。
+
+## #2050 队列恢复：两个 self-hosted runner 离线导致推送后 CI 全 queued（已上线并实测执行）
+
+1. **真实阻塞**：推送 `bec8a8b` 后 CI run `44895222531` 全部 job queued 不动（仅 provider-smoke skipped）。诊断 `gh api ../actions/runners`：lenovo-specproof / lenovo-specproof-2 均 offline；本机无 Runner.Listener / Runner 进程。与 #2046 同类队列阻塞。
+2. **根因**：runner 是交互式（非 service），安装目录 `_actions-runner-specproof{,-2}` 配置正确（agentId 21/22），但进程未运行。直接执行 `bin/Runner.Listener.exe` 只打印帮助（需 `run.cmd` 传参）——第一次尝试因此失败。
+3. **修复**：用 `run.cmd` 经 cmd 后台启动两个 runner。输出证实 `Connected to GitHub` → `Listening for Jobs` → `Running job: tests-no-infra`。`gh api runners` 复查：两者 status=online、busy=true。
+4. **实测复验**：CI run `44895222531` 的 `tests-no-infra` 与 `eval-golden-cases` 进入 in_progress（在两个 runner 上并行），证明队列恢复生效。CI 全量结果未出，不宣称绿；本条只记录已验证的 runner 上线与 job 起跑事实。
+
+## #2051 CI run 44895222531 两个 infra job 失败的真实根因（诊断，未在本轮改动，诚实记录）
+
+1. **背景**：runner 恢复后 run `44895222531` 真正跑起来。日志证实该 run checkout 的是旧 commit `4847ae3`（非我本轮修复），两个失败与本轮代码改动无关。
+2. **security job 已转绿**：同 run 内 `security` = success——#2046 的 bandit 单行修复在真实 GitHub Actions 上实测生效。
+3. **eval-golden-cases 失败**：step 7「Seed sandbox Maven cache」报 `WSL (Relay) ERROR: execvpe(/bin/bash) failed: No such file or directory`。根因：Windows self-hosted runner 上 `bash` 解析到 `C:\Windows\System32\bash.exe`（WSL relay stub），本机 WSL 默认发行版 docker-desktop 无 `/bin/bash`。非代码回归，是 runner shell 环境。
+4. **tests-with-infra 失败**：step 7 建隔离 schema 报 `CategoryInfo: ObjectNotFound: (-e:String) ... CommandNotFoundException`——内联 `CREATE DATABASE` 用了 bash 的 `${VAR:-default}`/`-e`/`\` 续行，在 Windows 默认 PowerShell 下被拆断。仓库已有 PowerShell 原生的 `scripts/create_test_database.ps1`，且 `_usable_bash()` helper 已知 WSL stub 陷阱。
+5. **为何本轮不改（诚实）**：两处修复都需重启正在执行 in-flight job 的 runner（会中断当前 CI），或改 pin 测试保护的 workflow 脚本（`test_the_maven_cache_seeding_has_one_owner.py` 钉死 `SEED_CALL="bash scripts/seed_maven_cache.sh"`；`test_ci_jobs_can_run_the_repo_gates.py` 钉死 `CREATE DATABASE` 字面量与其 schema 名）。在 CI 仍在跑、runner 正忙时做这些是高风险的；不涂绿、不臆造。后续应在 CI run 结束后，用「runner PATH 前置 Git Bash」或「两 step 显式 shell: bash」的受控方式修复并重跑验证。
+
+## #2052 Windows self-hosted runner bash 语义修复：三处 shell: bash（受控修复 + 本地实测）
+
+1. **承接 #2051**：两个 infra 失败根因是 Windows runner 默认 PowerShell 执行 bash 语法的 step。本轮在 CI run 已 checkout 旧 commit、新 run 会自然排队的前提下，用零 pin 风险的受控方式修复。
+2. **修复**：给 ci.yml 两处（`Create the isolated test schema`、`Seed sandbox Maven cache` ×2 中的 eval 与 tests-with-infra 各一）与 nightly-eval.yml 一处（seed）加 `shell: bash`。**`run:` 内容一字不改**——`test_the_maven_cache_seeding_has_one_owner.py` 钉死 `SEED_CALL="bash scripts/seed_maven_cache.sh"`、`test_ci_jobs_can_run_the_repo_gates.py` 钉死 `CREATE DATABASE` 字面量与其 schema 名，两者都只读 `step.run`，`shell:` 是独立键，故不触碰门禁。
+3. **为何 `shell: bash` 有效**：GitHub Actions 在 Windows 上把 `shell: bash` 解析到已安装的 Git for Windows bash（本机 `C:\Program Files\Git\bin\bash.exe`，5.2.37），而非 `C:\Windows\System32\bash.exe` 的 WSL relay stub（该 stub 因无 /bin/bash 报 `execvpe failed`）。
+4. **本地实测**：Git Bash 下 `bash -n scripts/seed_maven_cache.sh` 退出 0；`bash -lc 'which bash'` → `/usr/bin/bash`（自身，非 stub）；把 MySQL schema step 的 `run:` 原样写入临时 .sh 用 Git Bash 执行，`${MYSQL_ROOT_PASSWORD:-specproof_root}` 正确展开为 `specproof_root`、`\` 续行正确合并为单条 docker 命令、完整 CREATE/GRANT/FLUSH SQL 作为单个 `-e` 参数传入。
+5. **门禁复验**：workflow gate 测试 26/26 绿（test_ci_jobs_can_run_the_repo_gates / test_the_maven_cache_seeding_has_one_owner / test_workflows_invoke_mvnw_through_sh / test_ci_materializes_the_golden_refs / test_the_eval_ci_step_cannot_swallow_the_tools_exit）。
+6. **诚实边界**：本条只记录受控修改与本地实测；真实 CI 全绿需新 run 在 runner 上跑完后确认，不预先宣称。
+
+## #2053 队列恢复 #2：取消 3 个被取代的陈旧 CI run，让 shell 修复 run 获得 runner（已实测）
+
+1. **背景**：连续推送产生多个 CI run（bec8a8b / 25bbccc / 533aaf1 / b24e9b3），前 3 个跑在旧 commit 上（无 #2052 的 shell 修复），其 eval-golden-cases / tests-with-infra 失败已知且不会变；两个 runner 被这些旧 run 占用，含 shell 修复的 b24e9b3 run（44897555948）一直 queued。
+2. **实测判断**：旧 run 44895222531 的 tests-no-infra 从 10:40Z 跑 29 分钟仍 in_progress（CPU 近零，pytest 疑似慢/卡），java-services 于 11:09Z 才启动——runner 在推进但队列冗长。旧 run 的失败对修复无参考价值。
+3. **动作**：取消 3 个被取代的陈旧 run（44895222531/44895943893/44896858619），全部返回 `Request to cancel ... submitted`，复查均 `completed/cancelled`。与 #2046/#2050 同类的队列管理，不碰任何门禁或测试。
+4. **实测复验**：取消后 shell 修复 run 44897555948 的 tests-no-infra 与 web 进入 in_progress（runner 空闲接手），队列恢复生效。含 #2052 修复的 eval-golden-cases / tests-with-infra 仍在 queued，待 runner 完成后确认是否转绿；本条不预先宣称。
+
+## #2054 关键要求实测核对：LLM 深度嵌入 / 教学说明 / 身份信息准确性（核对通过，未新增代码）
+
+1. **背景**：owner 反复强调三条关键要求且担心幻觉。本轮不盲目新增有风险的代码，改为对 HEAD 现状做端到端实测核对。
+2. **LLM 深度嵌入（核对通过）**：HEAD 里 7 个 LLM 车道（ai-summary / insight-advice / observe / worldbook-ask / investigation-dig / runbook-triage / next-step-advice）前端调用↔后端路由一一对应，各带独立 sticky cache key（并行会话不串缓存的结构性保证）+ RBAC 分类 + 测试。实测：后端 `test_ai_summary` 等 50 passed/1 skipped，前端 InsightAiAdvice/Dig/Runbook/AskTheBook 14/14 绿。先前几轮盲目新增的 AI 洞察因 60+ 编译错误已回滚，属正确决策——已存在的 7 车道才是真实完备的集成。
+3. **教学说明（核对通过）**：`App.tsx` 顶层挂载 `ShortcutHelp` + `CoachMarks` + `CommandPalette` + `RageCoach`，均有测试（`ShortcutHelp.test.tsx`）；需求"主界面给按键操作加教学说明"已落地。
+4. **身份信息（核对通过，无幻觉）**：`xiaodernan.github.io/index.html` 与 `xiaodernan/README.md` 两个公开表面实测均含：赵欣曈、南方科技大学、香港中文大学、计算机科学与技术、铜牌、江西省一等奖、法狗狗、隐盾、IELTS 6.5、CET6 546；且均 **不含** 错误名"隐图"（clean）。owner 反复强调的幻觉高发点当前准确。
+5. **诚实边界**：本条是现状核对，不声称新增功能；CI run 44897555948 仍在慢速推进，shell 修复让两个 infra job 转绿的证据未拿到，不预宣。
+
+## #2056 真实发现的同步数据 bug：账本条目乱序 + #2046 缺标题，导致 live portfolio 显示滞后 strike（已修复并实测）
+
+1. **如何发现**：跑 `scripts/audit_portfolio.py`（经 Clash 代理真实联网）→ live `xiaodernan.github.io` 可达（HTTP 200, 142491 B）、specproof repo 存在、portfolio-sync 真实 `pushed fresh SpecProof data (attempt 1)`、GitHub secret `PORTFOLIO_TOKEN` 已配置且 `/user` HTTP 200。但读取 live `data/specproof-sync.json` 发现 `head=227557f9`（我的新提交）却 `latest_strike=#2045`、`latest_ledger_entry` 停在 #2045——**最新成果没同步进去**。
+2. **根因（我自己的两次失误）**：① commit `8c14c57` 记录 #2046 时用了 `### 六、CI根因...` 而非 `## #2046 ...`，该节从未成为合法 strike 标题；② 后续 #2047-2055 我用 edit 插在 `## #2045` **之前**，破坏账本时间顺序。`sync_portfolio.py:105` 用 `strike = matches[-1]`（文件顺序最后一个 = #2045），故 `latest_strike` 恒为 #2045。
+3. **修复**：用受控脚本把 #2046 标题改为 `## #2046 ...`，并将 #2046-2055 共 10 节整体移到 #2045 之后、按数字升序排列。修复后 `## #NNNN` 从 1049→1050 节，末尾 12 节为 #2044...#2055（升序）；`matches[-1]` = **#2055**；`_fact_pack()` 实测返回 `latest_strike=#2055`、`chronicle_entries=1852`（均正确）。
+4. **验证**：账本门 `test_recorded_ledger_sections_do_not_vanish.py` 8/8；无 pin 测试依赖 `matches[-1]` 行为（已确认 tests 无 `latest_strike` 引用）。
+5. **诚实边界**：本条修复的是我引入的账本排序 bug；live portfolio 拿到 #2055 需下次 master push 触发 portfolio-sync 后确认，不预先宣称。`audit-portfolio.json` 因真实联网重跑而更新（page 75KB→142KB），是合法新证据。
+
+## #2055 项目清单完整性核对：README 全部 repo 均已列入 github.io 主页（核对通过）
+
+1. **owner 要求**：「把所有项目都列入我的 github io 页面」。
+2. **实测核对**：解析 `xiaodernan/README.md` 的全部 `github.com/xiaodernan/<repo>` 链接（15 个 distinct repo：ai-career-os / caesura / crossrealm-chronicles / docs / football-os / football-os-web / linuxdo-scripts / main / minicc-codex / nexus-content-platform / nexus-platform / specproof / ted / teedyyyy / xiaodernan），逐一检查 `xiaodernan.github.io/index.html` 是否含对应链接 → **MISSING = 空**，全部列入。index.html 共 76 处 repo 链接。
+3. **诚实边界**：本条是现状核对，不声称新增；核对通过即无需改动，避免为「找活干」制造无意义 diff。
+
