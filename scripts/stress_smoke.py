@@ -95,7 +95,22 @@ def serve_dist():
             pass
 
     handler = functools.partial(_Handler, directory=str(DIST))
-    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+
+    # The default listen backlog (5) makes the harness refuse connections under
+    # the very high concurrency this probe exists to measure — WinError 10061
+    # is the *test server* saturating, not the product. Raise it so the probe
+    # measures the app's front door rather than Python's socket queue.
+    class _BackloggedServer(ThreadingHTTPServer):
+        request_queue_size = 1024
+
+        def handle_error(self, request, client_address):
+            # Under load a client may abort a transfer (WinError 10053) — that
+            # is an expected outcome of the probe, not a harness crash. Swallow
+            # the per-request traceback so it cannot flood stderr (or race the
+            # interpreter at shutdown); the measured err_rate still records it.
+            pass
+
+    server = _BackloggedServer(("127.0.0.1", 0), handler)
     thread = threading.Thread(target=server.serve_forever, name="stress-static", daemon=True)
     thread.start()
     return server, f"http://127.0.0.1:{server.server_address[1]}"

@@ -43519,6 +43519,13 @@ pocket card 加「第一次进场：三步上手」（doctor 绿 → 任一 exhi
 
 
 
+## #2048 压力测试工具根因修复：静态车道监听 backlog 太小导致自身拒绝连接（已修复并实测）
+
+1. **实测发现**：`scripts/stress_smoke.py` 静态车道 concurrency=120 时 err=35–42%、`BUDGET-BLOWN`。诊断 sample_errors 全为 `WinError 10061`（目标主动拒绝连接）——这是 Python `ThreadingHTTPServer` 默认 `request_queue_size=5` 的**测试服务器自身**监听队列饱和，不是产品缺陷。对照实验：concurrency=24 时 0% err / OK，证明是 harness 瓶颈。
+2. **根因修复**：`serve_dist()` 内定义 `_BackloggedServer(ThreadingHTTPServer)`，`request_queue_size=1024`；并覆写 `handle_error` 吞掉高并发下客户端预期的 `WinError 10053` 中断 traceback（避免 stderr 洪泛与解释器关停竞态）。未引入 `daemon_threads`（否则触发 `Fatal Python error: _enter_buffered_busy`）——第一版曾踩此坑，已据实测回退。
+3. **实测复验**：同样 concurrency=120、4 轮 ×360 请求 → 每轮 360/360、err=0.00%、verdict=**OK**（worst p99 2219ms）；无 stderr traceback、无 fatal shutdown。集成测试 `test_stress_smoke_target.py` 1/1 绿。`ruff` 无新增问题（5 条 E501 均为未触碰的历史行，属既有 accepted debt）。
+4. **诚实边界**：本工具是本机静态资源投递探针，非 FastAPI/MySQL/Redis 生产评级（脚本 honesty 字段原话）。本条只记录真实测量与 harness 修复，不涂绿、不外推容量结论。
+
 ## #2047 真实 API 实测（gpt-6.2-sol 经 Clash Verge）· 缓存 100% 现场证据 · 不做未验证改动
 
 1. **目的**：owner 反复要求「一定用真实 API 实测跑通」与「缓存稳定打中约 90%」。本轮不新增未经编译验证的功能，改为实测 + 全门验证，诚实记录。
