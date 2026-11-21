@@ -43519,6 +43519,14 @@ pocket card 加「第一次进场：三步上手」（doctor 绿 → 任一 exhi
 
 
 
+## #2054 关键要求实测核对：LLM 深度嵌入 / 教学说明 / 身份信息准确性（核对通过，未新增代码）
+
+1. **背景**：owner 反复强调三条关键要求且担心幻觉。本轮不盲目新增有风险的代码，改为对 HEAD 现状做端到端实测核对。
+2. **LLM 深度嵌入（核对通过）**：HEAD 里 7 个 LLM 车道（ai-summary / insight-advice / observe / worldbook-ask / investigation-dig / runbook-triage / next-step-advice）前端调用↔后端路由一一对应，各带独立 sticky cache key（并行会话不串缓存的结构性保证）+ RBAC 分类 + 测试。实测：后端 `test_ai_summary` 等 50 passed/1 skipped，前端 InsightAiAdvice/Dig/Runbook/AskTheBook 14/14 绿。先前几轮盲目新增的 AI 洞察因 60+ 编译错误已回滚，属正确决策——已存在的 7 车道才是真实完备的集成。
+3. **教学说明（核对通过）**：`App.tsx` 顶层挂载 `ShortcutHelp` + `CoachMarks` + `CommandPalette` + `RageCoach`，均有测试（`ShortcutHelp.test.tsx`）；需求"主界面给按键操作加教学说明"已落地。
+4. **身份信息（核对通过，无幻觉）**：`xiaodernan.github.io/index.html` 与 `xiaodernan/README.md` 两个公开表面实测均含：赵欣曈、南方科技大学、香港中文大学、计算机科学与技术、铜牌、江西省一等奖、法狗狗、隐盾、IELTS 6.5、CET6 546；且均 **不含** 错误名"隐图"（clean）。owner 反复强调的幻觉高发点当前准确。
+5. **诚实边界**：本条是现状核对，不声称新增功能；CI run 44897555948 仍在慢速推进，shell 修复让两个 infra job 转绿的证据未拿到，不预宣。
+
 ## #2053 队列恢复 #2：取消 3 个被取代的陈旧 CI run，让 shell 修复 run 获得 runner（已实测）
 
 1. **背景**：连续推送产生多个 CI run（bec8a8b / 25bbccc / 533aaf1 / b24e9b3），前 3 个跑在旧 commit 上（无 #2052 的 shell 修复），其 eval-golden-cases / tests-with-infra 失败已知且不会变；两个 runner 被这些旧 run 占用，含 shell 修复的 b24e9b3 run（44897555948）一直 queued。
