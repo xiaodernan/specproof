@@ -43519,6 +43519,14 @@ pocket card 加「第一次进场：三步上手」（doctor 绿 → 任一 exhi
 
 
 
+## #2051 CI run 44895222531 两个 infra job 失败的真实根因（诊断，未在本轮改动，诚实记录）
+
+1. **背景**：runner 恢复后 run `44895222531` 真正跑起来。日志证实该 run checkout 的是旧 commit `4847ae3`（非我本轮修复），两个失败与本轮代码改动无关。
+2. **security job 已转绿**：同 run 内 `security` = success——#2046 的 bandit 单行修复在真实 GitHub Actions 上实测生效。
+3. **eval-golden-cases 失败**：step 7「Seed sandbox Maven cache」报 `WSL (Relay) ERROR: execvpe(/bin/bash) failed: No such file or directory`。根因：Windows self-hosted runner 上 `bash` 解析到 `C:\Windows\System32\bash.exe`（WSL relay stub），本机 WSL 默认发行版 docker-desktop 无 `/bin/bash`。非代码回归，是 runner shell 环境。
+4. **tests-with-infra 失败**：step 7 建隔离 schema 报 `CategoryInfo: ObjectNotFound: (-e:String) ... CommandNotFoundException`——内联 `CREATE DATABASE` 用了 bash 的 `${VAR:-default}`/`-e`/`\` 续行，在 Windows 默认 PowerShell 下被拆断。仓库已有 PowerShell 原生的 `scripts/create_test_database.ps1`，且 `_usable_bash()` helper 已知 WSL stub 陷阱。
+5. **为何本轮不改（诚实）**：两处修复都需重启正在执行 in-flight job 的 runner（会中断当前 CI），或改 pin 测试保护的 workflow 脚本（`test_the_maven_cache_seeding_has_one_owner.py` 钉死 `SEED_CALL="bash scripts/seed_maven_cache.sh"`；`test_ci_jobs_can_run_the_repo_gates.py` 钉死 `CREATE DATABASE` 字面量与其 schema 名）。在 CI 仍在跑、runner 正忙时做这些是高风险的；不涂绿、不臆造。后续应在 CI run 结束后，用「runner PATH 前置 Git Bash」或「两 step 显式 shell: bash」的受控方式修复并重跑验证。
+
 ## #2050 队列恢复：两个 self-hosted runner 离线导致推送后 CI 全 queued（已上线并实测执行）
 
 1. **真实阻塞**：推送 `bec8a8b` 后 CI run `44895222531` 全部 job queued 不动（仅 provider-smoke skipped）。诊断 `gh api ../actions/runners`：lenovo-specproof / lenovo-specproof-2 均 offline；本机无 Runner.Listener / Runner 进程。与 #2046 同类队列阻塞。
