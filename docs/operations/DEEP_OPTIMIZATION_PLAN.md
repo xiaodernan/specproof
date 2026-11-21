@@ -43612,6 +43612,14 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 4. **身份信息（核对通过，无幻觉）**：`xiaodernan.github.io/index.html` 与 `xiaodernan/README.md` 两个公开表面实测均含：赵欣曈、南方科技大学、香港中文大学、计算机科学与技术、铜牌、江西省一等奖、法狗狗、隐盾、IELTS 6.5、CET6 546；且均 **不含** 错误名"隐图"（clean）。owner 反复强调的幻觉高发点当前准确。
 5. **诚实边界**：本条是现状核对，不声称新增功能；CI run 44897555948 仍在慢速推进，shell 修复让两个 infra job 转绿的证据未拿到，不预宣。
 
+## #2062 CI infra 根因治本：回退 3 次失败的 shell workaround，改在 runner 环境层前置 Git Bash（实测生效）
+
+1. **诚实：#2052/#2060/#2061 三次代码 workaround 均在真实 CI 失败**。真实 run 日志链条：`shell: bash`→System32 WSL stub（execvpe 失败）→ 自定义 8.3 路径→docker not found→显式 docker PATH→`working directory 'C:/Program Files/Git/work' invalid`（Git Bash 自定义 shell 的 MSYS cwd 转换问题）。每次本地验证过、CI 冒新错——根因是我在**代码层**用自定义 shell 模板模拟一个本该由 runner 环境提供的能力，治标不治本。
+2. **真根因（三重证据）**：这台手动 `run.cmd` 启动的 self-hosted Windows runner 的 PATH 里，`bash` 解析到 `C:\Windows\System32\bash.exe`（WSL relay stub，无 /bin/bash），而非 Git Bash。GitHub 托管 windows runner 无此问题。`where bash` 实测：当前 PATH → System32 stub；前置 `C:\Program Files\Git\usr\bin` → 真 Git Bash 5.2.37。
+3. **治本动作**：① `git checkout 4847ae3 -- .github/workflows/ci.yml .github/workflows/nightly-eval.yml` 回退我全部 shell/env workaround 到原始干净状态（19/19 gate 绿）；② 停止并用前置 Git Bash 的 PATH 重启两个 runner listener（用户已授权 self-hosted runner 全部允许）；③ 本地实测确认 bash 解析到 `/usr/bin/bash`。
+4. **实测生效**：重启后新 CI run `44909325460`（sha 867f6c5，含回退后的原始 workflow）的 job 正常从 queued 转入执行（lint-type 完成、tests-no-infra/e2e in_progress，worker 进程活跃），不再卡在全 queued 僵尸态。提交 `867f6c5` 已推送，本地与远程 HEAD 一致。
+5. **诚实边界**：eval-golden-cases 的 seed step 最终结论尚未拿到（排队靠后 + 前面 #75 契约测试慢）；lint-type 的 269 E501 是 #2046 记录的「设计上 pin 的 red」（已知接受，修它=削弱门）。CI 理想是全绿，但 self-hosted Windows runner 的 bash/docker 兼容是环境层限制，已达成本文真实能做的治本，不预宣称 seed step 转绿。
+
 ## #2061 CI seed 第二层失败：`docker: command not found`（#2060 shell 修复生效后暴露的新根因）
 
 1. **诚实：#2060 的 shell 部分生效了，但 seed step 仍失败**。真 CI run 44906033231 的 eval-golden-cases step 7 日志：shell 已是 `C:\Progra~1\Git\usr\bin\bash.exe`（WSL stub 错误消失，#2060 的 shell 修复正确），PATH 前置也生效；但新错误 `scripts/seed_maven_cache.sh: line 21: docker: command not found` / exit 127。
