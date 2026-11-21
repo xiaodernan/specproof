@@ -30,7 +30,9 @@ jobs:
         # #529: one owner — scripts/seed_maven_cache.sh (the same script
         # ci.yml runs). The #159/#203 exec-bit note and #521's swallowed-
         # comment note live there now, once.
-        # 2026-11-21: shell: bash so the inner `bash` is Git Bash, not the WSL stub.
+        # This job runs on ubuntu-latest where `bash` is real bash (no WSL stub),
+        # so `shell: bash` is correct here — unlike the Windows self-hosted
+        # ci.yml steps that need an explicit Git Bash 8.3 path + PATH prepend.
         shell: bash
         run: bash scripts/seed_maven_cache.sh
       - name: Materialize every golden-scenario ref from this checkout

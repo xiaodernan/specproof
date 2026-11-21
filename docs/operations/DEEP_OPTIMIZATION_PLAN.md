@@ -43612,6 +43612,14 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 4. **身份信息（核对通过，无幻觉）**：`xiaodernan.github.io/index.html` 与 `xiaodernan/README.md` 两个公开表面实测均含：赵欣曈、南方科技大学、香港中文大学、计算机科学与技术、铜牌、江西省一等奖、法狗狗、隐盾、IELTS 6.5、CET6 546；且均 **不含** 错误名"隐图"（clean）。owner 反复强调的幻觉高发点当前准确。
 5. **诚实边界**：本条是现状核对，不声称新增功能；CI run 44897555948 仍在慢速推进，shell 修复让两个 infra job 转绿的证据未拿到，不预宣。
 
+## #2060 CI Windows shell 真根因：`shell: bash` 解析到 WSL stub，改用 Git Bash 8.3 路径 + PATH 前置（上次 #2052 修复失败后的诚实纠正）
+
+1. **诚实：上次 #2052 修复失败**。真 CI run 44901333729 的 tests-with-infra 仍失败在 step 7「Create the isolated test schema」，日志铁证：`shell: C:\WINDOWS\system32\bash.EXE --noprofile --norc -e -o pipefail {0}` → `<3>WSL ERROR: execvpe(/bin/bash) failed: No such file or directory`。即 `shell: bash` 在这台 self-hosted Windows runner 上被解析到 **System32 的 WSL relay stub**，不是 Git Bash。#2052 的假设（"GitHub 会选 Git Bash"）是错的。openapi-schema-diff 的失败属另一路，不在本条范围。
+2. **本地实测定位（不靠假设）**：用 cmd.exe（GitHub 执行 shell 模板的方式）逐一验证——① 带空格完整路径 `"C:\Program Files\Git\usr\bin\bash.exe" ...` → rc=1（cmd 不接受引号包裹的 exe）；② 8.3 短路径 `C:\Progra~1\Git\usr\bin\bash.exe ...` → rc=0，Git Bash 5.2.37；③ 即使外层是真 Git Bash，脚本里**内层 `bash`** 仍解析到 `/c/WINDOWS/system32/bash`（Git Bash 的 PATH 里 System32 在前）；④ 加 step-level `env: PATH` 前置 `C:\Program Files\Git\usr\bin;C:\Program Files\Git\bin` 后 → 内层 `bash` = `/usr/bin/bash`、rc=0。**完整解法 = 8.3 短路径 shell + PATH 前置**。
+3. **修复**：ci.yml 两处 Windows job（tests-with-infra 的 schema step + seed step、eval-golden-cases 的 seed step）的 `shell:` 改为 `C:\Progra~1\Git\usr\bin\bash.exe --noprofile --norc -eo pipefail {0}` 并加 PATH 前置 env。`run:` 一字未改（pin 测试 `SEED_CALL="bash scripts/seed_maven_cache.sh"` 与 `CREATE DATABASE` 字面量全保持）。nightly-eval.yml 跑 ubuntu-latest，`shell: bash` 本就正确，只把误导注释改准。
+4. **验证**：YAML 解析确认 shell/env/run 三字段值正确；workflow gate 测试 26/26 绿。
+5. **诚实边界**：本条基于本地 cmd.exe 实测（非 GitHub 真实 runner 执行），不预先宣称 CI 转绿；需下一次真实 CI run 的 step 7 结果确认。这是对我上次错误修复的纠正，不涂绿。
+
 ## #2059 live 个人主页真实浏览器视觉审计：用户抱怨的前端问题全部不存在，Lighthouse 三项满分
 
 1. **为何做**：owner 反复要求「前端极致漂亮、修复字体变形/实体块重叠/头像裁切/NaN/错别字」，此前只做数据核对，从未真正渲染验证。本轮用 Chromium 打开 live `https://xiaodernan.github.io/` 做 DOM 实测 + Lighthouse。

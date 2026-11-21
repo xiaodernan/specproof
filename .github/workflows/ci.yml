@@ -207,12 +207,15 @@ jobs:
         # scripts/create_test_database.ps1 runs; the schema name is pinned
         # against the conftest's own default by
         # tests/unit/test_ci_jobs_can_run_the_repo_gates.py.
-        # 2026-11-21: this block is bash syntax (${VAR:-default}, `\` continuations).
-        # On a Windows self-hosted runner the default shell is PowerShell, which
-        # splits `-e` into a bogus command (CommandNotFoundException). `shell: bash`
-        # makes GitHub Actions use Git Bash (the runner resolves it to the installed
-        # Git for Windows bash, NOT the WSL relay stub at System32\bash.exe).
-        shell: bash
+        # 2026-11-21 ROOT CAUSE (measured): `shell: bash` on this self-hosted
+        # Windows runner resolves to C:\WINDOWS\system32\bash.EXE — the WSL relay
+        # stub, which dies with `execvpe(/bin/bash) failed`. Use Git for Windows
+        # bash via its 8.3 short path (cmd.exe cannot execute a quoted path with
+        # spaces) and prepend its bin dirs to PATH so any inner `bash` resolves to
+        # the real bash, not the stub. Verified locally: inner bash -> /usr/bin/bash.
+        shell: C:\Progra~1\Git\usr\bin\bash.exe --noprofile --norc -eo pipefail {0}
+        env:
+          PATH: C:\Program Files\Git\usr\bin;C:\Program Files\Git\bin;${{ env.PATH }}
         run: |
           docker compose -f compose.phase0.yml exec -T \
             -e MYSQL_PWD="${MYSQL_ROOT_PASSWORD:-specproof_root}" mysql \
@@ -226,9 +229,12 @@ jobs:
         # by hand; the #499 and #521 comment-swallow notes each had to be
         # fixed once per copy. The volume comes from
         # SPECPROOF_SANDBOX_M2_VOLUME, the same knob sandbox/runner.py reads.
-        # 2026-11-21: bare `bash` resolves to the WSL relay stub on this runner;
-        # shell: bash makes GitHub Actions pick Git Bash so the inner `bash` works.
-        shell: bash
+        # 2026-11-21: `shell: bash` resolves to the WSL stub (System32\bash.EXE)
+        # on this self-hosted Windows runner. Use Git Bash via 8.3 path + PATH
+        # prepend so the run's inner `bash` is real Git Bash (locally verified).
+        shell: C:\Progra~1\Git\usr\bin\bash.exe --noprofile --norc -eo pipefail {0}
+        env:
+          PATH: C:\Program Files\Git\usr\bin;C:\Program Files\Git\bin;${{ env.PATH }}
         run: bash scripts/seed_maven_cache.sh
       - name: Materialize the golden-scenario refs the eval cases resolve
         # #521: the golden refs are built by scripts/build_golden_scenarios.py
@@ -316,8 +322,12 @@ jobs:
         # by hand; the #499 and #521 comment-swallow notes each had to be
         # fixed once per copy. The volume comes from
         # SPECPROOF_SANDBOX_M2_VOLUME, the same knob sandbox/runner.py reads.
-        # 2026-11-21: shell: bash so the inner `bash` is Git Bash, not the WSL stub.
-        shell: bash
+        # 2026-11-21: `shell: bash` resolves to the WSL stub (System32\bash.EXE)
+        # on this self-hosted Windows runner. Use Git Bash via 8.3 path + PATH
+        # prepend so the run's inner `bash` is real Git Bash (locally verified).
+        shell: C:\Progra~1\Git\usr\bin\bash.exe --noprofile --norc -eo pipefail {0}
+        env:
+          PATH: C:\Program Files\Git\usr\bin;C:\Program Files\Git\bin;${{ env.PATH }}
         run: bash scripts/seed_maven_cache.sh
       - name: Materialize the golden-scenario refs this job evaluates
         # #521: the golden refs are built by scripts/build_golden_scenarios.py
