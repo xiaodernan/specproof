@@ -45,6 +45,47 @@ LLM_TIMEOUT_SECONDS = 120.0
 STICKY_CACHE_KEY = "specproof-model-router"
 
 
+class _SingleFlight:
+    """Coalesce concurrent misses on the same key into ONE loader call.
+
+    The owner's worry is real: parallel sessions striking a cold fingerprint
+    all miss the Redis cache at once, so N sessions make N model calls and the
+    cache 'looks' cold. Within one process, this merges them: the first caller
+    becomes the leader and runs the loader; the rest await the same future.
+    Cross-process coalescing is left to the Redis fingerprint cache itself.
+
+    Pure asyncio — no threads, no locks, nothing that blocks the event loop.
+    """
+
+    def __init__(self) -> None:
+        self._futures: dict[str, asyncio.Future] = {}
+
+    async def run(self, key: str, loader) -> Any:  # noqa: ANN001
+        loop = asyncio.get_running_loop()
+        inflight = self._futures.get(key)
+        if inflight is not None and not inflight.done():
+            return await asyncio.shield(inflight)
+        future: asyncio.Future = loop.create_future()
+        self._futures[key] = future
+        try:
+            value = await loader()
+        except BaseException as exc:  # noqa: BLE001 - every waiter shares the honest failure
+            if not future.done():
+                future.set_exception(exc)
+            raise
+        else:
+            if not future.done():
+                future.set_result(value)
+            return value
+        finally:
+            # Drop only our own entry; a later leader may already have replaced it.
+            if self._futures.get(key) is future:
+                self._futures.pop(key, None)
+
+
+_answer_singleflight = _SingleFlight()
+
+
 class ModelRouterAskError(RuntimeError):
     """An honest failure of the routing lane (never a fabricated route)."""
 

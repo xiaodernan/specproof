@@ -51,6 +51,7 @@ def _redis() -> Any | None:
 async def route_ask(payload: RouteAskRequest) -> dict[str, Any]:
     from api.model_router_ask import (
         ModelRouterAskError,
+        _answer_singleflight,
         fingerprint,
         run_model_router,
     )
@@ -69,29 +70,44 @@ async def route_ask(payload: RouteAskRequest) -> dict[str, Any]:
             body["cached"] = True
             return body
 
-    started = time.perf_counter()
-    try:
-        result = await run_model_router(payload.question, locale)
-    except ValueError as exc:
-        raise ApiError(status_code=400, code="INVALID_ARGUMENT", detail=str(exc)) from exc
-    except ModelRouterAskError as exc:
-        raise ApiError(
-            status_code=503, code=PROVIDER_UNAVAILABLE, detail=str(exc),
-        ) from exc
+    async def load_once() -> dict[str, Any]:
+        # A leader may have filled the cache while we waited for the flight.
+        if redis is not None:
+            try:
+                raced = redis.get_cached_llm_response(cache_key)
+            except Exception:  # noqa: BLE001
+                raced = None
+            if raced is not None:
+                body = dict(raced)
+                body["cached"] = True
+                return body
 
-    result["cached"] = False
-    result["latency_ms"] = round((time.perf_counter() - started) * 1000)
-    if redis is not None:
+        started = time.perf_counter()
         try:
-            from storage.env_config import int_env
+            result = await run_model_router(payload.question, locale)
+        except ValueError as exc:
+            raise ApiError(status_code=400, code="INVALID_ARGUMENT", detail=str(exc)) from exc
+        except ModelRouterAskError as exc:
+            raise ApiError(
+                status_code=503, code=PROVIDER_UNAVAILABLE, detail=str(exc),
+            ) from exc
 
-            redis.cache_llm_response(
-                cache_key, result,
-                ttl=int_env("MODEL_ROUTER_ASK_TTL_SECONDS", 604_800),
-            )
-        except Exception as exc:  # noqa: BLE001 - persistence is best-effort
-            logger.info(
-                "model-router cache write failed (continuing uncached): %s: %s",
-                type(exc).__name__, exc,
-            )
-    return result
+        result["cached"] = False
+        result["latency_ms"] = round((time.perf_counter() - started) * 1000)
+        if redis is not None:
+            try:
+                from storage.env_config import int_env
+
+                redis.cache_llm_response(
+                    cache_key, result,
+                    ttl=int_env("MODEL_ROUTER_ASK_TTL_SECONDS", 604_800),
+                )
+            except Exception as exc:  # noqa: BLE001 - persistence is best-effort
+                logger.info(
+                    "model-router cache write failed (continuing uncached): %s: %s",
+                    type(exc).__name__, exc,
+                )
+        return result
+
+    # Concurrent cold misses on this fingerprint share one model call.
+    return await _answer_singleflight.run(cache_key, load_once)

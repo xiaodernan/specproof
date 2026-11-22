@@ -43716,3 +43716,10 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 3. **守卫**：新增 ManualModelRouter.test.ts，钉住两个 locale 都含 /model-router 与「不判/never grades」的诚实底线，防止后续删改让能力沉默下线。
 4. **门检**：ManualModelRouter + ModelRouter 页面 6/6 绿；tsc --noEmit 通过。
 
+## #2067 并行会话缓存击穿修复：model-router 指纹答案 single-flight 合并
+
+1. **真实缺口（实测）**：诊断 20 个并发冷启动同问题请求 → 模型被敲 20 次——指纹缓存同时 MISS 造成惊群。这正是 owner 反复关切「几个并行会话同时打 API 导致缓存乱、命中掉」的根因之一。
+2. **修复**：`api/model_router_ask.py` 加 `_SingleFlight`（进程内 asyncio.Future 合并，无锁无线程、不阻塞事件循环）；route 的 MISS 路径用 `_answer_singleflight.run(cache_key, load_once)` 包住——同指纹并发只有一个 leader 打模型，其余 await 同一 future；leader 加载期间二次查 Redis 防跨进程竞态写入；失败的 flight 把同一诚实异常广播给所有等待者并释放条目，不污染后续重试。跨进程仍靠 Redis 指纹缓存去重。
+3. **门检**：新增 5 并发测（20 冷并发→1 次调用 / 失败不污染 / 不同问题隔离 / 稳定指纹 / 并发读共享）+ lane 9 + graph 12 + cache-key 6，共 32 测全绿。
+4. **诚实边界**：进程内合并只在单 worker 生效；多 worker 部署的跨进程合并仍依赖 Redis 指纹缓存（已有），本轮不宣称跨进程 single-flight。
+
