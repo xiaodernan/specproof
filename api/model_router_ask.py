@@ -59,9 +59,16 @@ class _SingleFlight:
 
     def __init__(self) -> None:
         self._futures: dict[str, asyncio.Future] = {}
+        self._loop: asyncio.AbstractEventLoop | None = None
 
     async def run(self, key: str, loader) -> Any:  # noqa: ANN001
         loop = asyncio.get_running_loop()
+        # A future belongs to the loop that created it. TestClients and some
+        # ASGI hosts run different requests on different loops; a future from
+        # another loop cannot be awaited here, so treat it as no flight.
+        if self._loop is not loop:
+            self._futures.clear()
+            self._loop = loop
         inflight = self._futures.get(key)
         if inflight is not None and not inflight.done():
             return await asyncio.shield(inflight)
@@ -72,6 +79,11 @@ class _SingleFlight:
         except BaseException as exc:  # noqa: BLE001 - every waiter shares the honest failure
             if not future.done():
                 future.set_exception(exc)
+                # Mark the exception retrieved on the leader's own behalf: if
+                # nobody joined the flight, asyncio would otherwise warn about
+                # an unconsumed future exception at teardown. Waiters still get
+                # the real exception when they await the shared future.
+                future.exception()
             raise
         else:
             if not future.done():

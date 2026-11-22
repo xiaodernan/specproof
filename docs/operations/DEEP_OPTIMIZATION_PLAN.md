@@ -43723,3 +43723,13 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 3. **门检**：新增 5 并发测（20 冷并发→1 次调用 / 失败不污染 / 不同问题隔离 / 稳定指纹 / 并发读共享）+ lane 9 + graph 12 + cache-key 6，共 32 测全绿。
 4. **诚实边界**：进程内合并只在单 worker 生效；多 worker 部署的跨进程合并仍依赖 Redis 指纹缓存（已有），本轮不宣称跨进程 single-flight。
 
+## #2068 端到端 HTTP 测试钉住 /route/ask，并修 single-flight 两个真实 bug
+
+1. **缺口**：#2065/#2067 都是单元级验证，没走真实 FastAPI app（middleware/auth/rate-limit/路由注册）的 HTTP 层——组装问题发现不了。
+2. **端到端测试**：新增 test_model_router_api_http.py 用 TestClient(app) 打真实 `POST /route/ask`（注入 fake provider 零 token）：200 + 指纹缓存命中、locale 归一化（EN→en）、extra=forbid/空问题 422、模型失败→503 PROVIDER_UNAVAILABLE 的 envelope。
+3. **测试暴露并修复的真实 bug**：
+   - `_SingleFlight` 的 future 绑定创建它的 event loop；TestClient/部分 ASGI host 跨请求换 loop 时 await 会炸——加 loop 感知，loop 变化即清空 inflight。
+   - leader 失败时给 future set_exception 后自己 raise，若无人 join 该 flight 则 asyncio 报「Future exception was never retrieved」——set_exception 后主动 `future.exception()` 标记已消费，waiters 仍拿到真实异常。
+4. **门检**：lane 9 + 并发 5 + HTTP 4 + graph 12 + cache-key 6，共 36 测全绿。
+5. **诚实边界**：跨进程 single-flight 仍依赖 Redis；本轮只修进程内跨 loop 与异常消费。
+
