@@ -20,6 +20,7 @@ import hashlib
 import json
 import sys
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -115,7 +116,7 @@ def verify_node(state: ExhibitCopilotState) -> ExhibitCopilotState:
     return {"verdict": verdict}
 
 
-from agent.graphs._witness import verdict_node  # noqa: E402  (pass-through, one identity per repo)
+from agent.graphs._witness import cli_report, verdict_node  # noqa: E402
 
 
 def report_node(state: ExhibitCopilotState) -> ExhibitCopilotState:
@@ -170,10 +171,8 @@ def build_exhibit_copilot_graph() -> Any:
     return g.compile()
 
 
-def main() -> int:
-    result = build_exhibit_copilot_graph().invoke({}) or {}
-    print(f"verdict={result.get('verdict')} report={result.get('report_path')}")
-    return 0
+# one CLI decision; the builder is the only difference
+main = partial(cli_report, build_exhibit_copilot_graph)
 
 
 if __name__ == "__main__":

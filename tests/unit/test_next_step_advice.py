@@ -7,6 +7,7 @@ sandwich assertions, provider_factory stubs. No tokens are spent here.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -43,7 +44,15 @@ def test_packet_numbers_match_the_tree() -> None:
     assert p["commits"] and p["commits"] > 2000
     assert p["ledger_sections"] and p["ledger_sections"] > 1500
     assert p["worldbooks_volumes"] == 204
-    assert p["chronicle_entries"] == 1799
+    # Derived, not hardcoded: commit 5146c6c rebuilt the chronicle to 1833 and
+    # left this pin at 1799, turning a data refresh into a red gate. Read the
+    # same JSON the packet builder reads so the next rebuild cannot rot it.
+    chronicle = json.loads(
+        (Path(__file__).resolve().parents[2] / "apps/web/src/pages/chronicle.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert p["chronicle_entries"] == len(chronicle)
     assert p["library_zh_en_pairs"] == 203
     assert p["unit_test_files"] and p["unit_test_files"] > 500
 

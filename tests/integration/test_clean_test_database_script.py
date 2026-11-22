@@ -89,7 +89,37 @@ class TestTheOwnedSet:
         assert "schema_migrations" in cleaner.owned_tables()
 
 
+@pytest.fixture(scope="module")
+def _require_mysql_for_clean_cycle() -> None:
+    """These legs seed real tables; skip cleanly when no MySQL answers.
+
+    Every other DB-backed integration test in this repo guards its
+    connection with ``pytest.skip("MySQL not available")``. Without this
+    guard these three were the only legs that turned a machine with no
+    MySQL into a red full-suite failure instead of an honest skip.
+    """
+    import pymysql
+
+    from storage.mysql import MySQLConfig
+
+    config = MySQLConfig.from_env()
+    try:
+        connection = pymysql.connect(
+            host=config.host,
+            port=config.port,
+            user=config.user,
+            password=config.password,
+            database=config.database,
+            connect_timeout=3,
+            charset="utf8mb4",
+        )
+    except Exception:  # noqa: BLE001 — no MySQL means no verdict, not a failure
+        pytest.skip("MySQL not available")
+    connection.close()
+
 class TestTheCleanCycle:
+    pytestmark = pytest.mark.usefixtures("_require_mysql_for_clean_cycle")
+
     def _seed_residue(self) -> str:
         import pymysql
 

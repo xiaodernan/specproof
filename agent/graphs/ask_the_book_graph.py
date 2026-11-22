@@ -133,10 +133,6 @@ def intake_node(state: AskTheBookState) -> AskTheBookState:  # noqa: ARG001
     }
 
 
-def _verdict_word_hits(text: str) -> list[str]:
-    return [w for w in _INFO_VERDICT_WORDS if w in (text or "")]
-
-
 def strike_node(state: AskTheBookState) -> AskTheBookState:
     """The honest seam. Offline by default; --live (or env var) spends tokens."""
     if not state.get("live_requested"):
@@ -156,7 +152,7 @@ def strike_node(state: AskTheBookState) -> AskTheBookState:
                     usage.get("prompt_cache_hit_tokens") or usage.get("cached_tokens") or 0
                 ),
                 "prompt_tokens": int(usage.get("prompt_tokens") or 0),
-                "info_hits": _verdict_word_hits(result.get("answer") or ""),
+                "info_hits": verdict_word_hits(result.get("answer") or "", _INFO_VERDICT_WORDS),
                 "error": None,
             }
         except Exception as exc:  # noqa: BLE001 - a refused strike is a recorded failure, never a product 500
@@ -204,7 +200,7 @@ def verify_node(state: AskTheBookState) -> AskTheBookState:
     return {"verdict": "HELD" if ok else "DRIFTED"}
 
 
-from agent.graphs._witness import verdict_node  # noqa: E402  (pass-through, one identity per repo)
+from agent.graphs._witness import verdict_node, verdict_word_hits  # noqa: E402
 
 
 def report_node(state: AskTheBookState) -> AskTheBookState:

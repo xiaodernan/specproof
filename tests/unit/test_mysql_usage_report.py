@@ -100,3 +100,25 @@ def test_the_slowest_mysql_file_is_listed_first_and_subtotaled() -> None:
     assert "40.0s of 200.0s" in body[-1]
     assert "20%" in body[-1]
     assert "2 of 2 census files ran" in body[-1]
+
+
+def test_direct_connect_integration_files_guard_against_unreachable_mysql() -> None:
+    """A direct-connect integration leg must skip, not fail, with no MySQL.
+
+    #2070: two files opened ``pymysql.connect`` themselves instead of going
+    through ``MySQLStore``. The conftest reports "unreachable" as a legitimate
+    state that DB-backed tests skip in — those two were the only legs that
+    failed the whole suite there. This lock names the invariant so the next
+    direct-connect leg cannot forget the guard.
+    """
+    direct_connect_files = (
+        "tests/integration/test_clean_test_database_script.py",
+        "tests/integration/test_migration_0015_roundtrip.py",
+    )
+    for rel in direct_connect_files:
+        text = (contract._PROJECT_ROOT / rel).read_text(encoding="utf-8")
+        assert "pymysql.connect(" in text, f"{rel} no longer opens a direct connection"
+        assert 'pytest.skip("MySQL not available")' in text, (
+            f"{rel} removed its unreachable guard — a machine with no MySQL "
+            "would fail the full suite again"
+        )

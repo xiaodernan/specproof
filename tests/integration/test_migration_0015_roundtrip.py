@@ -65,7 +65,10 @@ def _connect() -> Any:
 @pytest.fixture()
 def probe_table() -> Any:
     """A scratch table with the pre-0015 ENUM; dropped afterwards."""
-    conn = _connect()
+    try:
+        conn = _connect()
+    except Exception:  # noqa: BLE001 — no MySQL means no migration verdict
+        pytest.skip("MySQL not available")
     cur = conn.cursor()
     cur.execute(f"DROP TABLE IF EXISTS {PROBE_TABLE}")
     cur.execute(

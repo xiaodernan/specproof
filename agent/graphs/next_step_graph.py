@@ -114,10 +114,6 @@ def intake_node(state: NextStepState) -> NextStepState:  # noqa: ARG001
     }
 
 
-def _verdict_word_hits(text: str) -> list[str]:
-    return [w for w in _INFO_VERDICT_WORDS if w in (text or "")]
-
-
 def strike_node(state: NextStepState) -> NextStepState:
     if not state.get("live_requested"):
         return {"notes": (state.get("notes", "") + "; live strike skipped "
@@ -136,7 +132,7 @@ def strike_node(state: NextStepState) -> NextStepState:
                     usage.get("prompt_cache_hit_tokens") or usage.get("cached_tokens") or 0
                 ),
                 "prompt_tokens": int(usage.get("prompt_tokens") or 0),
-                "info_hits": _verdict_word_hits(result.get("advice") or ""),
+                "info_hits": verdict_word_hits(result.get("advice") or "", _INFO_VERDICT_WORDS),
                 "error": None,
             }
         except Exception as exc:  # noqa: BLE001
@@ -174,16 +170,16 @@ def strike_node(state: NextStepState) -> NextStepState:
     }
 
 
-def verify_node(state: NextStepState) -> NextStepState:
-    ok = bool(state.get("pinned"))
-    ok = ok and bool(state.get("packet_identical")) and bool(state.get("messages_shape_ok"))
-    if state.get("live_requested"):
-        ok = ok and bool(state.get("sealed_zh")) and bool(state.get("sealed_en"))
-        ok = ok and "errored" not in state.get("notes", "")
-    return {"verdict": "HELD" if ok else "DRIFTED"}
 
 
-from agent.graphs._witness import verdict_node  # noqa: E402  (pass-through, one identity per repo)
+from agent.graphs._witness import (  # noqa: E402 — one identity per repo
+    sealed_verify,
+    verdict_node,
+    verdict_word_hits,
+)
+
+verify_node = sealed_verify  # one implementation; the graph node keeps its lane name
+
 
 
 def report_node(state: NextStepState) -> NextStepState:

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from api.system_covenant import covenant_prefix
 from providers.base import LLMMessage
 
 _ROOT = Path(__file__).resolve().parents[1]
@@ -51,6 +52,26 @@ def codex_for(locale: str) -> str:
     if locale == "en":
         return _HEADER_EN + "\n\n" + SPECROOF_CODEX_EN
     return _HEADER_ZH + "\n\n" + SPECROOF_CODEX_ZH
+
+
+def bilingual_packet_messages(
+    locale: str, packet: str, *, system_zh: str, system_en: str
+) -> list[LLMMessage]:
+    """One codex→covenant→role sandwich for the bilingual packet lanes.
+
+    next-step advice and stress digest had byte-identical ``_prompt`` bodies;
+    only their two system strings differed. Those strings are passed in here,
+    so the sandwich order and the packet labels stay one decision.
+    """
+    lang = "en" if locale == "en" else "zh"
+    system = system_en if lang == "en" else system_zh
+    return codex_first(covenant_prefix([
+        LLMMessage(role="system", content=system),
+        LLMMessage(
+            role="user",
+            content=("数据包（JSON）：\n" if lang == "zh" else "Packet (JSON):\n") + packet,
+        ),
+    ]), lang)
 
 
 def codex_first(messages: list[LLMMessage], locale: str = "zh") -> list[LLMMessage]:

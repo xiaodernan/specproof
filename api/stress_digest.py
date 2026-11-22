@@ -29,12 +29,12 @@ import os
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 from typing import Any
 
-from api.system_codex import codex_first
-from api.system_covenant import covenant_prefix
-from providers.base import LLMMessage, LLMResponse
+from api.system_codex import bilingual_packet_messages
+from providers.base import LLMResponse
 from providers.openai_compatible import OpenAICompatibleProvider
 
 logger = logging.getLogger(__name__)
@@ -167,17 +167,9 @@ _PROMPT_EN = (
 )
 
 
-def _prompt(locale: str, packet: str) -> list[LLMMessage]:
-    lang = "en" if locale == "en" else "zh"
-    system = _PROMPT_EN if lang == "en" else _PROMPT_ZH
-    return codex_first(covenant_prefix([
-        LLMMessage(role="system", content=system),
-        LLMMessage(
-            role="user",
-            content=("数据包（JSON）：\n" if lang == "zh" else "Packet (JSON):\n") + packet,
-        ),
-    ]), lang)
-
+_prompt = partial(
+    bilingual_packet_messages, system_zh=_PROMPT_ZH, system_en=_PROMPT_EN
+)  # one prompt builder; each lane supplies only its two system strings
 
 async def generate_stress_digest(
     locale: str,

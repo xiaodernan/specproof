@@ -43743,3 +43743,30 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 3. **门检**：新增 test_worldbook_ask_singleflight.py（20 并发冷启动→1 次读 + 新鲜请求命中暖缓存 + 两车道 flight 实例隔离）；worldbook 既有测试不回归。LLM 车道相关共 45 测全绿。
 4. **边界**：仍是进程内合并；跨进程靠 Redis 指纹缓存（两车道各自的 TTL key 已存在）。
 
+
+
+## #2070 全量门复绿：MySQL 不可达守卫 + 结构克隆棘轮 + 过期数据钉
+
+1. **缺口（实测）**：干净树 `7191a81` 上跑全量 pytest 会在 10 分钟后红在三处——
+   ① `test_clean_test_database_script.py::TestTheCleanCycle`（3 测）、② `test_migration_0015_roundtrip.py`（4 测）
+   直连 `pymysql.connect` 却没有仓库里其他 DB 测试都有的 `pytest.skip("MySQL not available")` 守卫，
+   本机无 MySQL 时 conftest 已明判 unreachable 为「覆盖事实」，唯独这四个把它变成整轮失败；
+   ③ `test_structural_clone_ratchet.py` 两门红——`_verdict_word_hits`×3、`_prompt`×2、`main`×2、`verify_node`×2
+   是本轮 LLM 车道扩张留下的真复制体（棘轮的正确要求是「共享实现」，不是登记豁免）。
+   另有 `test_next_step_advice.py::test_packet_numbers_match_the_tree` 钉死 `chronicle_entries==1799`，
+   而 commit `5146c6c` 已把 chronicle 重建为 1833——数据刷新把钉子留在旧值上。
+2. **处置**：
+   - 两个直连测试文件补 unreachable 守卫；新增 `tests/unit/test_mysql_usage_report.py` 锁，
+     钉住这两个文件的 `pymysql.connect` 必须始终与 skip 守卫同在。
+   - `agent/graphs/_witness.py` 新增 `verdict_word_hits` / `sealed_verify` / `cli_report` 三个共享实现；
+     `api/system_codex.py` 新增 `bilingual_packet_messages`（codex→covenant→role 单一路径）。
+     三条 witness 图、两条 CLI main、两条 sealed verify、两条 prompt 车道改为调用共享实现；
+     `verify_node` / `_prompt` / `main` 这些被外部按名字 import 的公共名用 `functools.partial`
+     或别名保留——别名不是 FunctionDef，棘轮不把它当复制体，公共 API 也不破。
+   - `test_packet_numbers_match_the_tree` 的 chronicle 断言从硬编码 1799 改为直读同一份 JSON 求 len，
+     下次重建不会再因数字更新而红。
+3. **门检**：受影响 8 个模块 52 测全绿；clone 棘轮 14/14；MySQL 守卫 14 passed / 7 skipped（无 DB 机器干净跳过）；
+   ruff 对改动文件只剩 8 条 E501，与 HEAD 基线逐文件相等（无净新增）；全部改动文件按原行尾字节回写
+   （CRLF/LF 逐一核对，lone CR=0）。
+4. **诚实边界**：本机 MySQL 不可达，四个 DB 测是「跳过」而非「通过」——不宣称数据库行为已验证；
+   共享实现的语义等价由 52 测（含各车道 pin witness 与 prompt sandwich）背书，未消耗真实 API token。
