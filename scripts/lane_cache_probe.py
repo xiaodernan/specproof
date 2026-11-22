@@ -138,11 +138,11 @@ LANES = {
 }
 
 PROMPT_CACHE_KEYS = {
-    # the nine sticky per-lane keys used by the product lanes; the probe
+    # the sticky per-lane keys used by the product lanes; the probe
     # strikes only the six anonymous lanes in LANES above, but this registry
     # documents the full set for the evidence file. admin/operator lanes
-    # (next_step_advice / stress_digest) and exhibit_copilot share the same
-    # one-key-per-lane discipline; they are not personally struck here.
+    # (next_step_advice / stress_digest), exhibit_copilot and the model-driven
+    # router share the same one-key-per-lane discipline; not struck here.
     "observe": "specproof-observe-advice",
     "insight": "specproof-insight-advice",
     "ai_summary": "specproof-ai-summary",
@@ -152,6 +152,7 @@ PROMPT_CACHE_KEYS = {
     "exhibit_copilot": "specproof-exhibit-copilot",
     "next_step_advice": "specproof-next-step-advice",
     "stress_digest": "specproof-stress-digest",
+    "model_router": "specproof-model-router",
 }
 
 

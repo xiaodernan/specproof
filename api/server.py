@@ -64,6 +64,7 @@ from api.routes.observe import router as observe_router  # noqa: E402
 from api.routes.web import router as web_router  # noqa: E402
 from api.routes.webhooks import router as webhooks_router  # noqa: E402
 from api.routes.worldbook_ask import router as worldbook_ask_router  # noqa: E402
+from api.routes.model_router_ask import router as model_router_ask_router  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,10 @@ app.include_router(observe_router)
 # + the world book and proposes the arc; public, anonymous, no verdicts.
 app.include_router(next_step_router)
 app.include_router(worldbook_ask_router)
+# The model-driven routing lane: the model selects one of three lanes via a
+# structured label (the StateGraph's conditional edge) and the chosen lane
+# writes the answer. Public, anonymous, sticky-cached, never a verdict.
+app.include_router(model_router_ask_router)
 # Token-level LLM usage & cache-health panel (#BB5): read-only aggregate
 # over the provider-boundary JSONL ledger; require_api_key + rate limited.
 app.include_router(llm_usage_router)

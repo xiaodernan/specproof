@@ -43697,3 +43697,15 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 2. **实测核对**：解析 `xiaodernan/README.md` 的全部 `github.com/xiaodernan/<repo>` 链接（15 个 distinct repo：ai-career-os / caesura / crossrealm-chronicles / docs / football-os / football-os-web / linuxdo-scripts / main / minicc-codex / nexus-content-platform / nexus-platform / specproof / ted / teedyyyy / xiaodernan），逐一检查 `xiaodernan.github.io/index.html` 是否含对应链接 → **MISSING = 空**，全部列入。index.html 共 76 处 repo 链接。
 3. **诚实边界**：本条是现状核对，不声称新增；核对通过即无需改动，避免为「找活干」制造无意义 diff。
 
+## #2065 大模型驱动状态流转接入产品面：POST /route/ask（model-router lane + 十车道缓存纪律）
+
+1. **缺口**：#1638 的 model_router StateGraph 只有 CLI 与 /stategraph 展示卡，用户无法真正调用——「深度嵌入」停在展示层。本轮把它接成真实公网 LLM 车道。
+2. **落地**：
+   - `api/model_router_ask.py`：pure-async `run_model_router`——模型结构化输出选路（evidence/worldbook/nextstep）即图的条件边，选中车道再写内容；两次模型调用共用同一冻结 codex 前缀 + STICKY `specproof-model-router` key（并行会话不串缓存）；幻觉选路→ROUTE-DRIFT 不写内容、裁决措辞→VERDICT-LEAK 拒答、provider 失败→一个诚实 503，绝不编造。复用 graph 的 `_router_messages`/`_parse_route`/`_VERDICT_WORDS`/`cached_tokens_of` 作单一事实来源。
+   - `api/routes/model_router_ask.py`：`POST /route/ask`，指纹 Redis 缓存（fail-open）+ 匿名限流 + extra=forbid；`server.py` 注册；`middleware.py` 开放 `/route/` 前缀。
+   - `_merge_usage` 归一两种 usage 形状（aizzz `prompt_cache_hit_tokens` 与 OpenAI 嵌套 `cached_tokens`），计数只累加白名单字段，派生字段不再被当计数器重复累加——这正是「缓存看起来掉了」的根因之一。
+   - 前端：`ModelRouter.tsx` 页面（模型所选车道徽章 + 缓存命中率 + 三道护栏的诚实展示 + 中英双语），接 NAV/路由/免登录白名单；复用 askthebook.css，未新增红门 CSS。
+3. **缓存纪律**：`test_prompt_cache_key_discipline.py` 与 `scripts/lane_cache_probe.py` 的注册表从九车道扩到十车道，登记 `specproof-model-router`——一车道一 sticky key 的并行会话隔离契约扩展。
+4. **门检**：后端 9 新测 + graph 12 + unwired 29 + cache-key 6 全绿；web 92 文件 / 628 测全绿（含路由冒烟双语挂载新页面、i18n purity）；tsc --noEmit 通过；vite build 通过。
+5. **实测诚实边界**：按用户要求用真实 API 跑 `run_model_router`，返回 403「用户额度不足，剩余额度 -$0.001488」——该 key 额度已耗尽；诚实降级路径正确抛出 ModelRouterAskError、未编造任何选路（护栏生效）。实测命中率数据待额度恢复后补敲；本轮不宣称真实命中率。
+

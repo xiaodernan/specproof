@@ -72,6 +72,11 @@ _TENANT_OPEN_PREFIXES = (
     # real repo numbers + the world book as the context — fingerprint-cached
     # like /observe/, never a verdict and never a command from the throne.
     "/next-step/",
+    # The model-driven routing lane (product face of the model_router
+    # StateGraph): public, anonymous, the model routes the question and the
+    # chosen lane answers. Sticky cache key + fingerprint cache like the other
+    # public lanes; never a verdict.
+    "/route/",
 )
 #: Paths under which a bearer credential is REQUIRED in tenant mode.
 _TENANT_PROTECTED_PREFIXES = ("/jobs", "/agent", "/api/", "/auth/")

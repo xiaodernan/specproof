@@ -45,6 +45,7 @@ const Graph = lazy(() => import("./pages/Graph"));
 const Census = lazy(() => import("./pages/Census"));
 const Recall = lazy(() => import("./pages/Recall"));
 const AskTheBook = lazy(() => import("./pages/AskTheBook"));
+const ModelRouter = lazy(() => import("./pages/ModelRouter"));
 const Atlas = lazy(() => import("./pages/Atlas"));
 const Library = lazy(() => import("./pages/Library"));
 const WorldBook = lazy(() => import("./pages/WorldBook"));
@@ -121,6 +122,7 @@ export const NAV: NavItem[] = [
   { path: "census", labelKey: "nav.census", icon: "verify", groupKey: "group.evidence" },
   { path: "recall", labelKey: "nav.recall", icon: "echo", groupKey: "group.evidence" },
   { path: "ask-the-book", labelKey: "nav.askTheBook", icon: "echo", groupKey: "group.evidence" },
+  { path: "model-router", labelKey: "nav.modelRouter", icon: "echo", groupKey: "group.evidence" },
   { path: "manual", labelKey: "nav.manual", icon: "guide", groupKey: "group.evidence" },
   { path: "observe", labelKey: "nav.observe", icon: "chart", groupKey: "group.evidence" },
   { path: "identity", labelKey: "nav.identity", icon: "team", groupKey: "group.admin", roles: IDENTITY_ROLES },
@@ -197,6 +199,7 @@ function renderRoute(route: string): JSX.Element {
   if (seg[0] === "census") return <Census />;
   if (seg[0] === "recall") return <Recall />;
   if (seg[0] === "ask-the-book") return <AskTheBook />;
+  if (seg[0] === "model-router") return <ModelRouter />;
   if (seg[0] === "manual") return <Manual />;
   if (seg[0] === "observe") return <Observe />;
   if (seg[0] === "health") return <Health />;
@@ -257,7 +260,7 @@ function Workspace() {
   }, []);
 
   if (active === "ui-kit") return <Suspense fallback={<Spinner />}><UiKit /></Suspense>;
-  if (!hasKey && active !== "guide" && active !== "observe" && active !== "ask-the-book") return <Login onConnected={() => setHasKey(true)} />;
+  if (!hasKey && active !== "guide" && active !== "observe" && active !== "ask-the-book" && active !== "model-router") return <Login onConnected={() => setHasKey(true)} />;
   // A gated item is hidden unless the principal holds one of its roles, so the
   // sidebar cannot advertise a page the server would refuse. The sets come from
   // ui/accessRoles.ts — tests/unit/test_access_role_parity.py re-derives each

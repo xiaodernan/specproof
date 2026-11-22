@@ -1391,6 +1391,32 @@ export function postWorldbookAsk(question: string, locale: "zh" | "en"): Promise
   return apiPost<WorldbookAsk>("/worldbook/ask", { question, locale });
 }
 
+// ── The model-driven routing lane (public · readonly · demo) ─────────────
+// The product face of the model_router StateGraph: the model reads the
+// question, emits a structured route label (the graph's conditional edge),
+// and the chosen lane writes the answer. Sticky cache key keeps parallel
+// sessions on one warm prefix. No verdict is ever minted.
+export interface ModelRouterAsk {
+  route: string;
+  route_source: string;
+  route_drift: boolean;
+  rationale: string;
+  content: string;
+  verdict: string;
+  detail: string;
+  model: string | null;
+  model_latency_ms: number | null;
+  usage: Record<string, unknown> | null;
+  question_chars: number;
+  locale: string;
+  cached: boolean;
+  latency_ms?: number;
+}
+
+export function postModelRouterAsk(question: string, locale: "zh" | "en"): Promise<ModelRouterAsk> {
+  return apiPost<ModelRouterAsk>("/route/ask", { question, locale });
+}
+
 // ── Investigation Dig (mirror api/routes/admin.py /investigation-dig) ──
 // Readonly parallel investigators (explorer / tester / security) ask the
 // local model one question and return what they ACTUALLY read: the model is
