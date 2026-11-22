@@ -31,9 +31,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from api.auth import enforce_rate_limit
 from api.errors import PROVIDER_UNAVAILABLE, ApiError
+from api.singleflight import SingleFlight
 from api.worldbook_ask import MAX_QUESTION_CHARS
 
 logger = logging.getLogger(__name__)
+
+# Its own flight registry: the world-book prefix keeps in-flight keys apart
+# from the model-router lane, so a question shared by both cannot cross-coalesce.
+_book_singleflight = SingleFlight()
 
 router = APIRouter(prefix="/worldbook", tags=["worldbook"], dependencies=[Depends(enforce_rate_limit)])
 
@@ -69,35 +74,50 @@ async def worldbook_ask(payload: WorldbookAskRequest) -> dict[str, Any]:
         cached["cached"] = True
         return cached
 
-    started = time.perf_counter()
-    try:
-        result = await generate_ask_answer(payload.question, locale)
-    except ValueError as exc:
-        raise ApiError(status_code=400, code="INVALID_ARGUMENT", detail=str(exc)) from exc
-    except WorldbookAskError as exc:
-        raise ApiError(
-            status_code=503, code=PROVIDER_UNAVAILABLE, detail=str(exc),
-        ) from exc
+    async def load_once() -> dict[str, Any]:
+        # A leader may have filled the cache while we waited for the flight.
+        if redis is not None:
+            try:
+                raced = redis.get_cached_llm_response(cache_key)
+            except Exception:  # noqa: BLE001
+                raced = None
+            if raced is not None:
+                body = dict(raced)
+                body["cached"] = True
+                return body
 
-    body: dict[str, Any] = {
-        "answer": result["answer"],
-        "model": result.get("model"),
-        "model_latency_ms": result.get("model_latency_ms")
-        or round((time.perf_counter() - started) * 1000),
-        "usage": result.get("usage"),
-        "question_chars": result.get("question_chars"),
-        "cached": False,
-    }
-    if redis is not None:
+        started = time.perf_counter()
         try:
-            from storage.env_config import int_env
+            result = await generate_ask_answer(payload.question, locale)
+        except ValueError as exc:
+            raise ApiError(status_code=400, code="INVALID_ARGUMENT", detail=str(exc)) from exc
+        except WorldbookAskError as exc:
+            raise ApiError(
+                status_code=503, code=PROVIDER_UNAVAILABLE, detail=str(exc),
+            ) from exc
 
-            redis.cache_llm_response(
-                cache_key, body, ttl=int_env("WORLDBOOK_ASK_TTL_SECONDS", 604_800),
-            )
-        except Exception as exc:  # noqa: BLE001 - persistence is best-effort
-            logger.info(
-                "worldbook-ask cache write failed (continuing uncached): %s: %s",
-                type(exc).__name__, exc,
-            )
-    return body
+        body: dict[str, Any] = {
+            "answer": result["answer"],
+            "model": result.get("model"),
+            "model_latency_ms": result.get("model_latency_ms")
+            or round((time.perf_counter() - started) * 1000),
+            "usage": result.get("usage"),
+            "question_chars": result.get("question_chars"),
+            "cached": False,
+        }
+        if redis is not None:
+            try:
+                from storage.env_config import int_env
+
+                redis.cache_llm_response(
+                    cache_key, body, ttl=int_env("WORLDBOOK_ASK_TTL_SECONDS", 604_800),
+                )
+            except Exception as exc:  # noqa: BLE001 - persistence is best-effort
+                logger.info(
+                    "worldbook-ask cache write failed (continuing uncached): %s: %s",
+                    type(exc).__name__, exc,
+                )
+        return body
+
+    # Concurrent cold misses on this fingerprint share one model call.
+    return await _book_singleflight.run(cache_key, load_once)

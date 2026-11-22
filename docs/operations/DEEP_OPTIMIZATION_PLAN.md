@@ -43733,3 +43733,13 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 4. **门检**：lane 9 + 并发 5 + HTTP 4 + graph 12 + cache-key 6，共 36 测全绿。
 5. **诚实边界**：跨进程 single-flight 仍依赖 Redis；本轮只修进程内跨 loop 与异常消费。
 
+## #2069 single-flight 提取为共享工具，覆盖第二条公开车道 /worldbook/ask
+
+1. **缺口**：#2067 的 `_SingleFlight` 埋在 `api/model_router_ask.py` 内；`/worldbook/ask` 有同样的指纹缓存击穿——实测同类风险：20 并发冷启动会打 20 次模型。两条公开 LLM 车道应共用一套并行会话合并能力。
+2. **修复**：
+   - 新增 `api/singleflight.py`：把已验证的 SingleFlight（asyncio.Future 合并 + loop 感知 + leader 失败主动标记异常已消费）提取为共享工具。
+   - model_router 与 worldbook 各持一个 SingleFlight 实例（不同指纹前缀 + 不同实例 → 两条车道的 in-flight 键天然隔离，不会交叉合并）。
+   - `/worldbook/ask` MISS 路径加单次加载 + leader 期间二次查 Redis 防跨进程竞态 + 并发等待者共享 leader 结果。
+3. **门检**：新增 test_worldbook_ask_singleflight.py（20 并发冷启动→1 次读 + 新鲜请求命中暖缓存 + 两车道 flight 实例隔离）；worldbook 既有测试不回归。LLM 车道相关共 45 测全绿。
+4. **边界**：仍是进程内合并；跨进程靠 Redis 指纹缓存（两车道各自的 TTL key 已存在）。
+

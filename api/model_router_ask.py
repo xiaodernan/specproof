@@ -45,57 +45,11 @@ LLM_TIMEOUT_SECONDS = 120.0
 STICKY_CACHE_KEY = "specproof-model-router"
 
 
-class _SingleFlight:
-    """Coalesce concurrent misses on the same key into ONE loader call.
+from api.singleflight import SingleFlight
 
-    The owner's worry is real: parallel sessions striking a cold fingerprint
-    all miss the Redis cache at once, so N sessions make N model calls and the
-    cache 'looks' cold. Within one process, this merges them: the first caller
-    becomes the leader and runs the loader; the rest await the same future.
-    Cross-process coalescing is left to the Redis fingerprint cache itself.
-
-    Pure asyncio — no threads, no locks, nothing that blocks the event loop.
-    """
-
-    def __init__(self) -> None:
-        self._futures: dict[str, asyncio.Future] = {}
-        self._loop: asyncio.AbstractEventLoop | None = None
-
-    async def run(self, key: str, loader) -> Any:  # noqa: ANN001
-        loop = asyncio.get_running_loop()
-        # A future belongs to the loop that created it. TestClients and some
-        # ASGI hosts run different requests on different loops; a future from
-        # another loop cannot be awaited here, so treat it as no flight.
-        if self._loop is not loop:
-            self._futures.clear()
-            self._loop = loop
-        inflight = self._futures.get(key)
-        if inflight is not None and not inflight.done():
-            return await asyncio.shield(inflight)
-        future: asyncio.Future = loop.create_future()
-        self._futures[key] = future
-        try:
-            value = await loader()
-        except BaseException as exc:  # noqa: BLE001 - every waiter shares the honest failure
-            if not future.done():
-                future.set_exception(exc)
-                # Mark the exception retrieved on the leader's own behalf: if
-                # nobody joined the flight, asyncio would otherwise warn about
-                # an unconsumed future exception at teardown. Waiters still get
-                # the real exception when they await the shared future.
-                future.exception()
-            raise
-        else:
-            if not future.done():
-                future.set_result(value)
-            return value
-        finally:
-            # Drop only our own entry; a later leader may already have replaced it.
-            if self._futures.get(key) is future:
-                self._futures.pop(key, None)
-
-
-_answer_singleflight = _SingleFlight()
+# One flight registry per lane: distinct fingerprint prefixes keep the two
+# public lanes' in-flight keys apart even when a question happens to match.
+_answer_singleflight = SingleFlight()
 
 
 class ModelRouterAskError(RuntimeError):
