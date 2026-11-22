@@ -43709,3 +43709,10 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 4. **门检**：后端 9 新测 + graph 12 + unwired 29 + cache-key 6 全绿；web 92 文件 / 628 测全绿（含路由冒烟双语挂载新页面、i18n purity）；tsc --noEmit 通过；vite build 通过。
 5. **实测诚实边界**：按用户要求用真实 API 跑 `run_model_router`，返回 403「用户额度不足，剩余额度 -$0.001488」——该 key 额度已耗尽；诚实降级路径正确抛出 ModelRouterAskError、未编造任何选路（护栏生效）。实测命中率数据待额度恢复后补敲；本轮不宣称真实命中率。
 
+## #2066 把 model-router 车道写进内嵌说明书（双语 + 守卫）
+
+1. **缺口**：#2065 新接入的「模型选路」能力未出现在内嵌说明书 manual.copy.ts 里——用户打开说明书的「模型怎么帮忙」章节看不到这条公开车道，新用户无从发现。
+2. **修复**：在 manual.copy.ts 的「模型怎么帮忙」章节中英两段各加一条 `/model-router` 说明：模型读问题→吐车道标签→选中车道写答案，只解释路线不判展品，幻觉选路/裁决措辞会被拦下如实显示。
+3. **守卫**：新增 ManualModelRouter.test.ts，钉住两个 locale 都含 /model-router 与「不判/never grades」的诚实底线，防止后续删改让能力沉默下线。
+4. **门检**：ManualModelRouter + ModelRouter 页面 6/6 绿；tsc --noEmit 通过。
+
