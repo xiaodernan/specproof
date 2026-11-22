@@ -185,6 +185,15 @@ class TestWorkerRecoveryStateMachine:
         from storage.redis import RedisStore
 
         class _FakeRedis:
+            """Models the renew-lease EVAL, and only that script.
+
+            The production renewal became one atomic Lua script (#2069 area),
+            so a fake with just ``get``/``expire`` can no longer drive it.
+            The script assertion below is the point: if production ever moves
+            the renewal to a different script, this fake must not quietly
+            "work" by answering for a script it never modelled.
+            """
+
             def __init__(self) -> None:
                 self.store: dict[str, str] = {}
                 self.expired: list[tuple[str, int]] = []
@@ -198,6 +207,21 @@ class TestWorkerRecoveryStateMachine:
             def expire(self, key: str, ttl: int) -> bool:
                 self.expired.append((key, ttl))
                 return True
+
+            def eval(self, script: str, numkeys: int, *args):
+                assert "specproof:renew-lease" in script, (
+                    "the fake models the renew-lease script only, "
+                    f"got: {script[:80]!r}"
+                )
+                keys, argv = args[:numkeys], args[numkeys:]
+                # KEYS[1] owner match, then the cap window: a live cap flag
+                # with no start key means the max-hold window already ended.
+                if self.store.get(keys[0]) != argv[0]:
+                    return 0
+                if keys[1] in self.store and keys[2] not in self.store:
+                    return 0
+                self.expired.append((keys[0], int(argv[1])))
+                return 1
 
         store = RedisStore.__new__(RedisStore)  # skip __init__ (no Redis here)
         fake = _FakeRedis()
