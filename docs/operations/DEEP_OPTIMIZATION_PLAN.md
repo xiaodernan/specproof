@@ -44185,4 +44185,8 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 3. **证据先行（原则一，防幻觉）**：生成前先核对草稿里每一个关键数字都能在账本溯源——1888(×10)、1882(×5)、1867(×8)、1833(×17)、44912703445(×3)、763(×26)、95.2(×4)、269(×20)、#1549(×19)、#2029(×13) 全部命中；生成后人工逐节核对 zh/en 对称性。草稿里所有事实（16 红清零、rabbitmq bytes、body redef、两发布面 1833→1869、curl 35、95.2% 命中、MSYS_NO_PATHCONV）都来自本轮真实工作，无编造。
 4. **双语对称**：zh「卷二百零五 · 文字必须指向它所写之物」/ en「Scroll CCV · Words Must Point to What They Name」。追加后世界书 H1=1（扉页）、H2=204（原 203 + 新 1），双语各自对称。按依赖顺序重建 `build_worldbook.py`（205 volumes，last vol-203）→ `build_library.py`（204 scrolls zh≡en）→ `build_tally.py` → `build_chronicle.py`（1872 条）→ `build_latest.py`（worldbook_scrolls=205、strike #2076）。
 5. **门随事实更新（不是弱化）**：`test_worldbook_library_parity.py` 与 `test_next_step_advice.py` 里 pin 的 203→204、204→205、vol-202→vol-203、library_zh_en_pairs 203→204 是**事实变更后的正确跟随**，被钉的关系（worldbook = library + 1 扉页、zh≡en 对称、末卷在册）一点没松；docstring 的测量说明同步改写。相关门 **26 passed**。
+5b. **前端读者载荷门**：`apps/web/src/pages/__tests__/Library.test.tsx` 的 count pin
+    203→204，并新增断言：library 双语末卷标题分别含「文字必须指向它所写之物」与
+    "Words Must Point to What They Name"、excerpt 非空——确保新卷真的到达读者载荷，
+    不只是躺在账本里。前端 vitest `Library.test.tsx` **4 passed**。
 6. **诚实边界**：① 这一卷是 LLM 基于真实事实的**叙事创作**，事实部分可溯源，但"史诗寓言"的措辞是文学表达，不当作工程断言；② prompt 10,635 tokens 是本号实测值，不是恒定上下文占用；③ 新卷由 LLM 生成，草稿留在 `.scratch/draft_scroll205_{zh,en}.md` 供复核，未把生成过程写成 CI 门（CI 无网关配置，fail-closed，符合规则 3）；④ 未改任何 provider 代码或核心逻辑，本号是内容扩展 + 门的事实跟随；⑤ CI 全绿仍未达成（runner session 卡死），本号不伪称。
