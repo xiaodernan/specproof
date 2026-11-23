@@ -16,6 +16,11 @@ the same runner reports a wrong return type, stays green on a matching one, and
 refuses an un-annotated def — the last only because the shipped config says strict,
 which the empty-config twin of that same leg is what distinguishes.
 
+Two more legs hold the one translation the file makes: #2029 moved CI's python
+calls behind ``uv run``, and a leg that translated that by forgetting it existed
+would be grading a different command than the one CI gates on. The launcher is
+stripped, the rest of the argv is asserted, and an unknown launcher goes red.
+
 Cost, measured with this file's own run shape (the module's whole set inside the
 suite) rather than from a one-off cold command: see #479's ledger entry.
 """
@@ -26,6 +31,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
 import yaml
 
 REPO = Path(__file__).resolve().parents[2]
@@ -89,13 +95,39 @@ def _ci_type_check_commands() -> list[list[str]]:
 
 
 def _runner_argv(tokens: list[str]) -> list[str]:
-    """CI's `python` is the venv interpreter running the step; here that is us."""
+    """CI's `python` is the venv interpreter running the step; here that is us.
+
+    #2029 put the step behind ``uv run``, which is CI's launcher for the pinned
+    project environment and not part of what this leg claims to mirror: the
+    module and its arguments are the leg. Locally the pinned environment IS this
+    interpreter (``.venv``), so only the launcher is translated away — and the
+    translation is asserted, not assumed, so a step that moves to a launcher
+    nobody reconciled stops this leg instead of silently grading something else.
+    """
     assert tokens, "an empty `run:` line cannot invoke the type checker"
+    if tokens[:2] == ["uv", "run"]:
+        tokens = tokens[2:]
+        assert tokens, "the step ran `uv run` and named nothing to run"
     assert tokens[0] == "python", (
         f"CI's type-check step no longer starts with `python`: {tokens!r}. "
         "Re-aim this translation, do not quietly drop the leg."
     )
     return [sys.executable, *tokens[1:]]
+
+
+def test_a_launcher_this_file_does_not_know_is_refused_not_dropped() -> None:
+    """Reverse control for the translation above: a third launcher goes red."""
+    with pytest.raises(AssertionError, match="no longer starts with"):
+        _runner_argv(["poetry", "run", "python", "-m", "mypy", "."])
+
+
+def test_the_translated_argv_keeps_everything_after_the_launcher() -> None:
+    # The leg's claim is "the same scope under the same module". A translation
+    # that ate an argument would keep the step green while widening the scope.
+    argv = _runner_argv(["uv", "run", "python", "-m", "mypy", "."])
+    assert argv[1:] == ["-m", "mypy", "."], argv
+    assert argv[0] == sys.executable, argv
+
 
 
 # ── the CI parity, both ends ───────────────────────────────────────────

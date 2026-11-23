@@ -30,10 +30,14 @@ Measured while building this gate, in a disposable worktree at ``3f493ea``:
   stayed green. The branch's own job had the three names right. This is what
   convergence buys, and it is a measurement rather than an argument.
 
-The nine legs, each one a shape that would otherwise be silent:
+The ten legs, each one a shape that would otherwise be silent:
 
   C1 the leg exists and runs the script (a job named provider-smoke that runs
-     something else is the gap wearing a successor's name).
+     something else is the gap wearing a successor's name). Two halves: the
+     argument after the interpreter must be exactly the script -- no flag, no
+     pipeline -- and the thing *before* the interpreter must be a prefix some
+     other ci.yml job also uses, because that prefix is how the job finds a
+     Python that exists on this runner.
   C2 dispatch self-consistency - ``if: github.event_name == 'workflow_dispatch'``
      and ``workflow_dispatch`` in ``on:`` have to move together, and push /
      pull_request have to survive. A dispatch-gated job in a workflow that cannot
@@ -54,15 +58,28 @@ The nine legs, each one a shape that would otherwise be silent:
      belongs in ``env:`` where the child process, not the command line, holds it.
      Measured baseline: 0 occurrences, in 0 files, before and after the landing.
   C8 the leg is the branch's job, not a re-implementation of it: the step kinds
-     are compared as a multiset against ``a756f5338``'s own job.
+     are compared as a multiset against ``a756f5338``'s own job, after the two
+     runner swaps this file declares and can observe (``setup-python`` ->
+     ``uv venv``). A declared swap whose master side is absent is a dropped
+     guarantee, so C8 checks the substitution is present before it excuses it.
   C9 the ruler proves it read something - ci.yml parses, the job roster has a
      floor, the declared-name map has a floor. An empty denominator makes every
      claim above vacuously true, which is the failure mode #1548 wrote down twice.
+  C10 the job creates the interpreter before it installs into it. This leg did not
+     exist when the job landed, and the job's first real run (``44912703445``,
+     2026-11-21) died exactly there: ``uv pip install --python
+     .venv/Scripts/python.exe`` with no ``.venv``. C1-C9 were green the whole time.
+     The branch never showed it because ubuntu + setup-python made the path real.
 
 WHAT THIS GATE DOES NOT SAY. It does not run the leg: that needs a real gateway
 credential held by a GitHub environment, and nothing here has or prints one. It
 does not prove the leg would PASS - only that the job says what it runs, reads
-names that exist, and can actually be triggered. C6 measures master's roster from
+names that exist, and can actually be triggered. It also did not catch the job
+being BROKEN: #2029 moved every ci.yml python call behind ``uv run`` and dropped
+``setup-python`` for a venv this job never created, and this file sat red on
+C1/C8 for a day because no lane ran it -- the same defect class #2071 recorded
+for a lease test that stayed red across 763 commits (a leg nobody runs does not
+speak). C6 measures master's roster from
 the working tree while #1548's P8 measures it from ``origin/master``, so between
 committing and pushing this file is green and P8 is red; the push is what makes
 them agree, and that is the same boundary #1548 registered for every other
@@ -99,6 +116,18 @@ MIN_ENV_FIELDS = 3
 
 _SECRET_IN_TEXT = re.compile(r"\$\{\{\s*secrets\.([A-Za-z0-9_]+)\s*\}\}")
 _LEADING_INT = re.compile(r"(\d+)")
+_PIP_INSTALL = re.compile(r"(?:^|\s)(?:uv pip|pip) install\b")
+_CREATE_VENV = re.compile(r"(?:^|\s)uv venv\b")
+#: A step that writes into the venv by path, so it only works once the venv exists.
+_VENV_WRITE = re.compile(r"\.venv[/\\]")
+
+#: The branch's job ran on ubuntu with a managed Python; master's job runs on the
+#: self-hosted Windows runner, where ``actions/setup-python`` cannot run as a
+#: non-administrator (it clears an HKLM Uninstall slot) and #2029 replaced it
+#: with ``uv venv``. C8 accepts exactly these swaps -- and C10 requires the
+#: master side to be really present, so a swap can never stand in for a dropped
+#: guarantee.
+_RUNNER_SUBSTITUTIONS: dict[str, str] = {"setup-python": "venv"}
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -211,7 +240,14 @@ def _register() -> Any:
 
 
 def _step_kind(step: dict[str, Any]) -> str:
-    """A step reduced to what it does, so a rename cannot dodge the parity check."""
+    """A step reduced to what it does, so a rename cannot dodge the parity check.
+
+    ``uv pip install`` is the same guarantee as ``pip install`` (the branch ran
+    on ubuntu with a system pip; master's runner gets its packages from uv), and
+    ``uv venv`` is what replaced ``actions/setup-python`` here. A classifier that
+    only knows the ubuntu spellings reads both as an unknown ``run:`` step, and
+    C8 then reports a parity failure for steps that are literally the same job.
+    """
     uses = str(step.get("uses", ""))
     if uses.startswith("actions/checkout"):
         return "checkout"
@@ -222,9 +258,33 @@ def _step_kind(step: dict[str, Any]) -> str:
     run = " ".join(str(step.get("run", "")).split())
     if SCRIPT in run:
         return "smoke-script"
-    if run.startswith("pip install") or "pip install -e" in run:
+    if _PIP_INSTALL.search(run):
         return "pip-install"
+    if _CREATE_VENV.search(run):
+        return "venv"
     return f"run:{run[:40]}"
+
+
+def _python_invocations(doc: dict[str, Any]) -> list[tuple[str, str, str, str]]:
+    """(job id, step name, prefix, rest) for every ci.yml line that runs python.
+
+    ``prefix`` is everything the file puts before the ``python`` token, so the
+    question "how does this repo start an interpreter" is answered by the file
+    rather than by this gate's memory of one answer.
+    """
+    out: list[tuple[str, str, str, str]] = []
+    for job_id, job in (doc.get("jobs") or {}).items():
+        if not isinstance(job, dict):
+            continue
+        for step in _steps(job):
+            name = str(step.get("name", "?"))
+            for line in str(step.get("run", "")).splitlines():
+                tokens = line.split()
+                if "python" not in tokens:
+                    continue
+                i = tokens.index("python")
+                out.append((job_id, name, " ".join(tokens[:i]), " ".join(tokens[i + 1:])))
+    return out
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -240,10 +300,30 @@ def test_C1_the_leg_exists_and_runs_the_script_it_is_named_for() -> None:
                  f"{[str(s.get('run', ''))[:60] for s in _steps(job)]}"
     run = str(step["run"])
     bare = [ln.strip() for ln in run.splitlines() if ln.strip()]
-    assert bare[-1] == f"python {SCRIPT}", (
-        f"the smoke step runs {bare[-1]!r}, not the bare invocation. A flag changes what "
-        "is certified (or prints help and exits 0), and a pipeline that does not run the "
-        "smoke is not coverage of the gateway")
+    line = bare[-1]
+    assert "|" not in line and "&&" not in line and ";" not in line, (
+        f"the smoke step is a compound command: {line!r}. A pipeline reports the exit "
+        "code of its last stage, so a smoke that died halfway can still exit 0")
+    invocations = _python_invocations(_ci())
+    mine = [t for t in invocations if t[0] == JOB_ID and t[3].startswith(SCRIPT)]
+    assert len(mine) == 1, (
+        f"{len(mine)} ci.yml lines run python with {SCRIPT} as their first argument in "
+        f"{JOB_ID}; C1 can only certify the invocation while there is exactly one")
+    prefix, rest = mine[0][2], mine[0][3]
+    assert rest == SCRIPT, (
+        f"the smoke step runs {rest!r} after the interpreter, not {SCRIPT!r}. A flag "
+        "changes what is certified (or prints help and exits 0), and a pipeline that "
+        "does not run the smoke is not coverage of the gateway")
+    # The interpreter prefix is not free either: the leg has to start python the way
+    # the rest of the file does. #2029 moved every ci.yml python call behind `uv run`
+    # (the host interpreter is 3.11 and the project needs >=3.12) and the smoke step
+    # came along; a prefix used by no other job would mean this leg runs in an
+    # environment nothing else in CI has proved it can build.
+    others = {t[2] for t in invocations if t[0] != JOB_ID}
+    assert prefix in others, (
+        f"{JOB_ID} starts python as {prefix!r}, which no other ci.yml job uses "
+        f"(theirs: {sorted(others)}). The venv it points at is created by the job that "
+        "uses it; an invention here is a job that cannot run")
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -402,13 +482,64 @@ def test_C8_the_leg_carries_the_branch_steps_not_a_reimplementation() -> None:
     assert branch_job, f"{BRANCH_REF}:{BRANCH_QUALITY} has no {JOB_ID} any more"
     want = Counter(_step_kind(s) for s in _steps(branch_job))
     got = Counter(_step_kind(s) for s in _steps(_provider_job()))
+    # The two runners are not the same machine, and the file says so; the swaps are
+    # declared above rather than absorbed by a looser comparison.
+    for branch_kind, master_kind in _RUNNER_SUBSTITUTIONS.items():
+        if want.get(branch_kind):
+            want[branch_kind] -= 1
+            want[master_kind] += 1
+    got_kinds = set(got)
+    unobserved = [f"{b}->{m}" for b, m in _RUNNER_SUBSTITUTIONS.items()
+                  if m not in got_kinds]
+    assert not unobserved, (
+        f"this gate allows {sorted(_RUNNER_SUBSTITUTIONS.items())} because the branch ran "
+        f"on ubuntu and master's runner is Windows, but the master side is missing "
+        f"{unobserved}: a declared swap that is not present is a guarantee that was "
+        "dropped, not moved")
     assert want == got, (
-        f"the carried-over job differs from the branch's own: branch {sorted(want.elements())} "
+        f"the carried-over job differs from the branch's own (after the declared runner "
+        f"swaps): branch {sorted(want.elements())} "
         f"vs master {sorted(got.elements())} -- a missing step is a claim of convergence "
         "with one of the branch's guarantees dropped")
     assert want.get("smoke-script") == 1, (
         f"the branch's job runs the smoke {want.get('smoke-script')} times; this gate's "
         "parity claim only means something while it is exactly 1")
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# C10 -- the job builds the environment its own steps write into
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_C10_the_job_provisions_the_environment_its_steps_install_into() -> None:
+    """The leg has to create the interpreter before it can install into it.
+
+    WHY THIS LEG EXISTS (run 44912703445, 2026-11-21, the job's first real run):
+    ``uv pip install --python .venv/Scripts/python.exe -e ".[dev]"`` died with
+    "No virtual environment or system Python installation found for path
+    .venv/Scripts/python.exe; run `uv venv` to create an environment". The branch's
+    job never hit this because ubuntu + setup-python created the interpreter for it;
+    copying the job across kept the writes to ``.venv`` and lost the thing that
+    makes ``.venv`` exist. C1-C9 were all green on that file.
+    """
+    steps = _steps(_provider_job())
+    assert steps, f"{JOB_ID} declares no steps"
+    consumers = [(i, s) for i, s in enumerate(steps) if _VENV_WRITE.search(str(s.get("run", "")))]
+    assert consumers, (
+        f"no step of {JOB_ID} names a venv path at all -- this leg checks that whoever "
+        f"writes into .venv first creates it, and with none it proves nothing")
+    providers = [i for i, s in enumerate(steps)
+                 if str(s.get("uses", "")).startswith("actions/setup-python")
+                 or _CREATE_VENV.search(str(s.get("run", "")))]
+    assert providers, (
+        f"{JOB_ID} installs into a venv at {[i for i, _ in consumers]} but nothing creates "
+        "one: no actions/setup-python and no `uv venv`. On the self-hosted Windows runner "
+        "that is exit 1 at the install step, and the dispatch button reads as a broken "
+        "gateway when nothing was ever called")
+    first_write = min(i for i, _ in consumers)
+    assert min(providers) < first_write, (
+        f"{JOB_ID} creates the environment at step {min(providers)} but writes into it at "
+        f"step {first_write} -- an install that runs before the venv exists fails the "
+        "same way whether or not the file mentions both")
 
 
 # ══════════════════════════════════════════════════════════════════════════

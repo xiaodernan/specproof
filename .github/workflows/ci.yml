@@ -442,7 +442,13 @@ jobs:
     environment: provider-smoke
     steps:
       - uses: actions/checkout@v4
-      # 自托 Windows runner（非管理员）：setup-python 要清 HKLM Uninstall 展位，权限不够。改用宿主 PATH 已有 Python（>=3.12 已验）；门禁与原指令同义。
+      # 自托 Windows runner（非管理员）：setup-python 要清 HKLM Uninstall 展位，权限不够（#2029 换掉它）。
+      # 换成 uv venv 自建 3.12 —— 与 tests-no-infra 同一做法。这一步不是可选的：2026-11-21 的 run
+      # 44912703445 就死在下一步，`uv pip install --python .venv/Scripts/python.exe` 报
+      # "No virtual environment ... found for path .venv/Scripts/python.exe"，因为分支上那份
+      # ubuntu job 的 Python 是 setup-python 给的，照抄进 Windows job 后没人补这一环。
+      - name: Create uv venv (Python 3.12)
+        run: uv venv .venv --python 3.12
       - name: Install dependencies
         run: uv pip install --python .venv/Scripts/python.exe -e ".[dev]"
       - name: Provider Smoke (requires secrets)

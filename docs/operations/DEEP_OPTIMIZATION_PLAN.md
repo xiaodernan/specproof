@@ -43138,7 +43138,7 @@ mvn untouched · `ask_the_book` lane cold/warm · court `4117d2b0ca5fb23a` **LOC
 5. 当前 CI breakage 的具体 root cause 第三方 (Windows vs Linux runner differences) 已记入账；本号结束前没人对 Docker CI semantics 上做承诺绿色——出的结果只是让 CI 在本机跑得起来，遗留 Windows-specific shim 问题以 summary 注明；
 
 
-## #2029 observer: Windows runner green lanes: web | success, java-services | success — both runs executed on this self-hosted Windows worker. Court LOCKED. exhibit **19**. pinned reds 原样.
+## #2029b observer: Windows runner green lanes: web | success, java-services | success — both runs executed on this self-hosted Windows worker. Court LOCKED. exhibit **19**. pinned reds 原样.
 
 
 ## #2030 把自托管 Runner 换成 uv-only、收拾 Windows PATH 污染、pages 落 v4 实证绿色现象 · Court LOCKED · exhibit **19** · pinned reds 原样
@@ -43770,3 +43770,307 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
    （CRLF/LF 逐一核对，lone CR=0）。
 4. **诚实边界**：本机 MySQL 不可达，四个 DB 测是「跳过」而非「通过」——不宣称数据库行为已验证；
    共享实现的语义等价由 52 测（含各车道 pin witness 与 prompt sandwich）背书，未消耗真实 API token。
+
+## #2071 租约 fake 补原子 EVAL：一处从 #1611 挂了 763 提交的红，与本号自己欠下的账本记录
+
+**记录基准**：本节由 #2072 在 2026-11-23 补写。#2071 的提交 `3f332e9`（2026-11-22 落地）当时没有写账本节，
+所以本节每条读数都是补写当天在同一份 lineage 上重新量出来的，不是当时的臂产物——这个区别写在正文里，不靠读者猜。
+
+### 一、缺口（2026-11-23 复量）
+1. `tests/integration/test_worker_crash_mid_graph.py::TestWorkerRecoveryStateMachine::test_running_job_lease_renewal`
+   自 `cd2e483`（#1611「租约 acquire/renew 改单次原子 EVAL + 客户端连接硬化」）起一直红：
+   `AttributeError: '_FakeRedis' object has no attribute 'eval'`，站点是 `storage/redis.py` 的
+   `_eval_lease_script` → `self.client.eval`。
+2. 三点实测（产物 `.scratch/arms2072/L1611.txt`、`Lbase.txt`、`Lhead.txt`）：
+   `cd2e483` = 1 failed / 10 passed（20.54s）；`b607f72`（= `3f332e9^`，#2070）= 1 failed / 10 passed（9.59s）；
+   `3f332e9`（本号）= 11 passed（2.95s）。
+3. 红区跨度 = `git rev-list --count cd2e483..3f332e9` = 763 个提交；`git log cd2e483..3f332e9~1 -- <该文件>` 为空
+   ——不是中途回归，是从引入点一路挂过来的。调用 `renew_lease` 的那两行断言是 #1560（`705d254`）写下的。
+
+### 二、处置
+1. `_FakeRedis` 补 `eval(script, numkeys, *args)`，且只建模 renew-lease 脚本：入口先
+   `assert "specproof:renew-lease" in script`——生产若把续约换成另一个脚本，fake 必须拒绝作答，
+   而不是替一个从未建模过的脚本给出「通过」。
+2. 语义按 `storage/redis.py::_RENEW_LEASE_LUA` 手写：owner（KEYS[1] 对 ARGV[1]）不符返回 0；
+   cap 旗标在而 start 键不在（最长持有窗口已结束）返回 0；否则记 `expired` 并返回 1。
+3. `store = RedisStore.__new__(RedisStore)` 跳过 `__init__`，本机无 Redis 也走得到这条生产路径。
+
+### 三、本号自己欠的账
+1. `## #2071` 标题在提交落地后 0 处：commit subject 引用 `#2071`，账本没有同名节，
+   而且这个号在全仓库任何文件里都搜不到。
+2. 当天普查（产物 `.scratch/census2072.json`）：subject 引用 1073 个不同号；账本首个节号是 #130；
+   `#130` 起而账本无同名标题的有 51 个；其中连账本正文都搜不到的有 6 个：133、148、227、228、229、2071。
+3. 把这句话变成会过期的事实的是 #2072 的门
+   `tests/unit/test_every_number_a_commit_cites_has_a_ledger_section.py`：
+   新提交引用一个没有节的号，门就红——而且红在最靠前的那一窗，不必等到有人翻史料。
+
+### 四、诚实边界
+1. fake 与 `_RENEW_LEASE_LUA` 的语义一致性没有任何量具：仓库里手写 `eval` 建模的 fake 不止一处，
+   没有一道门比较它们与脚本本体（已入队）。
+2. 红挂 763 提交而 CI 没有形成信号：`gh run list --workflow=ci.yml --limit 60` 实查
+   = 0 success / 8 failure / 51 cancelled / 1 queued；最近一次 completed run 里 `tests-with-infra`
+   自己就是 failure。一条没人读的腿不是门。
+3. 本节是补写：当时那轮的臂产物不存在（`.scratch` 里没有 #2070/#2071 的任何文件），
+   所以「落地前红」只由上面三点复量支撑，不由记忆支撑。
+
+## #2072 文字与它要指的东西脱钩：账本编号的门禁、CI 命令行拼写的门禁、以及 mypy 缓存换掉的数
+
+**记录基准**：2026-11-23，基线 `7e9f98e`（`3f332e9` = #2071 的 ff 重敲提交）。
+预测在任何臂之前冻结在 `.scratch/predict_fence2072.md`；实测只追加在 §四、§五。
+
+### 一、来路
+
+1. #2071 落地后没有账本节，而它的提交主题和当天重敲发布的事实包（`docs/latest.json`
+   的 `latest_strike`）都写着 `#2071`。这不是"文档没跟上"：`docs/latest.json` 与前端编年页
+   的条目都由账本的 `## #N` 标题生成（`scripts/build_latest.py`、`scripts/build_chronicle.py`），
+   编号无节 ⇒ 发布出去的号在仓库自己的编年里解析不到。当天普查另有 131 个同类号
+   （含本号自己那一个，§二.3）。
+2. 同一天，#1549 的 provider-smoke 门（C1/C8）红，红因不在门里：
+   #2029 把 ci.yml 所有 `python` 调用挪到 `uv run` 之后、又把 `setup-python` 换成
+   宿主 PATH，却没人给这个 Windows job 建 `.venv`——run `44912703445` 死于
+   `uv pip install --python .venv/Scripts/python.exe` 报
+   `No virtual environment ... found for path .venv/Scripts/python.exe`。
+3. 同一周 #2071 记下的"一条没人跑的腿不自证"（租约腿红跨 763 提交、CI 60 次运行 0 成功）
+   与本号是同一件事的两面：门说的、CI 跑的、发布页写的，三处文字各自可以过自己的检查，
+   却没有一处被要求与它指的东西对齐。
+
+### 二、前提量测（产物 `.scratch/census2072b.json`、`.scratch/const2072.json`、
+`.scratch/gatefiles2072narrow.py`，全部现读现算，不取自记忆）
+
+1. 可达提交 2926；主题引用不同号 1073（提及 1468 次）；账本「衔接 #N」指针 156 行 /
+   154 个不同号，其中 1914、1919、1964 指向不存在的节。
+2. 三把尺子读同一本账本给三个数（节总数真值 = 1888）：
+   ① 本门尺子 `^## #([0-9]+[A-Za-z0-9\-]*)` = 1888；
+   ② #287 门的尺子多要一个空格或制表 = 1882——看不见 163–168（`## #163：` 全角冒号）；
+   ③ `scripts/build_latest.py` 的尺子 `(?m)^## (#\d+)\s+` = 1867——
+   发布出去的 `chronicle_entries` 就是它，比真值少 21，且缺的 21 条里有本节要补的 #2071 那一族。
+3. 欠账按号龄分两段：命名而无节且 <130（账本自身首节）80 个；≥130 的 51 个。
+   散文里能搜到不等于有记录——本号第一版门草稿在自己 docstring 里写"见 #2071"三处，
+   正踩这个洞，所以"记录"只认标题，并把这条做成合成见证腿。
+4. 前沿窗（最近 100 条主题）：51 条含编号引用、49 个不同号、违规 0——
+   零容忍今天付得起，不是将来付得起。
+5. 账本点名（反引号里的 `tests/<族>/test_*.py`）412 个不同路径 / 779 处提及（第 413 个是
+   `tests/unit/test_the_payload...py`，带省略号，是散文简写不是承诺，门的尺子按实测排除），
+   其中不存在 3 个：`test_mutation_engine.py`（点名 10 次）、
+   `test_ci_nightly_full_eval_job.py`（2 次）、本门自身（1 次——落地当天就消失了）。
+   本仓库根本没有"红门名册"这类文件（`docs/gate/` 不存在，全库 grep `known-red` 零命中），
+   也就是说"承诺一道门"在仓库里的强度此前只等于"提到过它"。
+6. mypy：本号把三道卡在命令拼写上的检查修好之后，CI 那条类型检查第一次真正在这里跑起来，
+   热缓存读数 `Found 20 errors in 7 files`（`.scratch/mypy2072.txt`）；这个数随后被冷缓存
+   读数推翻为 16 错 / 6 文件（§八.2），本号 §二 保留原始读数是它原始的样子。
+   两种读数都是存量红，不是本号引入。
+7. 同一个名词在本仓库有六个读数，2026-11-23 现读现算：
+   ① 宽尺子（本门）1888＝结构真值；② #287 门尺子 1882；③ `scripts/build_latest.py`
+   尺子 1867＝`docs/latest.json` 的 `chronicle_entries`；④ `scripts/build_chronicle.py`
+   的尺子 `^## (#\d+)\s+(.+?)\s*$` 在同一本账本上也是 1867，末条 #2071；
+   ⑤ 前端页面真正读的那份 `apps/web/src/pages/chronicle.json` 是 1833 条、末条 `n: 2036`，
+   最后一次重建是 `5146c6c`（2026-11-20，主题自己写"1833 entries now visible
+   on /#/chronicle"）；⑥ `api/next_step_advice.py` 的包里 `ledger_sections` 1804
+   （取自 tally，不是取自标题普查）。
+   两个发布面因此各说各话：事实包宣传 `latest_strike "#2071"`、编年 1867 条，
+   而访问 `/#/chronicle` 的人看到的最新一条是 #2036。守这六个数的腿各比各的源——
+   `test_next_step_advice.py:55` 比的是"包里的数 ⇄ 那份 1833 条的页面文件"，两边同源，
+   所以它绿着，而页面与账本之间那 34 条差在本号之前没有任何一条腿看过一眼。
+
+### 三、落地
+
+1. 账本：补 `## #2071` 节；`## #2029` 与 `## #2029 observer` 重号（#2029 自己往同一节号
+   追加了 observer 段）拆成 `## #2029b observer: …`。`git diff --numstat` 账本 = 43 增 1 删，
+   唯一删除行是那条重号标题。
+2. ci.yml：provider-smoke job 在 `uv pip install --python .venv/Scripts/python.exe` 之前补
+   `- name: Create uv venv (Python 3.12)` / `run: uv venv .venv --python 3.12`，
+   与 tests-no-infra 同一做法；numstat 7 增 1 删，CRLF 逐字节回写（514 处 CRLF 不变）。
+3. provider-smoke 门：补 C10（点名步骤名与安装行两条尺子）+ C8 侧的 job 块定位；
+   先前被截断的 docstring（"It a job that never creates"）补全并写明 C1/C8 红了一天的事实。
+4. 三道门从"命令拼写"改成"读那一步做了什么"：
+   `test_the_ci_type_check_is_a_suite_leg.py::_runner_argv`（剥 launcher 而非断言首 token，
+   未知 launcher 直接红，另加两条合成见证腿）；
+   `test_the_gate_toolchain_is_pinned_exactly.py::_tokens/_installs_the_dev_extra/
+   _installs_gate_tool_ad_hoc`（引号剥离 + 分词 + 需求名正则，替代
+   `'pip install -e ".[dev]"' in r` 这种子串尺），各带正反两组合成见证腿。
+5. 新门 `tests/unit/test_every_number_a_commit_cites_has_a_ledger_section.py`（12 条腿）：
+   人口地板（提交 ≥2000、命名 ≥1000、节 ≥1800、节号唯一）、
+   标题才算记录 vs 散文不算（合成见证）、前沿窗零容忍 + 窗口喂料证明、
+   欠账名册 51 号全覆盖、上限棘轮 `DEBT_CEILING=51` 与名册长度互相钉死、
+   事实包 `latest_strike` 必须命名一个有节的号、`chronicle_entries` 双边地板
+   （≥1000 且 ≤ 真值）、尺子差棘轮 `RULER_GAP_CEILING=21`、
+   点名门文件存在性（`GATE_FILE_CEILING=2`，落地当天从 3 降到 2：本门自己就是那第三条，
+   它成为文件之后上限跟着下来——单向棘轮要的就是这个方向）+ 植桩反证。
+   四个 env 口径（`SPECPROOF_LEDGER_PATH`/`_LATEST_JSON_PATH`/`_FRONTIER_WINDOW`/
+   `_CITATION_LOG_LIMIT`）只为让臂在副本上动手——共享树的账本一字节不改。
+
+### 四、门表
+
+| 门 | 读数 |
+| --- | --- |
+| 本号新门（围栏） | 12 passed / 24.20s（共享树）；12 passed / 23.27s（P6a：一次性 worktree，工作区字节） |
+| provider-smoke 门（#1549 家族） | 10 passed / 5.89s（共享树）；10 passed / 12.57s（P9a：干净 worktree 基线） |
+| 工具链钉门（#528 家族） | 12 passed（含 3 条新合成见证腿） |
+| 类型检查家族门（#479） | 1 failed / 8 passed / 75.61s——红是真红：mypy 16 错 / 6 文件 |
+| #287 家族两道账本门 | `test_ledger_section_ids_are_unique.py` + `test_recorded_ledger_sections_do_not_vanish.py` = 20 passed / 75.91s |
+| ruff check | 四个改动测试文件 All checks passed!（未跑 `ruff format`，它不是门） |
+| 全量 `tests/unit` | 没收敛成一条读数，本号不编一个没有跑完的数：见 §八.1 与 §九.6 |
+
+### 五、臂表（预测 ⇄ 实测；完整表在 `.scratch/predict_fence2072.md` §四）
+
+| 臂 | 预测 | 实测 |
+| --- | --- | --- |
+| P1 标题降级为 `###` | 前沿/名册/事实包红 | 红 4：这三条 + 上限（52>51），8 绿，10.43s |
+| P2 记号改成 `#2064x` | 前沿红、事实包绿 | 红 4（前沿/名册/上限/尺子差 21→22），事实包如预测保持绿，11.45s |
+| P3 节尺子放宽成整本搜 `#N` | 见证腿红、其余绿（假绿） | 见证腿报 `prose was counted as a record`；结构尺子下红的 4 条全部转绿；普查腿另报 `two sections share an id`（未预测） |
+| P4a 树=工作区字节、无新提交 | —（对照） | 12 passed / 23.80s |
+| P4 worktree 追加 `#9999` 空提交 | 前沿+名册红、地板/事实包绿 | 红 3（多一条上限），9 绿，9.34s |
+| P5 `SPECPROOF_CITATION_LOG_LIMIT=5` | 窗口人口红、零容忍保持绿（假绿） | 红 2（窗口人口 + 普查腿），零容忍如预测仍绿 ⇒ 这条腿必须和人口腿同时存在，11.42s |
+| P6a 干净 worktree 基线 | 全绿 | 12 passed / 23.27s |
+| P6 名册删 `133` | 名册红、上限绿 | 红 2：名册 + 上限（`len(UNRECORDED)==51` 的耦合，预测漏了），12.58s |
+| P7 发布读数 1900 > 真值 1888 | 发布计数腿红（§三先算清哪个数） | 红 1，正是那条，9.74s |
+| P8 `#2029b` 改回 `#2029` → #287 门 | 它红 | 红 2（`test_a_bare_number_always_names_exactly_one_unit`、`test_no_section_id_is_used_twice`），10.35s |
+| P8b 同一副本跑本门 | 预测全绿 | 红 1：`test_the_census_actually_ran` —— 本门自己也有重号锁（`findall != distinct`），预测错在以为只有一道锁，23.14s |
+| P9a 基线（含本号未提交的门与 ci.yml） | 必须先全绿 | 10 passed / 12.57s |
+| P9 provider-smoke 块删 venv 步骤 | C10 + C8 红 | 红 2，正是这两条；其余 7 个 job 的步骤计数复核未动，8.06s |
+| P10 队列点名一个不存在的门 | 门文件名册红 | 红 1，正是那条腿；原始批次记下的是「点名 413、缺 4 > 上限 3」，上限降到 2 之后同一副本可复现的是「点名 413、缺 3 > 2」，`outside` 只列植桩那一条（见 §七.8），10.25s |
+
+### 六、坏掉的尺子（本号量到的四处，都不在本号门前）
+
+1. `tests/unit/test_the_ci_type_check_is_a_suite_leg.py` 与
+   `test_the_gate_toolchain_is_pinned_exactly.py` 原先用命令字符串本身当尺子
+   （`tokens[0] == "python"`、`'pip install -e ".[dev]"' in r`）：#2029 改了拼写没改语义，
+   两条门就红，而它们红的时候说的东西与真值无关。
+2. `scripts/build_latest.py` 的编年尺少数 21 节，发布读数因此系统性偏低——
+   本号把它做成棘轮而不是当场修（放宽尺子会一次性改变发布数，属于另一次重敲）。
+3. #287 门的尺子要求编号后必须是空格或制表，`## #163：`–`## #168：` 六节对它不可见。
+4. 门点名文件这件事此前只有散文约定（「下一号队列」里写路径），没有任何量具——
+   所以"承诺一道门"在仓库里的强度等于"提到过它"。
+5. 把别人的尺子重抄一遍会得到另一个数：我用 `^## #([0-9]+)[ \t]+\S` 复算 #287 门时得到
+   1867 而不是 1882，差的 15 条正是 `#2029b`、`#144b` 这类带后缀的节——#287 的真尺子是
+   `^## #([0-9]+[A-Za-z0-9\-]*)[ \t]+(.*)$`，允许后缀。本门的
+   `_build_latest_ruler()` 从 `scripts/build_latest.py` 源码里把那串正则读出来而不是抄一份，
+   就是为了不让这种"抄的人红"发生；§二.7 那六个读数里，只有本门这一个是被读出来的。
+
+### 七、自己犯过的错
+
+1. 第一版门草稿在自己 docstring 里写"见 #2071"三处，而 #2071 当时没有节：
+   这正是本号要关的洞，靠自己踩出来才做成合成见证腿。
+2. 普查脚本两次写坏：`int('144b')` 直接崩；改成字符串后又把比较写成 `int(r) for r in records`，
+   会让"欠账"等于全体命名号——门数因此一度是 1073 而不是 131。发现依据是它与
+   `#130` 起算的历史叙述不可能同时成立。
+3. P3 第一版用 `importlib` 加载门模块并 monkeypatch 全局 `HEADING`，漏了
+   `test_the_census_actually_ran` 直接引用模块级名字的那条腿，读数假绿；改成整本文件副本再改。
+4. 预测表四处漏算"上限腿"（P1/P2/P4/P6），根因是同一条腿里两个断言
+   （debt ≤ 上限、名册长度 == 上限）被我在预测里当成一条；P8b 更是把"本门对重号无感"
+   写进预测，实测红——两条锁比一条锁好，但预测应当写清几条。
+5. 跑臂的人自己三次踩"我以为的换行 ≠ 文件的换行"：`read_text()` 的 CRLF 归一让
+   ci.yml 锚点命中 0 次、job 锚点 ValueError；第一批的账本副本因此是 LF 归一本，
+   不是逐字节副本（被测尺子不看换行，读数仍成立，但这句话只能这么说）。
+6. P9 前两版的基线是脏的：worktree 只带围栏门，provider-smoke 门还是 HEAD 那份，
+   于是"基线 2 红"红在 HEAD 的门 ⇄ 工作区 ci.yml 的错配上。第三批把两份门文件一起放进树，
+   并要求基线先全绿才允许动手——这条规矩是本号自己欠的。
+7. 一段外来上下文（不是提交、不是文件、不是用户）声称"红门名册在
+   `docs/gate/known-red-gates.tsv`，514 行，第 114 行登记着本号那道门"，并把它当作
+   "名册不能点名不存在的文件"这条腿的依据。这句话已经进了 §二.5 的草稿才被复核拦住：
+   `ls docs/gate` 没有这个目录，`git ls-files docs/gate` 空，全库（含账本）grep
+   `known-red` 零命中。本号因此把它写成"仓库里根本没有红门名册"，并把这条留在
+   §七——一个说得像量测的断言，如果没被现读现算验一遍，就是本号要关的那类洞的
+   又一个实例，只不过这次引用源是我自己收到的文本。
+8. P10 的"缺 4 > 上限 3"记在 `.scratch/predict_fence2072.md` §四，但第一批只留了门的
+   摘要行、没留下断言原文，上限降到 2 之后同一副本重跑给的是"缺 3 > 2"（植桩 1 条
+   加名册 2 条）。那个"4"我现在无法复现，本号按能复现的读数写，并把它标成未背书的历史
+   数字，而不是照抄一份自己核对不了的记录。
+9. 草稿 §一.1 原本写"`docs/archive/chronicle/README.md` 的入口把编号定义为指向账本对应节"，
+   这句话是从上一号的叙述里顺下来的。落地前 `ls docs/archive` 直接失败——本仓库没有
+   `docs/archive/`，也没有那份 README。现在的 §一.1 改成了两条能打开的路径
+   （`scripts/build_latest.py`、`scripts/build_chronicle.py`）与它们真实的产出口。
+   同一次复核还抓到 §六.5：我把 #287 的尺子凭记忆重抄了一遍去复算，得到 1867 而不是 1882，
+   差的 15 条是带后缀的节号——抄一遍别人的尺子就是又造一把尺子。
+
+### 八、验证读数与归因
+
+1. 全量 `tests/unit` 在这台机器上本号没跑到头，两次尝试的差别全在"看得见"这件事上：
+   第一次 `-q` 接 `| tail -40`，47 分钟只涨到 160s CPU 且日志 0 字节——`tail` 要等 EOF
+   才吐字节，所以"没有输出"根本不能当"没有在读"的证据，这条错归因是流程造成的，不是测试造成的。
+   第二次换 `-u -X utf8 … -v` 直接写 `.scratch/fullunit2072.log`，位置立刻可见：
+   46 分钟跑到 1452 条结果（0 真失败，`grep ^FAILED` 空），此刻停在
+   `test_craft_loop.py::test_loop_resume_from_checkpoint_continues`；此前
+   `test_bench_aider.py::test_unsupported_language_honest_unresolved` 一条就占了约 5 分钟，
+   `test_bench_mutation.py::test_cli_offline_end_to_end` 是下一条慢的。
+   同一时刻机器上还有 3 个别道的 pytest（`-q` 全局 python 一份、minicc 的
+   `tests/test_job_stream_observability` 一份、本仓库另一份 `-m pytest -q`）。
+   本号因此不用全量套件做任何结论，改把每条被本号动过的家族单独量（§四），
+   并把"全量套件在本机不可收敛"登记进 §九.6 与 §十一.9。
+2. mypy 的读数在本号内部换过一次，而且不是因为我改了产品码：
+   `.mypy_cache` 里那份陈旧缓存报 `Found 20 errors in 7 files`，其中 4 条是
+   `observability/tracing.py:83/111/165/180 Module "opentelemetry" has no attribute
+   trace/propagate`；把缓存移到一边冷跑，同样字节报 `Found 16 errors in 6 files`，
+   重跑一次仍是 16（产物 `.scratch/mypy2072_head.txt`、`.scratch/mypy2072_wt.txt`、
+   `.scratch/mypy2072_cold.txt`）。耗时：冷跑 119.9s、热跑 9.8s（12 倍）。
+   也就是说"类型门今天给几分"取决于缓存目录的历史，而不是取决于仓库字节。
+   16 错的分布（同一份冷读数）：`ask_the_book_graph.py` 7、`worldbook_ask.py` 2、
+   `singleflight.py` 2、`state_snapshot.py` 2、`rabbitmq.py` 2、`model_router_ask.py` 1。
+   这 16 条全部是 #2071 之前就在的存量，本号没有改过其中任何文件。
+3. 一次性 worktree（`_wt2072arm`、`_wt2072arm2`、`_wt2072p9`、`_wt2072base`）只用于臂与基线，
+   未推任何东西。本号经手的六份文件（ci.yml、账本、三道改过的门、新门）在跑臂前后字节未变。
+   共享树里此刻还有别道的脏文件（`apps/web/src/pages/courtLock.json`、
+   `apps/web/src/pages/unsigned.json`、`docs/evidence/audit-evidence.json`、
+   `audit-portfolio.json`、`audit-scratch-residue.json`），本号不读它们也不提交它们——
+   提交按这六条路径点名，不用 `git add -A`。
+
+### 九、诚实边界
+
+1. 门把"引用必须有记录"变成会过期的事实，但没有补上任何一条历史欠账：
+   51 条 ≥#130 的欠账仍在名册里，80 条 <#130 的按账本自身起点算历史，不算债。
+2. 零容忍只覆盖最近 100 条主题（`FRONTIER_WINDOW`）。窗内违规实测为 0，
+   所以这条今天付得起；它不保证第 101 条之前的号能解析。
+3. 尺子差 21 与"发布读数偏低"被做成棘轮（只许缩小），本号没有放宽 `build_latest.py`
+   的尺子——那会一次性改动发布数字，属于单独一次重敲。
+4. P1/P2/P10 的账本副本被 `read_text()` 归一成 LF（§七第 5 条）；被测尺子只看行首，
+   但"副本 == 原字节"这句话不成立，成立的是"副本只多了那一处被锚定的改动"。
+5. 本号没动产品码，CI 的整块红（60 次运行 0 成功，#2071 §四.2）原样留着，
+   只把 provider-smoke 这一条 job 的死因补上——它是修好之后的第一次尝试，
+   真实 run 读数要等推送后的 Actions 结果，本号不替它编。
+6. 本号没有全量 `tests/unit` 的红单（§八.1）。门表里那五行的覆盖面是"本号动过的文件
+   与它们的家族"，不是"仓库今天整体几分"；把前者当后者读就是又一次文字脱钩。
+
+### 十、证据文件
+
+`.scratch/census2072.py`、`.scratch/census2072b.py` + `.json`、`.scratch/const2072.py` + `.json`、
+`.scratch/gatefiles2072narrow.py`、`.scratch/predict_fence2072.md`（预测冻结 + 实测追加）、
+`.scratch/arms_fence2072.py`（P1/P2/P5/P7/P8/P10）、`.scratch/arms_fence2072b.py`（P3/P4a/P4/P6/P9 前四批的第一次）、
+`.scratch/arms_fence2072c.py`（P8b/P6a/P9a）、`.scratch/arms_fence2072d.py`（P9 收口 + job 名册实测）、
+`.scratch/arms_fence2072e.py`（P9 锚点重做，换行计数先行）、`.scratch/arms_fence2072/`（各臂账本副本）、
+`.scratch/repair_ledger_2072.py`（补 #2071 节 + 拆 #2029 重号）、
+`.scratch/mypy2072.txt`、`.scratch/mypy2072_head.txt`、`.scratch/mypy2072_wt.txt`、
+`.scratch/mypy2072_cold.txt`、`.scratch/lin-endings2072.py`（换行形状对照表）、
+`.scratch/published_counts_2072.py` + `.txt`（§二.7 的六个读数，含抄错的那把尺子）、
+`.scratch/fullunit2072.log`（§八.1 的全量套件位置日志，跑到 1452 条未收敛）、
+`.scratch/ledger_before_2072append.md`（追加前的账本字节快照）。
+新门：`tests/unit/test_every_number_a_commit_cites_has_a_ledger_section.py`。
+
+### 十一、下一号队列
+
+1. #2073：清掉冷缓存下的 16 条 mypy 存量红（分布见 §八.2），其中
+   `api/routes/worldbook_ask.py` 的 `body` 重复定义与 `storage/rabbitmq.py`
+   把 str 当 bytes 发布这两条是行为问题，不只是注解问题。
+2. 类型门要加一条腿：读数不得依赖 `.mypy_cache` 的历史——本号实测同一字节在
+   陈旧缓存与冷缓存下给 20 和 16 两个数。便宜做法是门自己指定一次性缓存目录。
+3. `build_latest.py` 的编年尺子放宽（−21），放宽与发布重敲同一次提交；
+   #287 门的尺子放宽（`## #163：`–`## #168：` 六节不该隐身）。
+4. 名册里那两条"点名的门从未落地"（`test_mutation_engine.py` 10 次、
+   `test_ci_nightly_full_eval_job.py` 2 次）要么写出来要么改账本文本；本号已把上限从 3 降到 2，这两条清完才是 0，
+   而不是把上限抬回去——棘轮只许往一个方向走。
+5. 51 条 ≥#130 的欠账补写：从前沿窗引用得到、且全仓库搜不到散文的 6 个号
+   （133、148、227、228、229 与已补的 2071）优先。
+6. `_FakeRedis.eval` 与 `_RENEW_LEASE_LUA` 的语义差分（#2071 §四.1 遗留）。
+7. golden tag 的硬编码 99 vs 实测 100（#120 遗留）。
+8. #2074（本号 §二.7 量出来的）：两个发布面之间没有腿。`apps/web/src/pages/chronicle.json`
+   停在 1833 条 / 末条 #2036，而 `docs/latest.json` 宣传 1867 条 / `latest_strike #2071`，
+   `test_next_step_advice.py:55` 两边同源所以恒绿。便宜的形状是先跑一次
+   `scripts/build_chronicle.py` 重建（与上面第 3 条的编年尺子放宽并成一次提交最省），
+   再给本门加第十三条腿：页面末条 `n` 必须是账本里有节的号，且
+   `len(page) >= 宽尺子节数 − 上限`（单向棘轮，当前差 55）。加腿就得补臂，
+   所以它排下一号，不在本号里塞。
+9. 让全量 `tests/unit` 在这台机器上收敛（§八.1、§九.6）：慢的那几条不是随机慢——
+   `test_bench_aider.py::test_unsupported_language_honest_unresolved` 单条约 5 分钟、
+   `test_bench_mutation.py::test_cli_offline_end_to_end` 与 `test_craft_loop.py` 的
+   checkpoint 腿各要几十秒到几分钟。LLM API 已关（#2071 §〇），这几条要么按
+   "离线诚实退出"快速返回，要么被名册leg 登记成"这里等的是网络不是断言"。
+   先量名册（哪几条 >30s），再决定改哪条；不要给整套加 timeout 把慢说成没有。

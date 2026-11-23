@@ -26,6 +26,7 @@ These legs keep the three sources from disagreeing again.
 
 from __future__ import annotations
 
+import re
 import tomllib
 from importlib import metadata
 from pathlib import Path
@@ -80,6 +81,54 @@ def _locked_versions() -> dict[str, str]:
     }
 
 
+def _tokens(run: str) -> list[str]:
+    """A `run:` line the way the step's own words read, quotes aside.
+
+    Quote-stripping rather than a real shell split is enough for these lines and
+    deliberately dumb: the only quoted value any of them carries is the `".[dev]"`
+    extra. What this replaces is a substring ruler that matched
+    `'pip install -e ".[dev]"'` — a ruler over the *spelling* of a step. When #2029
+    inserted `--python .venv/Scripts/python.exe` between `install` and `-e`, that
+    literal stopped occurring in a step that still installed exactly what the leg
+    asks for, and the leg went red on a job that had not changed its meaning.
+    """
+    return run.replace('"', " ").replace("'", " ").split()
+
+
+#: `ruff`, `ruff==0.16.9` and `ruff[foo]` all name the requirement `ruff`.
+_REQ_NAME = re.compile(r"^([A-Za-z0-9._\-]+)")
+
+
+def _installs_the_dev_extra(run: str) -> bool:
+    """Does this step put the project, dev extras included, into an environment?"""
+    tokens = _tokens(run)
+    if "sync" in tokens:
+        # `uv sync` resolves the project from the lockfile, which is the other
+        # way the pin can reach CI; the lockfile leg above keeps it honest.
+        return "uv" in tokens
+    return "install" in tokens and "-e" in tokens and ".[dev]" in tokens
+
+
+def _installs_gate_tool_ad_hoc(run: str, tool: str) -> bool:
+    """Is `tool` fetched by name, i.e. at whatever version the resolver feels like?
+
+    Structural for the same reason as above, and this one matters in the other
+    direction: the substring it replaces only fired when the flags happened to
+    sit after the name, so `pip install --python X ruff` was invisible to a leg
+    whose whole job is to refuse that.
+    """
+    tokens = _tokens(run)
+    if "install" not in tokens:
+        return False
+    tail = tokens[tokens.index("install") + 1 :]
+    names = [
+        m.group(1)
+        for t in tail
+        if not t.startswith("-") and (m := _REQ_NAME.match(t))
+    ]
+    return tool in names
+
+
 @pytest.mark.parametrize("tool", _GATE_TOOLS)
 def test_each_gate_tool_is_pinned_exactly(tool: str) -> None:
     pinned = _pinned(tool)
@@ -114,8 +163,8 @@ def test_the_lockfile_does_not_contradict_the_pin(tool: str) -> None:
     locked = _locked_versions()
     if not locked:
         pytest.skip(
-            "there is no uv.lock; nothing can contradict the pin (CI installs "
-            'with `pip install -e ".[dev]"`)'
+            "there is no uv.lock; nothing can contradict the pin (the install "
+            "step is the only source of the version then)"
         )
 
     assert tool in locked, (
@@ -146,20 +195,15 @@ def test_ci_installs_the_gate_tools_from_the_project() -> None:
         if not uses_tool:
             continue
 
-        installs_project = any(
-            'pip install -e ".[dev]"' in r
-            or "pip install -e '.[dev]'" in r
-            or "uv sync" in r
-            for r in runs
-        )
+        installs_project = any(_installs_the_dev_extra(r) for r in runs)
         if not installs_project:
             offenders.append(
                 f"{job_name}: runs {uses_tool[0].strip()!r} but never installs "
-                'the project extras (`pip install -e ".[dev]"` or `uv sync`)'
+                'the project extras (`… install -e ".[dev]"` or `uv sync`)'
             )
         for r in runs:
             for tool in _GATE_TOOLS:
-                if f"pip install {tool}" in r or f"pip install --upgrade {tool}" in r:
+                if _installs_gate_tool_ad_hoc(r, tool):
                     offenders.append(
                         f"{job_name}: installs {tool} ad hoc ({r.strip()!r}) — "
                         "that version is not the pin, so the job's verdict is not "
@@ -187,6 +231,40 @@ def test_no_doc_claims_a_floor_for_a_gate_tool() -> None:
         f"{doc.name} still describes a floor for {stale}; the dev extra pins "
         "them exactly. Update the doc in the same change as the pin"
     )
+
+
+def test_the_install_ruler_reads_the_step_not_its_spelling() -> None:
+    """The two shapes of the same honest install both count.
+
+    The first is what CI ran before #2029, the second what it runs now. A ruler
+    that accepts only one of them grades typography, and the day it goes red the
+    red says nothing about whether the pin reaches CI.
+    """
+    assert _installs_the_dev_extra('pip install -e ".[dev]"')
+    assert _installs_the_dev_extra(
+        'uv pip install --python .venv/Scripts/python.exe -e ".[dev]"'
+    )
+    assert _installs_the_dev_extra("uv sync")
+
+
+def test_the_install_ruler_still_refuses_the_shapes_that_do_not_carry_the_pin() -> None:
+    # Reverse controls: without these, leg above proves only that the ruler is
+    # permissive, which is the same as not having it.
+    assert not _installs_the_dev_extra("pip install -e .")  # no dev extra
+    assert not _installs_the_dev_extra("pip install .[dev]")  # not editable
+    assert not _installs_the_dev_extra("uv run python -m mypy .")  # a verdict, not an install
+    assert not _installs_the_dev_extra("pip uninstall -y ruff")
+    assert not _installs_the_dev_extra("npm install")
+
+
+def test_the_ad_hoc_ruler_finds_a_tool_behind_any_flags() -> None:
+    assert _installs_gate_tool_ad_hoc("pip install ruff", "ruff")
+    assert _installs_gate_tool_ad_hoc("pip install --upgrade mypy==2.4.0", "mypy")
+    assert _installs_gate_tool_ad_hoc(
+        "uv pip install --python .venv/Scripts/python.exe ruff", "ruff"
+    )
+    assert not _installs_gate_tool_ad_hoc('uv pip install --python X -e ".[dev]"', "ruff")
+    assert not _installs_gate_tool_ad_hoc("uv run python -m ruff check .", "ruff")
 
 
 def test_the_three_sources_agree() -> None:
