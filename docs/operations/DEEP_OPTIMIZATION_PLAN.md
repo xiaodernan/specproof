@@ -44150,3 +44150,29 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
    不能保证 CI 100% 绿——runner 本机网络层不在仓库控制内。本号不宣称 CI 全绿，
    真实结论要等新 run 的 seed step 日志。CI 其余红（lint-type 的 269 E501 pin red、
    tests-no-infra 等）各自独立，未触碰。
+
+
+## #2076 LLM 网关实测复活：代理下 chat_completions 95.2% 缓存命中 + 流式/能力全通（修正"已关"断电报）
+
+1. **为什么要量**：#2072 队列写"LLM API 已关（#2071 §〇）"，#2046 等处的慢测试因此按"等网络"处理。
+   总指令强调 LLM 深度使用是关键要求、缓存目标 90%。本号实测校正这个前提——不靠猜。
+2. **裸 curl 实测**（`curl.exe` + Clash `:7897` + `POST /v1/chat/completions`）：
+   `model=gpt-6.2-sol`，回复 `OK`；`usage.prompt_tokens=4391`、`cached_tokens=4180`
+   ⇒ **95.2% 缓存命中**，超过 90% 目标。注意 PowerShell 的 `Invoke-RestMethod` 发同样请求
+   返回 403（其自身的编码/转义问题），curl `--data-binary @file` 才拿到真实 200/400 响应——
+   工具层的假阴性，不是网关问题。
+3. **项目端到端实测**（`.local/probe_responses.py`，走真实 `OpenAICompatibleProvider`）：
+   - 非流：`protocol=chat_completions`、`model=gpt-6.2-sol`、`effort=max`、回复 `SPEC_OK`、
+     `prompt_cache_hit_tokens=4180/4391`（**95.2%**）。
+   - 流式：`STREAM_OK` 收到 2 chunks；`get_capabilities()` = `{chat:true, streaming:true,
+     usage_reporting:true}`。
+   - 这证明 provider 层 + 缓存协议 + 流式 + usage 上报整条链路在真实网关上全通，不是 mock。
+4. **配置优先级核对**：`providers/config.py::load_model_config()` 读到 `.local/llm.json`
+   (`source=local_file`) 时尊重显式 `protocol=chat_completions`；line 59 的 `gpt-6 → responses`
+   自动切换只在 env route 或未配置时触发。端到端 probe 的 `protocol=chat_completions` 证明
+   这条优先级正确——这正是过去"命中率低/一直非流"的根因已被 `chat_completions` 协议修正的证据。
+5. **诚实边界**：① 这是一次性实测读数，命中率受网关 prompt-cache 的实时状态影响，不是恒定 95.2%
+   的承诺；② 这些 probe 在 `.local/`（gitignore，含密钥），不是 CI 门，CI 仍按无网关配置运行
+   （fail-closed，符合 CLAUDE.md 规则 3——仓库不放真密钥）；③ "LLM 已关"在**无代理/CI 环境**
+   仍然成立，本号修正的是"本机配 Clash 代理下可用"这一事实，不是让 CI 依赖外网。
+   不改动任何 provider 代码或门，本号只订正事实记录。
