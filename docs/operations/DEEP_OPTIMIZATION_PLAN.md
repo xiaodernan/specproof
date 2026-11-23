@@ -44105,3 +44105,24 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
      （真实 run 44912703445 确认 `MSYS_NO_PATHCONV: 1` 生效，working-directory-invalid
      消失），现卡在 `curl: (35) schannel: failed to receive handshake` —— 本机
      SSL/TLS 网络问题，非仓库代码，待 runner 网络层处理，本号不伪称 CI 全绿。
+
+
+## #2074 两个发布面脱钩 35 条 → 重建一致 + 加真正会失败的门
+
+1. **承接 #2072 队列第 8 项**：`apps/web/src/pages/chronicle.json` 停在 1833 条、
+   末条 #2036，而 `docs/latest.json` 宣传 `chronicle_entries=1868`、`latest_strike=#2071`
+   —— 两个发布面差 35 条，用户在不同入口看到不同事实。
+2. **根因（诚实）**：`test_next_step_advice.py:55` 的 `p["chronicle_entries"] == len(chronicle)`
+   两边都读 `chronicle.json`（packet builder 与测试同源），**恒绿，永远抓不到 latest.json 脱钩**。
+   两条腿读同一份文件等于没有腿 —— 与 #2071/#2072 记录的"没人跑的门不算门"同一类缺陷。
+3. **修复**：① `python scripts/build_chronicle.py` 重建 → 1869 条、末条 #2073；
+   ② `python scripts/build_latest.py` 重敲 → `chronicle_entries=1869`、`latest_strike=#2073`；
+   实测两发布面 `CONSISTENT`。③ 新增 `tests/unit/test_the_two_published_fact_surfaces_agree.py`
+   的 4 条腿：两发布面条数相等、页面末条 strike 在账本有节、latest 宣传的 strike 在账本有节、
+   两面对 newest strike 一致。
+4. **门有效性实测（不是恒绿门）**：把 `latest.json.chronicle_entries` 临时 -1 → 对应腿
+   **FAILED**；恢复 → **PASSED**。证明它真会在脱钩时失败。相关门
+   `test_next_step_advice.py` + 新门合计 **11 passed**。
+5. **诚实边界**：这是两条发布面门 + 相关门，不是整套 `tests/unit` 全绿。
+   重建改的是浏览器可见的发布数据（按 build_chronicle.py 自身的契约，账本追加后必须重建），
+   没有改任何账本事实或门阈值。CI seed step 的 curl schannel 网络问题（#2073 §5）仍未解。
