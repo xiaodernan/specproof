@@ -44268,3 +44268,25 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
    的多 run 并发（需要 GitHub 侧同时 push 两次触发），转绿需下一次自然调度验证；
    ② 未改 compose 端口/项目名本身（那会牵动一堆 env knob 绑定门），只串行化使用者；
    ③ API 已关闭（用户 2026-11-23 告知），本号不消耗任何真实 LLM token，纯 CI 基建。
+
+
+## #2081 紧急更正：#2080 的 concurrency.group 用了调度期不存在的 runner context，整条 CI 被 GitHub 拒收
+
+1. **真实证据（GitHub API 只读实测）**：`62bb5ee`（#2080）推送后触发 run `45139432386`
+   （2026-11-23T08:32Z，push/master）。对比前一个 run `45118303793`（`d34116c`）：
+   前者 `name=.github/workflows/ci.yml`、`.jobs.total_count=0`、`conclusion=failure`；
+   后者 `name=specproof-ci`、`jobs=10`、`cancelled`。workflow 名退化成文件路径 + 零 job
+   是 GitHub **解析期拒绝**的特征，不是任何 job 跑红——我 #2080 的改动把整条 CI 弄没了。
+2. **根因**：`jobs.<id>.concurrency.group` 在**调度期**求值，此时还没分配 runner，
+   所以 `runner` 不是允许的 context（允许 `github` / `inputs` / `vars` 等）。
+   `group: specproof-infra-${{ runner.name }}` 让 GitHub 判整份 workflow 无效。
+   本地 `yaml.safe_load` 解析得过（它不校验 context 可用性），所以本地门全绿也没发现——
+   这是"YAML 语法门"与"GitHub 语义门"之间的盲区。
+3. **修复**：group 改为固定 `specproof-infra`。这既是合法 context-free 字面量，
+   也是正确语义——这个 job 只在自托管 runner 上跑，全局一把锁确保同一时刻只有一个
+   job 拥有那组固定端口；多 runner 时略降并行度，但绝不互删容器，是可接受的权衡。
+   `cancel-in-progress: false` 保持不变。G6 门改为**反向锁**：group 里出现 `runner.`
+   即红（钉住这次的教训），并断言固定值 `specproof-infra`。
+4. **诚实边界**：① 这是我本轮自己引入的回归，不是并行会话的锅——记录在此不粉饰；
+   ② 真实转绿需修复推送后 GitHub 再调度一个新 run 验证（本地无法模拟 GitHub 的
+   workflow 语义校验，actionlint 本机也没装）；③ 零 API token。

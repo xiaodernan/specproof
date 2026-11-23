@@ -584,7 +584,8 @@ def test_the_infra_job_is_serialized_per_runner() -> None:
     self-hosted runner. Without a job-level concurrency gate they race to
     ``up -d --wait`` the same containers and one job's ``down -v`` deletes
     the other's live schema (run 45118560483: healthy 1s, then unhealthy).
-    Serialize by runner name, and keep ``cancel-in-progress: false`` so a
+    Serialize with one fixed repo-wide group (the `runner` context is not
+    available at schedule time), and keep ``cancel-in-progress: false`` so a
     cancelled job cannot skip its ``if: always()`` teardown and leak
     containers into the next run.
     """
@@ -594,8 +595,15 @@ def test_the_infra_job_is_serialized_per_runner() -> None:
         "tests-with-infra lost its job-level concurrency gate: on a shared "
         "self-hosted runner concurrent pushes will fight over the fixed ports"
     )
-    assert "runner.name" in cc.get("group", ""), (
-        f"concurrency group must isolate per runner, got {cc.get('group')!r}"
+    group = cc.get("group", "")
+    assert "runner." not in group, (
+        f"concurrency.group {group!r} interpolates the `runner` context, which "
+        "does not exist at schedule time — GitHub rejects the ENTIRE workflow "
+        "(name falls back to the file path, jobs=[]; run 45139432386)"
+    )
+    assert group == "specproof-infra", (
+        f"concurrency group must be the single fixed repo-wide lock "
+        f"'specproof-infra', got {group!r}"
     )
     assert cc.get("cancel-in-progress") is False, (
         "cancel-in-progress would skip the if:always() down -v and leak containers"

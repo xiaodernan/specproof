@@ -179,12 +179,16 @@ jobs:
     # self-hosted runner several pushes schedule this job at once; without a
     # gate they race to `up -d --wait` the same containers and one job's
     # `down -v` deletes another's live schema (measured: container healthy for
-    # 1s then "unhealthy" in run 45118560483). Serialize per runner. Do NOT
-    # cancel-in-progress: a cancelled job skips its `if: always()` teardown and
-    # leaves containers behind for the next one to fight with. Queued runs
-    # wait their turn, so each gets a clean up/wait/test/down cycle.
+    # 1s then "unhealthy" in run 45118560483). Serialize with ONE repo-wide
+    # group. Do NOT interpolate `runner.name` here: job-level concurrency is
+    # evaluated at SCHEDULE time, before a runner is assigned, so `runner` is
+    # not an allowed context — using it makes GitHub reject the WHOLE workflow
+    # (name falls back to the file path, jobs=[]; measured run 45139432386).
+    # A fixed group is also the correct semantics: only one job may own the
+    # fixed ports at once. Do NOT cancel-in-progress: a cancelled job skips
+    # its `if: always()` teardown and leaks containers into the next run.
     concurrency:
-      group: specproof-infra-${{ runner.name }}
+      group: specproof-infra
       cancel-in-progress: false
     # #529: name the volume the runner mounts, so the seeding script and the
     # sandbox read one knob instead of agreeing by matching defaults.
