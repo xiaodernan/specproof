@@ -573,3 +573,30 @@ def test_a_comment_line_terminates_a_continued_command_early() -> None:
     kept_code, kept = run(fixed)
     assert "arg=alpine" in kept, f"the note-above shape lost the image: {kept}"
     assert kept_code == 0, f"the note-above shape failed: {kept}"
+
+
+
+def test_the_infra_job_is_serialized_per_runner() -> None:
+    """G6 — the job that owns the fixed-port compose stack must not self-race.
+
+    #2080: ``compose.phase0.yml`` pins one project name and fixed host ports;
+    several pushes schedule ``tests-with-infra`` at once on the same
+    self-hosted runner. Without a job-level concurrency gate they race to
+    ``up -d --wait`` the same containers and one job's ``down -v`` deletes
+    the other's live schema (run 45118560483: healthy 1s, then unhealthy).
+    Serialize by runner name, and keep ``cancel-in-progress: false`` so a
+    cancelled job cannot skip its ``if: always()`` teardown and leak
+    containers into the next run.
+    """
+    job = workflow()["jobs"]["tests-with-infra"]
+    cc = job.get("concurrency")
+    assert isinstance(cc, dict), (
+        "tests-with-infra lost its job-level concurrency gate: on a shared "
+        "self-hosted runner concurrent pushes will fight over the fixed ports"
+    )
+    assert "runner.name" in cc.get("group", ""), (
+        f"concurrency group must isolate per runner, got {cc.get('group')!r}"
+    )
+    assert cc.get("cancel-in-progress") is False, (
+        "cancel-in-progress would skip the if:always() down -v and leak containers"
+    )

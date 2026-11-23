@@ -174,6 +174,18 @@ jobs:
 
   tests-with-infra:
     runs-on: [self-hosted, windows]
+    # #2080: compose.phase0.yml pins one project name (`specproof-phase0`),
+    # fixed container names and fixed host ports (3306/6379/...). On a
+    # self-hosted runner several pushes schedule this job at once; without a
+    # gate they race to `up -d --wait` the same containers and one job's
+    # `down -v` deletes another's live schema (measured: container healthy for
+    # 1s then "unhealthy" in run 45118560483). Serialize per runner. Do NOT
+    # cancel-in-progress: a cancelled job skips its `if: always()` teardown and
+    # leaves containers behind for the next one to fight with. Queued runs
+    # wait their turn, so each gets a clean up/wait/test/down cycle.
+    concurrency:
+      group: specproof-infra-${{ runner.name }}
+      cancel-in-progress: false
     # #529: name the volume the runner mounts, so the seeding script and the
     # sandbox read one knob instead of agreeing by matching defaults.
     # #375: the compose services need credentials, and the test harness strips

@@ -44243,3 +44243,28 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
    所以两条 seed job 都未在本次 CI 验证到本修复；② 间歇的 (35) schannel 网络抖动
    仍在，交给 #2075 的 --retry 吸收；③ 不反复重启 runner/制造队列拥塞，
    等下一次自然调度再验。
+
+
+## #2080 CI 竞态确定修复：tests-with-infra 按 runner 串行，消除固定端口互删
+
+1. **真实证据**：#2078 §4 / #2079 §4 记录 run 45118560483 的 `tests-with-infra` 死在
+   `container specproof-mysql is unhealthy`（Started 后 1 秒即报，远短于 healthcheck 的
+   30s start_period）。根因是 self-hosted runner 上多个 push 并发调度同一 job，
+   `compose.phase0.yml` 固定项目名 `specproof-phase0` + 固定容器名 + 固定宿主端口
+   （3306/6379/5672/9200/27017/9000），后一个 run 的 `up -d --wait` 重建容器、
+   前一个 run 的 `if: always() → down -v` 删掉正在用的 schema——不是仓库代码缺陷，
+   是 job 缺少并发门。
+2. **修复**：给 `tests-with-infra` job 加 job 级
+   `concurrency: group: specproof-infra-${{ runner.name }}, cancel-in-progress: false`。
+   按 runner 名分组：同一 runner 上的 infra job 排队串行，各自完成干净的
+   up/wait/test/down 周期；不同 runner 仍可并行。`cancel-in-progress: false` 是关键——
+   取消的 job 会跳过 `if: always()` 的 `down -v`，把容器泄漏给下一个 run 继续争。
+   全仓只有这一个 job 用 `compose.phase0.yml`，改动面最小。
+3. **门检**：新增 G6 锁 `test_the_infra_job_is_serialized_per_runner`，从磁盘解析 ci.yml，
+   钉住并发门存在 + group 含 `runner.name` + `cancel-in-progress: false`；
+   `test_ci_jobs_can_run_the_repo_gates.py` **10 passed**（含 G6）。YAML 可解析、
+   ci.yml 按原 CRLF 字节回写（lone CR=0）。
+4. **诚实边界**：① 这是 CI 调度层的确定性根因修复，本地无法真实复现 self-hosted runner
+   的多 run 并发（需要 GitHub 侧同时 push 两次触发），转绿需下一次自然调度验证；
+   ② 未改 compose 端口/项目名本身（那会牵动一堆 env knob 绑定门），只串行化使用者；
+   ③ API 已关闭（用户 2026-11-23 告知），本号不消耗任何真实 LLM token，纯 CI 基建。
