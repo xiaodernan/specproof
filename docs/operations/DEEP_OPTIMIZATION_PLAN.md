@@ -44176,3 +44176,13 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
    （fail-closed，符合 CLAUDE.md 规则 3——仓库不放真密钥）；③ "LLM 已关"在**无代理/CI 环境**
    仍然成立，本号修正的是"本机配 Clash 代理下可用"这一事实，不是让 CI 依赖外网。
    不改动任何 provider 代码或门，本号只订正事实记录。
+
+
+## #2077 LLM 深度生成新卷 205（双语）：10,635 上下文实测 + 证据先行的开放世界扩容
+
+1. **本号做什么**：用真实网关 `gpt-6.2-sol`（`chat_completions`，本机 Clash `:7897`）**真实生成**世界之书新卷 205，而不是手写填充。这是总指令原则四（LLM 深度运用）、原则六（无尽开放世界/新篇章）、原则八（中英全量双语）的一次集中落地——LLM 不是被浅尝辄止地 ping 一下，而是承担了内容创作本身。
+2. **上下文利用率（用户重点关切的实测）**：prompt 一次喂入 **10,635 tokens**——含账本 #2072–2076 五节全文（共约 13KB 真实事实）+ 上一卷 zh/en 双语叙事风格 few-shot + 严格约束（只用所给事实、不编数字、模仿 anchor/ledger 结构、中文节禁英文叙事）。`cached_tokens=4117`（39%，新内容为主，命中低于纯 ping 的 95.2% 属正常），`completion_tokens=7945`。这是本仓库对"把 5 万～9 万上下文容量用起来"的真实一步：输入不再是几个数字，而是整卷叙事 + 全部相关账本。
+3. **证据先行（原则一，防幻觉）**：生成前先核对草稿里每一个关键数字都能在账本溯源——1888(×10)、1882(×5)、1867(×8)、1833(×17)、44912703445(×3)、763(×26)、95.2(×4)、269(×20)、#1549(×19)、#2029(×13) 全部命中；生成后人工逐节核对 zh/en 对称性。草稿里所有事实（16 红清零、rabbitmq bytes、body redef、两发布面 1833→1869、curl 35、95.2% 命中、MSYS_NO_PATHCONV）都来自本轮真实工作，无编造。
+4. **双语对称**：zh「卷二百零五 · 文字必须指向它所写之物」/ en「Scroll CCV · Words Must Point to What They Name」。追加后世界书 H1=1（扉页）、H2=204（原 203 + 新 1），双语各自对称。按依赖顺序重建 `build_worldbook.py`（205 volumes，last vol-203）→ `build_library.py`（204 scrolls zh≡en）→ `build_tally.py` → `build_chronicle.py`（1872 条）→ `build_latest.py`（worldbook_scrolls=205、strike #2076）。
+5. **门随事实更新（不是弱化）**：`test_worldbook_library_parity.py` 与 `test_next_step_advice.py` 里 pin 的 203→204、204→205、vol-202→vol-203、library_zh_en_pairs 203→204 是**事实变更后的正确跟随**，被钉的关系（worldbook = library + 1 扉页、zh≡en 对称、末卷在册）一点没松；docstring 的测量说明同步改写。相关门 **26 passed**。
+6. **诚实边界**：① 这一卷是 LLM 基于真实事实的**叙事创作**，事实部分可溯源，但"史诗寓言"的措辞是文学表达，不当作工程断言；② prompt 10,635 tokens 是本号实测值，不是恒定上下文占用；③ 新卷由 LLM 生成，草稿留在 `.scratch/draft_scroll205_{zh,en}.md` 供复核，未把生成过程写成 CI 门（CI 无网关配置，fail-closed，符合规则 3）；④ 未改任何 provider 代码或核心逻辑，本号是内容扩展 + 门的事实跟随；⑤ CI 全绿仍未达成（runner session 卡死），本号不伪称。

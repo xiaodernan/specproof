@@ -7472,3 +7472,174 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entrie
 ### 204.5 账房
 
 mvn untouched · UI **598/598** · tsc ✓ · Vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds ·「密码-123」演示门
+
+---
+
+## 卷二百零五 · 文字必须指向它所写之物
+
+> “门若只检查自己的回声，发布面若只读取自己的影子，账本上的编号便会在仓库里有名，在世人眼前无处可寻。”
+
+### 205.1 三把尺子，一本账
+
+#### anchor
+
+记录基准是 2026-11-23，基线 `7e9f98e`；`3f332e9` 是 #2071 的 ff 重敲提交。预测在任何臂之前冻结于 `.scratch/predict_fence2072.md`，实测只追加于 §四、§五。
+
+#2071 落地后没有账本节，但提交主题与当天重敲发布的事实包 `docs/latest.json` 的 `latest_strike` 都写着 `#2071`。这不是文档迟到，而是指向断裂：`docs/latest.json` 与前端编年页的条目都由账本的 `## #N` 标题生成。编号没有章节，发布出去的号便在仓库自己的编年里无法解析。
+
+同日，#1549 的 provider-smoke 门 C1/C8 变红。#2029 将 `ci.yml` 中所有 `python` 调用移到 `uv run` 之后，又把 `setup-python` 换成宿主 PATH，却没有为 Windows job 建立 `.venv`。run `44912703445` 死在 `uv pip install --python .venv/Scripts/python.exe`，留下：
+
+`No virtual environment ... found for path .venv/Scripts/python.exe`
+
+租约腿跨 763 个提交变红、CI 运行 60 次而成功为 0，与这一断裂是同一件事的两面：门说的、CI 跑的、发布页写的，三处文字各自能够通过自己的检查，却没有一处被要求与它所指向的东西对齐。
+
+#### ledger
+
+可达提交为 2926；主题引用不同编号 1073 个，共提及 1468 次。账本中“衔接 #N”指针有 156 行、154 个不同编号，其中 1914、1919、1964 指向不存在的章节。
+
+账本章节真值为 1888。宽尺 `^## #([0-9]+[A-Za-z0-9\-]*)` 读出 1888；#287 门的尺子多要求一个空格或制表，读出 1882，看不见 `163–168` 的 `## #163：` 全角冒号；`scripts/build_latest.py` 使用的 `(?m)^## (#\d+)\s+` 读出 1867，发布出去的 `chronicle_entries` 便是 1867，比真值少 21，其中包括本节要补的 #2071 一族。
+
+命名而无节的欠账，号龄小于 130 的有 80 个；大于等于 130 的有 51 个。散文中搜得到，并不等于有记录。本号第一版门草稿曾在自己的 docstring 中三次写下“见 #2071”，正踩在这个洞里。因此记录只认标题，并把这件事做成合成见证腿。
+
+### 205.2 零容忍与不存在的名册
+
+#### anchor
+
+最近 100 条主题中，有编号引用的 51 条，涉及 49 个不同编号，违规为 0。零容忍在今天付得起，并不代表将来付得起。
+
+账本反引号中点名的 `tests/<族>/test_*.py` 有 412 个不同路径、779 处提及。第 413 个是 `tests/unit/test_the_payload...py`，带省略号，只是散文简写，不是承诺，因此被门的尺子排除。
+
+仓库中有三个被点名却不存在的路径：`test_mutation_engine.py` 被点名 10 次，`test_ci_nightly_full_eval_job.py` 被点名 2 次，本门自身被点名 1 次，并且在落地当天消失。
+
+#### ledger
+
+仓库根本没有“红门名册”这类文件：`docs/gate/` 不存在，全库 grep `known-red` 为零命中。于是此前“承诺一道门”在仓库里的强度，最多等于“提到过它”。
+
+mypy 的第一次真实读数是在三道命令拼写检查修好之后，由 CI 的类型检查真正跑出来的：热缓存给出 `Found 20 errors in 7 files`，记录在 `.scratch/mypy2072.txt`。冷缓存随后推翻它，给出 16 个错误、6 个文件。两种读数都是存量红，不是本号引入；§二保留热缓存读数，是因为它就是最初读数的原样。
+
+同一个名词在仓库中有六种读数：
+
+1. 本门宽尺：1888，结构真值。
+2. #287 门尺：1882。
+3. `scripts/build_latest.py`：1867，也是 `docs/latest.json` 的 `chronicle_entries`。
+4. `scripts/build_chronicle.py` 的尺子：1867，末条为 #2071。
+5. 前端实际读取的 `apps/web/src/pages/chronicle.json`：1833 条，末条 `n: 2036`；最后一次重建是 `5146c6c`，主题写着“1833 entries now visible on /#/chronicle”。
+6. `api/next_step_advice.py` 包内的 `ledger_sections`：1804，取自 tally，不取自标题普查。
+
+### 205.3 冷缓存中的十六道红门
+
+#### anchor
+
+#2072 的队列第 1 项没有被热缓存的 20 牵着走。#2073 在一次性冷缓存中，把 `MYPY_CACHE_DIR` 指向全新临时目录，并使用 `--no-incremental`，逐条清掉那 16 条真实存量红。
+
+`python -m mypy .` 最终给出：
+
+`Success: no issues found in 311 source files`
+
+其中两条不是注解的裂纹，而是行为缺陷。
+
+#### ledger
+
+`storage/rabbitmq.py:304` 中，`json.dumps(payload)` 返回 `str`，而 pika 的 `basic_publish(body=...)` 要求 bytes。真实 broker 在 send 时才会暴露这个 `arg-type` 缺陷；修复改为 `.encode("utf-8")`，线上语义从“可能失败”变为正确上线。
+
+`api/routes/worldbook_ask.py:99` 中，`body` 在 85 行的缓存命中分支与 99 行的未命中分支各定义一次，形成 `no-redef`。缓存分支改用 `cached_body`，消除重定义，不改变任何返回路径。
+
+其余 14 条按类型语义做最小修复：`api/singleflight.py` 将 `Future` 与 `run()` 泛型化为 `Future[T]` 与 `-> T`，并顺带修掉 `worldbook_ask` 与 `model_router_ask` 两处 “Returning Any”；`storage/rabbitmq.py` 为 `channel` 属性加入 None 防御，重连后不再把 None 当作活动 channel 交出；`experiments/state_snapshot.py` 使用 `int(... or 0)` 防止 pika 计数为 None；`agent/graphs/ask_the_book_graph.py` 将 `str | None` 的 system content 用 `or ""` 收口一次，byte-frozen 断言不变。
+
+类型门测试 `test_the_ci_type_check_is_a_suite_leg.py` 从 1 failed 变为 9 passed。相关行为测试，包括 rabbitmq、singleflight、worldbook、state_snapshot、ask_the_book，共 82 passed。`body` 到 bytes 的改变没有破坏任何 rabbitmq 测试；没有弱化、删除任何门，也没有用 `# type: ignore` 遮盖问题。
+
+这只是全量 mypy 门与相关行为门的绿灯，不是整套 `tests/unit` 的绿灯。全量冷缓存收敛仍欠，#2072 §八.1 的慢测试问题未动。CI lint-type job 的 269 条 E501 是 #2046 记录的设计上 pin 的 red，未触碰。CI 的 eval-golden-cases 与 tests-with-infra seed step 已通过 MSYS 路径关，真实 run `44912703445` 确认 `MSYS_NO_PATHCONV: 1` 生效，`working-directory-invalid` 消失；剩下的是 `curl: (35) schannel: failed to receive handshake`，属于本机 SSL/TLS 网络问题，不是仓库代码，本号没有伪称 CI 全绿。
+
+### 205.4 两个发布面重新指向同一条末节
+
+#### anchor
+
+#2074 承接 #2072 队列第 8 项。`apps/web/src/pages/chronicle.json` 停在 1833 条、末条 #2036；`docs/latest.json` 却宣传 `chronicle_entries=1868`、`latest_strike=#2071`。两个发布面相差 35 条，用户从不同入口看到不同事实。
+
+根因也被账本点名：`test_next_step_advice.py:55` 的 `p["chronicle_entries"] == len(chronicle)` 两边都读取 `chronicle.json`。这条腿恒绿，因为它从来没有跨过发布面的断口。两条腿读同一份文件，等于没有腿。
+
+#### ledger
+
+先运行 `python scripts/build_chronicle.py`，得到 1869 条，末条 #2073；再重敲 `python scripts/build_latest.py`，得到 `chronicle_entries=1869`、`latest_strike=#2073`。两发布面实测为 `CONSISTENT`。
+
+新增 `tests/unit/test_the_two_published_fact_surfaces_agree.py`，包含四条腿：两发布面条数相等；页面末条 strike 在账本中有节；latest 宣传的 strike 在账本中有节；两面对 newest strike 一致。
+
+门的有效性经过故意破坏验证：将 `latest.json.chronicle_entries` 临时减去 1，对应腿 FAILED；恢复之后 PASSED。相关 `test_next_step_advice.py` 与新门合计 11 passed。这次失败不是演示，而是证明脱钩时门确实会失败。
+
+重建改动的是浏览器可见的发布数据，遵循 `build_chronicle.py` 的契约：账本追加后必须重建。账本事实与门阈值没有改动。seed step 的 curl schannel 网络问题仍未解。
+
+### 205.5 给间歇性的握手留出五次机会
+
+#### anchor
+
+#2075 处理的是 run `44912703445` 留下的最后一步。`MSYS_NO_PATHCONV: 1` 已生效，`working-directory-invalid` 已消失，Docker 三步全过；最后的 wrapper.jar 下载在 15:31:56 开始，15:34:12 以 `curl: (35) schannel: failed to receive handshake, SSL/TLS connection failed` 失败，exit 1。
+
+本地 host curl 访问 Maven Central，走代理 `127.0.0.1:7897` 成功 3/3，使用 `--noproxy '*'` 直连也成功 3/3；同一 runner 上 Docker 镜像拉取正常。证据指向 Git-for-Windows curl/schannel 在 self-hosted runner 上的间歇性 TLS 握手失败，而不是仓库确定性缺陷或 artifact 缺失。
+
+#### ledger
+
+两个 seeder 同步加固：CI 侧 `scripts/seed_maven_cache.sh` 与本机侧 `scripts/seed_sandbox_cache.ps1` 的 wrapper.jar 下载 curl 都加入：
+
+`--retry 5 --retry-delay 2 --retry-all-errors`
+
+标准退避重试吸收瞬时网络故障；真正的 artifact not found，状态 22，仍照常失败，没有掩盖门。两脚本同步改，遵循 CLAUDE.md 规则 5：环境变量与门一起移动。
+
+本地实测 curl 接受这些 flags；坏 URL 触发重试后以非零退出。门 `test_the_maven_cache_seeding_has_one_owner.py` 与 `test_workflows_invoke_mvnw_through_sh.py` 合计 8 passed。
+
+这只是对间歇性 runner 网络故障的鲁棒性缓解，不能保证 CI 100% 绿。真正结论仍等待新 run 的 seed step 日志。lint-type 的 269 条 E501 pin red、tests-no-infra 等其他红，各自独立，未被本号触碰。
+
+### 205.6 网关没有死，只是在无代理处仍然沉默
+
+#### anchor
+
+#2076 校正了 #2072 队列中的一句“LLM API 已关（#2071 §〇）”。校正不是猜测，而是一次真实网关量测。
+
+裸 curl 使用 `curl.exe`、Clash `:7897`，向 `/v1/chat/completions` 发送 `POST`，模型为 `gpt-6.2-sol`，回复 `OK`。`usage.prompt_tokens=4391`，`cached_tokens=4180`，缓存命中率为 95.2%，超过 90% 目标。
+
+PowerShell 的 `Invoke-RestMethod` 对同样请求返回 403；使用 `curl --data-binary @file` 才得到真实的 200/400 响应。这个 403 是工具层的编码与转义问题，不是网关问题。
+
+#### ledger
+
+项目端到端 probe 使用 `.local/probe_responses.py`，通过真实 `OpenAICompatibleProvider`：
+
+- 非流请求：`protocol=chat_completions`，`model=gpt-6.2-sol`，`effort=max`，回复 `SPEC_OK`，`prompt_cache_hit_tokens=4180/4391`，即 95.2%。
+- 流式请求：收到 `STREAM_OK` 的 2 chunks。
+- `get_capabilities()` 返回 `{chat:true, streaming:true, usage_reporting:true}`。
+
+这证明 provider 层、缓存协议、流式传输与 usage 上报在真实网关上整条链路通过，不是 mock。
+
+配置优先级核对显示，`providers/config.py::load_model_config()` 读取 `.local/llm.json` 且 `source=local_file` 时，尊重显式 `protocol=chat_completions`。line 59 的 `gpt-6 → responses` 自动切换只在 env route 或未配置时触发。端到端 probe 的 `protocol=chat_completions` 证明优先级正确；过去命中率低、一直非流的根因，正是协议配置已被修正。
+
+但这不是恒定 95.2% 的承诺。命中率受网关 prompt-cache 实时状态影响。probe 位于 `.local/`，该目录被 gitignore，含密钥；它们不是 CI 门。CI 仍按无网关配置运行，保持 fail-closed，也不让仓库依赖真密钥。于是“LLM 已关”在无代理与 CI 环境仍成立；本号只确认本机配置 Clash 代理时可用，没有改动 provider 代码，也没有改动门。
+
+### 本卷的座次
+
+#### anchor
+
+第一席是标题：没有 `## #N`，编号没有账本身份。
+
+第二席是门：没有实际失败路径，门只是提到过自己的名字。
+
+第三席是缓存：热读数为 20，冷读数为 16；只有冷缓存揭出真正要清的存量红。
+
+第四席是发布面：1833、1868、1869 不是同一个时刻的同一个事实，直到重建把两面重新接到 #2073。
+
+第五席是网络：curl 的握手失败被记录为 runner 的间歇性故障，重试只吸收瞬时错误，不把 artifact 缺失变成成功。
+
+第六席是网关：代理下真实链路可用，CI 无代理仍关闭；一次实测不能被铸成永久承诺。
+
+#### ledger
+
+座次不由叙述决定，由可复核的指针决定：标题、失败、冷缓存、重建结果、命令输出、runner 日志与真实 probe，各自只证明自己实际证明的部分。
+
+### 本卷的账房
+
+#### anchor
+
+本卷账房只收录已写入账本的事实：基线 `7e9f98e`，记录基准 2026-11-23；#2072 至 #2076 的数字、路径、命令、结果与边界均以所述产物和实测为准。
+
+#### ledger
+
+账房中的红仍有边界：整套 `tests/unit` 未称绿；CI 未称全绿；269 条 E501 pin red 未动；tests-no-infra 等独立红未动；seed 的真实新 run 尚未提供；LLM 命中率不是恒定承诺；无代理与 CI 环境仍按无网关运行。
+
+因此本卷留下的不是“所有门都绿”，而是更窄、更硬的结论：文字只有在能够指向真实章节、真实门腿、真实发布面、真实缓存与真实链路时，才配被写进事实包。

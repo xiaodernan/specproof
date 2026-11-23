@@ -7343,3 +7343,174 @@ Court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · exhibit_entrie
 ### 204.5 The ledger
 
 mvn untouched · UI **598/598** · tsc ✓ · vitest ✓ · court `4117d2b0ca5fb23a` **LOCKED** · Night Watch **CRACKED** · 24 pinned reds stand · 「密码-123」is still a door marked "demo"
+
+---
+
+## Scroll CCV · Words Must Point to What They Name
+
+> “When a gate checks only its own echo, and a published surface reads only its own shadow, an issue number may have a name in the repository and still have nowhere to resolve in the world.”
+
+### 205.1 Three Measures, One Ledger
+
+#### anchor
+
+The record date is 2026-11-23, on baseline `7e9f98e`; `3f332e9` is the ff re-strike commit for #2071. Predictions were frozen in `.scratch/predict_fence2072.md` before any arm, and measurements were appended only in §4 and §5.
+
+After #2071 landed, it had no ledger section, while both its commit subject and the re-struck fact pack in `docs/latest.json`, through `latest_strike`, said `#2071`. This was not documentation lag. It was a broken pointer: entries in `docs/latest.json` and the frontend chronicle are generated from ledger headings named `## #N`. Without a section, the published number could not resolve in the repository's own chronicle.
+
+On the same day, provider-smoke gate C1/C8 for #1549 went red. #2029 moved every `python` invocation in `ci.yml` behind `uv run`, then replaced `setup-python` with the host PATH, but never created `.venv` for the Windows job. Run `44912703445` died at `uv pip install --python .venv/Scripts/python.exe`, leaving:
+
+`No virtual environment ... found for path .venv/Scripts/python.exe`
+
+The lease leg red across 763 commits, with 0 successes in 60 CI runs, was the other face of the same break: what the gate said, what CI ran, and what the publication page wrote could each pass its own inspection, but none was required to align with the thing it named.
+
+#### ledger
+
+Reachable commits: 2926. Distinct issue numbers referenced by subjects: 1073, with 1468 mentions. The ledger contains 156 “bridge #N” pointers covering 154 distinct numbers; 1914, 1919, and 1964 point to sections that do not exist.
+
+The ledger's true section count is 1888. The broad measure `^## #([0-9]+[A-Za-z0-9\-]*)` reads 1888. The #287 gate requires one extra space or tab and reads 1882, missing `163–168`, whose headings use the full-width colon in `## #163：`. The measure used by `scripts/build_latest.py`, `(?m)^## (#\d+)\s+`, reads 1867. That becomes the published `chronicle_entries`: 21 below truth, including the #2071 family that this scroll must restore.
+
+The debt of named-but-sectionless numbers splits at 130: 80 below 130, and 51 at or above 130. Finding a number in prose is not the same as having a record. The first gate draft for this issue wrote “see #2071” three times in its own docstring and stepped directly into the hole. Therefore, a record recognizes headings only, and this case became a synthetic witness leg.
+
+### 205.2 Zero Violations and a Missing Roster
+
+#### anchor
+
+Among the most recent 100 subjects, 51 contain numbered references, covering 49 distinct numbers, with 0 violations. Zero tolerance is affordable today; that does not make it affordable in the future.
+
+Backtick references to `tests/<family>/test_*.py` name 412 distinct paths across 779 mentions. A 413th form, `tests/unit/test_the_payload...py`, contains an ellipsis. It is prose shorthand, not a promise, and the gate's measure excludes it.
+
+Three named paths do not exist: `test_mutation_engine.py`, named 10 times; `test_ci_nightly_full_eval_job.py`, named twice; and the gate itself, named once and gone on the day it landed.
+
+#### ledger
+
+The repository contains no file resembling a “known red gate roster”: `docs/gate/` does not exist, and a full-repository grep for `known-red` returns zero hits. Thus the previous strength of “promising a gate” inside the repository was no greater than “having mentioned it.”
+
+mypy produced its first real reading after the three command-spelling checks were repaired and CI actually ran the type check: the hot cache reported `Found 20 errors in 7 files`, recorded in `.scratch/mypy2072.txt`. The cold cache then overturned it with 16 errors in 6 files. Both readings were pre-existing red, not introduced by this issue; §2 preserves the hot-cache reading because it was the original reading in its original form.
+
+The same noun has six readings in this repository:
+
+1. The broad measure used by this gate: 1888, the structural truth.
+2. The #287 gate measure: 1882.
+3. `scripts/build_latest.py`: 1867, also `docs/latest.json`'s `chronicle_entries`.
+4. The measure in `scripts/build_chronicle.py`: 1867, ending at #2071.
+5. The actual frontend source, `apps/web/src/pages/chronicle.json`: 1833 entries, ending at `n: 2036`; its last rebuild was `5146c6c`, whose subject says “1833 entries now visible on /#/chronicle”.
+6. `ledger_sections` packaged by `api/next_step_advice.py`: 1804, taken from tally rather than from the heading census.
+
+### 205.3 Sixteen Red Lines in the Cold Cache
+
+#### anchor
+
+The first item in the #2072 queue was not allowed to remain governed by the hot cache's 20. In #2073, `MYPY_CACHE_DIR` pointed to a fresh temporary directory and `--no-incremental` was used. The 16 genuine pre-existing reds were cleared one by one.
+
+`python -m mypy .` ended with:
+
+`Success: no issues found in 311 source files`
+
+Two of those failures were behavioral defects, not annotation defects.
+
+#### ledger
+
+At `storage/rabbitmq.py:304`, `json.dumps(payload)` returned `str`, while pika's `basic_publish(body=...)` required bytes. The defect would surface only when sending through a real broker. The fix changed it to `.encode("utf-8")`, moving production behavior from “may fail” to correct delivery.
+
+At `api/routes/worldbook_ask.py:99`, `body` was defined once in the cache-hit branch at line 85 and again in the cache-miss branch at line 99, producing `no-redef`. The cache branch now uses `cached_body`, removing the redefinition without changing any return path.
+
+The remaining 14 failures received minimal type-semantic repairs: `api/singleflight.py` made `Future` and `run()` generic as `Future[T]` and `-> T`, also repairing two “Returning Any” findings in `worldbook_ask` and `model_router_ask`; `storage/rabbitmq.py` added a None defense to the `channel` property so a reconnect can never hand out None as an active channel; `experiments/state_snapshot.py` uses `int(... or 0)` so pika counts may be None; `agent/graphs/ask_the_book_graph.py` closes a `str | None` system content once with `or ""`, while the byte-frozen assertion remains unchanged.
+
+The type-gate test `test_the_ci_type_check_is_a_suite_leg.py` moved from 1 failed to 9 passed. Related behavior tests for rabbitmq, singleflight, worldbook, state_snapshot, and ask_the_book totaled 82 passed. The body-to-bytes change broke no rabbitmq test. No gate was weakened or deleted, and no `# type: ignore` was used to conceal the issue.
+
+This is a green full mypy gate and related behavior gates, not a green `tests/unit` suite. Full cold-cache convergence remains outstanding; the slow-test problem in #2072 §8.1 was untouched. The 269 E501 findings in the CI lint-type job are the design-pinned red recorded in #2046 and were not changed. The CI eval-golden-cases and tests-with-infra seed step passed the MSYS path gate; real run `44912703445` confirmed `MSYS_NO_PATHCONV: 1`, and `working-directory-invalid` disappeared. What remained was `curl: (35) schannel: failed to receive handshake`, a local SSL/TLS network problem rather than repository code. This issue did not claim CI green.
+
+### 205.4 Two Published Surfaces Point Back to One Ending
+
+#### anchor
+
+#2074 continued queue item 8 from #2072. `apps/web/src/pages/chronicle.json` had stopped at 1833 entries, ending at #2036, while `docs/latest.json` advertised `chronicle_entries=1868` and `latest_strike=#2071`. The two published surfaces differed by 35 entries, so users saw different facts through different entrances.
+
+The root cause was also recorded: at `test_next_step_advice.py:55`, `p["chronicle_entries"] == len(chronicle)` read `chronicle.json` on both sides. The leg was permanently green because it never crossed the break between the published surfaces. Two legs reading the same file were no leg at all.
+
+#### ledger
+
+`python scripts/build_chronicle.py` was run first, producing 1869 entries and ending at #2073. `python scripts/build_latest.py` was then re-struck, producing `chronicle_entries=1869` and `latest_strike=#2073`. The two surfaces measured `CONSISTENT`.
+
+A new `tests/unit/test_the_two_published_fact_surfaces_agree.py` added four legs: the two surfaces must have equal counts; the page's final strike must have a ledger section; the strike advertised by latest must have a ledger section; and both surfaces must agree on the newest strike.
+
+The gate's effectiveness was tested by deliberate breakage: `latest.json.chronicle_entries` was temporarily reduced by 1, and the corresponding leg FAILED; after restoration, it PASSED. The related `test_next_step_advice.py` tests and the new gate totaled 11 passed. This failure was not theater; it proved that the gate fails when the surfaces diverge.
+
+The rebuild changed browser-visible publication data according to `build_chronicle.py`'s contract: after a ledger append, it must be rebuilt. No ledger fact or gate threshold changed. The seed-step curl schannel problem remained unresolved.
+
+### 205.5 Five Chances for an Intermittent Handshake
+
+#### anchor
+
+#2075 addressed the final step left by run `44912703445`. `MSYS_NO_PATHCONV: 1` was active, `working-directory-invalid` was gone, and all three Docker steps passed. The final wrapper.jar download began at 15:31:56 and failed at 15:34:12 with `curl: (35) schannel: failed to receive handshake, SSL/TLS connection failed`, exit 1.
+
+Local host curl access to Maven Central succeeded 3/3 through proxy `127.0.0.1:7897`, and also succeeded 3/3 directly with `--noproxy '*'`. Docker image pulls worked on the same runner. The evidence pointed to intermittent TLS handshake failure in Git-for-Windows curl/schannel on the self-hosted runner, not a deterministic repository defect or a missing artifact.
+
+#### ledger
+
+Both seeders were strengthened together: the CI-side `scripts/seed_maven_cache.sh` and the local-side `scripts/seed_sandbox_cache.ps1` now add these flags to the wrapper.jar download curl:
+
+`--retry 5 --retry-delay 2 --retry-all-errors`
+
+Standard backoff retries absorb transient network faults. A genuine artifact-not-found response, status 22, still fails normally; no gate was concealed. Both scripts moved together under CLAUDE.md rule 5: environment variables and gates move together.
+
+Local curl testing accepted the flags; a bad URL retried and exited nonzero. The gates `test_the_maven_cache_seeding_has_one_owner.py` and `test_workflows_invoke_mvnw_through_sh.py` totaled 8 passed.
+
+This is resilience against intermittent runner network failure, not a guarantee of CI being 100% green. The real conclusion still awaits a new run's seed-step logs. The 269 E501 pin red, tests-no-infra, and other independent reds were untouched.
+
+### 205.6 The Gateway Was Not Dead, Though It Is Still Silent Without a Proxy
+
+#### anchor
+
+#2076 corrected the phrase “LLM API is off (#2071 §0)” in the #2072 queue. The correction came from a real gateway measurement, not a guess.
+
+A bare curl request using `curl.exe` and Clash `:7897` sent `POST` to `/v1/chat/completions` with model `gpt-6.2-sol`. The reply was `OK`. `usage.prompt_tokens=4391` and `cached_tokens=4180`, producing a 95.2% cache hit rate, above the 90% target.
+
+PowerShell's `Invoke-RestMethod` returned 403 for the same request. `curl --data-binary @file` produced the real 200/400 responses. The 403 was a tool-layer encoding and escaping false negative, not a gateway failure.
+
+#### ledger
+
+The project end-to-end probe used `.local/probe_responses.py` through the real `OpenAICompatibleProvider`:
+
+- Non-streaming: `protocol=chat_completions`, `model=gpt-6.2-sol`, `effort=max`, reply `SPEC_OK`, `prompt_cache_hit_tokens=4180/4391`, or 95.2%.
+- Streaming: 2 chunks containing `STREAM_OK`.
+- `get_capabilities()` returned `{chat:true, streaming:true, usage_reporting:true}`.
+
+This proves that the provider layer, cache protocol, streaming path, and usage reporting all work end to end against the real gateway. It is not a mock.
+
+The configuration priority check showed that `providers/config.py::load_model_config()` respects explicit `protocol=chat_completions` when it reads `.local/llm.json` with `source=local_file`. The line-59 `gpt-6 → responses` automatic switch occurs only for an env route or when no protocol is configured. The end-to-end probe's `protocol=chat_completions` proves the priority is correct; the former low hit rate and persistent non-streaming behavior were corrected by the protocol configuration.
+
+This is not a promise of a constant 95.2%. The hit rate depends on the gateway's live prompt-cache state. The probes live in `.local/`, which is gitignored and contains secrets; they are not CI gates. CI still runs with gateway-free configuration, remains fail-closed, and does not make the repository depend on real keys. Therefore “LLM is off” remains true in proxy-free and CI environments. This issue only records that the gateway works on a local machine configured with Clash; it changes no provider code and no gate.
+
+### The Seating of This Scroll
+
+#### anchor
+
+First seat: the heading. Without `## #N`, a number has no ledger identity.
+
+Second seat: the gate. Without a real failure path, a gate has only mentioned its own name.
+
+Third seat: the cache. The hot reading was 20, the cold reading 16; only the cold cache exposed the pre-existing red that had to be cleared.
+
+Fourth seat: the publication surface. 1833, 1868, and 1869 were not the same fact at the same moment, until rebuilding connected both surfaces to #2073.
+
+Fifth seat: the network. The curl handshake failure was recorded as an intermittent runner fault; retries absorb transient errors without turning a missing artifact into success.
+
+Sixth seat: the gateway. The real path works through the proxy; CI without a proxy remains closed. One measurement cannot be cast as a permanent promise.
+
+#### ledger
+
+The seats are not assigned by narration. They are assigned by verifiable pointers: headings, failures, cold-cache output, rebuild results, command output, runner logs, and real probes. Each proves only what it actually proves.
+
+### The Ledger Office of This Scroll
+
+#### anchor
+
+This office records only facts entered into the ledger: baseline `7e9f98e`, record date 2026-11-23, and the numbers, paths, commands, results, and boundaries stated for #2072 through #2076.
+
+#### ledger
+
+The remaining red has boundaries: the full `tests/unit` suite was not declared green; CI was not declared fully green; the 269 E501 pin red was untouched; tests-no-infra and other independent reds were untouched; no new seed run had yet supplied its logs; LLM cache hit rate was not promised as constant; and proxy-free and CI environments still run without the gateway.
+
+The scroll therefore leaves not a claim that every gate is green, but a narrower and harder conclusion: words belong in the fact pack only when they point to a real section, a real gate leg, a real publication surface, a real cache reading, or a real execution path.

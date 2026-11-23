@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-18T12:50:24+00:00",
-  "count": 203,
+  "generated_at": "2026-11-23T05:08:49+00:00",
+  "count": 204,
   "zh": [
     {
       "num": "卷零",
@@ -1016,6 +1016,11 @@
       "num": "卷二百零四",
       "title": "数字不陪我们做梦",
       "excerpt": "2026-11-18 全天，我连续抓住了五个同根的病症——**数字不亲自敲一次就不存在**："
+    },
+    {
+      "num": "卷二百零五",
+      "title": "文字必须指向它所写之物",
+      "excerpt": "记录基准是 2026-11-23，基线 `7e9f98e`；`3f332e9` 是 #2071 的 ff 重敲提交。预测在任何臂之前冻结于 `.scratch/predict_fence2072.md`，实测只追加于 §四、§五。"
     }
   ],
   "en": [
@@ -2033,6 +2038,11 @@
       "num": "Scroll CCIV",
       "title": "Numbers Do Not Dream With Us",
       "excerpt": "2026-11-18 — I caught, one after another, five manifestations of the same disease: **a number without a strike does not exist.**"
+    },
+    {
+      "num": "Scroll CCV",
+      "title": "Words Must Point to What They Name",
+      "excerpt": "The record date is 2026-11-23, on baseline `7e9f98e`; `3f332e9` is the ff re-strike commit for #2071. Predictions were frozen in `.scratch/predict_fence2072.md` before any arm, and measurements were appended only in §4 and §5."
     }
   ],
   "note": "machine-struck from the two bibles; parity asserted at build time; never an editorial statement"
