@@ -475,22 +475,22 @@
 .lexicon-search { display: flex; align-items: center; gap: var(--sp-3); }
 .lexicon-filter {
   flex: 1; padding: var(--sp-2) var(--sp-3); font-size: var(--text-lg);
-  color: var(--color-text-1); background: var(--color-surface-2);
-  border: 1px solid var(--color-border-2); border-radius: var(--radius-md);
+  color: var(--color-text); background: var(--color-surface-2);
+  border: 1px solid var(--color-border-strong); border-radius: var(--radius-md);
 }
 .lexicon-filter:focus { outline: none; border-color: var(--accent-ring); }
 .lexicon-count { font-variant-numeric: tabular-nums; color: var(--color-text-3); font-size: var(--text-sm); }
 .lexicon-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
-.lexicon-item { border: 1px solid var(--color-border-2); border-radius: var(--radius-md); background: var(--color-surface-2); overflow: hidden; }
+.lexicon-item { border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-surface-2); overflow: hidden; }
 .lexicon-toggle {
   display: grid; grid-template-columns: 220px 1fr auto; align-items: baseline; gap: var(--sp-3);
   width: 100%; text-align: left; padding: var(--sp-2) var(--sp-3); background: transparent; border: 0; cursor: pointer;
 }
 .lexicon-toggle:hover { background: var(--color-surface-3); }
 .lexicon-term { font: 600 var(--text-sm) var(--font-mono); color: var(--accent-text); word-break: break-all; }
-.lexicon-gloss { color: var(--color-text-1); font-size: var(--text-sm); }
+.lexicon-gloss { color: var(--color-text); font-size: var(--text-sm); }
 .lexicon-chevron { color: var(--color-text-3); }
-.lexicon-detail { padding: var(--sp-2) var(--sp-3) var(--sp-3); border-top: 1px dashed var(--color-border-2); display: grid; gap: var(--sp-2); background: var(--color-surface-3); }
+.lexicon-detail { padding: var(--sp-2) var(--sp-3) var(--sp-3); border-top: 1px dashed var(--color-border-strong); display: grid; gap: var(--sp-2); background: var(--color-surface-3); }
 .lexicon-anchor { font-size: var(--text-xs); color: var(--color-text-2); word-break: break-all; }
 .lexicon-colophon { font-size: var(--text-xs); }
 .lexicon-empty { padding: var(--sp-4); text-align: center; }
@@ -500,24 +500,24 @@
 .museum-en { color: var(--color-text-3); font-weight: 400; }
 .museum-tags { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
 .museum-tag {
-  padding: var(--sp-1) var(--sp-3); border: 1px solid var(--color-border-2); border-radius: var(--radius-2xl);
+  padding: var(--sp-1) var(--sp-3); border: 1px solid var(--color-border-strong); border-radius: var(--radius-2xl);
   background: var(--color-surface-2); color: var(--color-text-2); font-size: var(--text-sm); cursor: pointer;
 }
-.museum-tag:hover { border-color: var(--accent-ring); color: var(--color-text-1); }
-.museum-tag-active { background: var(--color-accent-soft); border-color: var(--accent-ring); color: var(--accent-text); }
+.museum-tag:hover { border-color: var(--accent-ring); color: var(--color-text); }
+.museum-tag-active { background: var(--accent-tint); border-color: var(--accent-ring); color: var(--accent-text); }
 .museum-wall { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
-.museum-plaque { border: 1px solid var(--color-border-2); border-radius: var(--radius-md); background: var(--color-surface-2); overflow: hidden; }
-.museum-plaque-open { border-color: var(--accent-soft); background: var(--color-surface-3); }
+.museum-plaque { border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-surface-2); overflow: hidden; }
+.museum-plaque-open { border-color: var(--accent-tint); background: var(--color-surface-3); }
 .museum-plaque-head {
   display: grid; grid-template-columns: 52px 1fr auto auto; align-items: baseline; gap: var(--sp-3);
   width: 100%; text-align: left; padding: var(--sp-2) var(--sp-3); background: transparent; border: 0; cursor: pointer; color: inherit;
 }
 .museum-plaque-head:hover { background: var(--color-surface-3); }
 .museum-numeral { font: 700 var(--text-lg) var(--font-mono); color: var(--accent-text); }
-.museum-title { color: var(--color-text-1); font-size: var(--text-lg); font-weight: 600; }
-.museum-tag-chip { font-size: var(--text-xs); color: var(--color-text-3); border: 1px solid var(--color-border-2); border-radius: var(--radius-sm); padding: 0 8px; }
+.museum-title { color: var(--color-text); font-size: var(--text-lg); font-weight: 600; }
+.museum-tag-chip { font-size: var(--text-xs); color: var(--color-text-3); border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); padding: 0 8px; }
 .museum-chevron { color: var(--color-text-3); }
-.museum-plaque-body { padding: var(--sp-2) var(--sp-3) var(--sp-3); border-top: 1px dashed var(--color-border-2); display: grid; gap: var(--sp-2); }
+.museum-plaque-body { padding: var(--sp-2) var(--sp-3) var(--sp-3); border-top: 1px dashed var(--color-border-strong); display: grid; gap: var(--sp-2); }
 .museum-anchor { font-size: var(--text-xs); color: var(--color-text-2); word-break: break-all; }
 .museum-colophon { font-size: var(--text-xs); }
 @media (max-width: 640px) { .museum-plaque-head { grid-template-columns: 40px 1fr auto; } .museum-tag-chip { display: none; } }
@@ -525,32 +525,32 @@
 .gestures-page { display: grid; gap: var(--sp-4); max-width: 1080px; }
 .gestures-en { color: var(--color-text-3); font-weight: 400; }
 .gestures-progress { display: flex; gap: var(--sp-3); align-items: baseline; padding: var(--sp-2) var(--sp-3);
-  background: var(--color-surface-2); border: 1px solid var(--color-border-2); border-radius: var(--radius-md); }
+  background: var(--color-surface-2); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); }
 .gestures-progress strong { font-variant-numeric: tabular-nums; color: var(--accent-text); }
 .gestures-layout { display: grid; grid-template-columns: 1fr 380px; gap: var(--sp-4); align-items: start; }
 @media (max-width: 900px) { .gestures-layout { grid-template-columns: 1fr; } }
 .gestures-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: var(--sp-2); }
 .gesture-card {
   position: relative; display: grid; gap: 2px; place-items: center; padding: var(--sp-3) var(--sp-2);
-  background: var(--color-surface-2); border: 1px solid var(--color-border-2); border-radius: var(--radius-md);
+  background: var(--color-surface-2); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md);
   cursor: pointer; color: var(--color-text-2); transition: transform .12s ease, border-color .12s ease;
 }
 .gesture-card:hover { border-color: var(--accent-ring); transform: translateY(-2px); }
-.gesture-card-owned { border-color: var(--accent-soft); background: var(--color-surface-3); }
-.gesture-card-selected { border-color: var(--accent-ring); box-shadow: 0 0 0 2px var(--accent-soft); }
+.gesture-card-owned { border-color: var(--accent-tint); background: var(--color-surface-3); }
+.gesture-card-selected { border-color: var(--accent-ring); box-shadow: 0 0 0 2px var(--accent-tint); }
 .gesture-numeral { font: 600 var(--text-sm) var(--font-mono); color: var(--color-text-3); }
-.gesture-zh { font-size: var(--text-xl); color: var(--color-text-1); font-weight: 700; }
+.gesture-zh { font-size: var(--text-xl); color: var(--color-text); font-weight: 700; }
 .gesture-en { font-size: var(--text-xs); color: var(--color-text-3); letter-spacing: .04em; }
 .gesture-token { font: 600 10px var(--font-mono); color: var(--accent-text); }
 .gesture-check { position: absolute; top: 8px; right: 8px; color: var(--accent-text); font-weight: 700; }
-.gesture-detail { border: 1px solid var(--color-border-2); border-radius: var(--radius-md); background: var(--color-surface-2);
+.gesture-detail { border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-surface-2);
   padding: var(--sp-4); display: grid; gap: var(--sp-3); position: sticky; top: var(--sp-4); }
 .gesture-detail-head { display: flex; gap: var(--sp-3); align-items: center; }
 .gesture-detail-numeral { font: 700 42px/1 var(--font-mono); color: var(--accent-text); }
-.gesture-detail h2 { margin: 0; font-size: var(--text-xl); color: var(--color-text-1); }
+.gesture-detail h2 { margin: 0; font-size: var(--text-xl); color: var(--color-text); }
 .gesture-token-chip { display: inline-block; margin-top: var(--sp-1); padding: 2px 8px; border-radius: var(--radius-sm);
-  border: 1px solid var(--accent-soft); color: var(--accent-text); font: 600 var(--text-xs) var(--font-mono); }
-.gesture-face { font-size: var(--text-lg); color: var(--color-text-1); margin: 0; }
+  border: 1px solid var(--accent-tint); color: var(--accent-text); font: 600 var(--text-xs) var(--font-mono); }
+.gesture-face { font-size: var(--text-lg); color: var(--color-text); margin: 0; }
 .gesture-act { color: var(--color-text-2); margin: 0; }
 .gesture-token-note { font-size: var(--text-xs); margin: 0; }
 .gestures-colophon { font-size: var(--text-xs); }

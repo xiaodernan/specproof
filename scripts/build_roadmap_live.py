@@ -31,8 +31,8 @@ tasks = [
      "`scripts/audit_scratch_residue.py` 逐件定性：docs/eval/swebench-logs/*/craft/backup/*.<timestamp>.<6-hex> — SWE-bench runner 对源码快照的内容寻址备份，11 件 git-tracked、91,524 字节、全部位于 eval 日志目录——**不删除、不动它们、不算 scratch**；md 文件里早先‘可疑约 1000 件 542-byte hash 残片’的猜测已被此次审计否证并入账。"),
     (6, "新增卷继续随本体入账", f"编年 {latest_sec:,} 节；每本书都 atomic 入账，数量漂了就要重跑 build_chronicle.py。"),
     (7, "LLM 账本 live lane", "engineer lane = aizzz/gpt-6.1-terra · responses · stream+include_usage；每次 live_lane_probe 敲回 cached_tokens=4,224；两次不同前缀 probe 命中 0/0（R16）。它不是 SLO，也不许被写成 SLO；要提升命中 = 稳 prompt · 稳 ordering · 全车道 stream（本仓库已全车道 stream+include_usage）。"),
-    (8, "tests/unit 既存红门登记册（HEAD 复核 · 本夜 #1943 入册）",
-     "stash-parity 复核把「本夜引入」与「历史红」完全分开：①设计系统四道门（4 px grid / theme-blind colours / radius ladder / shadows · 计 608/1,315/101/71/406）**一直红着**，计数与 HEAD 一致；②`test_the_payload_the_frontend_declares_is_the_payload_a_route_publishes`（24 红）与审计处置签名标签族（16 红）绑定晚中快照体系；③`verdict_channel_parity`（2 红）fail 在 HEAD 同位置。这一整个家族都还欠一个 remediation batch——**签名要落在专门的分支上、按审计正确走，不在本夜补丁封堵**。修复之后，gate 计数必须精确归零（不允许部分涂绿）。"),
+    (8, "tests/unit 既存红门登记册（#1943 入册 · #2082 归零设计系统五门）",
+     "stash-parity 复核把「本夜引入」与「历史红」完全分开。①**设计系统是五道门**（4 px grid / theme-blind colours / radius ladder / shadows / **字阶 scale**——本条原文只点了四个名字却记了五个数，那个 406 是字阶，它从未被点名），在 #2082 **全部归零**：PRE-FIX 实测 **57/79/10/5/42 → 0/0/0/0/0**，签名落在专门分支 `fix/design-system-remediation`（**尚未并入 master**），并新增「每个 var() 必须指向已声明或已注入的属性」的门——原有 **51** 处空洞（其中 25 处无 fallback，浏览器直接丢弃整条声明）→ 0。②`test_the_payload_the_frontend_declares_is_the_payload_a_route_publishes`（24 红）与审计处置签名标签族（16 红）绑定晚中快照体系，**仍红**；③`verdict_channel_parity`（2 红）fail 在 HEAD 同位置，**仍红**。②③ 仍欠一个 remediation batch——**签名要落在专门的分支上、按审计正确走，不在补丁里封堵**。修复之后，gate 计数必须精确归零（不允许部分涂绿）。"),
 ]
 
 lines = [
