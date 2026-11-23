@@ -44126,3 +44126,27 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 5. **诚实边界**：这是两条发布面门 + 相关门，不是整套 `tests/unit` 全绿。
    重建改的是浏览器可见的发布数据（按 build_chronicle.py 自身的契约，账本追加后必须重建），
    没有改任何账本事实或门阈值。CI seed step 的 curl schannel 网络问题（#2073 §5）仍未解。
+
+
+## #2075 seed curl 加退避重试，吸收 runner 间歇性 schannel TLS 失败
+
+1. **真实证据**：run 44912703445 的 eval-golden-cases seed step 在
+   `MSYS_NO_PATHCONV: 1` 生效（working-directory-invalid 已消失，docker 三步全过）
+   之后，卡在最后一步 `curl: (35) schannel: failed to receive handshake,
+   SSL/TLS connection failed`（15:31:56 开始 → 15:34:12 失败，exit 1）。
+2. **根因判定（诚实）**：本地实测 host curl 访问 Maven Central —— 走代理
+   (`127.0.0.1:7897`) 3/3 成功、`--noproxy '*'` 直连 3/3 成功；而同一 runner 上
+   Docker 镜像拉取正常。故这是 Git-for-Windows curl/schannel 在 self-hosted
+   runner 上的**间歇性 TLS 握手失败**，不是仓库确定性缺陷、不是 artifact 缺失。
+3. **修复**：两个 seeder（`scripts/seed_maven_cache.sh` CI 侧、
+   `scripts/seed_sandbox_cache.ps1` 本机侧）的 wrapper.jar 下载 curl 加
+   `--retry 5 --retry-delay 2 --retry-all-errors`——标准退避重试，把瞬时
+   网络故障吸收为正常 seed；真正的 "artifact not found"（22）仍照常失败，
+   没有掩盖任何门。两脚本同步改（CLAUDE.md 规则 5：环境变量/门一起动）。
+4. **验证**：curl 本地实测接受这些 flags（坏 URL 触发重试后非 0 退出）；
+   gate `test_the_maven_cache_seeding_has_one_owner.py` +
+   `test_workflows_invoke_mvnw_through_sh.py` **8 passed**。
+5. **诚实边界**：这是对间歇性 runner 网络故障的鲁棒性缓解（原则十一的容灾），
+   不能保证 CI 100% 绿——runner 本机网络层不在仓库控制内。本号不宣称 CI 全绿，
+   真实结论要等新 run 的 seed step 日志。CI 其余红（lint-type 的 269 E501 pin red、
+   tests-no-infra 等）各自独立，未触碰。

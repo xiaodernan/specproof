@@ -56,7 +56,7 @@ $raw  = Get-Content $mvnw -Raw
 $jarDst = Join-Path $tmpDemo ".mvn\wrapper\maven-wrapper.jar"
 $props = Get-Content (Join-Path $tmpDemo ".mvn\wrapper\maven-wrapper.properties") -Raw
 $wrapperUrl = [regex]::Match($props, 'wrapperUrl=(.+)').Groups[1].Value.Trim()
-curl.exe -fsSL -o $jarDst $wrapperUrl
+curl.exe -fsSL --retry 5 --retry-delay 2 --retry-all-errors -o $jarDst $wrapperUrl
 if ($LASTEXITCODE -ne 0) { throw "wrapper jar download failed (exit $LASTEXITCODE)" }
 
 Write-Output "== 4/5 fetch Maven Wrapper distribution (network required) =="

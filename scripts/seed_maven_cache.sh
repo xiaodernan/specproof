@@ -62,7 +62,13 @@ docker run --rm --user 1000:1000 \
   '
 
 # *.jar is git-ignored, so the wrapper jar must be fetched for mvnw.
-curl -fsSL -o "$BACKEND/.mvn/wrapper/maven-wrapper.jar" \
+# --retry is not decoration: on the Windows self-hosted runner (Git-for-Windows
+# curl / schannel) the TLS handshake to Maven Central is intermittently refused
+# (#2075) even though Docker's own image pulls succeed. A few backed-off
+# retries turn that transient runner-network fault into a normal seed, without
+# touching any gate or hiding a real "artifact not found" (that stays a 22).
+curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
+  -o "$BACKEND/.mvn/wrapper/maven-wrapper.jar" \
   https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper/3.3.2/maven-wrapper-3.3.2.jar
 
 # mvnw is committed 100644 (Windows drops the exec bit); `sh mvnw` needs none.
