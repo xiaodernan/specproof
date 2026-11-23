@@ -195,7 +195,12 @@ class RabbitMQClient:
     def channel(self) -> BlockingChannel:
         if self._channel is None or self._channel.is_closed:
             self._connect()
-        return self._channel
+        channel = self._channel
+        # _connect() opens the channel; if it could not, never hand a None back
+        # to callers that immediately use it as a live BlockingChannel.
+        if channel is None:  # pragma: no cover - defensive; _connect sets it or raises
+            raise RuntimeError("RabbitMQ channel unavailable after reconnect")
+        return channel
 
     def reset_connection(self) -> None:
         """Drop the current connection so the next use reconnects.
@@ -296,7 +301,9 @@ class RabbitMQClient:
         if exchange is None:
             exchange = self.EXCHANGE_P1
         ch = self.channel
-        body_bytes = json.dumps(payload)
+        # basic_publish speaks bytes on the wire; a str body is an arg-type bug
+        # that fails at send time against a real broker (pika expects bytes).
+        body_bytes = json.dumps(payload).encode("utf-8")
         try:
             ch.basic_publish(
                 exchange=exchange,

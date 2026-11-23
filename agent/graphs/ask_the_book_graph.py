@@ -99,6 +99,11 @@ def intake_node(state: AskTheBookState) -> AskTheBookState:  # noqa: ARG001
 
     msgs = mod.build_ask_messages("zh", clean)
     en_msgs = mod.build_ask_messages("en", _EN_PROBE)
+    # Message.content is str | None; the codex sandwich contract pins it to a
+    # non-empty system string. Narrow once here so the byte-frozen checks below
+    # speak in str terms (a None content fails the prefix checks honestly).
+    system_content = msgs[0].content or "" if msgs else ""
+    en_system_content = en_msgs[0].content or "" if en_msgs else ""
     shape_ok = (
         bool(msgs)
         and bool(en_msgs)
@@ -106,15 +111,15 @@ def intake_node(state: AskTheBookState) -> AskTheBookState:  # noqa: ARG001
         and en_msgs[0].role == "system"
         and msgs[-1].role == "user"
         and en_msgs[-1].role == "user"
-        and msgs[0].content.startswith("以下不是虚构")
-        and len(msgs[0].content) == len(msgs[0].content.strip())
+        and system_content.startswith("以下不是虚构")
+        and len(system_content) == len(system_content.strip())
     )
     prefix_identity_ok = (
-        msgs[0].content.startswith("以下不是虚构")
-        and en_msgs[0].content.startswith("The following is not fiction")
-        and msgs[0].content == msgs[0].content.strip()  # codex is byte-frozen, never re-wrapped
+        system_content.startswith("以下不是虚构")
+        and en_system_content.startswith("The following is not fiction")
+        and system_content == system_content.strip()  # codex is byte-frozen, never re-wrapped
     )
-    zh_bytes = len(msgs[0].content.encode("utf-8"))
+    zh_bytes = len(system_content.encode("utf-8"))
     notes.append(
         f"codex_first sandwich {len(msgs)} msgs; zh codex bytes={zh_bytes}; "
         f"fingerprint={fp1[:12]} (deterministic={fingerprint_ok})"

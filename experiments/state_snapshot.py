@@ -81,8 +81,8 @@ def capture_rabbitmq_state(client: RabbitMQClient, queues: list[str]) -> dict[st
             try:
                 method = ch.queue_declare(queue=queue, passive=True)
                 state[queue] = {
-                    "messages": int(method.method.message_count),
-                    "consumers": int(method.method.consumer_count),
+                    "messages": int(method.method.message_count or 0),
+                    "consumers": int(method.method.consumer_count or 0),
                 }
             except Exception as exc:  # noqa: BLE001
                 state[queue] = {"error": str(exc)[:200]}

@@ -82,9 +82,9 @@ async def worldbook_ask(payload: WorldbookAskRequest) -> dict[str, Any]:
             except Exception:  # noqa: BLE001
                 raced = None
             if raced is not None:
-                body = dict(raced)
-                body["cached"] = True
-                return body
+                cached_body = dict(raced)
+                cached_body["cached"] = True
+                return cached_body
 
         started = time.perf_counter()
         try:

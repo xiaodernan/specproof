@@ -44047,9 +44047,9 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 
 ### 十一、下一号队列
 
-1. #2073：清掉冷缓存下的 16 条 mypy 存量红（分布见 §八.2），其中
-   `api/routes/worldbook_ask.py` 的 `body` 重复定义与 `storage/rabbitmq.py`
-   把 str 当 bytes 发布这两条是行为问题，不只是注解问题。
+1. #2073（已在本号清掉，见下方正文节）：冷缓存下 16 条 mypy 存量红 → 0，
+   其中 `api/routes/worldbook_ask.py` 的 `body` 重复定义与 `storage/rabbitmq.py`
+   把 str 当 bytes 发布这两条是真实行为修复，不只是注解。
 2. 类型门要加一条腿：读数不得依赖 `.mypy_cache` 的历史——本号实测同一字节在
    陈旧缓存与冷缓存下给 20 和 16 两个数。便宜做法是门自己指定一次性缓存目录。
 3. `build_latest.py` 的编年尺子放宽（−21），放宽与发布重敲同一次提交；
@@ -44074,3 +44074,34 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
    checkpoint 腿各要几十秒到几分钟。LLM API 已关（#2071 §〇），这几条要么按
    "离线诚实退出"快速返回，要么被名册leg 登记成"这里等的是网络不是断言"。
    先量名册（哪几条 >30s），再决定改哪条；不要给整套加 timeout 把慢说成没有。
+
+## #2073 清掉冷缓存下 16 条 mypy 存量红 → 0（含两条真实行为修复）
+
+1. **承接 #2072 队列第 1 项**：#2072 §八.2 实测同一字节在陈旧缓存/冷缓存下给
+   20/16 两个数，16 条是真实存量红。本号在一次性冷缓存
+   （`MYPY_CACHE_DIR` 指向全新临时目录 + `--no-incremental`）下逐条清零，
+   `python -m mypy .` → `Success: no issues found in 311 source files`。
+2. **两条是行为缺陷，不只是注解**（账本队列特别点名，按“修根因”处理）：
+   - `storage/rabbitmq.py:304`：`json.dumps(payload)` 返回 `str`，而 pika
+     `basic_publish(body=...)` 要 bytes——真实 broker 上 send 时才暴露的
+     arg-type bug。改成 `.encode("utf-8")`，线上语义从“可能失败”变“正确上线”。
+   - `api/routes/worldbook_ask.py:99`：`body` 在 85 行（缓存命中分支）与 99 行
+     （未命中分支）各定义一次，`no-redef`。缓存分支改用 `cached_body`，
+     消除重定义且不改变任何返回路径。
+3. **其余 14 条按类型语义最小修复**：`api/singleflight.py` 把 `Future`/`run()`
+     泛型化为 `Future[T]`/`-> T`（顺带修掉 worldbook_ask 与 model_router_ask
+     两处 “Returning Any”）；`storage/rabbitmq.py` 的 `channel` 属性加 None
+     防御（重连后绝不再把 None 当活 channel 交出去）；`experiments/state_snapshot.py`
+     的 `int(... or 0)` 防 pika 计数为 None；`agent/graphs/ask_the_book_graph.py`
+     把 `str | None` 的 system content 用 `or ""` 收口一次，byte-frozen 断言不变。
+4. **门检证据**：类型门测试 `test_the_ci_type_check_is_a_suite_leg.py` 从 1 failed
+     变 **9 passed**（冷缓存下跑）；相关行为测试（rabbitmq / singleflight /
+     worldbook / state_snapshot / ask_the_book）**82 passed**，body→bytes 未破坏任何
+     rabbitmq 测试。没有弱化或删除任何门，没有 `# type: ignore` 掩盖。
+5. **诚实边界**：这是全量 mypy 门与相关行为门的绿灯，不是整套 `tests/unit`
+     的绿灯（全量冷缓存收敛仍欠，#2072 §八.1 那条慢测试问题未动）。CI 的
+     lint-type job 的 269 条 E501 是 #2046 记录的设计上 pin 的 red，未触碰。
+     CI 的 eval-golden-cases / tests-with-infra seed step 已过 MSYS 路径关
+     （真实 run 44912703445 确认 `MSYS_NO_PATHCONV: 1` 生效，working-directory-invalid
+     消失），现卡在 `curl: (35) schannel: failed to receive handshake` —— 本机
+     SSL/TLS 网络问题，非仓库代码，待 runner 网络层处理，本号不伪称 CI 全绿。

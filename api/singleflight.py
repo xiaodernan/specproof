@@ -12,21 +12,23 @@ that blocks the event loop.
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Callable, Coroutine
+from typing import Any, Callable, Coroutine, TypeVar
+
+T = TypeVar("T")
 
 
 class SingleFlight:
     """Coalesce concurrent misses on the same key into ONE loader call."""
 
     def __init__(self) -> None:
-        self._futures: dict[str, asyncio.Future] = {}
+        self._futures: dict[str, asyncio.Future[Any]] = {}
         self._loop: asyncio.AbstractEventLoop | None = None
 
     async def run(
         self,
         key: str,
-        loader: Callable[[], Coroutine[Any, Any, Any]],
-    ) -> Any:
+        loader: Callable[[], Coroutine[Any, Any, T]],
+    ) -> T:
         loop = asyncio.get_running_loop()
         # A future belongs to the loop that created it. TestClients and some
         # ASGI hosts run different requests on different loops; a future from
@@ -37,7 +39,7 @@ class SingleFlight:
         inflight = self._futures.get(key)
         if inflight is not None and not inflight.done():
             return await asyncio.shield(inflight)
-        future: asyncio.Future = loop.create_future()
+        future: asyncio.Future[Any] = loop.create_future()
         self._futures[key] = future
         try:
             value = await loader()
