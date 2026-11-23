@@ -225,12 +225,24 @@
       "202",
       "422"
     ],
+    "POST /next-step/advice": [
+      "200",
+      "422"
+    ],
     "POST /observe/advice": [
+      "200",
+      "422"
+    ],
+    "POST /route/ask": [
       "200",
       "422"
     ],
     "POST /webhooks/github": [
       "202"
+    ],
+    "POST /worldbook/ask": [
+      "200",
+      "422"
     ]
   }
 }

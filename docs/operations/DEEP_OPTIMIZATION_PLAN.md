@@ -44190,3 +44190,56 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
     "Words Must Point to What They Name"、excerpt 非空——确保新卷真的到达读者载荷，
     不只是躺在账本里。前端 vitest `Library.test.tsx` **4 passed**。
 6. **诚实边界**：① 这一卷是 LLM 基于真实事实的**叙事创作**，事实部分可溯源，但"史诗寓言"的措辞是文学表达，不当作工程断言；② prompt 10,635 tokens 是本号实测值，不是恒定上下文占用；③ 新卷由 LLM 生成，草稿留在 `.scratch/draft_scroll205_{zh,en}.md` 供复核，未把生成过程写成 CI 门（CI 无网关配置，fail-closed，符合规则 3）；④ 未改任何 provider 代码或核心逻辑，本号是内容扩展 + 门的事实跟随；⑤ CI 全绿仍未达成（runner session 卡死），本号不伪称。
+
+
+## #2078 openapi-schema-diff 确定红根因：baseline 落后 3 个真实 LLM 端点
+
+1. **真实证据**：本地直接跑门 `python scripts/openapi_diff.py docs/openapi/baseline.json`
+   → exit 1，报 3 条 BLOCKING：`+ POST /next-step/advice`、`+ POST /route/ask`、
+   `+ POST /worldbook/ask`。这三个是项目真实存在的公开 LLM 端点（`api/routes/next_step.py`、
+   `model_router_ask.py`、`worldbook_ask.py`），但提交进 baseline 的快照没有它们——
+   所以 `openapi-schema-diff` CI job 必然红（run 44897555948 的失败此前未诊断）。
+2. **修复**：按 gate 文档指定的合法流程 `... --update` 重建 baseline：operations 62→65，
+   把 3 个真实端点纳入。重跑门 → exit 0 `no schema changes — gate passes`。
+   这不是弱化门：baseline 从"漏记真实端点"变成"如实反映当前 API 面"，blocking 逻辑一点没动。
+3. **门检**：`test_openapi_diff.py` + `test_web_client_calls_are_in_the_openapi_baseline.py`
+   **12 passed**——后者还反向验证 web 客户端调用都在 baseline 里，防止把 baseline 改漏。
+4. **CI 真实验证的新发现（诚实边界）**：runner 重启成功（session 从 offline+busy 释放），
+   run 45118560483 的 job 终于真实调度。但 `tests-with-infra` 失败在**更早的**阶段：
+   日志显示 `container specproof-mysql is unhealthy`（容器 05:35:53 Started → 05:35:54
+   即报 unhealthy，1 秒，远短于 healthcheck 的 30s start_period+5×10s retries），
+   根因是 self-hosted runner 上多个 run/项目共享 compose 项目名 `specproof-phase0`
+   与 3306 端口的竞态，**根本没走到 seed step**。因此 #2075 的 curl 重试与
+   MSYS_NO_PATHCONV 在这条 run 上未被验证到，不伪称它们通过了真实 CI。
+5. **决定**：MySQL 竞态是 runner 并发/端口共享的环境问题（非仓库代码），
+   不在本号改 compose 或反复重启 runner 试错（避免制造队列拥塞）。本号只落地
+   已确定、可本地闭环的 openapi baseline 根因修复；CI infra 的 MySQL 端口竞态
+   如实记录为环境限制，留待 runner 调度层解决。
+
+
+## #2079 seed curl (23) 确定根因：MSYS_NO_PATHCONV=1 让原生 curl 收到 POSIX 路径
+
+1. **真实 CI 证据**：run 45118560483 的 eval-golden-cases seed step 日志——`MSYS_NO_PATHCONV: 1`
+   生效后，curl 连续 6 次 `curl: (23) client returned ERROR on write of 14120 bytes`
+   （14238/14109/7393 bytes 交错），exit 1。注意这次错误是 **(23) write error**，
+   不是 #2075 的 (35) schannel 握手——#2075 的重试对 (23) 无效（6 次全同错）。
+2. **根因（本地实测复现，逐字节对应 CI）**：Git Bash 的 `$ROOT=$(cd ... && pwd)` 产生 POSIX
+   路径 `/d/.../demo/spring-backend`。step 级 `MSYS_NO_PATHCONV=1`（#2063 为 docker 解
+   working-directory-invalid 而设）在全局生效时，原生 `curl.exe` 收到未被转换的 POSIX
+   路径 `/d/...` 无法写入 → (23)。本地对照实验（同一 URL、同一 POSIX 目标）：
+   - `MSYS_NO_PATHCONV=1 curl -o "$POSIX_PATH"` → **exit=23, file 空**，报
+     `client returned ERROR on write of 14238 bytes`（与 CI 的 14238 完全一致）；
+   - `MSYS_NO_PATHCONV=1 env -u MSYS_NO_PATHCONV curl ...` → **exit=0, jar 63028 bytes**。
+   这是 #2063 的 docker 修复与 #2075 的 curl 之间的作用域冲突：docker 要 MSYS_NO_PATHCONV，
+   curl 要 MSYS 路径转换，二者不能全局同设。
+3. **修复**：seed 脚本的 curl 行改为 `env -u MSYS_NO_PATHCONV curl -fsSL --retry 5 ...`——
+   仅对 curl 调用清除该变量，恢复 MSYS 对 `-o` 路径的转换；上面所有 docker 调用不受影响，
+   step 级 `MSYS_NO_PATHCONV=1` 保留（workflow 三处 env 未动）。pin 测试
+   `test_the_maven_cache_seeding_has_one_owner.py` + `test_workflows_invoke_mvnw_through_sh.py`
+   **8 passed**；本地完整对照确认修复后 jar 正确写入 63028 bytes。
+4. **诚实边界**：① 本号是本地确定性复现 + 修复（(23) 错误字节数与 CI 逐字相同），
+   真实 CI 转绿仍需一次新 run 验证——但 run 45118560483 的 `tests-with-infra`
+   更早死在 MySQL 容器 unhealthy（#2078 §4 的 runner 端口竞态），没走到 seed，
+   所以两条 seed job 都未在本次 CI 验证到本修复；② 间歇的 (35) schannel 网络抖动
+   仍在，交给 #2075 的 --retry 吸收；③ 不反复重启 runner/制造队列拥塞，
+   等下一次自然调度再验。

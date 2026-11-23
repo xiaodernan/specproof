@@ -62,12 +62,17 @@ docker run --rm --user 1000:1000 \
   '
 
 # *.jar is git-ignored, so the wrapper jar must be fetched for mvnw.
-# --retry is not decoration: on the Windows self-hosted runner (Git-for-Windows
-# curl / schannel) the TLS handshake to Maven Central is intermittently refused
-# (#2075) even though Docker's own image pulls succeed. A few backed-off
-# retries turn that transient runner-network fault into a normal seed, without
-# touching any gate or hiding a real "artifact not found" (that stays a 22).
-curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
+# Two independent Windows-runner faults are handled here (#2079):
+#  1. --retry absorbs the intermittent Git-for-Windows curl/schannel TLS-refused
+#     fault (#2075); a real "artifact not found" (22) still fails honestly.
+#  2. MSYS_NO_PATHCONV=1 is set at the step level so docker sees absolute paths
+#     (the working-directory-invalid fix), but that makes native curl.exe
+#     receive the POSIX $BACKEND path verbatim — it cannot write there and
+#     returns "curl: (23) client returned ERROR on write". `env -u` removes the
+#     variable for THIS call only, restoring MSYS path conversion for curl while
+#     the docker calls above keep it. Measured: with the variable set, curl
+#     reliably fails (23) on the POSIX path; with `env -u`, the jar writes fine.
+env -u MSYS_NO_PATHCONV curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
   -o "$BACKEND/.mvn/wrapper/maven-wrapper.jar" \
   https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper/3.3.2/maven-wrapper-3.3.2.jar
 
