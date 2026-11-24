@@ -15,7 +15,7 @@
         .\scripts\fetch_swebench_lite.ps1                    # test split -> swebench-lite-test.json
         .\scripts\fetch_swebench_lite.ps1 -Split dev -OutFile .\swebench-dev.json
         .\scripts\fetch_swebench_lite.ps1 -Limit 10          # only the first 10 rows
-        $env:HTTPS_PROXY = "http://127.0.0.1:7897"
+        # Clash retired: proxy must come from the real environment
         .\scripts\fetch_swebench_lite.ps1 -Proxy $env:HTTPS_PROXY
 
     Then run the harness:

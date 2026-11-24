@@ -44809,3 +44809,27 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
     时间断言即红线。
 5. **诚实边界**：改的是"不可达时快速失败"的健壮性，不改任何门或阈值；可达时的生产行为不变
    （只是多传了 timeout/retry 参数）。LLM API 仍关闭，本号不涉及网关。
+
+
+## #2095 原则三「Spring Cloud 微服务元素」评估结论：当前架构下不加（基于证据的决策）
+
+1. **调查（2026-11-25，逐项实测）**：原则三要求"加入 Spring Cloud 微服务元素"。本号逐项核实可行性，
+   结论是**当前不该加**，理由是可验证的，不是偷懒：
+2. **架构事实**：
+   - 生产栈是 **Python 微服务**（`compose.production.yml`: api / worker / outbox-relay / notify-relay /
+     invoice-cron 五个服务），Spring Cloud 是 Java 生态，与 Python 服务栈**不匹配**——加 Spring Cloud
+     不会让 Python 服务变成微服务。
+   - Java 侧只有一个 `demo/spring-backend`（为差分验收设计的**单服务样本**）：OrderService/UserService +
+     controller + repository，**零出站 HTTP 调用**（grep RestTemplate/WebClient/Feign = 0）。
+3. **为何每个 Spring Cloud 元素在此都是空壳或高风险**：
+   - OpenFeign / Eureka / Gateway：无第二个服务、无出站调用、无集群可路由 → 纯装饰，违反"不制造无意义 diff"；
+   - Actuator + Micrometer（唯一真实可观测性元素）：本地 `~/.m2` 虽有 actuator 3.4.3，但 **SpecProof 沙箱的
+     seeded m2 volume（`specproof-maven-cache-1000`）里没有**——加了依赖，本地能编译，但 CI 的
+     `tests-with-infra`/`eval-golden-cases` 用 `--network none` 离线沙箱会找不到 jar 而红，
+     且需重生成 golden refs（case tag 含 demo 树）与重 seed m2。在 runner 不稳 + LLM API 关闭期，
+     这是拿已验证的 CI 稳定性冒险。
+4. **决策**：**不加**。项目已有的微服务实质能力在 Python 侧（Redis 缓存、RabbitMQ 消息队列、
+   StateGraph 状态流转、五个独立服务、Prometheus/OTel 可观测性）——原则三的"缓存/消息队列/网络知识/
+   状态流转"都已真实落地，缺的只是"Spring Cloud"这个 Java 专有名词，而它在本架构下无真实落点。
+5. **边界**：这是决策记录，不改任何代码、依赖、门或账本事实。若未来 owner 把 demo 后端扩成真正的
+   多服务 Java 拓扑，再重新评估 Spring Cloud——那时它才有真实落点。

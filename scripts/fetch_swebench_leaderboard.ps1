@@ -116,7 +116,7 @@ try {
         Write-Host "Fetching $Url (direct connection, no proxy) ..."
     }
     else {
-        if (-not $Proxy) { $Proxy = "http://127.0.0.1:7897" }
+        # Clash retired (M8-T1340): no hardcoded proxy fallback. Set $env:HTTPS_PROXY in the real environment if a proxy is needed.
         $splat["Proxy"] = $Proxy
         Write-Host "Fetching $Url via proxy $Proxy ..."
     }
