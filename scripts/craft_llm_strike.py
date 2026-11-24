@@ -14,9 +14,9 @@ into a scratch python fixture repo:
 Everything measured is printed; nothing is retried to grief. An honest
 failure IS the result — recorded, never patched over.
 
-Run through the local proxy:
+Traffic uses the normal network; no proxy needed.
 
-    HTTPS_PROXY=http://127.0.0.1:7897 HTTP_PROXY=http://127.0.0.1:7897 \
+    python scripts/craft_llm_strike.py  # direct; set proxies in the real env only if needed
         python scripts/craft_llm_strike.py
 """
 from __future__ import annotations

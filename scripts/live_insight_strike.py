@@ -7,7 +7,7 @@ puts one REAL call to the aizzz lane (through the local Clash Verge proxy)
 on the record. First strike: 2026-11-16 · gpt-6.1-terra · ~17 s · the model
 cited the packet's own drop-offs and refused to extrapolate where the
 packet said nothing ("本包数据不足以判断"). Not committed anywhere.
-Run: HTTPS_PROXY=http://127.0.0.1:7897 python scripts/live_insight_strike.py
+Run: python scripts/live_insight_strike.py  # direct; set proxies in the real env only if needed
 """
 import asyncio
 import json
