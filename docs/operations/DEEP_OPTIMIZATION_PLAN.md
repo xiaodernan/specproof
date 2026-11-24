@@ -44728,3 +44728,17 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
    新门 **10 passed**；`npm run typecheck` 绿；完整前端套件 **96 files / 640 tests 全绿**。
 6. **诚实边界**：这是产品行为变更（把静态公开页面从登录墙后放出），不改变任何需要凭据的 API 门；
    不含 LLM（API 已关闭）。公开页面全部是仓库里本就开源的静态内容，不放宽任何数据访问。
+
+
+## #2091 世界书阅读室 `#/worldbook` 同步公开（同主题续作）
+
+1. **同根缺口**：#2090 把 library（目录）公开了，但 `WorldBook.tsx`（阅读室，205 卷正文，
+   原则六开放世界的核心）仍被登录墙挡住——目录能看、正文不能读，体验割裂。
+2. **核实**：`WorldBook.tsx` 只读静态 `worldbook.json`，**零凭据 API 调用**（实测 grep credential API calls=0），
+   与 library/manual 同属"static public-by-design"，放出不放宽任何数据访问。
+3. **修复**：`PUBLIC_ROUTES` 加入 `worldbook`；`publicRoutes.test.ts` 加断言；顺手修正 WorldBook.tsx 里
+   过时的注释"22 volumes"（实际 205，改为"count derived from worldbook.json at render time"）。
+4. **浏览器实测**：未登录打开 `#/worldbook` → `hasLogin=false`、`isReadingRoom=true`、body 6827 字符、
+   title「世界书 · SpecProof」——阅读室打开即读。
+5. **验证**：`npm run typecheck` 绿；`publicRoutes.test.ts` 4 passed；完整前端套件
+   **96 files / 640 tests 全绿**。边界同 #2090：纯静态公开页面放出，不含 LLM（API 已关闭）。

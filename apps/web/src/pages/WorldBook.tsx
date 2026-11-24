@@ -9,8 +9,9 @@ import "../styles/worldbook.css";
  *
  * The world book (docs/world/SPECROOF_WORLD.md + EN mirror) is the project's
  * 正史. Until now readers had to open the raw Markdown in a terminal. This
- * page is its reading room: 22 volumes + appendices, both languages
- * pixel-parallel, searchable, with reading progress persisted locally.
+ * page is its reading room: every volume of the bible (count derived from
+ * worldbook.json at render time), both languages parallel, searchable, with
+ * reading progress persisted locally.
  *
  * Nothing here is invented: every paragraph rendered below comes from the
  * repository's own world bible, rebuilt by scripts/build_worldbook.py.

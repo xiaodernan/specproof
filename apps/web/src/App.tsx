@@ -91,7 +91,7 @@ type NavItem = {
  * Pinned by src/__tests__/publicRoutes.test.ts.
  */
 export const PUBLIC_ROUTES: readonly string[] = [
-  "guide", "manual", "library", "chronicle", "observe", "ask-the-book", "model-router",
+  "guide", "manual", "library", "worldbook", "chronicle", "observe", "ask-the-book", "model-router",
 ];
 export const NAV: NavItem[] = [
   { path: "dashboard", labelKey: "nav.dashboard", icon: "overview", groupKey: "group.workspace" },
