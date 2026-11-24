@@ -214,6 +214,24 @@ def build_redis_client() -> Any | None:
         import redis
     except Exception:  # noqa: BLE001 — the driver is optional
         return None
+    # A readiness probe must fail FAST. redis-py 8.x retries socket errors
+    # with an exponential backoff by default, so a 2s socket_connect_timeout
+    # on a dead localhost:6379 took ~49s to give up — long enough to hang the
+    # whole differential/evidence pipeline and starve the full test suite
+    # (measured 2026-11-24). Disable retries for this probe: unreachable is a
+    # fact to record in an empty snapshot, never a reason to block the caller.
+    try:
+        from redis.backoff import NoBackoff
+        from redis.retry import Retry
+        _probe_retry = Retry(NoBackoff(), 0)
+    except Exception:  # noqa: BLE001 — older redis-py: fall back to no kwargs
+        _probe_retry = None
+    probe_kwargs: dict[str, Any] = {}
+    if _probe_retry is not None:
+        # Retry(NoBackoff(), 0) means zero retries. `retry_on_timeout` is
+        # deprecated in redis-py 6+ (timeouts are covered by default), so we
+        # do not pass it — the zero-retry policy is the whole fix.
+        probe_kwargs = {"retry": _probe_retry}
     try:
         url = os.getenv("REDIS_URL", "").strip()
         if url:
@@ -222,6 +240,7 @@ def build_redis_client() -> Any | None:
                 socket_connect_timeout=2,
                 socket_timeout=2,
                 decode_responses=True,
+                **probe_kwargs,
             )
         else:
             host = os.getenv("REDIS_HOST", "localhost")
@@ -236,6 +255,7 @@ def build_redis_client() -> Any | None:
                 host=host, port=port, password=password,
                 socket_connect_timeout=2, socket_timeout=2,
                 decode_responses=True,
+                **probe_kwargs,
             )
         client.ping()
         return client

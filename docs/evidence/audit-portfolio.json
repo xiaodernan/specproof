@@ -1,22 +1,22 @@
 {
  "version": 1,
- "generated_utc": "2026-11-23T11:13:40+00:00",
+ "generated_utc": "2026-11-24T12:52:26+00:00",
  "verdict": "READY_WITHOUT_TOKEN",
  "checks": [
   {
    "id": "https://xiaodernan.github.io/ reachable",
-   "ok": false,
-   "detail": "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+   "ok": true,
+   "detail": "HTTP 200, 155107 bytes"
   },
   {
    "id": "github.com/xiaodernan/specproof exists (anonymous HEAD)",
-   "ok": false,
-   "detail": "URLError: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+   "ok": true,
+   "detail": "HTTP 200"
   },
   {
    "id": "page mentions specproof (spot-check copy)",
-   "ok": false,
-   "detail": "page unreachable (URLError)"
+   "ok": true,
+   "detail": "page contains 'specproof'"
   },
   {
    "id": "PORTFOLIO_TOKEN env var set on this host",

@@ -44779,3 +44779,31 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 5. **验证**：`npm run typecheck` 绿；完整前端套件 **97 files / 643 tests 全绿**。
 6. **诚实边界**：纯 CSS 对比度修复，不改任何功能或门；不经 LLM（API 已关闭）。
    没有为了追分改已经合格的元素，只修 axe 实测点名的那一处。
+
+
+## #2094 外部存储不可达不再冻结流水线：Redis/MinIO 就绪探测快速失败（队列第9项根因）
+
+1. **真实缺陷（浏览器/进程实测定位，非猜测）**：全量门 `tests/unit -m "not integration and not slow"`
+   在本机跑了 800+ 秒不收敛。用 `pytest -v --capture=no` 实时输出 + 进程网络栈定位到：
+   卡在 `test_a_reused_head_run_carries_its_sandbox_error.py` 的 `run_differential_node`，
+   进程 CPU=0、TCP 处于 `127.0.0.1:6379` / `::1:9000` 的 SYN_SENT——在等外部存储连接，
+   不是在跑断言。
+2. **根因**：
+   - `experiments/external_state.py::build_redis_client()` 的 `client.ping()` 就绪探测，
+     redis-py 8.1 默认带重试退避，`socket_connect_timeout=2` 被放大到实测 **48.81s**；
+   - `storage/minio.py::MinIOClient.client` 构造 `Minio(...)` 没传超时/禁重试，
+     `is_ready()` → `bucket_exists()` 在死端口上实测卡 **135s**（单测）。
+   两者都是 `_capture_external_state()` 的调用路径——外部存储不可达本应记入空快照，
+   却反过来冻结了整个差分/证据流水线（账本 #2072 §八.1 队列第9项的真实根因）。
+3. **修复**：
+   - Redis 探测：`retry=Retry(NoBackoff(), 0)` 零重试（redis-py 6+ 的 `retry_on_timeout` 已废弃，不传），
+     实测 48.81s → 4.28s；
+   - MinIO：`Minio(..., http_client=urllib3.PoolManager(timeout=Timeout(1s), retries=False))`，
+     `retries=False` 关键（否则 localhost 双栈 ::1+127.0.0.1 各重试放大），实测 135s → 2s；
+   - 两处都加注释记录实测读数，防后人改回默认重试。
+4. **门验证**：新增 `tests/unit/test_unreachable_stores_fail_fast.py`（2 腿：死 Redis 端口返回 None
+   且 <8s、死 MinIO 端点 not-ready 且 <8s；端口 1 保证无需真实服务）**2 passed**；
+   时间断言有效性实测（49s 探测会红）。mypy 两文件 Success。变异臂即"改回默认重试"，
+   时间断言即红线。
+5. **诚实边界**：改的是"不可达时快速失败"的健壮性，不改任何门或阈值；可达时的生产行为不变
+   （只是多传了 timeout/retry 参数）。LLM API 仍关闭，本号不涉及网关。

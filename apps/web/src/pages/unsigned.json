@@ -1,7 +1,7 @@
 {
  "version": 1,
  "source": "scripts/audit_unsigned.py (this host, this moment)",
- "generated_utc": "2026-11-23T11:13:32+00:00",
+ "generated_utc": "2026-11-24T12:52:25+00:00",
  "checks": [
   {
    "id": "observability-signature",
@@ -23,8 +23,8 @@
   },
   {
    "id": "branch-cleanliness",
-   "status": "dirty-diverged",
-   "detail": "work tree has 9 dirty entries; local ahead 1 / behind 2 vs upstream",
+   "status": "dirty-tree",
+   "detail": "work tree has 9 dirty entries (new/modified/untracked); origin is clean-synced ahead=0 behind=0",
    "anchor": "git rev-list --left-right --count @{u}...HEAD && git status --porcelain"
   }
  ]

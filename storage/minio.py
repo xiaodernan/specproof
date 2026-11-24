@@ -21,6 +21,37 @@ from minio import Minio
 
 from storage.env_config import int_env
 
+#: A store that is down must be reported as "not ready" QUICKLY, not hang the
+#: caller. The minio SDK's default has no bounded timeout: on a host with no
+#: object store, ``is_ready()`` → ``bucket_exists()`` sat in a TCP SYN_SENT to
+#: an unreachable localhost:9000 and froze the whole differential/evidence
+#: pipeline (measured: a single unit test hung 135s, the full suite never
+#: converged). 2s matches the Redis client's socket_timeout — unreachable is
+#: a fact to record in an empty snapshot, not a reason to block the pipeline.
+_MINIO_TIMEOUT_SECONDS = 1.0
+
+
+def _bounded_http_client() -> Any | None:
+    """urllib3 pool with a bounded timeout and NO retries, or None if unavailable.
+
+    Retries matter: urllib3's default retries multiply the 1s timeout across
+    attempts (and localhost resolves to both ::1 and 127.0.0.1), turning a
+    quick "not ready" into a 16s stall. A readiness probe does not retry a
+    dead store — it reports "not ready" once, fast.
+    """
+    try:
+        import urllib3
+        return urllib3.PoolManager(
+            timeout=urllib3.Timeout(
+                total=_MINIO_TIMEOUT_SECONDS,
+                connect=_MINIO_TIMEOUT_SECONDS,
+                read=_MINIO_TIMEOUT_SECONDS,
+            ),
+            retries=False,
+        )
+    except Exception:  # noqa: BLE001 — driver missing → let minio use its own default
+        return None
+
 #: One path segment: starts alphanumeric, then [A-Za-z0-9._-], max 128
 #: chars. The leading-dot ban kills "." and ".." before they reach MinIO.
 _SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -138,11 +169,13 @@ class MinIOClient:
     def client(self) -> Minio:
         if self._client is None:
             endpoint = f"{self.config.host}:{self.config.port}"
+            http_client = _bounded_http_client()
             self._client = Minio(
                 endpoint=endpoint,
                 access_key=self.config.access_key,
                 secret_key=self.config.secret_key,
                 secure=self.config.secure,
+                **({"http_client": http_client} if http_client is not None else {}),
             )
         return self._client
 
