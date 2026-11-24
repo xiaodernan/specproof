@@ -10,7 +10,7 @@
 
     This script:
       1. downloads the page through the local proxy (default
-         http://127.0.0.1:7897; overridable via -Proxy or $env:HTTPS_PROXY),
+         $env:HTTPS_PROXY in the real environment; no proxy by default),
       2. locates the application/json script tag,
       3. validates that the blob contains a "Verified" view whose results are
          non-empty and carry agent/resolved/date fields, and
@@ -22,7 +22,7 @@
 
     Usage:
         powershell -File scripts/fetch_swebench_leaderboard.ps1
-        powershell -File scripts/fetch_swebench_leaderboard.ps1 -Proxy http://127.0.0.1:7897
+        powershell -File scripts/fetch_swebench_leaderboard.ps1   # direct; set $env:HTTPS_PROXY only if needed
         powershell -File scripts/fetch_swebench_leaderboard.ps1 -NoProxy -Url http://localhost:8000/snapshot.html -OutFile .\probe.json
 
     Then summarize:
