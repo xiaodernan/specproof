@@ -1,0 +1,12 @@
+# SpecProof — public product showcase.
+# The SPA is a client-rendered app; crawlers may read every route.
+User-agent: *
+Allow: /
+
+# Backend/data endpoints are not pages; keep them out of indexes.
+Disallow: /api/
+Disallow: /v1/
+Disallow: /health
+Disallow: /metrics
+
+# Public product site lives at xiaodernan.github.io; this origin is the app.

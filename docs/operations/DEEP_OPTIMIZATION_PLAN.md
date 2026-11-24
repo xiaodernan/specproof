@@ -44742,3 +44742,21 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
    title「世界书 · SpecProof」——阅读室打开即读。
 5. **验证**：`npm run typecheck` 绿；`publicRoutes.test.ts` 4 passed；完整前端套件
    **96 files / 640 tests 全绿**。边界同 #2090：纯静态公开页面放出，不含 LLM（API 已关闭）。
+
+
+## #2092 robots.txt 缺失导致 Lighthouse SEO 0.8 → 补合法文件 + 门（原则五）
+
+1. **真实缺陷（浏览器 Lighthouse 实测）**：对世界书页 `#/worldbook` 跑 Lighthouse，SEO=0.8，
+   唯一失败是 `robots.txt is not valid`——SPA 服务器把 `/robots.txt` 请求回成 index.html，
+   crawler 无法解析。前端 `public/` 与 `dist/` 都没有 robots.txt（实测确认）。
+2. **修复**：新增 `apps/web/public/robots.txt`——`User-agent: *` / `Allow: /`（公开 SPA 全站可抓），
+   `Disallow: /api/`、`/v1/`、`/health`、`/metrics`（后端与遥测接口不进索引）。Vite 原样复制进 dist/，
+   `npm run build` 实测 dist/robots.txt 存在且合法。
+3. **Lighthouse 复测**：SEO **0.8 → 1.0** ✅，失败项不再含 robots-txt。剩余 Accessibility 0.94 的
+   `button-name`/`label-content-name-mismatch`：浏览器 snapshot 与 DOM 检查均显示所有 button 有可访问名称
+   （"随机开一卷"、各卷标题等），判定为 Lighthouse 对 dev-server 加载中间态的瞬时误报，非稳定缺陷——
+   不为追分去改已经正确的按钮。
+4. **门验证**：新增 `apps/web/src/__tests__/robotsTxt.test.ts`（3 条腿：声明 UA 且 Allow /、disallow 后端接口、
+   无格式错误的指令行），3 passed；`npm run typecheck` 绿。
+5. **诚实边界**：纯 SEO 元信息修复，不改变任何产品功能或数据访问；不经 LLM（API 已关闭）。
+   不为了满分去动已经正确的 accessibility 按钮。
