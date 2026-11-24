@@ -61,6 +61,41 @@ describe("withViewTransition", () => {
     expect(update).toHaveBeenCalledTimes(1);
   });
 
+  it("re-applies the update when Chromium skips a rapid transition", async () => {
+    // A user clicking quickly through the menu starts a new navigation before
+    // the old transition finishes. Chromium rejects `finished` with
+    // "Transition was skipped" and does NOT run the captured update — without
+    // a catch, the route silently stays on the old page (#2088).
+    stubMatchMedia(false);
+    let rejectFinished: ((e: unknown) => void) | undefined;
+    const finished = new Promise<void>((_, reject) => { rejectFinished = reject; });
+    let invoked = 0;
+    (document as unknown as { startViewTransition: (cb: () => void) => unknown }).startViewTransition =
+      (cb: () => void) => {
+        // The browser holds the callback (does not run it) for a skipped frame.
+        void cb;
+        invoked += 1;
+        return { finished };
+      };
+    const update = vi.fn();
+    withViewTransition(update);
+    expect(update).not.toHaveBeenCalled(); // held by the skipped transition
+    rejectFinished?.(new DOMException("Transition was skipped", "AbortError"));
+    await finished.catch(() => undefined);
+    await Promise.resolve(); // let the .catch(() => update()) microtask settle
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(invoked).toBe(1);
+  });
+
+  it("applies the update plainly if startViewTransition throws", () => {
+    stubMatchMedia(false);
+    (document as unknown as { startViewTransition: (cb: () => void) => unknown }).startViewTransition =
+      () => { throw new Error("transitions disabled"); };
+    const update = vi.fn();
+    withViewTransition(update);
+    expect(update).toHaveBeenCalledTimes(1);
+  });
+
   it("treats a missing matchMedia as no preference signal, still wraps", () => {
     delete (window as unknown as { matchMedia?: unknown }).matchMedia;
     let wrapped = false;

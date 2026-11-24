@@ -18,7 +18,7 @@
  */
 
 export interface ViewTransitionCapableDocument {
-  startViewTransition?: (update: () => void) => unknown;
+  startViewTransition?: (update: () => void) => { finished?: Promise<void> } | unknown;
 }
 
 function reducedMotionPreferred(): boolean {
@@ -40,7 +40,23 @@ export function withViewTransition(update: () => void): void {
   }
   const doc = document as unknown as ViewTransitionCapableDocument;
   if (typeof doc.startViewTransition === "function") {
-    doc.startViewTransition(update);
+    try {
+      const transition = doc.startViewTransition(update) as { finished?: Promise<void> } | undefined;
+      // Chromium rejects `finished` with "Transition was skipped" when a new
+      // navigation starts before this one finishes (a user clicking through
+      // the menu quickly). The DOM update is NOT applied in that case — the
+      // view stays stuck on the old route. Re-run the update without motion so
+      // the route always catches up. A transition the user never saw must not
+      // swallow the navigation itself.
+      const finished = transition?.finished;
+      if (finished && typeof finished.catch === "function") {
+        finished.catch(() => update());
+      }
+    } catch {
+      // A browser that throws from startViewTransition is not a reason to lose
+      // the navigation: apply the update plainly.
+      update();
+    }
     return;
   }
   update();

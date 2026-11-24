@@ -44667,3 +44667,23 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
    **94 files / 633 tests 全绿**，`npm run typecheck` 绿。
 5. **诚实边界**：漫游是纯本地 UI 行为（Math.random + 本地 JSON），不联网、不经 LLM（API 已关闭）；
    "随机"是均匀取样，不是智能推荐——不伪装成理解读者偏好。未改任何后端门或阈值。
+
+
+## #2088 快速点导航会卡在旧页：withViewTransition 吞掉被跳过的 transition
+
+1. **真实 bug（浏览器实测触发）**：用浏览器连续导航 `#/guide`→`#/library` 时，console 报
+   `AbortError: Transition was skipped`，页面标题变成"图 书 馆"但正文还停在首页——路由没更新。
+   根因：`ui/viewTransition.ts` 调用 `doc.startViewTransition(update)` 后**没有处理返回的
+   `finished` promise**。Chromium 在前一次 transition 未结束就收到新导航时，会 reject
+   `finished` 并**不执行**捕获的 update —— 于是 `setRoute(hash)` 被吞掉，用户卡在旧页面。
+   这是真实用户体验缺陷（快速点菜单导航失效），不是测试环境假象。
+2. **修复**：`withViewTransition` 捕获 `transition.finished` 的 rejection，在 skipped 时
+   **无动画重跑 update**，保证路由一定追上；`startViewTransition` 本身抛错时也 plain 应用 update。
+   注释明确"用户没看到的 transition 不能吞掉导航本身"。
+3. **门验证**：`apps/web/src/ui/__tests__/viewTransition.test.tsx` 新增 2 条腿——① 模拟 Chromium
+   reject `finished`（Transition was skipped）→ update 必须被重跑一次；② `startViewTransition`
+   抛错 → update 仍执行。原 4 腿不变，**6 passed**。完整前端套件
+   **94 files / 635 tests 全绿**，`npm run typecheck` 绿。
+4. **为何旧测试没抓到**：旧 stub 的 `startViewTransition` 返回 `{}`（没有 `finished` promise），
+   从不覆盖"transition 被跳过"分支——这正是"测试只覆盖 happy path"的典型盲区。本号补齐。
+5. **诚实边界**：纯前端健壮性修复，不改后端门或阈值，不经 LLM（API 已关闭）。
