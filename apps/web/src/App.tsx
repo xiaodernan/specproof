@@ -81,6 +81,18 @@ type NavItem = {
   /** Roles allowed to open this surface; omitted means ungated. From ui/accessRoles.ts. */
   roles?: readonly string[];
 };
+/**
+ * Routes readable without a workspace credential. All of these are static or
+ * public-by-design: the guide (interactive onboarding), the manual (the
+ * pocket-card instructions the owner wants visible on first open), the world
+ * library and chronicle (built from the public world bible), the two public
+ * read-only LLM lanes, and the UI kit. Nothing here calls the credentialed
+ * workspace API; gating them would only put a login wall in front of docs.
+ * Pinned by src/__tests__/publicRoutes.test.ts.
+ */
+export const PUBLIC_ROUTES: readonly string[] = [
+  "guide", "manual", "library", "chronicle", "observe", "ask-the-book", "model-router",
+];
 export const NAV: NavItem[] = [
   { path: "dashboard", labelKey: "nav.dashboard", icon: "overview", groupKey: "group.workspace" },
   { path: "jobs", labelKey: "nav.jobs", icon: "verify", groupKey: "group.workspace" },
@@ -260,7 +272,12 @@ function Workspace() {
   }, []);
 
   if (active === "ui-kit") return <Suspense fallback={<Spinner />}><UiKit /></Suspense>;
-  if (!hasKey && active !== "guide" && active !== "observe" && active !== "ask-the-book" && active !== "model-router") return <Login onConnected={() => setHasKey(true)} />;
+  // Routes a first-time reader can open without a workspace credential. The
+  // manual ("简明说明书") and the world library are static, public, read-only
+  // content — the owner's rule is "open the project and see the manual", so a
+  // login wall in front of it would defeat the point (#2090). Gate only the
+  // pages that actually call the credentialed workspace API.
+  if (!hasKey && !PUBLIC_ROUTES.includes(active)) return <Login onConnected={() => setHasKey(true)} />;
   // A gated item is hidden unless the principal holds one of its roles, so the
   // sidebar cannot advertise a page the server would refuse. The sets come from
   // ui/accessRoles.ts — tests/unit/test_access_role_parity.py re-derives each

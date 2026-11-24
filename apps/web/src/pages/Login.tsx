@@ -123,6 +123,7 @@ export default function Login(props: { onConnected?: () => void }) {
             <div className="welcome-example-result"><span aria-hidden="true">!</span><div><strong>{c.exampleFindingStrong}</strong><small>{c.exampleFindingSmall}</small></div></div>
           </div>
           <a className="welcome-guide-link" href="#/guide" title={c.guideTip} data-coach="hero.guide">{c.guideLink}<span aria-hidden="true">→</span></a>
+          <a className="welcome-guide-link" href="#/manual" title={c.manualTip}>{c.manualLink}<span aria-hidden="true">→</span></a>
         </section>
 
         <section className="login-card welcome-connect" aria-labelledby="connect-title">

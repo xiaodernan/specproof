@@ -44705,3 +44705,26 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 4. **验证**：`npm run typecheck` 绿；完整前端套件 **95 files / 636 tests 全绿**。
 5. **诚实边界**：门是启发式（4+ 连续英文词）+ 白名单，不追求语言学完备；它防的是"整句英文漏进 zh 值"
    这一类，不误伤专有名词/引用。纯 i18n 文案修复，不改后端门或阈值，不经 LLM（API 已关闭）。
+
+
+## #2090 说明书不再被登录墙挡住：公开路由白名单 + 登录页入口（原则七）
+
+1. **真实产品缺口（浏览器实测发现）**：`App.tsx:263` 原来是 `if (!hasKey && active !== 'guide' && ...)`——
+   未连接工作区时，除 guide/observe 等少数白名单外全部路由显示 Login 页。
+   结果：手册 `#/manual`、世界书库 `#/library`、编年 `#/chronicle` 都被登录墙挡住。
+   这违背原则七"开发一本简明说明书嵌入项目，用户打开就能看到；没有客户会看项目文档"——
+   登记入口本应是打开即读，而不是先要求工作区凭据。
+2. **修复**：把散落的 `active !==` 判断提取为导出的 `PUBLIC_ROUTES` 常量，公开名单 =
+   guide / manual / library / chronicle / observe / ask-the-book / model-router——全是静态或
+   public-by-design、不调凭据 API 的页面。真正需要工作区凭据的路由（dashboard/eval/jobs/identity/
+   billing/runbook/dig）保持门控。判断改为 `!PUBLIC_ROUTES.includes(active)`。
+3. **登录页入口**：Login 页在"使用指南"链接旁新增指向 `#/manual` 的"简明说明书（无需登录）"链接，
+   zh/en 双语（`login.copy.ts` 的 manualLink/manualTip）。原 `#/guide` 链接不动，`Login.test.ts` 的
+   href 断言未受影响。
+4. **浏览器实测**：未登录直接打开 `#/manual` → `isManual=true`、`hasLogin=false`、title「说明书 · SpecProof」——
+   登录墙确实消失，说明书打开即读。
+5. **门验证**：新增 `src/__tests__/publicRoutes.test.ts`（4 条腿：manual 公开、library/chronicle 公开、
+   guide/两个公开 LLM lane 保持、凭据路由不公开），防止白名单漂移。相关 Login.test +
+   新门 **10 passed**；`npm run typecheck` 绿；完整前端套件 **96 files / 640 tests 全绿**。
+6. **诚实边界**：这是产品行为变更（把静态公开页面从登录墙后放出），不改变任何需要凭据的 API 门；
+   不含 LLM（API 已关闭）。公开页面全部是仓库里本就开源的静态内容，不放宽任何数据访问。

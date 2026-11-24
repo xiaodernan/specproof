@@ -14,6 +14,8 @@ export interface LoginCopy {
   exampleFindingStrong: string;
   exampleFindingSmall: string;
   guideLink: string;
+  manualLink: string;
+  manualTip: string;
   cardEyebrow: string;
   cardTitle: string;
   cardDescription: string;
@@ -75,6 +77,8 @@ const zh: LoginCopy = {
   exampleFindingStrong: "发现改动移除了权限检查",
   exampleFindingSmall: "查看失败条件、受影响代码和可重放证据，再决定是否合并。",
   guideLink: "第一次使用？先看使用指南 ",
+  manualLink: "或读简明说明书（无需登录）",
+  manualTip: "一页看懂全部功能与红线，打开即读，不需要工作区凭据",
   cardEyebrow: "你的工作区",
   cardTitle: "连接后，开始第一次验收",
   cardDescription: "使用管理员提供的凭据，访问团队的验证任务与交付证据。",
@@ -137,6 +141,8 @@ const en: LoginCopy = {
   exampleFindingStrong: "The change removed the permission check",
   exampleFindingSmall: "Look at the failing condition, the affected code and the replayable evidence — then decide whether to merge.",
   guideLink: "First time here? Start with the guide ",
+  manualLink: "Or read the manual (no login needed)",
+  manualTip: "One page covering every feature and red line — read on open, no workspace credential required",
   cardEyebrow: "Your workspace",
   cardTitle: "Connect, and run your first verification",
   cardDescription: "Use the credential your administrator gave you; reach the team's verification tasks and delivery evidence.",
