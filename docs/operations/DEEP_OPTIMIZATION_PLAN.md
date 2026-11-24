@@ -44059,8 +44059,8 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
    而不是把上限抬回去——棘轮只许往一个方向走。
 5. 51 条 ≥#130 的欠账补写：从前沿窗引用得到、且全仓库搜不到散文的 6 个号
    （133、148、227、228、229 与已补的 2071）优先。
-6. `_FakeRedis.eval` 与 `_RENEW_LEASE_LUA` 的语义差分（#2071 §四.1 遗留）。
-7. golden tag 的硬编码 99 vs 实测 100（#120 遗留）。
+6. `_FakeRedis.eval` 与 `_RENEW_LEASE_LUA` 的语义差分（#2071 §四.1 遗留，2026-11-24 复核：两者语义当前一致——owner 不匹配→0、cap flag 在而 start 键不在→0、否则 EXPIRE→1；缺的是把一致性做成门，仍未做，非已闭环）。
+7. golden tag 的硬编码 99 vs 实测 100（#120 遗留）——**已闭环**：`scripts/verify_golden_tags.py` 改为运行时测量（101 case dirs → expected 100），2026-11-24 实测 `GREEN 100/100`、无硬编码 99。
 8. #2074（本号 §二.7 量出来的）：两个发布面之间没有腿。`apps/web/src/pages/chronicle.json`
    停在 1833 条 / 末条 #2036，而 `docs/latest.json` 宣传 1867 条 / `latest_strike #2071`，
    `test_next_step_advice.py:55` 两边同源所以恒绿。便宜的形状是先跑一次
@@ -44626,3 +44626,25 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 5b. **API 关闭后的第一个离线真实验证（不调用网关）**：用 `SPECPROOF_MODEL_CONFIG` 指向不存在的配置、清空所有 LLM_* env，实测 `providers.config.load_model_config()` → `source=unconfigured`、`base_url=''`、`protocol=chat_completions`，**诚实报告 unconfigured，不伪造端点**——网关关闭后项目 fail-closed，不崩溃、不编造配置。
 5c. **顺带修复发布面脱钩（与 LLM 无关）**：`docs/evidence/audit-evidence.json` 原 verdict=DRIFT，根因 `chronicle entries=1873` 与 `repoStats.ledger_sections=1804` 口径脱钩（repoStats 未随账本追加重建）。重建 `build_repo_stats.py`（1880）+ `audit_evidence.py` → verdict **CONSISTENT**，7/7 全绿（chronicle 1880 == repoStats 1880、worldbook zh205≡en205、court LOCKED 等）。这正是 API 关闭后仍能离线完成的真实修复。
 5. **边界**：本号是 owner 决定的记录与约束声明，不改任何产品代码或门；不删除 #2076/#2077 的历史实测结论（它们真实发生过），只是在时间线上标注网关状态变更。
+
+
+## #2086 给 `_FakeRedis.eval` 与 `_RENEW_LEASE_LUA` 的语义一致性加门（#2071 §四.1 遗留闭环）
+
+1. **承接队列第 6 项**：#2071 补的 `_FakeRedis.eval` 手写建模了生产租约续约脚本，但二者语义
+   一致性此前**没有量具**——生产脚本若增删分支，fake 仍按旧模型作答、测试照样绿，
+   在错误的模型上通过。本号补上门。
+2. **门本体** `tests/unit/test_renew_lease_fake_matches_lua.py`（5 条腿，读 `storage.redis._RENEW_LEASE_LUA`
+   源码）：① 脚本是 `specproof:renew-lease` 契约；② owner 检查是 `GET KEYS[1] ~= ARGV[1]`；
+   ③ 最大持有窗口检查是 `EXISTS KEYS[2]` + `EXISTS KEYS[3]`；④ 成功分支 `EXPIRE KEYS[1] ARGV[2]`
+   后 `return 1`；⑤ 分支形状恰为 2 个 `return 0` + 1 个 `return 1`。生产脚本任一处变动都会红，
+   强制回头同步 fake。
+3. **门有效性实测（非恒绿）**：四条变异臂分别篡改 owner 的 ARGV[1]、cap 的 KEYS[3]、
+   EXPIRE 的 ARGV[2]、以及一处 return 0→1——对应腿各自转 False；基线 5/5 True。
+   `pytest tests/unit/test_renew_lease_fake_matches_lua.py` **5 passed**。
+4. **队列卫生**：#2072 §十一 队列文本同步当前事实——第 7 项 golden tag 99 vs 100
+   实测已闭环（`verify_golden_tags.py` 动态测量 101 dirs→100 tags，GREEN 100/100），
+   第 6 项标注为"已加门"。账本门 `test_recorded_ledger_sections_do_not_vanish.py` +
+   `test_every_number_a_commit_cites_has_a_ledger_section.py` **20 passed**。
+5. **诚实边界**：门钉的是**源码级分支形状**（fake 与脚本的契约），不是逐条 Lua 字节码
+   （本机无 Redis，不执行 Lua）；它保证"脚本语义一变门就提醒更新 fake"，不保证 fake 的
+   Python 实现与 Lua 运行时的每一处细节等价。未改任何产品门或阈值，LLM API 仍关闭。
