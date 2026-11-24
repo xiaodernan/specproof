@@ -1,0 +1,18 @@
+#!/bin/sh
+# Delegate to the user's own pre-commit hook.
+#
+# This repository sets core.hooksPath to .githooks/ so that the pre-push
+# seatbelt lives with the code it belongs to.  That would otherwise REPLACE
+# a globally installed pre-commit hook (on this machine: a secret scan, a
+# conflict-marker scan and a Python syntax check).  Replacing someone's tool
+# is not this repository's business, so this hook hands over to it.
+#
+# The global path is resolved at RUN time, so changing it later keeps working.
+set -eu
+for scope in --global --system; do
+  GLOBAL=$(git config "$scope" --get core.hooksPath 2>/dev/null || true)
+  if [ -n "$GLOBAL" ] && [ "$GLOBAL" != ".githooks" ] && [ -f "$GLOBAL/pre-commit" ]; then
+    exec "$GLOBAL/pre-commit" "$@"
+  fi
+done
+exit 0

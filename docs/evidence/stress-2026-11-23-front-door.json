@@ -1,0 +1,37 @@
+{
+  "started_utc": "2026-11-23T10:13:29.748385+00:00",
+  "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
+  "concurrency": 48,
+  "per_thread": 2,
+  "warmup_rounds": 2,
+  "rounds": [
+    {
+      "total": 96,
+      "ok": 96,
+      "err_rate": 0.0,
+      "p50_ms": 72.39990000005037,
+      "p90_ms": 82.01824999991914,
+      "p95_ms": 83.42479999998886,
+      "p99_ms": 85.11643999999023,
+      "max_ms": 85.27679999997417,
+      "avg_ms": 62.82938229166035,
+      "bytes_read": 45287072,
+      "sample_errors": []
+    },
+    {
+      "total": 96,
+      "ok": 96,
+      "err_rate": 0.0,
+      "p50_ms": 83.61534999994547,
+      "p90_ms": 97.3201000000472,
+      "p95_ms": 98.55344999994031,
+      "p99_ms": 103.8932850000151,
+      "max_ms": 108.35229999997864,
+      "avg_ms": 74.19737812498066,
+      "bytes_read": 45287072,
+      "sample_errors": []
+    }
+  ],
+  "verdict": "OK",
+  "honesty": "Bounded static lane probe on this host — ok means status matched expect-status=2xx; not a production capacity rating."
+}

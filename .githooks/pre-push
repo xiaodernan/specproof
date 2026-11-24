@@ -1,0 +1,18 @@
+#!/bin/sh
+# The seatbelt: the repository's own gates, run on the tree that is about to
+# be pushed.  Why it exists is written down in scripts/prepush_gates.py —
+# short version: a UTF-16LE file sat on master for four days because the
+# gate that caught it only reported to GitHub, and nobody was reading GitHub.
+#
+# `exec` so the runner's exit code IS this hook's exit code: a non-zero exit
+# refuses the push.  Do not append `|| true` here — that is the one edit that
+# would turn the seatbelt into decoration.
+set -eu
+ROOT=$(git rev-parse --show-toplevel)
+if [ -x "$ROOT/.venv/Scripts/python.exe" ]; then
+  exec "$ROOT/.venv/Scripts/python.exe" "$ROOT/scripts/prepush_gates.py"
+elif command -v python >/dev/null 2>&1; then
+  exec python "$ROOT/scripts/prepush_gates.py"
+else
+  exec py "$ROOT/scripts/prepush_gates.py"
+fi

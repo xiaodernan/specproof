@@ -1,0 +1,50 @@
+{
+  "started_utc": "2026-11-23T10:12:42.840996+00:00",
+  "note": "static lane, 3 entry assets, fresh server on 127.0.0.1",
+  "concurrency": 128,
+  "per_thread": 8,
+  "warmup_rounds": 1,
+  "rounds": [
+    {
+      "total": 1024,
+      "ok": 1024,
+      "err_rate": 0.0,
+      "p50_ms": 201.94010000000162,
+      "p90_ms": 229.44580999994741,
+      "p95_ms": 234.25790500001537,
+      "p99_ms": 438.82346800014824,
+      "max_ms": 467.6006999998208,
+      "avg_ms": 199.18799091796478,
+      "bytes_read": 482591851,
+      "sample_errors": []
+    },
+    {
+      "total": 1024,
+      "ok": 1024,
+      "err_rate": 0.0,
+      "p50_ms": 229.17775000007623,
+      "p90_ms": 257.0917700000564,
+      "p95_ms": 259.7387250000338,
+      "p99_ms": 264.0185490001181,
+      "max_ms": 269.75709999987885,
+      "avg_ms": 217.829775000002,
+      "bytes_read": 482591851,
+      "sample_errors": []
+    },
+    {
+      "total": 1024,
+      "ok": 1024,
+      "err_rate": 0.0,
+      "p50_ms": 224.85284999993382,
+      "p90_ms": 244.40586999994593,
+      "p95_ms": 247.25193500000842,
+      "p99_ms": 251.08609099999512,
+      "max_ms": 254.64169999986552,
+      "avg_ms": 214.6147277343753,
+      "bytes_read": 482591851,
+      "sample_errors": []
+    }
+  ],
+  "verdict": "OK",
+  "honesty": "Bounded static lane probe on this host — ok means status matched expect-status=2xx; not a production capacity rating."
+}
