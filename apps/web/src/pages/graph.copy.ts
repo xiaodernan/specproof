@@ -60,7 +60,7 @@ export const NODE_INFO: Record<string, PipelineNode> = {
   prepare_base: { id: "prepare_base", label: "prepare_base", blurb: { zh: "准备基准版本的工作区", en: "Build the base worktree" } },
   prepare_head: { id: "prepare_head", label: "prepare_head", guard: true, blurb: { zh: "准备待检查版本的工作区", en: "Build the head worktree" } },
   collect_diff: { id: "collect_diff", label: "collect_diff", blurb: { zh: "git diff 三范围的切片：文件 → 行级 → 意图摘要", en: "git diff tri-split: files → lines → intent" } },
-  retrieve_repository_context: { id: "retrieve_repository_context", label: "retrieve_repository_context", blurb: { zh: "RAG over the repository graph — 管线会反复读自己的仓库", en: "RAG over the repository graph — the pipeline reads its own home" } },
+  retrieve_repository_context: { id: "retrieve_repository_context", label: "retrieve_repository_context", blurb: { zh: "RAG 检索仓库图谱 — 管线会反复读自己的仓库", en: "RAG over the repository graph — the pipeline reads its own home" } },
   run_static_checks: { id: "run_static_checks", label: "run_static_checks", blurb: { zh: "静态检查器 — 代码不执行就看得出来的问题", en: "Checkers that need no execution" } },
   generate_counterexamples: { id: "generate_counterexamples", label: "generate_counterexamples", blurb: { zh: "敌人视角生成反例 —— LLM 生成可执行的 JUnit", en: "the red corner: executable JUnit counterexamples from an LLM" } },
   run_differential: { id: "run_differential", label: "run_differential", blurb: { zh: "base vs head 差分执行 — base_pass_head_fail 是王炸", en: "base vs head, rerun twice — base_pass_head_fail is the fingerprint" } },

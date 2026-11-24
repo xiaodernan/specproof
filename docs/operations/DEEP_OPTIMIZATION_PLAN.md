@@ -44687,3 +44687,21 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 4. **为何旧测试没抓到**：旧 stub 的 `startViewTransition` 返回 `{}`（没有 `finished` promise），
    从不覆盖"transition 被跳过"分支——这正是"测试只覆盖 happy path"的典型盲区。本号补齐。
 5. **诚实边界**：纯前端健壮性修复，不改后端门或阈值，不经 LLM（API 已关闭）。
+
+
+## #2089 中文模式纯度：修一处中英夹杂 + 加持久门（原则八）
+
+1. **真实缺陷**：`apps/web/src/pages/graph.copy.ts:63` 的 `retrieve_repository_context` blurb
+   中文值写成 `RAG over the repository graph — 管线会反复读自己的仓库`——前半是整句英文叙事，
+   违反原则八"中文模式全部统一中文，不要中英夹杂"。改为 `RAG 检索仓库图谱 — ...`（RAG 术语保留）。
+2. **审计方法（诚实区分）**：扫描所有 `zh:` 值里连续 4+ 英文单词，命中 3 处，逐一核对——
+   ① graph.copy.ts:63 是真 bug（已修）；② guessCards.ts:85 是**引用的英文需求原文**（猜卡游戏考的就是读英文需求，保留合理）；
+   ③ museum.copy.ts:85 是**世界书英文卷的专有卷名**（Scroll 9 · The Seal and the Window 等，保留才能指向明确）。
+   只修真 bug，不动后两处。
+3. **持久门** `apps/web/src/__tests__/zhLocalePurity.test.ts`：用 Vite `import.meta.glob(..., {query:"?raw"})`
+   读全部 src/*.ts(x)（纯前端类型，不碰 Node fs/path，保证 `tsc --noEmit` 绿），断言 zh 值无整句英文，
+   白名单明确列出合理保留项（引用的需求原文、专有卷名、技术术语）。门在本次已真实抓到 guessCards 那处
+   （allow 前缀问题修正后绿）——不是恒绿。
+4. **验证**：`npm run typecheck` 绿；完整前端套件 **95 files / 636 tests 全绿**。
+5. **诚实边界**：门是启发式（4+ 连续英文词）+ 白名单，不追求语言学完备；它防的是"整句英文漏进 zh 值"
+   这一类，不误伤专有名词/引用。纯 i18n 文案修复，不改后端门或阈值，不经 LLM（API 已关闭）。
