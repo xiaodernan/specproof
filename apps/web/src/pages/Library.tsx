@@ -1,12 +1,14 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useI18n } from "../i18n";
 import library from "./library.json";
 import "../styles/library.css";
 
 /**
  * The Library — every volume of the world bible, in the same order as the
- * file, without reordering or omission. 203 scrolls zh≡en. Built from the
- * world bible, machine-struck by `scripts/build_library.py`.
+ * file, without reordering or omission. Counts are derived from library.json
+ * at render time (never hard-coded), so a rebuilt bible cannot leave a stale
+ * number on the page. Built from the world bible, machine-struck by
+ * `scripts/build_library.py`.
  */
 
 interface Volume {
@@ -23,7 +25,8 @@ export default function Library() {
   const zh = locale === "zh";
   const volumes = zh ? ZH : EN;
   const [query, setQuery] = useState("");
-  const [open, setOpen] = useState<number | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
+  const itemRefs = useRef<Record<string, HTMLLIElement | null>>({});
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -31,10 +34,25 @@ export default function Library() {
     return volumes.filter((volume) => `${volume.num} ${volume.title} ${volume.excerpt}`.toLowerCase().includes(q));
   }, [query, volumes]);
 
+  // "Wander": jump to an arbitrary scroll in the whole bible. This is the
+  // open-world door — a reader who does not know where to start lands on a
+  // real volume every time, no ranking, no recommendation, no fabricated
+  // content. Deterministic per click from Math.random; the set is the full
+  // unfiltered library so every scroll is reachable.
+  const wander = () => {
+    if (!volumes.length) return;
+    const target = volumes[Math.floor(Math.random() * volumes.length)];
+    setQuery(""); // clear any filter so the target is guaranteed visible
+    setOpen(target.num);
+    window.setTimeout(() => {
+      itemRefs.current[target.num]?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 0);
+  };
+
   return (
     <div className="library-page">
       <div className="page-head">
-        <h1>{zh ? "图 书 馆" : "THE LIBRARY"} <span className="library-en">SPECROOF BIBLE · 203 SCROLLS</span></h1>
+        <h1>{zh ? "图 书 馆" : "THE LIBRARY"} <span className="library-en">SPECROOF BIBLE · {volumes.length} SCROLLS</span></h1>
         <div className="page-sub">
           {zh
             ? "每一卷都对着真实发生过的事；没有重排、没有删节；任何一条你想"  + "反驳，都能打开对应的 .md 找到同一页。"
@@ -54,11 +72,18 @@ export default function Library() {
           spellCheck={false}
         />
         <span className="library-count" aria-live="polite">{filtered.length} / {volumes.length}</span>
+        <button type="button" className="library-toggle" onClick={wander} aria-label={zh ? "随机漫游一卷" : "wander to a random scroll"}>
+          {zh ? "✦ 随机漫游" : "✦ Wander"}
+        </button>
       </label>
 
       <ol className="library-list">
         {filtered.map((volume, index) => (
-          <li key={`${volume.num}-${index}`} className="library-item">
+          <li
+            key={`${volume.num}-${index}`}
+            className="library-item"
+            ref={(node) => { itemRefs.current[volume.num] = node; }}
+          >
             <div className="library-row">
               <span className="library-num">{volume.num}</span>
               <div className="library-body">
@@ -66,12 +91,12 @@ export default function Library() {
                 <button
                   type="button"
                   className="library-toggle"
-                  aria-expanded={open === index}
-                  onClick={() => setOpen(open === index ? null : index)}
+                  aria-expanded={open === volume.num}
+                  onClick={() => setOpen(open === volume.num ? null : volume.num)}
                 >
-                  {open === index ? (zh ? "收起 ▾" : "collapse ▾") : (zh ? "展开 ▸" : "expand ▸")}
+                  {open === volume.num ? (zh ? "收起 ▾" : "collapse ▾") : (zh ? "展开 ▸" : "expand ▸")}
                 </button>
-                {open === index ? <p className="library-excerpt">{volume.excerpt}</p> : null}
+                {open === volume.num ? <p className="library-excerpt">{volume.excerpt}</p> : null}
               </div>
             </div>
           </li>

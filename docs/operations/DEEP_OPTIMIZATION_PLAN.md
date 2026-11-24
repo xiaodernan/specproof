@@ -44648,3 +44648,22 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 5. **诚实边界**：门钉的是**源码级分支形状**（fake 与脚本的契约），不是逐条 Lua 字节码
    （本机无 Redis，不执行 Lua）；它保证"脚本语义一变门就提醒更新 fake"，不保证 fake 的
    Python 实现与 Lua 运行时的每一处细节等价。未改任何产品门或阈值，LLM API 仍关闭。
+
+
+## #2087 图书馆：动态卷数 + 「随机漫游」——开放世界的随机入口（原则六落地）
+
+1. **真实缺陷**：`apps/web/src/pages/Library.tsx` 的页头硬编码 `SPECROOF BIBLE · 203 SCROLLS`，
+   而 #2077 追加卷 205 后实际是 205 卷——页面显示一个过时的假数字。注释也写死 203。
+2. **修复**：卷数改为渲染时从 `library.json` 派生（`{volumes.length} SCROLLS`），注释同步改为
+   "counts derived at render time, never hard-coded"——以后重建世界书不会再在页面上留下陈旧数字。
+3. **新功能「随机漫游」（用户原则六：无尽开放世界、怎么探索都探索不完、防止迷失）**：
+   图书馆搜索栏旁加「✦ 随机漫游 / Wander」按钮。点击后从**全量未过滤**的卷中 uniformly 随机取一卷，
+   清空过滤、展开该卷、平滑滚动到位。不排序、不推荐、不编造——每次落在一卷真实存在的内容上，
+   给不知道从哪开始的读者一个永远有下一站的入口。`open` 状态从 index 改为 `volume.num`（稳定 key），
+   ref 也用 num 定位，避免过滤时 index 漂移导致展开错误的卷。
+4. **验证**：新增前端门 `apps/web/src/pages/__tests__/LibraryWander.test.tsx`
+   （3 条腿：数字动态派生且不是 203、双语 wander 按钮存在、wander 从全量选卷+清过滤+展开+滚动），
+   **3 passed**（fake timers + mock scrollIntoView + spy Math.random）；完整前端套件
+   **94 files / 633 tests 全绿**，`npm run typecheck` 绿。
+5. **诚实边界**：漫游是纯本地 UI 行为（Math.random + 本地 JSON），不联网、不经 LLM（API 已关闭）；
+   "随机"是均匀取样，不是智能推荐——不伪装成理解读者偏好。未改任何后端门或阈值。
