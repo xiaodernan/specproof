@@ -44801,9 +44801,11 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
    - MinIO：`Minio(..., http_client=urllib3.PoolManager(timeout=Timeout(1s), retries=False))`，
      `retries=False` 关键（否则 localhost 双栈 ::1+127.0.0.1 各重试放大），实测 135s → 2s；
    - 两处都加注释记录实测读数，防后人改回默认重试。
-4. **门验证**：新增 `tests/unit/test_unreachable_stores_fail_fast.py`（2 腿：死 Redis 端口返回 None
-   且 <8s、死 MinIO 端点 not-ready 且 <8s；端口 1 保证无需真实服务）**2 passed**；
-   时间断言有效性实测（49s 探测会红）。mypy 两文件 Success。变异臂即"改回默认重试"，
-   时间断言即红线。
+ 4. **门验证**：新增 `tests/unit/test_unreachable_stores_fail_fast.py`（3 腿：死 Redis 端口返回 None
+    且 <8s、死 MinIO 端点 not-ready 且 <8s、可达 S3 mock 仍 ready=True；端口 1 无需真实服务）
+    **3 passed**；时间断言有效性实测（49s 探测会红）。第 3 腿确认 1s 超时/retries=False 只让
+    不可达快速失败，不破坏可达路径（一度以为失败，实为 mock 空 body 触发 SDK ParseError，
+    补合法 ListBuckets XML 后 ready=True）。mypy 两文件 Success。变异臂即"改回默认重试"，
+    时间断言即红线。
 5. **诚实边界**：改的是"不可达时快速失败"的健壮性，不改任何门或阈值；可达时的生产行为不变
    （只是多传了 timeout/retry 参数）。LLM API 仍关闭，本号不涉及网关。
