@@ -35,8 +35,12 @@ button, a { -webkit-tap-highlight-color: transparent; }
 a:hover { text-decoration: none; }
 .btn, .ui-btn { min-height: 36px; box-shadow: none; font-weight: 500; }
 .btn { height: auto; padding: 8px 16px; }
-.btn-primary, .ui-btn-primary { background: var(--accent-600); color: var(--color-on-accent); border-color: var(--accent-600); }
-.btn-primary:hover, .ui-btn-primary:hover:not(:disabled) { background: var(--accent-700); color: var(--color-on-accent); border-color: var(--accent-700); }
+/* White on --accent-600 (#059669) is only 3.76:1 — fails WCAG AA (4.5:1) for
+   normal-size text (Lighthouse color-contrast on the "connect" CTA, #2093).
+   Step the primary button one shade darker to --accent-700/#1b6548 (~7:1);
+   hover goes to --accent-800 so the interaction still has a visual step. */
+.btn-primary, .ui-btn-primary { background: var(--accent-700); color: var(--color-on-accent); border-color: var(--accent-700); }
+.btn-primary:hover, .ui-btn-primary:hover:not(:disabled) { background: var(--accent-800); color: var(--color-on-accent); border-color: var(--accent-800); }
 .btn:disabled { pointer-events: none; }
 .btn-sm, .ui-btn-sm { min-height: 30px; }
 .icon-button { border: 0; background: transparent; color: var(--color-text-2); width: 34px; height: 34px; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); cursor: pointer; }

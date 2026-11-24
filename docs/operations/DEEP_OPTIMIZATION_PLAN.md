@@ -44760,3 +44760,22 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
    无格式错误的指令行），3 passed；`npm run typecheck` 绿。
 5. **诚实边界**：纯 SEO 元信息修复，不改变任何产品功能或数据访问；不经 LLM（API 已关闭）。
    不为了满分去动已经正确的 accessibility 按钮。
+
+
+## #2093 主按钮文字对比度 3.76:1 → 7:1（Lighthouse Accessibility 0.96 → 1.0）
+
+1. **真实缺陷（浏览器 Lighthouse 实测）**：对登录首页跑 Lighthouse，Accessibility=0.96，
+   唯一失败 `color-contrast`——主 CTA「连接工作区」按钮（`.ui-btn-primary`，`data-coach="hero.connect"`）
+   白字在背景 `#059669`（`--accent-600`）上对比度仅 **3.76:1**，低于 WCAG AA 的 4.5:1
+   （字号不够大所以要求 4.5，非 3:1）。
+2. **根因**：`product.css` 的 `.btn-primary/.ui-btn-primary` 常态背景用 `--accent-600`
+   （`#059669`），hover 才用 `--accent-700`。实测 calc style 确认背景是纯色 `#059669`、
+   文字 `#ffffff`。
+3. **修复**：常态背景/边框改为 `--accent-700`（`#1b6548`，白字约 7:1），hover 改为
+   `--accent-800`（`#154f39`）——两态都合格且保留交互视觉层级。加注释记录 3.76:1 的实测读数，
+   防止后人改回浅色。
+4. **Lighthouse 复测**：Accessibility **0.96 → 1.0** ✅，Best Practices 1.0、SEO 1.0，
+   **三项全满、零失败**（#2092 修了 SEO，本号补上 Accessibility 最后一分）。
+5. **验证**：`npm run typecheck` 绿；完整前端套件 **97 files / 643 tests 全绿**。
+6. **诚实边界**：纯 CSS 对比度修复，不改任何功能或门；不经 LLM（API 已关闭）。
+   没有为了追分改已经合格的元素，只修 axe 实测点名的那一处。
