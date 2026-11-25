@@ -45041,3 +45041,23 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 5. **边界**：CI runner 我启动了一台并接到 tests-with-infra，跨过 checkout 进入完整 pytest，
    但十分钟内无新控制台输出后我终止了进程释放资源；真实 CI 绿灯仍未取得，不宣称。
    LLM API 仍因成本关闭，全程离线；未改任何门阈值，未伪造内容。
+
+
+## #2101 让 io 页面的「直接体验」入口真的跟着 master 更新
+
+1. **真实缺陷**：io 页面 `splive-cta` 写着「每次 master push 重建，访客看到最新成果」，
+   但实测 `/specproof-web/` 最后一次重建是 **2026-11-19 的 v8**（`728fda65`），六天没动。
+   其数据 chunk `worldbook-Cn1I258W.js` 只到 `Scroll CCIV`，`Scroll CCV/CCVI/CCVII`、
+   「不可达不是失败」、「门自己学会把影子补上」全部不在其中。用户点入口看到的是缺三卷的旧应用。
+   这与原则十「每次点进去看到最新成果，全自动更新」直接冲突——说明文字不是事实。
+2. **修复**：新增 `.github/workflows/web-deploy.yml`。触发器限定
+   `apps/web/**`、`scripts/build_*.py` 与本文件（事实包-only 的同步不触发，保留刻意的三小时
+   降频）。流程：`npm ci` + `npm run build` → 用现有 `PORTFOLIO_TOKEN` 校验 GitHub 身份 →
+   克隆 live repo、以 dist/ 整体替换 `specproof-web/`、提交 → 三次 attempt 的 rebase 重试，
+   并在「构建已在当前 tip」时幂等退出，绝不把失败说成成功。
+3. **离线校验**：PyYAML `safe_load` OK（jobs=[deploy]、触发器 push/workflow_dispatch）；
+   三个 `run: |` 块 `bash -n` 全部 exit 0；本地 `npm run build` 生成 122 个文件，
+   `worldbook-VIp_xk_H.js` 实测含「卷二百零七」「门自己学会把影子补上」「Scroll CCVII」。
+4. **未验证部分（诚实）**：端到端结果以本号推送后自动触发的 workflow 运行与 live repo 中
+   `specproof-web/` 的实际 bundle 为准；未拿到部署成功与 bundle 含卷207 的证据前，
+   不宣称入口已更新。未新增密钥，未改任何门阈值。LLM API 仍关闭，全程离线。

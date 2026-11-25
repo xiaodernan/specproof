@@ -1,0 +1,113 @@
+name: Deploy SpecProof web app to portfolio
+
+# The io page's "Try SpecProof" entry (/specproof-web/) must show the newest
+# build. It used to be redeployed by hand and went stale for six days: the
+# shipped bundle stopped at scroll CCIV while the repo was already at CCVII.
+# This job rebuilds from master and pushes the dist/ into the portfolio repo.
+# Only frontend/content paths trigger it — fact-pack-only syncs keep the
+# deliberately slow three-hour Pages cadence.
+on:
+  push:
+    branches: [master]
+    paths:
+      - "apps/web/**"
+      - "scripts/build_*.py"
+      - ".github/workflows/web-deploy.yml"
+  workflow_dispatch: {}
+
+concurrency:
+  group: web-deploy
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out specproof
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Build the web app
+        working-directory: apps/web
+        run: |
+          npm ci
+          npm run build
+          echo "dist files: $(find dist -type f | wc -l)"
+
+      - name: Verify PORTFOLIO_TOKEN is a real GitHub credential
+        id: verify
+        env:
+          PORTFOLIO_TOKEN: ${{ secrets.PORTFOLIO_TOKEN }}
+        run: |
+          set -u
+          if [ -z "${PORTFOLIO_TOKEN:-}" ]; then
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=web-deploy::PORTFOLIO_TOKEN not set — build produced, no push."
+            exit 0
+          fi
+          HTTP_CODE=$(curl -s -o /tmp/ghuser.json -w '%{http_code}' -H "Authorization: Bearer ${PORTFOLIO_TOKEN}" https://api.github.com/user)
+          echo "GitHub /user HTTP: ${HTTP_CODE}"
+          if [ "${HTTP_CODE}" != "200" ]; then
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+            echo "::error title=web-deploy::PORTFOLIO_TOKEN does not authenticate — no push."
+            exit 0
+          fi
+          echo "valid=true" >> "$GITHUB_OUTPUT"
+
+      - name: Push the build to xiaodernan.github.io/specproof-web
+        if: steps.verify.outputs.valid == 'true'
+        env:
+          PORTFOLIO_TOKEN: ${{ secrets.PORTFOLIO_TOKEN }}
+        run: |
+          set -euo pipefail
+          HEAD_SHA=$(git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD)
+          git clone --depth 1 "https://x-access-token:${PORTFOLIO_TOKEN}@github.com/xiaodernan/xiaodernan.github.io.git" portfolio
+          cd portfolio
+          refresh() {
+            rm -rf specproof-web
+            mkdir -p specproof-web
+            cp -a ../apps/web/dist/. specproof-web/
+            git add -A specproof-web
+          }
+          refresh
+          git config user.name "specproof-bot"
+          git config user.email "specproof-bot@users.noreply.github.com"
+          if git diff --cached --quiet; then
+            echo "web build unchanged — nothing to push"
+            exit 0
+          fi
+          git commit -m "chore(specproof-web): redeploy from master ${HEAD_SHA}"
+          # Parallel lanes push the io repo constantly; a stale clone is
+          # rejected. Reset to the current tip and re-apply the same build —
+          # three attempts, then fail loudly. Never weaken this into a no-op.
+          attempt=1
+          while [ "$attempt" -le 3 ]; do
+            if git push origin HEAD:master 2>&1; then
+              echo "deployed web build from ${HEAD_SHA} (attempt ${attempt})"
+              exit 0
+            fi
+            echo "push rejected (attempt ${attempt}) — re-applying build to current tip"
+            git fetch --depth 1 origin master
+            git reset --hard origin/master
+            refresh
+            if git diff --cached --quiet; then
+              echo "build already present at current tip — nothing more to push"
+              exit 0
+            fi
+            git commit -m "chore(specproof-web): redeploy from master ${HEAD_SHA}"
+            attempt=$((attempt + 1))
+          done
+          echo "web-deploy: push rejected after 3 attempts — failing loudly"
+          exit 1
