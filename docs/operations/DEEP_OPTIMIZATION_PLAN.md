@@ -44873,5 +44873,15 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 4. **离线校验**：live repo 确有 `scripts/paint-fact-packs.mjs`（6257 字节，含 `--write`、
    写 index.html）；workflow YAML 用 PyYAML `safe_load` 通过；抽出的 push shell 块经
    `bash -n` 语法检查 exit 0。未改任何门、未动阈值、未引入密钥（token 仍走 secret）。
-5. **边界**：端到端验证在推送本号后触发的 workflow 运行中完成，以运行 ID 与
-   `site-gates`/Pages 结论为准；未拿到绿灯前不宣称「自动消除红」。
+5. **端到端实测（已拿到）**：推送本号（`c066d13`）后自动触发 portfolio-sync 运行
+   `45541007785` = `completed/success`，日志出现 `paint-fact-packs: 已刷新写 2 处静态半区`
+   与 `pushed fresh SpecProof data to portfolio repo (attempt 1)`。live repo 数据 blob
+   实测 `strike #2097 / scrolls 206 / head c066d134`。**我这层的半区缺陷已消除且自动修复生效。**
+6. **边界（诚实）**：整条 `site-gates` 仍未全绿，但失败门已**换成另一条**：
+   `Crossrealm ribbon fallback agrees across locales and with the fact pack`
+   （运行 `45541045470` failure，sha `95843081`），由并行 lane 的 commit `152c21e3
+   sync(crossrealm): refresh the showcase fact pack from main` 引起——该 lane 更新了
+   `assets/crossrealm/latest.json` 却未同步 index.html 的静态兜底值。
+   该门脚本无 `--write` 模式，属 crossrealm lane 自维护范围，**我未越界修改**。
+   因此 Pages 暂未部署 #2097（站点仍 #2096），待该 lane 自己修齐后自动恢复；
+   不宣称「已全自动部署最新成果」，只宣称「SpecProof 自己的同步与半区已自动闭环」。
