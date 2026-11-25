@@ -45016,3 +45016,28 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 - `apps/web/src/styles/insight.css`
 - `apps/web/src/pages/NextStepCard.tsx`
 - `tests/unit/test_web_css_names_only_tokens_that_exist.py`
+
+
+## #2100 世界书卷二百零七：把 #2096–#2099 写成正史，并更正一次误判
+
+1. **内容**：原则六「持续新篇章」。网关仍关闭，因此不调用 API、不编造，把本会话真实的
+   #2096–#2099 整理成卷二百零七「门自己学会把影子补上」/「The Gate Learns to Redraw Its
+   Own Shadow」，中英双语同步落册。六节 anchor/ledger + 座次 + 账房：账本长出卷206(#2096)、
+   同步手刷影子(#2097)、另一条门也学会(#2098)、没人认领的分支走回来(#2099)、
+   没拿到的绿灯也要记账(#2099 的 CI 尝试)。每节指向真实运行 ID、命令、退出码、站点 strike。
+2. **派生物**：build_worldbook（207 volumes）、build_library（206 scrolls zh≡en）、
+   build_chronicle（1894 条）、build_repo_stats、audit_evidence = CONSISTENT。
+3. **门跟随事实（非弱化）**：Library.test.tsx 205→206 scrolls，末卷标题改卷207，
+   并保留卷205、卷206 仍在册的断言；test_next_step_advice.py（worldbooks 206→207、
+   library 205→206）；test_worldbook_library_parity.py（节 205→206、volumes 206→207、
+   末 id vol-204→vol-205、library 205→206）；两处一致注释。
+   Python 门 14 passed、前端 Library/Wander/publicRoutes 11 passed。
+4. **更正一次误判（诚实）**：本号写作过程中曾根据「单文件收集 1.66s、整体 50s 不返回」
+   与 CI worker 十分钟无控制台输出，判 pytest 收集「卡死」并写入卷207初稿。随后后台完整
+   实测 `pytest tests/unit --collect-only -q` = **6887 tests collected in 101.57s, exit 0**，
+   证明是「极慢但收敛」而非永久卡死。卷207 已按实测改写中英两版：不再声称卡死，
+   只说当时极慢且我拒绝无限等。CI 仍未拿到 eval-golden-cases / tests-with-infra 的真实绿灯，
+   不把慢说成通过，也不把通过说成绿。
+5. **边界**：CI runner 我启动了一台并接到 tests-with-infra，跨过 checkout 进入完整 pytest，
+   但十分钟内无新控制台输出后我终止了进程释放资源；真实 CI 绿灯仍未取得，不宣称。
+   LLM API 仍因成本关闭，全程离线；未改任何门阈值，未伪造内容。

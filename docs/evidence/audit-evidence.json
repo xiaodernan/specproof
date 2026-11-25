@@ -1,6 +1,6 @@
 {
  "version": 1,
- "generated_utc": "2026-11-25T04:04:58+00:00",
+ "generated_utc": "2026-11-25T04:37:46+00:00",
  "verdict": "CONSISTENT",
  "checks": [
   {
@@ -11,7 +11,7 @@
   {
    "id": "worldbook_zh_en_symmetric",
    "ok": true,
-   "detail": "zh=206 en=206"
+   "detail": "zh=207 en=207"
   },
   {
    "id": "evidence_verdict_present",

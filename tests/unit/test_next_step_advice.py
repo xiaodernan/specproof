@@ -43,7 +43,7 @@ def test_packet_numbers_match_the_tree() -> None:
     p = build_next_step_packet()
     assert p["commits"] and p["commits"] > 2000
     assert p["ledger_sections"] and p["ledger_sections"] > 1500
-    assert p["worldbooks_volumes"] == 206  # scroll 206 (#2078-2095 real facts), bilingual
+    assert p["worldbooks_volumes"] == 207  # scroll 207 (#2096-2099 real facts), bilingual
     # Derived, not hardcoded: commit 5146c6c rebuilt the chronicle to 1833 and
     # left this pin at 1799, turning a data refresh into a red gate. Read the
     # same JSON the packet builder reads so the next rebuild cannot rot it.
@@ -53,7 +53,7 @@ def test_packet_numbers_match_the_tree() -> None:
         )
     )
     assert p["chronicle_entries"] == len(chronicle)
-    assert p["library_zh_en_pairs"] == 205  # scroll 206 library chapter (#2078-2095)
+    assert p["library_zh_en_pairs"] == 206  # scroll 207 library chapter (#2096-2099)
     assert p["unit_test_files"] and p["unit_test_files"] > 500
 
 

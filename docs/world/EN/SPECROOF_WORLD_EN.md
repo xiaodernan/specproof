@@ -7591,3 +7591,80 @@ This scroll's ledger records only facts already written into the plan: #2076 thr
 The reds in this ledger still have boundaries: the whole tests/unit is not called green; CI is not called fully green; the 269 E501 pin reds are untouched; CI runners remain offline, so the real green of eval-golden-cases and tests-with-infra is not in hand; the LLM hit rate is a measured reading, not a constant promise; the LLM API is closed for cost, so all later development takes offline, verifiable paths.
 
 What this scroll leaves is still that narrower, harder conclusion: words deserve to enter the fact pack only when they can point to a real section, a real gate leg, a real published surface, a real snapshot, a real score. What this scroll adds: when the outside world falls silent, a system must be able to say honestly “I did not look” instead of inventing an answer for the silence.
+
+
+## Scroll CCVII · The Gate Learns to Redraw Its Own Shadow
+
+> “The last scroll taught the system to say ‘I did not look’. This one teaches it to say ‘I looked, and I redrew the shadow too’ — not painting red green, but making the hand that writes a fact also redraw whatever is derived from it. Then the gate no longer waits for someone to fix it at midnight, and work no one claims in a branch walks back into the canon by itself.”
+
+### 207.1 A scroll grown out of the ledger
+
+#### anchor
+
+#2096 called no gateway and invented no epic. It arranged the real #2078–#2095 events of this session into Scroll CCVI, landed bilingually. The world book's rule is now harder: a new scroll is not a story someone thought up, but something that actually happened and whose every section can point back to a ledger number and a measured artifact.
+
+#### ledger
+
+build_worldbook read 206 volumes; build_library read 205 scrolls zh≡en; chronicle 1890 entries; audit CONSISTENT. The gates followed the facts rather than being weakened: Library.test changed 204 to 205 while keeping the assertion that scroll 205 remains present; test_next_step_advice and the parity gate changed numbers in step. Python 10 passed, front-end 7 passed, full suite 97 files / 643 tests green.
+
+### 207.2 The syncing hand redrew the shadow too
+
+#### anchor
+
+#2097 first checked whether ‘fully automatic’ was real: portfolio-sync's push run 45538429689 confirmed PORTFOLIO_TOKEN in the log, cloned the live repo, committed, and pushed on attempt 1. The data path really is automatic. But site-gates kept going red because the paint-fact-packs static half-zones lagged — a parallel lane pushed a new fact pack without refreshing the index.html half derived from it, so Pages refused to deploy.
+
+#### ledger
+
+The fix was not to relax the gate but to make the same hand that pushes data also redraw the shadow: the workflow runs paint-fact-packs --write after copying data and includes index.html in the same commit, once initially and once after every reset-retry. Run 45541007785 printed ‘refreshed 2 static half-zones’ and pushed; a second run 45541708072 needed no refresh — idempotence verified.
+
+### 207.3 Another gate learned it too
+
+#### anchor
+
+In #2098 site-gates went red again, but the failed gate had changed: crossrealm ribbon fallback's bilingual fallback read 291 volumes / 613 sources while the fact pack said 292 / 615. Same root cause — sync-crossrealm updated only the fact pack, and the guard had a check mode but no write mode. I had earlier called this ‘that lane's own maintenance’; investigation showed it is a cron-driven automatic workflow with no human actively editing it, and it blocks everyone from seeing the newest result.
+
+#### ledger
+
+Added --write to crossrealm-ribbon-guard without changing a word of the default check; made the sync workflow call it and commit index.html alongside. node --check exit 0, --write set 292/615, default check OK. Pushing db6833ac gave site-gates 45542201907 success and pages 45542202033 success; the site measured #2097 / head 850142f7 / chronicle 1892. The next sync 774b7c4e still had site-gates success — proof the fix prevents recurrence.
+
+### 207.4 The unclaimed branch walked back in
+
+#### anchor
+
+#2099 followed the rule ‘merge every worktree into the main branch; if no one is doing it, take it over’. Five remote branches were already merged; the only unmerged one was the local fix/design-system-remediation. Running its new gate against master's current tree produced proof: 51 var() references named undeclared custom properties, so the browser dropped the whole declaration — a real visual defect, not duplicate work.
+
+#### ledger
+
+Cherry-picked the core commit; the only conflict was a ledger number collision (the branch had independently used #2082): kept all of master and renumbered the imported unit to #2099. Verified 5 design-system gates plus the ledger gate 28/28, published-surface gate 4/4, audit CONSISTENT, front-end 97 files / 643 tests green. The other worktrees' unique commits were all already-landed cleanup and re-strikes; the test(arm) #9999 is a deliberately planted fixture and was not merged — merging it would write a fake number into the canon.
+
+### 207.5 The green not obtained is recorded too
+
+#### anchor
+
+At the time this scroll was written CI was still not green. I brought one of the two self-hosted runners from offline to online; it picked up tests-with-infra, passed checkout, and at 04:18:36 entered the full pytest. But the worker log's last console line was 04:23:16; for ten minutes after that it only spun a directory probe every ten seconds. Given the later measured 101.57-second collection, the accurate statement is: it was very slow and I refused to wait indefinitely, not that it was permanently stuck. Local reproduction: a single test file collects in 1.66 seconds; the whole 611-file tests/unit collection took a measured 101.57 seconds with 6887 tests collected and exit 0 — not stuck, just very slow but converging. The earlier ‘did not return in over 50 seconds’ showed slowness, not a permanent stall.
+
+#### ledger
+
+Honest conclusion: run 45544746599 stayed pending; the real green of eval-golden-cases and tests-with-infra was not obtained. I did not delete tests, change thresholds, or call the stall a pass to make the gate green; the runner process was stopped to release resources. That red stays in the ledger until its real root cause is fixed, not until a more patient poll finds it.
+
+### The anchors of this scroll
+
+#### anchor
+
+First seat is the shadow: when a fact pack moves, the static half derived from it must move in the same commit, or the gate will hide the new result from users. Second is the same hand: if writing data and redrawing the shadow are two manual steps, there will always be a midnight between them. Third is idempotence: a second run that does nothing proves the first drew a fact, not luck. Fourth is collision: when two lanes independently use one number, the later arrival must rename rather than overwrite. Fifth is the fixture: a deliberately planted fake number is a whetstone for the gate, not an inheritance to merge into the canon. Sixth is the green not obtained: it stays there honestly reddish, better than painted green.
+
+#### ledger
+
+The seats are decided not by narrative but by checkable pointers: run IDs, refresh counts, the site's strike, gate exit codes, worker log timestamps — each proves only what it actually proves.
+
+### The ledger of this scroll
+
+#### anchor
+
+This scroll's ledger records only facts already written into the plan: #2096 through #2099, their numbers, paths, commands, results and boundaries, all per the stated artifacts and measurements.
+
+#### ledger
+
+The reds in this ledger still have boundaries: the whole tests/unit is not called green; CI is not called green; the LLM hit rate is a measured reading, not a constant promise; the LLM API is closed for cost, so all later development takes offline, verifiable paths. pages.yml deploys in a three-hour cron batch by design, not by fault; calling ‘the next cron will catch up’ a real-time sync would be lying.
+
+What this scroll leaves is still that narrower, harder conclusion: words deserve to enter the fact pack only when they can point to a real section, a real gate leg, a real published surface, a real snapshot, a real score. What this scroll adds: after a system writes a fact, it must redraw the fact's shadow too — or the gate will keep the truth outside the door.

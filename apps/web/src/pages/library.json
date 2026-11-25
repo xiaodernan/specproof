@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-25T02:57:04+00:00",
-  "count": 205,
+  "generated_at": "2026-11-25T04:37:45+00:00",
+  "count": 206,
   "zh": [
     {
       "num": "卷零",
@@ -1026,6 +1026,11 @@
       "num": "卷二百零六",
       "title": "不可达不是失败，是记一笔「没看」",
       "excerpt": "新增 test_the_two_published_fact_surfaces_agree.py 四条腿：两发布面条数相等、页面末条有节、latest 宣传的 strike 有节、两面对 newest strike 一致。故意把 latest 的 entries 减 1，门 FAILED，恢复 PASSED——不是演示，是证明脱钩时门会红。"
+    },
+    {
+      "num": "卷二百零七",
+      "title": "门自己学会把影子补上",
+      "excerpt": "build_worldbook 读出 206 volumes、build_library 读出 205 卷 zh≡en、chronicle 1890 条、audit CONSISTENT。门跟随事实而非弱化：Library.test 把 204 改成 205 并保留卷205仍在册的断言，test_next_step_advice 与 parity 门同步改号。Python 10 passed、前端 7 passed、完整套件 97 files / 643 tests 全绿。"
     }
   ],
   "en": [
@@ -2053,6 +2058,11 @@
       "num": "Scroll CCVI",
       "title": "Unreachable Is Not Failure, It Is a Note That We Did Not Look",
       "excerpt": "Added test_the_two_published_fact_surfaces_agree.py with four legs: equal entry counts, page's last strike has a section, latest's advertised strike has a section, both agree on newest strike. Deliberately subtracting 1 from latest's entrie…"
+    },
+    {
+      "num": "Scroll CCVII",
+      "title": "The Gate Learns to Redraw Its Own Shadow",
+      "excerpt": "build_worldbook read 206 volumes; build_library read 205 scrolls zh≡en; chronicle 1890 entries; audit CONSISTENT. The gates followed the facts rather than being weakened: Library.test changed 204 to 205 while keeping the assertion that scro…"
     }
   ],
   "note": "machine-struck from the two bibles; parity asserted at build time; never an editorial statement"
