@@ -5,7 +5,7 @@ import library from "../library.json";
 
 /**
  * The Library is the open-world door (#108): a reader who does not know which
- * of the 205 scrolls to open can "wander" to an arbitrary real one. The wander
+ * of the 206 scrolls to open can "wander" to an arbitrary real one. The wander
  * target must be drawn from the FULL library — never a filtered subset, never
  * a fabricated scroll — and the page count must be derived from the data so a
  * rebuilt bible cannot leave a stale number on screen.

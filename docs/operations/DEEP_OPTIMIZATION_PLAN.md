@@ -44833,3 +44833,23 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
    状态流转"都已真实落地，缺的只是"Spring Cloud"这个 Java 专有名词，而它在本架构下无真实落点。
 5. **边界**：这是决策记录，不改任何代码、依赖、门或账本事实。若未来 owner 把 demo 后端扩成真正的
    多服务 Java 拓扑，再重新评估 Spring Cloud——那时它才有真实落点。
+
+
+## #2096 世界书卷二百零六：用真实 #2078–#2095 事实写成（网关关闭后的离线内容扩展）
+
+1. **背景**：原则六要求持续写新篇章。#2077 的卷205 由 gpt-6.2-sol 生成；网关因成本关闭后，
+   本号**不调用 API、不编造内容**，而是把本会话真实发生的 #2078–#2095 工作写成新卷——
+   世界书的规矩是"每一卷都对着真实发生过的事"，这些事都有账本节与产物可查。
+2. **内容**：`docs/world/SPECROOF_WORLD.md` 与 `EN/SPECROOF_WORLD_EN.md` 各追加卷206
+   「不可达不是失败，是记一笔『没看』」/「Unreachable Is Not Failure, It Is a Note That We Did Not Look」。
+   六节 anchor/ledger：六种读数(#2072)、发布面两端(#2074)、不可达存储不冻结流水(#2094)、
+   账本忘自己(#2086)、首页第一分与最后一分(#2092/#2093)、座次与账房。
+   每节都指向真实 strike 号与真实命令/读数，没有虚构事件。
+3. **重建派生产物**：build_worldbook（206 volumes）、build_library（205 scrolls zh≡en）、
+   build_chronicle（1890）、build_repo_stats、audit_evidence = CONSISTENT。
+4. **门跟随（事实变更，非弱化）**：Library.test.tsx（204→205 scrolls，末卷标题改卷206，
+   并保留卷205 仍在册的断言）、test_next_step_advice.py（worldbooks 205→206、library 204→205）、
+   test_worldbook_library_parity.py（章节 204→205、volumes 205→206、末 id vol-203→vol-204），
+   及两处一致注释。Python 门 10 passed、前端 Library/Wander 门 7 passed。
+5. **边界**：内容是真实工作的事实整理，不是虚构史诗；措辞是叙事包装，事实部分可溯源到账本。
+   未改任何判定门阈值，只做事实数字的正确跟随。LLM API 仍关闭，全程离线。

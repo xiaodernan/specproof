@@ -1,17 +1,17 @@
 {
  "version": 1,
- "generated_utc": "2026-11-24T12:57:24+00:00",
+ "generated_utc": "2026-11-25T02:57:59+00:00",
  "verdict": "CONSISTENT",
  "checks": [
   {
    "id": "chronicle_vs_repoStats",
    "ok": true,
-   "detail": "chronicle entries=1889 repoStats ledger_sections=1889"
+   "detail": "chronicle entries=1890 repoStats ledger_sections=1890"
   },
   {
    "id": "worldbook_zh_en_symmetric",
    "ok": true,
-   "detail": "zh=205 en=205"
+   "detail": "zh=206 en=206"
   },
   {
    "id": "evidence_verdict_present",

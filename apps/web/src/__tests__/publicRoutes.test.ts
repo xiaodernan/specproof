@@ -15,7 +15,7 @@ describe("public routes (#2090)", () => {
 
   it("lets a first-time reader browse the public world library, reading room and chronicle", () => {
     expect(PUBLIC_ROUTES).toContain("library");
-    expect(PUBLIC_ROUTES).toContain("worldbook"); // the reading room holds all 205 scrolls, zero credentialed API calls
+    expect(PUBLIC_ROUTES).toContain("worldbook"); // the reading room holds all 206 scrolls, zero credentialed API calls
     expect(PUBLIC_ROUTES).toContain("chronicle");
   });
 

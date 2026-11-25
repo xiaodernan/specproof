@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-23T05:08:49+00:00",
-  "count": 204,
+  "generated_at": "2026-11-25T02:57:04+00:00",
+  "count": 205,
   "zh": [
     {
       "num": "卷零",
@@ -1021,6 +1021,11 @@
       "num": "卷二百零五",
       "title": "文字必须指向它所写之物",
       "excerpt": "记录基准是 2026-11-23，基线 `7e9f98e`；`3f332e9` 是 #2071 的 ff 重敲提交。预测在任何臂之前冻结于 `.scratch/predict_fence2072.md`，实测只追加于 §四、§五。"
+    },
+    {
+      "num": "卷二百零六",
+      "title": "不可达不是失败，是记一笔「没看」",
+      "excerpt": "新增 test_the_two_published_fact_surfaces_agree.py 四条腿：两发布面条数相等、页面末条有节、latest 宣传的 strike 有节、两面对 newest strike 一致。故意把 latest 的 entries 减 1，门 FAILED，恢复 PASSED——不是演示，是证明脱钩时门会红。"
     }
   ],
   "en": [
@@ -2043,6 +2048,11 @@
       "num": "Scroll CCV",
       "title": "Words Must Point to What They Name",
       "excerpt": "The record date is 2026-11-23, on baseline `7e9f98e`; `3f332e9` is the ff re-strike commit for #2071. Predictions were frozen in `.scratch/predict_fence2072.md` before any arm, and measurements were appended only in §4 and §5."
+    },
+    {
+      "num": "Scroll CCVI",
+      "title": "Unreachable Is Not Failure, It Is a Note That We Did Not Look",
+      "excerpt": "Added test_the_two_published_fact_surfaces_agree.py with four legs: equal entry counts, page's last strike has a section, latest's advertised strike has a section, both agree on newest strike. Deliberately subtracting 1 from latest's entrie…"
     }
   ],
   "note": "machine-struck from the two bibles; parity asserted at build time; never an editorial statement"

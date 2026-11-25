@@ -7643,3 +7643,80 @@ PowerShell 的 `Invoke-RestMethod` 对同样请求返回 403；使用 `curl --da
 账房中的红仍有边界：整套 `tests/unit` 未称绿；CI 未称全绿；269 条 E501 pin red 未动；tests-no-infra 等独立红未动；seed 的真实新 run 尚未提供；LLM 命中率不是恒定承诺；无代理与 CI 环境仍按无网关运行。
 
 因此本卷留下的不是“所有门都绿”，而是更窄、更硬的结论：文字只有在能够指向真实章节、真实门腿、真实发布面、真实缓存与真实链路时，才配被写进事实包。
+
+
+## 卷二百零六 · 不可达不是失败，是记一笔「没看」
+
+> “门若只检查自己的回声，发布面若只读取自己的影子，账本上的编号便会在仓库里有名，在世人眼前无处可寻。这一卷写的是：当外部世界不回答时，系统该如何诚实地说『我没看成』，而不是把沉默说成空无，把停顿说成回答。”
+
+### 206.1 一份快照的六种读数
+
+#### anchor
+
+#2072 量出同一个名词在仓库里有六种读数：宽尺 1888、#287 门尺 1882、build_latest 的 1867、build_chronicle 的 1867、前端 chronicle.json 的 1833、next_step packet 的 1804。数字各自能被自己的检查通过，却没有一处被要求与它指向的东西对齐。
+
+#### ledger
+
+#2073 在一次性冷缓存里把 16 条 mypy 存量红清到 0，`Success: no issues found in 311 source files`。其中两条是行为缺陷而非注解裂纹：rabbitmq 的 `json.dumps` 返回 str 而 basic_publish 要 bytes，改成 encode；worldbook_ask 的 body 在命中与未命中两分支各定义一次，改用 cached_body。类型门测试从 1 failed 变 9 passed，behavior 测试 82 passed。
+
+### 206.2 发布面的两端必须互相看见
+
+#### anchor
+
+#2074 发现 chronicle.json 停在 1833 条、latest.json 却宣传 1868，相差 35 条。根因被账本点名：test_next_step_advice 的断言两边都读 chronicle.json，是一条读自己影子的恒绿腿。
+
+#### ledger
+
+新增 test_the_two_published_fact_surfaces_agree.py 四条腿：两发布面条数相等、页面末条有节、latest 宣传的 strike 有节、两面对 newest strike 一致。故意把 latest 的 entries 减 1，门 FAILED，恢复 PASSED——不是演示，是证明脱钩时门会红。
+
+### 206.3 不可达的存储不该冻结流水
+
+#### anchor
+
+#2094 用 faulthandler 与进程网络栈定位：全量门卡在 test_a_reused_head_run 时 CPU=0、TCP 处于 6379/9000 的 SYN_SENT——不是在跑断言，是在等外部存储连接。redis-py 8 的默认重试把 2 秒超时放大到实测 48.81 秒，minio SDK 无超时在死端口卡 135 秒。两者都在 _capture_external_state 路径上：存储不可达本应记入空快照，却反过来冻结整个证据流水线。
+
+#### ledger
+
+Redis 探测改 retry=Retry(NoBackoff(), 0) 零重试，48.81 秒降到 4.28 秒；MinIO 用 urllib3.PoolManager(timeout=1s, retries=False)，135 秒降到 2 秒。新增 test_unreachable_stores_fail_fast.py 三条腿：死 Redis 端口快速返回 None、死 MinIO not-ready、可达 S3 mock 仍 ready=True——证明只让不可达快失败，不破坏可达路径。mypy 两文件 Success。
+
+### 206.4 账本自己也会忘记自己
+
+#### anchor
+
+#2086 把 _FakeRedis.eval 与 _RENEW_LEASE_LUA 的语义一致性做成门：从生产脚本源码解析关键分支（owner 检查、cap 窗口、EXPIRE、2 个 return 0 加 1 个 return 1），脚本一变门就红，强制回头同步手写 fake。四条变异臂各自让对应腿转红，不是恒绿。
+
+#### ledger
+
+#2087 与 #2091 把手工说明书、图书馆、世界书阅读室从登录墙后放出——静态公开内容不该要求工作区凭据。导出 PUBLIC_ROUTES 常量并由门 pin 住：manual/library/worldbook/chronicle/observe 公开，dashboard/eval/jobs/identity 等仍需凭据。浏览器实测未登录打开 #/manual 显示说明书、无登录墙。
+
+### 206.5 首页的第一分与最后一分
+
+#### anchor
+
+#2092 的 Lighthouse 实测：SEO 0.8，唯一失败 robots.txt is not valid——SPA 把 /robots.txt 回成 index.html。补合法 robots.txt（公开 SPA Allow /，后端 /api /v1 /metrics Disallow），SEO 0.8 升到 1.0。
+
+#### ledger
+
+#2093 的 Accessibility 0.96，唯一失败 color-contrast：连接工作区主按钮白字在 #059669 上只有 3.76:1，低于 WCAG AA 的 4.5。常态背景改 #1b6548（约 7:1）、hover 改 #154f39，Accessibility 0.96 升到 1.0。三项（A11y/Best Practices/SEO）全满、零失败。没有为了追分改已经合格的元素。
+
+### 本卷的座次
+
+#### anchor
+
+第一席是冷缓存：只有它揭出真正的存量红。第二席是发布面：两端必须互相看见，读自己影子的腿恒绿也恒假。第三席是不可达：存储不回答时记一笔「没看」，不说成空无。第四席是名册：被点名的门要真的存在，否则承诺只是提到过。第五席是公开：静态内容打开即读，不该有登录墙。第六席是对比度：3.76 不是 4.5，差的那一点是屏幕前的人。
+
+#### ledger
+
+座次不由叙述决定，由可复核的指针决定：冷缓存读数、发布面重建、SYN_SENT 的进程栈、门的变异臂、浏览器的实测、Lighthouse 的分数，各自只证明自己实际证明的部分。
+
+### 本卷的账房
+
+#### anchor
+
+本卷账房只收录已写入账本的事实：#2076 至 #2095 的数字、路径、命令、结果与边界均以所述产物和实测为准。
+
+#### ledger
+
+账房中的红仍有边界：整套 tests/unit 未称绿；CI 未称全绿；269 条 E501 pin red 未动；CI runner 仍 offline，eval-golden-cases 与 tests-with-infra 的真实绿灯未拿到；LLM 命中率是实测读数不是恒定承诺；LLM API 因成本关闭，后续开发全走离线可验证路径。
+
+因此本卷留下的仍是那个更窄、更硬的结论：文字只有在能够指向真实章节、真实门腿、真实发布面、真实快照与真实分数时，才配被写进事实包。这一卷新增的是：当外部世界沉默时，系统要能诚实地说「没看」，而不是替沉默编一个答案。

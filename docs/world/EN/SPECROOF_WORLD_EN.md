@@ -7514,3 +7514,80 @@ This office records only facts entered into the ledger: baseline `7e9f98e`, reco
 The remaining red has boundaries: the full `tests/unit` suite was not declared green; CI was not declared fully green; the 269 E501 pin red was untouched; tests-no-infra and other independent reds were untouched; no new seed run had yet supplied its logs; LLM cache hit rate was not promised as constant; and proxy-free and CI environments still run without the gateway.
 
 The scroll therefore leaves not a claim that every gate is green, but a narrower and harder conclusion: words belong in the fact pack only when they point to a real section, a real gate leg, a real publication surface, a real cache reading, or a real execution path.
+
+
+## Scroll CCVI · Unreachable Is Not Failure, It Is a Note That We Did Not Look
+
+> “A gate that checks only its own echo, a published surface that reads only its own shadow — an issue number has a name in the repository and nowhere to resolve in the world. This scroll is about what a system should say when the outside world does not answer: honestly ‘I did not look’, never turning silence into emptiness or a pause into an answer.”
+
+### 206.1 Six readings of one noun
+
+#### anchor
+
+#2072 measured one noun with six readings in the repository: broad ruler 1888, #287 gate ruler 1882, build_latest 1867, build_chronicle 1867, the front-end chronicle.json 1833, the next_step packet 1804. Each number passes its own check; none is required to align with the thing it names.
+
+#### ledger
+
+#2073 cleared 16 pre-existing mypy reds to 0 in a one-shot cold cache: Success, no issues in 311 source files. Two were behavior defects, not annotation cracks: rabbitmq's json.dumps returns str where basic_publish wants bytes (changed to encode); worldbook_ask defined body in both the hit and miss branches (renamed cached_body). The type-check test went 1 failed to 9 passed; behavior tests 82 passed.
+
+### 206.2 The two ends of a published surface must see each other
+
+#### anchor
+
+#2074 found chronicle.json stuck at 1833 entries while latest.json advertised 1868 — 35 apart. The root cause is named in the ledger: test_next_step_advice's assertion reads chronicle.json on both sides, a permanently-green leg reading its own shadow.
+
+#### ledger
+
+Added test_the_two_published_fact_surfaces_agree.py with four legs: equal entry counts, page's last strike has a section, latest's advertised strike has a section, both agree on newest strike. Deliberately subtracting 1 from latest's entries turned the leg FAILED; restoring turned it PASSED — not a demo, proof that the gate goes red on drift.
+
+### 206.3 An unreachable store must not freeze the pipeline
+
+#### anchor
+
+#2094 used faulthandler and process network state to locate the full-suite hang at test_a_reused_head_run: CPU=0, TCP in SYN_SENT to 6379/9000 — not running an assertion, waiting on an external store. redis-py 8's default retry stretched a 2s timeout to a measured 48.81s; the minio SDK with no timeout sat 135s on a dead port. Both sit on the _capture_external_state path: an unreachable store should be recorded as an empty snapshot, yet it froze the whole evidence pipeline.
+
+#### ledger
+
+Redis probe changed to retry=Retry(NoBackoff(), 0), 48.81s to 4.28s; MinIO used urllib3.PoolManager(timeout=1s, retries=False), 135s to 2s. Added test_unreachable_stores_fail_fast.py with three legs: dead Redis port returns None fast, dead MinIO not-ready, reachable S3 mock still ready — proof that only unreachable fails fast, reachable behavior intact. mypy Success on both files.
+
+### 206.4 The ledger forgets itself too
+
+#### anchor
+
+#2086 turned the semantic agreement between _FakeRedis.eval and _RENEW_LEASE_LUA into a gate: parse the production script's key branches from source (owner check, cap window, EXPIRE, two return 0 plus one return 1); the script changes and the gate goes red, forcing the hand-written fake to be updated. Four mutation arms each turned their leg red — not permanently green.
+
+#### ledger
+
+#2087 and #2091 released the hand-written manual, library, and world-book reading room from behind the login wall — a static public page should not require workspace credentials. Exported the PUBLIC_ROUTES constant and pinned it with a gate: manual/library/worldbook/chronicle/observe public; dashboard/eval/jobs/identity still gated. Browser test confirmed opening #/manual while logged out shows the manual, no login wall.
+
+### 206.5 The first and last point of the homepage
+
+#### anchor
+
+#2092 Lighthouse measured SEO 0.8, sole failure robots.txt is not valid — the SPA answered /robots.txt with index.html. Added a valid robots.txt (public SPA Allow /, backend /api /v1 /metrics Disallow); SEO 0.8 to 1.0.
+
+#### ledger
+
+#2093 Accessibility 0.96, sole failure color-contrast: the connect button's white text on #059669 was 3.76:1, below WCAG AA's 4.5. Normal background changed to #1b6548 (~7:1), hover to #154f39; Accessibility 0.96 to 1.0. All three (A11y / Best Practices / SEO) full, zero failures. No already-passing element was changed just to chase the score.
+
+### The anchors of this scroll
+
+#### anchor
+
+First seat is the cold cache: only it reveals the real pre-existing reds. Second is published surfaces: both ends must see each other; a leg reading its own shadow is permanently green and permanently false. Third is unreachable: when a store does not answer, note “did not look”, never say empty. Fourth is the roster: a named gate must actually exist, or the promise is only a mention. Fifth is public: static content is readable on open, no login wall. Sixth is contrast: 3.76 is not 4.5; the missing point is the person in front of the screen.
+
+#### ledger
+
+The seats are decided not by narrative but by checkable pointers: cold-cache readings, published-surface rebuilds, a process stack in SYN_SENT, a gate's mutation arms, a browser's measurements, Lighthouse's scores — each proves only what it actually proves.
+
+### The ledger of this scroll
+
+#### anchor
+
+This scroll's ledger records only facts already written into the plan: #2076 through #2095, their numbers, paths, commands, results and boundaries, all per the stated artifacts and measurements.
+
+#### ledger
+
+The reds in this ledger still have boundaries: the whole tests/unit is not called green; CI is not called fully green; the 269 E501 pin reds are untouched; CI runners remain offline, so the real green of eval-golden-cases and tests-with-infra is not in hand; the LLM hit rate is a measured reading, not a constant promise; the LLM API is closed for cost, so all later development takes offline, verifiable paths.
+
+What this scroll leaves is still that narrower, harder conclusion: words deserve to enter the fact pack only when they can point to a real section, a real gate leg, a real published surface, a real snapshot, a real score. What this scroll adds: when the outside world falls silent, a system must be able to say honestly “I did not look” instead of inventing an answer for the silence.
