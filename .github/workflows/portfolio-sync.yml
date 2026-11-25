@@ -110,9 +110,17 @@ jobs:
           if [ -f ../artifacts/portfolio-data/.github-gazette.json ]; then
             cp ../artifacts/portfolio-data/.github-gazette.json data/specproof-gazette.json
           fi
+          # The shared site-gates rejects a push whose paint-fact-packs static
+          # half lags the fact packs — and that rejection blocks Pages from
+          # deploying this very sync. Heal the static half-zones as part of the
+          # payload so a SpecProof sync never poisons the deploy gate. --write
+          # only rewrites index.html; it is idempotent when already in sync.
+          if [ -f scripts/paint-fact-packs.mjs ]; then
+            node scripts/paint-fact-packs.mjs --write
+          fi
           git config user.name "specproof-bot"
           git config user.email "specproof-bot@users.noreply.github.com"
-          git add data/
+          git add data/ index.html
           if git diff --cached --quiet; then
             echo "portfolio data unchanged — nothing to push"
             exit 0
@@ -139,7 +147,13 @@ jobs:
             if [ -f ../artifacts/portfolio-data/.github-gazette.json ]; then
               cp ../artifacts/portfolio-data/.github-gazette.json data/specproof-gazette.json
             fi
-            git add data/
+            # Re-heal after every reset: a parallel push may have advanced the
+            # fact packs, so the static half must be regenerated against the
+            # current tip before this retry is committed.
+            if [ -f scripts/paint-fact-packs.mjs ]; then
+              node scripts/paint-fact-packs.mjs --write
+            fi
+            git add data/ index.html
             git commit -m "chore(specproof): sync latest master — portfolio data"
             attempt=$((attempt + 1))
           done

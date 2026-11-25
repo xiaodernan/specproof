@@ -44853,3 +44853,25 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
    及两处一致注释。Python 门 10 passed、前端 Library/Wander 门 7 passed。
 5. **边界**：内容是真实工作的事实整理，不是虚构史诗；措辞是叙事包装，事实部分可溯源到账本。
    未改任何判定门阈值，只做事实数字的正确跟随。LLM API 仍关闭，全程离线。
+
+
+## #2097 自动同步闭环：让 SpecProof 同步顺手刷齐共享静态半区
+
+1. **先验证既有自动路径是真的**：GitHub API 查得 portfolio-sync 在 specproof repo 的运行
+   `45538429689` = `completed/success`、`event=push`、`sha=5359dd5`。其日志显示
+   `PORTFOLIO_TOKEN: ***` 已配置，克隆 live repo 后提交 `1021f0b`（3 files changed），
+   `git push origin HEAD` 在 attempt 1 成功并打印 `pushed fresh SpecProof data to portfolio repo
+   (attempt 1)`。结论：原则十的「全自动更新」在数据层已真实闭环，不靠我手动 push。
+2. **真实缺陷**：本会话中 live repo 的 `site-gates` 两次变红，均为
+   `paint-fact-packs --check` 报 `np-features-list 静态半区需要重刷`——并行 lane 推了新的
+   fact pack，却没有刷新由它派生的 index.html 静态半区。门一红，Pages 就不部署，
+   用户点进去看到的仍是旧成果。我此前两次手动 `node scripts/paint-fact-packs.mjs --write` 才解开。
+3. **修复**：在 `.github/workflows/portfolio-sync.yml` 的「Push fresh data」步骤里，
+   复制完数据后执行 `node scripts/paint-fact-packs.mjs --write`，并把 `index.html` 纳入
+   `git add`。两次循环都做——首推一次，每次 `git reset --hard origin/master` 重试后再刷一次，
+   避免并行 agent 抢推让半区再次滞后。`--write` 只重写 index.html 且幂等；脚本不存在时跳过。
+4. **离线校验**：live repo 确有 `scripts/paint-fact-packs.mjs`（6257 字节，含 `--write`、
+   写 index.html）；workflow YAML 用 PyYAML `safe_load` 通过；抽出的 push shell 块经
+   `bash -n` 语法检查 exit 0。未改任何门、未动阈值、未引入密钥（token 仍走 secret）。
+5. **边界**：端到端验证在推送本号后触发的 workflow 运行中完成，以运行 ID 与
+   `site-gates`/Pages 结论为准；未拿到绿灯前不宣称「自动消除红」。
