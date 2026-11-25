@@ -44885,3 +44885,31 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
    该门脚本无 `--write` 模式，属 crossrealm lane 自维护范围，**我未越界修改**。
    因此 Pages 暂未部署 #2097（站点仍 #2096），待该 lane 自己修齐后自动恢复；
    不宣称「已全自动部署最新成果」，只宣称「SpecProof 自己的同步与半区已自动闭环」。
+
+
+## #2098 crossrealm 静态兜底自动刷写：解开最后一个阻塞 Pages 部署的共享门
+
+1. **诊断**：#2097 后 `site-gates` 仍红，失败门换成
+   `Crossrealm ribbon fallback agrees across locales and with the fact pack`。
+   实测漂移：双语兜底 `291 卷 / 613 源`，事实包 `292 卷 / 615 源`。根因是 live repo 的
+   `.github/workflows/sync-crossrealm.yml` 只把新 fact pack 复制进
+   `assets/crossrealm/latest.json`，却不同步 index.html 里供 JS 未启动时展示的静态兜底值；
+   `crossrealm-ribbon-guard.mjs` 又只有检查模式、没有写模式，于是每次该 lane 更新事实包
+   都会把部署门推红。这与 #2097 的 paint-fact-packs 是同一类结构性缺陷。
+2. **判断变更（诚实说明）**：#2097 我曾以「属 crossrealm lane 自维护范围」为由不越界。
+   进一步查证发现该 lane 是每周 cron + dispatch 的**自动 workflow**（提交者 pages-sync-bot），
+   不存在正在手动编辑、会被我冲突的 agent；且它阻塞的是原则十「用户每次点进去看到最新」
+   这一首要目标。因此决定做根因修复，而非继续放任。
+3. **修复（不弱化任何门）**：给 `scripts/crossrealm-ribbon-guard.mjs` **新增** `--write` 模式，
+   把两语 `.cr-volumes` / `.cr-sources-label` 兜底数字刷成事实包的
+   `novel_chapters_zh` / `lore_sources`；默认无参的检查逻辑一字未改，反向控制仍在，
+   未刷写的漂移照样判红。再让 `sync-crossrealm.yml` 在复制 fact pack 后调用 `--write`，
+   并把 `index.html` 纳入同一 commit 与 diff 判定。
+4. **端到端实测**：`node --check` exit 0；`--write` 打印 `已刷写双语兜底 → 292 卷 / 615 源`；
+   随后默认检查 `OK — 双语兜底 292 卷 / 615 源，与事实包一致` exit 0。
+   推送 live repo `db6833ac` 后自动触发：`site-gates` 运行 `45542201907` = success、
+   `pages` 运行 `45542202033` = success（同一 sha）。站点实测
+   `pages strike: #2097 head: 850142f7 chronicle: 1892`。
+5. **边界**：本次只修 crossrealm 这条；其它 lane（minicc / nexus / career-os / football）
+   若有同类「事实包更新但静态兜底未刷」的漂移，仍可能各自把门推红，未在此号中处理。
+   LLM API 仍因成本关闭，全程离线完成，未调用网关。
