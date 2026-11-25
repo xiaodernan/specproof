@@ -65,7 +65,7 @@ export default function NextStepCard(): JSX.Element {
             {(advice.model ?? "model")} · {advice.model_latency_ms != null ? `${(advice.model_latency_ms / 1000).toFixed(1)}s` : "—"} · {advice.cached ? L("指纹缓存命中", "fingerprint hit") : L("现场生成", "generated live")} · {advice.evidence_packet_chars ?? "—"} B {L("数据包", "packet")}
           </p>
           <p className="next-step-body" style={{ whiteSpace: "pre-wrap", lineHeight: 1.9, margin: 0 }}>{advice.advice}</p>
-          <p className="muted" style={{ margin: "10px 0 0", fontSize: "0.82em" }}>
+          <p className="muted" style={{ margin: "var(--sp-3) 0 0", fontSize: "var(--text-xs)" }}>
             {L("这段读法不是判决 —— 指南针，不是镰刀。这句话里任何数字都来自仓库本身。", "This reading is not a verdict — a compass, not a scythe. Every number in it comes from the repo itself.")}
           </p>
         </>

@@ -44913,3 +44913,106 @@ Court `4117d2b0ca5fb23a` LOCKED · Night Watch CRACKED · exhibit **19** · 24 p
 5. **边界**：本次只修 crossrealm 这条；其它 lane（minicc / nexus / career-os / football）
    若有同类「事实包更新但静态兜底未刷」的漂移，仍可能各自把门推红，未在此号中处理。
    LLM API 仍因成本关闭，全程离线完成，未调用网关。
+
+
+
+
+
+## #2099 设计系统五门归零 + 坏 token 引用归零：四个野生页面接回设计系统
+
+1. **真实证据（PRE-FIX 实测，基线 `c795372`）**：设计系统这一族**同时红着**，读数是门
+   自己打印的，不是估计：
+   - `test_web_css_stays_on_the_design_system.py::test_the_web_ui_stays_on_the_4px_grid`
+     —— **57** 处间距越 4px 栅格；
+   - 同文件 `::test_no_painted_color_bypasses_the_theme_tokens` —— **79** 处颜色以字面量
+     直接画在规则里，因而无法跟随 `[data-theme="light"]`；
+   - `test_web_radius_ladder_is_the_only_corner_source.py::test_every_radius_comes_from_the_ladder`
+     —— **10** 处圆角不在阶梯上；
+   - `test_web_shadows_carry_no_literal_colour.py::test_no_shadow_carries_a_literal_colour`
+     —— **5** 处阴影烤死了颜色；
+   - `test_web_type_scale_is_the_only_font_size_source.py::test_every_font_size_comes_from_the_scale`
+     —— **42** 处字号不在字阶上。
+   另有 `test_web_theme_contrast_is_readable.py`——它评的是**调色板**（`tokens.css` →
+   `base.css` → `product.css` 的真实级联），不评单页，所以它**本来就绿**，本号既没碰
+   调色板，也不声称修好了它。
+   **家族是五道门，不是四道**：台账第 8 条（`scripts/build_roadmap_live.py` 生成）写着
+   "四道设计系统门（4 px grid / theme-blind colours / radius ladder / shadows · 计
+   608/1,315/101/71/406）"——四个名字配五个数字，那 **406 是字阶 scale，它没被点名**。
+   本号的家族是从 `tests/unit/test_web_*.py` **枚举**出来的，不是照抄台账的措辞。
+   另有一项独立普查（以 `tokens.css` 的声明 ∪ `styles/product.css` 的 `:root` 覆盖 ∪ 组件
+   内联注入三者之并集为"存在"）量到 **51** 处 `var(--x)` 指向谁也不声明的属性，其中
+   **25** 处没有 fallback——浏览器会直接丢弃整条声明。
+2. **根因（四条，互相独立）**：
+   ① **四个页面从未加入设计系统**：`styles/askthebook.css`、`styles/guess.css`、
+   `styles/library.css`、`styles/recent-knocks.css` 自带调色板、自带圆角、自带间距、
+   自带字号，于是它们同时踩中五道门。`guess.css` 更是从"浅底深字"的自有配色里长出来的。
+   ② **这一族是"修好过又被重新弄红"的**：`82c9655`（#1945，2026-11-17）撬开了三道门
+   （4px 网格 **601→0**、字阶 **406→0**、圆角 **101→0**、阴影 **71→0**，字色 **1,165**
+   在册待还）；随后 **2026-11-18～11-20** 新增的四个页面（`ef8fb6a` 问问书、`74fe1d0`
+   藏书阁、`96a96f2` 猜裁决、`81a6356` 最近敲门）各自带着一套自有样式回来，把这一族
+   重新推红——`3d5afa9` 的 `next-step.css` 也贡献了字阶欠账。**新增页面不加入设计系统，
+   就是这一族复发的方式。**
+   ③ **坏 token 引用是既有门的盲区**：`#1612` 数的是颜色*字面量*、`#1625` 数的是圆角、
+   `#1628` 数的是阴影颜色——**缺失的 token 四样都不是**，所以一个页面可以在五道门眼里
+   完全干净，同时在运行时丢声明。库页问的 `--archive-gold-light` 全仓没有任何主题声明
+   它，于是那条 `color:` 被浏览器丢弃：那一行金色标题**从来没有出现过**。
+   ④ **"DM Mono" 全仓从未加载**：它在 8 处被引用，但仓库里没有 `@font-face`、没有字体
+   资源、没有字体链接。于是每一条 `font-family:"DM Mono",monospace` 都静默回退到平台
+   默认等宽字体，字形度量与设计系统的 `--font-mono` 栈不一致——这是"字体变形"的真实根因。
+3. **修复（分支 `fix/design-system-remediation`，零新造 token）**：
+   - 四个页面改接**既有** token：`--muted/--panel/--border/--input/--white/--accent/--radius`
+     → `--color-text-2/--color-surface-2/--color-border/--color-surface-3/--color-text/--accent-500/--radius-lg`；
+     `guess` 的法庭金改由双主题感知的暖色族 `--warning-*` 承载，判决按钮改由 `--success-*`/`--danger-*`
+     承载；`library` 的 `--archive-gold-light` → `--archive-gold-mid-light`（档案系其它页面正在用的那一个）、
+     `--library-gold` → `--archive-gold-mid`；`recent-knocks` 的 `--surface-2` → `--color-surface-2`，
+     金边/金点/辉光改用 `--archive-gold-*`/`--archive-brass`/`--glow-gold`。
+     间距统一走 `--sp-*`、圆角走 `--radius-*`、字号走 `--text-*`、等宽字走 `--font-mono`。
+   - 字阶欠账 **10** 处归零（`guess.css` 三处 `clamp()`、`library.css` 一处 `clamp()`、
+     `next-step.css` 一处 `0.82em`、`recent-knocks.css` 四处 `em`/`rem`、
+     `NextStepCard.tsx` 内联 `fontSize` 一处）：`clamp()` 里越阶的 px 换回阶梯值
+     （`clamp(26px,4.4vw,40px)` → `clamp(24px,4.4vw,34px)`，`clamp(48px,10vw,84px)` →
+     `clamp(34px,10vw,48px)`，`clamp(38px,4.5vw,56px)` → `clamp(34px,4.5vw,48px)`），
+     裸 `em`/`rem` 换成 `--text-*` 步。
+   - 坏引用 **26** 处归零：`styles/verification.css` **22**（`--color-border-2`→`--color-border-strong` **10**、
+     `--color-text-1`→`--color-text` **7**、`--accent-soft`/`--color-accent-soft`→`--accent-tint` **5**）、
+     `styles/atlas.css` **1**（`--shadow-md`→`--elev-3`）、`styles/insight.css` **3**
+     （`--surface-2`/`--surface-3`→`--color-surface-2`/`--color-surface-3`、`--danger-text`→`--danger-fg`）。
+   - `apps/web/src/pages/NextStepCard.tsx` 内联 `margin:"10px 0 0"` → `var(--sp-3)`。
+   - **新增门** `tests/unit/test_web_css_names_only_tokens_that_exist.py`：**每个 `var(--x)`
+     必须落在"已声明 ∪ 已注入"之内**。两个集合都是**推导**出来的——声明集 = `tokens.css`
+     的声明 ∪ 任何 CSS 里的自定义属性声明（`product.css` 的 `:root` 覆盖是货真价实的声明），
+     注入集 = 组件内联注入的逐元素属性（`DonutMeter` 注入 `--arc`）。**本文件不写任何名字清单**，
+     所以改名或搬文件不会让门变成自己的判据。
+4. **门检（PRE-FIX 腿 + 变异臂）**：
+   - 五道门修复后 **22 passed**（57/79/10/5/42 → **0/0/0/0/0**，精确归零，未部分涂绿）。
+   - 新门的 **PRE-FIX 腿**：把**同一份门字节**放进修复前的树（`git worktree add --detach c795372`）
+     跑 → **红**，报 **51** 处空洞，**1 failed / 3 passed**——失败的正是主断言，另三条
+     （尺子自测 / 非空 / 调色板老家）仍绿，证明门认的是缺陷、不是新写法。
+   - **变异臂 4/4 全部符合预期**（每臂：快照 → 改 → 跑 → `finally` 还原 → 复验 sha256）：
+     A1 重新引入 `--color-text-1` → 红，1 洞；A2 删掉 `DonutMeter` 的 `--arc` 内联注入 →
+     红，2 洞（`viz.css`）；A3 删掉 `product.css` 的 `--sp-7` → 红，2 洞（`base.css`）；
+     A4 **对照组**：新增一个 token 并使用它 → 仍**绿**，0 洞（证明门不是名单）。
+   - 前端回路：`npm run typecheck`（tsc --noEmit）通过；`npm run test` **93 文件 / 630 用例全绿**。
+5. **诚实边界**：① **没有做浏览器像素级比对**：四页的外观变化（尤其 `guess` 从自有配色
+   并入主题、几处 `clamp()` 的上下界收窄）只做了 CSS 层核对，没有截图回归对照；本号
+   **不声称**"视觉零回归"。② 法庭金借用 `--warning-*`（本仓唯一双主题感知的暖色族）是一处
+   语义借用，若日后拆出专用装饰性暖色 token，此处需同步改。③ `guess.css` 原为"浅底深字"的
+   独立配色，本号把它并入主设计系统，因此它在浅色主题下与深色主题观感不同——这是设计意图，
+   但**没有任何人**复核过这次观感改动是否被产品接受。④ **已量到未改的结构债**：`--sp-7`（28px）
+   只在 `styles/product.css` 的 `:root` 块里声明，而 `apps/web/src/styles/base.css` 在用它；
+   今天 product.css 必被加载所以能解析，但若将来某个入口不加载它，这两处会退回"声明被丢弃"。
+   改它要动 28px 的布局语义，不在本号范围。⑤ 本号**零 LLM token**。⑥ 真实 CI 转绿需推送后
+   GitHub 再调度一次 run 验证（本地无法模拟 GitHub 的 workflow 语义校验）。
+
+**证据文件**
+
+- `apps/web/src/styles/askthebook.css`
+- `apps/web/src/styles/guess.css`
+- `apps/web/src/styles/library.css`
+- `apps/web/src/styles/recent-knocks.css`
+- `apps/web/src/styles/next-step.css`
+- `apps/web/src/styles/verification.css`
+- `apps/web/src/styles/atlas.css`
+- `apps/web/src/styles/insight.css`
+- `apps/web/src/pages/NextStepCard.tsx`
+- `tests/unit/test_web_css_names_only_tokens_that_exist.py`

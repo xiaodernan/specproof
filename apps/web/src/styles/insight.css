@@ -321,7 +321,7 @@
   display: block;
   height: 10px;
   border-radius: var(--radius-full);
-  background: var(--surface-3);
+  background: var(--color-surface-3);
   overflow: hidden;
   min-width: 80px;
 }
@@ -341,7 +341,7 @@
   margin: 8px 0 0;
 }
 .observe-gate-field {
-  background: var(--surface-2);
+  background: var(--color-surface-2);
   border: 1px solid var(--shadow-highlight);
   color: var(--parchment-mid-pp);
   border-radius: var(--radius-2xs);
@@ -350,7 +350,7 @@
   font-size: var(--text-md);
   font-family: inherit;
 }
-.observe-gate-error { color: var(--danger-text); margin: 8px 0 0; font-size: var(--text-sm); }
+.observe-gate-error { color: var(--danger-fg); margin: 8px 0 0; font-size: var(--text-sm); }
 .observe-gate-note {
   color: var(--steel-graphite-2);
   font-size: var(--text-xs);

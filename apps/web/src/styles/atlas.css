@@ -15,7 +15,7 @@
 /* two-column layout: map + panel */
 .atlas-grid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(330px, 5fr); gap: 16px; align-items: stretch; }
 
-.atlas-map-frame { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-xl); padding: 16px; position: relative; overflow: hidden; box-shadow: var(--shadow-md, 0 14px 40px -20px var(--shadow-ambient)); }
+.atlas-map-frame { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-xl); padding: 16px; position: relative; overflow: hidden; box-shadow: var(--elev-3); }
 .atlas-svg { width: 100%; height: auto; display: block; }
 
 .atlas-island { cursor: pointer; transition: fill-opacity .25s ease, stroke-opacity .25s ease, stroke-width .25s ease; outline: none; }

@@ -6,7 +6,7 @@
 }
 
 .next-step-meta {
-  font-size: 0.82em;
+  font-size: var(--text-xs);
   margin: 0 0 8px;
 }
 
